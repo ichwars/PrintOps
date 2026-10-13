@@ -124,6 +124,8 @@ function WebSocketProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const ConnectAuthorizePage = lazy(() => import('./pages/ConnectAuthorizePage').then(m => ({ default: m.ConnectAuthorizePage })));
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { t: translateInterface } = useTranslation();
   const { authEnabled, loading, user } = useAuth();
@@ -225,6 +227,7 @@ function App() {
                 <Route path="/camera/:printerId" element={<CameraPage />} />
 
                 {/* Cam Wall page - standalone, supports token-authenticated kiosk mode */}
+                <Route path="/connect/authorize" element={<ProtectedRoute><ConnectAuthorizePage /></ProtectedRoute>} />
                 <Route path="/camwall" element={<CamWallPage />} />
 
                 {/* Stream overlay page - standalone for OBS/streaming embeds, no auth required */}

@@ -18,6 +18,8 @@ export type { ApiValidationIssue, TokenPersistence } from './client/core';
 export type * from './client/types';
 export * from './client/specialized';
 export { warehouseArticlesApi } from './client/warehouse-articles';
+export { connectedAppsApi } from './client/connected-apps';
+export type { ConnectedApp, ConnectedAppSecret, ConnectAuthorizeInfo } from './client/connected-apps';
 export { lexwareApi } from './client/lexware';
 export { lexwareDocumentsApi } from './client/lexware-documents';
 

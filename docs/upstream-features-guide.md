@@ -174,3 +174,30 @@ Diese Erweiterung gehört zu [O02 / Issue #200](https://github.com/ichwars/Print
 
 
 Bei einer Orca-Vorlage ohne Filament-ID verwenden die Slot-Konfiguration und die Kalibrierung dieselbe vollständige generische Filamentliste, einschließlich PPS-CF, PPA-CF/PPA-GF, BVOH, PHA und EVA. Die Warnung nennt das tatsächlich konfigurierte Material. Gibt es keine sichere generische ID, etwa für PEEK ohne eigene Drucker-ID, bleibt die Slot-Konfiguration unverändert und zeigt einen Fehler; Inventarzuweisungen bleiben ausstehend. RFID-Abgleich und spätere Einlegevorgänge behalten eine bereits vom Drucker gemeldete Filament-ID und deren Kalibrierung, ohne auf die Orca-Zugangsdaten anderer Benutzer zuzugreifen.
+
+## Bei verbundenen Anwendungen mit PrintOps anmelden
+
+Aktiviere zunächst die PrintOps-Authentifizierung. Unter **Einstellungen →
+Integrationen → API & Metriken → Verbundene Anwendungen** können Nutzer mit
+`settings:update` eine Anwendung samt exakter Rückruf-URL registrieren. Speichere
+Client-ID und Client-Geheimnis auf dem Server der externen Anwendung. Das Geheimnis
+wird nur beim Erstellen und Erneuern angezeigt; kopiere es direkt und schließe
+danach die Anzeige.
+
+Beim Aufruf der externen Anmeldung zeigt PrintOps den Anwendungsnamen, das Konto,
+die bestätigte Rückruf-URL und die geteilten Identitätsdaten. Erlaube oder verweigere
+die Anmeldung ausdrücklich. Geteilt werden Benutzer-ID, Benutzername, E-Mail,
+Gruppen, Administratorstatus und aktuelle Berechtigungen. Die Anwendung erhält
+eine Momentaufnahme dieser Daten; sie erhält weder dein PrintOps-Anmeldetoken noch
+Zugriff auf die PrintOps-API. Auch eine zuvor erlaubte Anwendung fragt erneut.
+
+Über die Anwendungsverwaltung lassen sich Name und Rückruf-URL bearbeiten,
+Anwendungen deaktivieren oder löschen und Geheimnisse erneuern. Erneuern,
+Deaktivieren, Löschen und Änderungen der Rückruf-URL machen ausstehende
+Anmeldecodes ungültig. Nach einer Geheimniserneuerung muss die externe Anwendung
+das neue Geheimnis verwenden. Die externe Anwendung verwaltet ihre eigenen
+Sitzungen; deren Abmeldung wird dadurch nicht rückwirkend ausgelöst.
+
+Die [Integrationsanleitung für Entwickler](connected-applications.md) beschreibt
+PKCE, Statusprüfung und den einmaligen Code-Austausch. Die Begleit-Wiki war nicht
+verfügbar; die Anleitung bleibt daher im vorhandenen Dokumentationsverzeichnis.

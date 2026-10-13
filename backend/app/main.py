@@ -29,6 +29,7 @@ from backend.app.api.routes import (
     camera,
     camwall,
     cloud,
+    connected_apps,
     discovery,
     external_links,
     filaments,
@@ -267,7 +268,6 @@ def check_dependencies():
 
 check_dependencies()
 
-
 # Import settings first for logging configuration
 
 # Configure logging based on settings
@@ -359,7 +359,6 @@ if not app_settings.debug:
 
 logging.info("PrintOps starting - debug=%s, log_level=%s", app_settings.debug, log_level_str)
 
-
 # Track active prints: {(printer_id, filename): archive_id}
 _active_prints: dict[tuple[int, str], int] = {}
 
@@ -449,7 +448,6 @@ _printer_offline_notify_tasks: dict[int, asyncio.Task] = {}
 # so a single stale-trigger cooldown isn't enough to fire — only a real
 # offline that survives one reconnect attempt notifies.
 _PRINTER_OFFLINE_NOTIFY_DEBOUNCE_SECONDS = 60.0
-
 
 # HMS short-code → human-readable failure reason. Used by _dispatch_archive_update
 # when status="failed" to label the print's failure_reason in archives.
@@ -6091,6 +6089,7 @@ app = FastAPI(
 # Authentication Middleware - Secures ALL API routes by default
 # Public routes that don't require authentication even when auth is enabled
 PUBLIC_API_ROUTES = {
+    "/api/v1/connect/token",  # Client-secret + single-use PKCE identity exchange.
     # Auth routes needed before/during login
     "/api/v1/auth/status",
     "/api/v1/auth/login",
@@ -6228,14 +6227,9 @@ def _frame_ancestors(default_value: str) -> str:
 @app.middleware("http")
 async def security_headers_middleware(request, call_next):
     """Add standard HTTP security headers to every response."""
-    # Per-request nonce stamped into `script-src` (#1460). On its own this
-    # changes nothing for PrintOps's own pages — index.html has no inline
-    # scripts since the SW registration moved to /sw-register.js. The reason
-    # it's here is Cloudflare: a CF-fronted deployment has the bot-detection
-    # script injected into the HTML on the edge, with a fresh hash on every
-    # load (so hashes can't be allowlisted). When CF sees a nonce in our CSP,
-    # it clones the same nonce onto its injected <script>, and the inline
-    # script passes the policy without us needing 'unsafe-inline'. See
+    # Per-request CSP nonce lets Cloudflare's injected challenge script execute.
+    # PrintOps has no inline scripts; SW registration lives in /sw-register.js.
+    # Cloudflare copies this nonce to its script, avoiding 'unsafe-inline'.
     # https://developers.cloudflare.com/cloudflare-challenges/challenge-types/javascript-detections/#if-you-have-a-content-security-policy-csp
     csp_nonce = secrets.token_urlsafe(16)
     request.state.csp_nonce = csp_nonce
@@ -6314,6 +6308,11 @@ async def security_headers_middleware(request, call_next):
             "base-uri 'self'; "
             "frame-src 'self' http: https:; " + _frame_ancestors("'none'")
         )
+    if request.url.path == "/connect/authorize":
+        response.headers["Content-Security-Policy"] = re.sub(
+            r"frame-ancestors [^;]+;", "frame-ancestors 'self';", response.headers["Content-Security-Policy"]
+        )
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
     if request.url.scheme == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
@@ -6576,6 +6575,7 @@ app.include_router(slicer_presets.router, prefix=app_settings.api_prefix)
 app.include_router(archive_purge.router, prefix=app_settings.api_prefix)
 app.include_router(makerworld.router, prefix=app_settings.api_prefix)
 app.include_router(api_keys.router, prefix=app_settings.api_prefix)
+app.include_router(connected_apps.router, prefix=app_settings.api_prefix)
 app.include_router(webhook.router, prefix=app_settings.api_prefix)
 app.include_router(ams_history.router, prefix=app_settings.api_prefix)
 app.include_router(printer_sensor_history.router, prefix=app_settings.api_prefix)

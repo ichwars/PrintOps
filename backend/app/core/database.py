@@ -244,6 +244,7 @@ async def init_db():
         color_catalog,
         commerce,
         commercial_document,
+        connected_app,
         customer,
         document_audit,
         document_configuration,
@@ -304,14 +305,13 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-        # Run migrations for new columns (SQLite doesn't auto-add columns)
+        from backend.app.core.connected_identity_migration import migrate_connected_identity
+
+        await migrate_connected_identity(conn)
         await run_migrations(conn)
 
-    # Re-encrypt any legacy plaintext OIDC client_secret / TOTP secret rows
-    # that exist from before the encryption key was configured.
-    # Runs on a fresh AsyncSession (NOT the run_migrations() connection) so it
-    # doesn't share a transaction with the schema-DDL block above — required to
-    # avoid SQLite "database is locked" contention on the WAL writer.
+    # Re-encrypt legacy OIDC/TOTP secrets in a fresh session after schema DDL
+    # to avoid SQLite WAL writer contention.
     await _migrate_encrypt_legacy_secrets()
     await _migrate_default_document_layouts()
     from backend.app.services.filament_sku_identity import backfill_material_numbers

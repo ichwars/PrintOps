@@ -426,6 +426,7 @@ export const legacySearchTabByAnchor: Record<string, string> = {
   'card-webhooks': 'integrations',
   'card-apibrowser': 'integrations',
   'card-camera-tokens': 'integrations',
+  'card-connected-apps': 'integrations',
   'card-vp': 'virtual-printer',
   'card-spoolbuddy': 'spoolbuddy',
   'card-fd-ml': 'failure-detection',
