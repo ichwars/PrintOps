@@ -671,7 +671,8 @@ class TestAmbientDrying(_DryingTestBase):
         await scheduler._check_auto_drying(db, [], set())
 
         mock_pm.send_drying_command.assert_called_once_with(1, 0, 45, 12, mode=1, filament="PLA")
-        assert 1 in scheduler._drying_in_progress
+        assert scheduler._drying_in_progress == {}
+        assert (1, 0) in scheduler._drying_pending
 
     @pytest.mark.asyncio
     @patch("backend.app.services.print_scheduler.printer_manager")
@@ -1120,7 +1121,8 @@ class TestMidPrintDrying(_DryingTestBase):
 
         # PLA preset is 45 degC for n3f; mid-print cap is max(40, 45-5) = 40
         mock_pm.send_drying_command.assert_called_once_with(1, 0, 40, 12, mode=1, filament="PLA")
-        assert 1 in scheduler._drying_in_progress
+        assert scheduler._drying_in_progress == {}
+        assert (1, 0) in scheduler._drying_pending
 
     @pytest.mark.asyncio
     @patch("backend.app.services.print_scheduler.printer_manager")

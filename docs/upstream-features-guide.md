@@ -274,3 +274,28 @@ Trocknungstemperatur bleibt wirksam. Druckerreservierungen, freie Druckplatten,
 Druckerzustand, Firmware und Leistungsgrenzen bleiben Voraussetzung für einen
 Start. Manuell gestartete Zyklen werden nicht als automatische Zyklen übernommen
 und nicht von der automatischen Steuerung gestoppt.
+
+Zum Schutz manueller Trocknung erhält ein neu automatisch gestarteter Zyklus
+keine automatische Stop-Berechtigung. Eine erfolgreiche MQTT-Veröffentlichung,
+eine Bestätigung und später gemeldete Restzeit reichen nicht aus, um ihn von
+einem inzwischen manuell gestarteten Zyklus sicher zu unterscheiden. Auch eigene
+automatische Zyklen laufen deshalb bis zum Ende der Firmware-Dauer weiter:
+Das Deaktivieren der Automatik oder das Entfernen künftiger geplanter Drucke
+stoppt sie nicht. Explizite manuelle Bedienung und separat reservierte
+Trocknungspläne behalten ihre bisherigen Abläufe.
+
+Bei `queue_drying_block=false` kann ein Drucker im Zustand `PAUSE` dadurch bis zum
+Ende der Trocknung warten; die Automatik unterbricht diesen unklar zugeordneten
+Zyklus nicht mehr für einen Warteschlangendruck. Meldet der Drucker `IDLE`, kann
+die vorhandene Zustandsprüfung weiterhin einen Druckstart auswählen, ohne zuvor
+die Trocknung zu stoppen. Das beschreibt die Softwareentscheidung und garantiert
+keinen erfolgreichen physischen Druckstart während der Trocknung.
+
+Solange nach einer Startveröffentlichung noch kein laufender Zyklus gemeldet
+wurde, unterdrückt PrintOps weitere Startbefehle für dieselbe AMS-Einheit für
+vier Scheduler-Intervalle, mindestens 120 Sekunden. Während dieser begrenzten
+Unsicherheit bleibt auch das Warmhalten des Druckbetts gesperrt, selbst bei
+noch gemeldeter Restzeit 0. Positive Trocknungsrestzeit sperrt das Warmhalten
+weiterhin unabhängig davon. Nach Ablauf der Unsicherheit kann ein neuer Versuch
+folgen; Umgebungstrocknung mit Wartezeit benötigt dafür erneut frische Messungen
+über die volle eingestellte Dauer.

@@ -109,6 +109,17 @@ class AmbientHumidity:
         self.samples = {key: value for key, value in self.samples.items() if key[0] != printer_id}
         self.criteria = {key: None if key[0] == printer_id else value for key, value in self.criteria.items()}
 
+    def clear_ams(self, printer_id, ams_id, *, forget=False):
+        key = (printer_id, ams_id)
+        self.streaks.pop(key, None)
+        self.samples.pop(key, None)
+        self.criteria.pop(key, None)
+        if not forget:
+            self.criteria[key] = None
+        else:
+            self.ams_members.get(printer_id, set()).discard(ams_id)
+        self.cutoffs.pop(key, None)
+
     def forget_printer(self, printer_id):
         self.clear_printer(printer_id)
         self.criteria = {key: value for key, value in self.criteria.items() if key[0] != printer_id}

@@ -15,6 +15,7 @@ from backend.app.services.preheat_ownership import PreheatOwnership
 from backend.app.services.print_scheduler import PrintScheduler
 from backend.app.services.queue_keep_warm import QueueKeepWarm
 from backend.tests.unit.test_queue_keep_warm import compatible  # noqa: F401
+from backend.tests.unit.test_scheduler_sustained_humidity import mqtt_rig, rig, tick  # noqa: F401
 
 
 @pytest.fixture
@@ -393,3 +394,52 @@ async def test_real_database_loads_prior_variants_and_rejects_unknown_failed_lat
         lifecycle.client.set_bed_temperature.assert_not_called()
     else:
         lifecycle.client.set_bed_temperature.assert_called_once_with(90)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("running", [False, True])
+async def test_actual_pending_drying_publish_blocks_keep_warm_before_running_report(lifecycle, mqtt_rig, running):
+    ctx = lifecycle
+    drying = mqtt_rig
+    drying.states[7] = drying.states.pop(1)
+    state = drying.client.state
+    state.state = "FINISH"
+    state.connected = True
+    state.subtask_id = ctx.data.state.subtask_id
+    state.temperatures = ctx.data.state.temperatures.copy()
+    state.raw_data["ams"][0]["tray"] = ctx.data.state.raw_data["ams"][0]["tray"]
+    from backend.app.services.queue_keep_warm import compatible_keep_warm_target
+
+    assert (
+        compatible_keep_warm_target(ctx.data.printer, ctx.data.previous, ctx.data.next, state, {"ASA": 45, "PA": 50})
+        == 90
+    )
+    drying.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(drying)
+    assert drying.manager.send_drying_command.call_count == 1
+    assert state.raw_data["ams"][0]["dry_time"] == 0
+    assert drying.scheduler._drying_owned_ams == {}
+
+    original = ctx.scheduler
+    ctx.scheduler = drying.scheduler
+    ctx.scheduler._get_bool_setting = original._get_bool_setting
+    ctx.scheduler._get_int_setting = original._get_int_setting
+    ctx.scheduler._get_preheat_filament_targets = original._get_preheat_filament_targets
+    ctx.scheduler._get_printer = original._get_printer
+    ctx.pm.get_status.return_value = state
+    await refresh(ctx)
+    ctx.client.set_bed_temperature.assert_not_called()
+    assert ctx.keeper.entries == {}
+    assert not ctx.owner.blocks_power_off(7)
+
+    # An unanswered publication reserves heating only for the bounded pending interval.
+    drying.now[0] += max(4 * drying.scheduler._check_interval, 120)
+    if running:
+        drying.client._handle_ams_data({"ams": [{"id": 0, "dry_time": 90}]})
+        await refresh(ctx)
+        ctx.client.set_bed_temperature.assert_not_called()
+        assert ctx.keeper.entries == {}
+        drying.client._handle_ams_data({"ams": [{"id": 0, "dry_time": 0}]})
+    await refresh(ctx)
+    ctx.client.set_bed_temperature.assert_called_once_with(90)
+    assert ctx.owner.blocks_power_off(7)

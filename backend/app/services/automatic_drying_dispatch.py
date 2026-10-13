@@ -5,6 +5,7 @@ from sqlalchemy import select
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.services.ambient_humidity import HumidityObservation, read_humidity
+from backend.app.services.automatic_drying_state import clear_pending, expire_pending, reconcile_pending
 
 
 async def check_auto_drying(
@@ -41,6 +42,7 @@ async def check_auto_drying(
         setting = result.scalar_one_or_none()
         sustained_minutes = int(setting.value) if setting else 0
     self._ambient_humidity.configure(ambient_drying_enabled, sustained_minutes)
+    expire_pending(self, time.monotonic())
     if not queue_drying_enabled and not ambient_drying_enabled and not print_drying_enabled:
         # Stop our active drying when all automatic modes are disabled
         if self._drying_in_progress:
@@ -49,7 +51,7 @@ async def check_auto_drying(
                 await self._stop_drying(pid)
         return
 
-    # Reconcile only AMS cycles successfully started by this scheduler
+    # Reconcile explicit stop authority; command publication never grants it.
     self._sync_drying_state()
 
     # Find printers with scheduled items (for queue drying mode)
@@ -96,7 +98,9 @@ async def check_auto_drying(
         key[0]
         for key in self._ambient_humidity.streaks | self._ambient_humidity.samples | self._ambient_humidity.criteria
     } | set(self._drying_owned_ams)
+    tracked_ids.update(key[0] for key in self._drying_pending)
     for pid in tracked_ids - active_ids:
+        clear_pending(self, pid)
         self._ambient_humidity.forget_printer(pid)
         self._drying_in_progress.pop(pid, None)
         self._drying_owned_ams.pop(pid, None)
@@ -110,12 +114,15 @@ async def check_auto_drying(
         # qualifies for mid-print drying (busy printer on capable hardware).
         state = printer_manager.get_status(pid)
         if not state:
+            clear_pending(self, pid)
             self._ambient_humidity.clear_printer(pid)
             logger.debug("Auto-drying: printer %d skipped — no state", pid)
             continue
         if not printer_manager.is_connected(pid):
+            clear_pending(self, pid)
             self._ambient_humidity.clear_printer(pid)
             continue
+        reconcile_pending(self, pid, state, now)
         ready_ams = (
             self._ambient_humidity.observe(
                 pid,
@@ -173,6 +180,8 @@ async def check_auto_drying(
         for ams_data in ams_list:
             module_type = str(ams_data.get("module_type") or "")
             ams_id = int(ams_data.get("id", 0))
+            if (pid, ams_id) in self._drying_pending:
+                continue
             # Only n3f/n3s support drying
             if module_type not in ("n3f", "n3s"):
                 logger.debug("Auto-drying: printer %d AMS %d skipped — module_type=%s", pid, ams_id, module_type)
@@ -270,6 +279,6 @@ async def check_auto_drying(
             )
             success = await start_drying(db, printer_manager, pid, ams_id, temp, duration_hours, filament_type)
             if success:
-                self._drying_in_progress[pid] = time.monotonic()
-                self._drying_owned_ams.setdefault(pid, set()).add(ams_id)
+                # Publication is not attribution: ACK/no-op/manual-start reports are ambiguous.
+                self._drying_pending[(pid, ams_id)] = (time.monotonic(), state.drying_telemetry)
                 self._ambient_humidity.streaks.pop((pid, ams_id), None)

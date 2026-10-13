@@ -435,7 +435,7 @@ class PrintScheduler:
     def stop(self):
         """Stop the scheduler."""
         self._running = False
-        self._ambient_humidity.reset()
+        init_drying_state(self, reset=True)
         self._inventory_alerts_stopped = True
         if self._inventory_alert_task is not None:
             self._inventory_alert_task.cancel()

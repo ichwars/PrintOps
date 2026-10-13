@@ -158,16 +158,19 @@ async def test_missing_reading_is_not_low_but_cannot_start(rig):
 
 
 @pytest.mark.asyncio
-async def test_queue_and_print_only_are_exempt(rig):
-    rig.settings.update(queue_drying_enabled="true", ambient_drying_enabled="true")
-    scheduled = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
-    await tick(rig, queue=[scheduled])
-    rig.manager.send_drying_command.assert_called_once()
-    rig.manager.send_drying_command.reset_mock()
-    rig.scheduler._drying_in_progress.clear()
-    rig.settings.update(queue_drying_enabled="false", ambient_drying_enabled="false", print_drying_enabled="true")
-    await tick(rig, busy=[1])
-    rig.manager.send_drying_command.assert_called_once_with(1, 0, 40, 12, mode=1, filament="PLA")
+@pytest.mark.parametrize("mode", ["queue", "print"])
+async def test_queue_and_print_only_are_exempt(rig, mode):
+    if mode == "queue":
+        rig.settings.update(queue_drying_enabled="true", ambient_drying_enabled="true")
+        scheduled = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+        await tick(rig, queue=[scheduled])
+        rig.manager.send_drying_command.assert_called_once_with(1, 0, 45, 12, mode=1, filament="PLA")
+    else:
+        rig.settings.update(queue_drying_enabled="false", ambient_drying_enabled="false", print_drying_enabled="true")
+        await tick(rig, busy=[1])
+        rig.manager.send_drying_command.assert_called_once_with(1, 0, 40, 12, mode=1, filament="PLA")
+    assert rig.scheduler._drying_owned_ams == {}
+    assert (1, 0) in rig.scheduler._drying_pending
 
 
 @pytest.mark.asyncio
@@ -207,11 +210,12 @@ async def test_manual_cycle_never_becomes_owned_or_stopped(rig):
 
 
 @pytest.mark.asyncio
-async def test_stop_only_automatic_ams_and_cleans_streak(rig):
-    rig.settings["ambient_drying_sustained_minutes"] = "0"
+async def test_stop_only_explicitly_owned_ams_and_cleans_streak(rig):
+    # Exercise the helper's explicit-authority contract; publication never creates it.
     rig.states[1].raw_data["ams"].append(unit(1, dry_time=100))
-    await tick(rig)
     rig.states[1].raw_data["ams"][0]["dry_time"] = 100
+    rig.scheduler._drying_in_progress[1] = rig.now[0]
+    rig.scheduler._drying_owned_ams[1] = {0}
     rig.manager.send_drying_command.reset_mock()
     await rig.scheduler._stop_drying(1)
     rig.manager.send_drying_command.assert_called_once_with(1, 0, 0, 0, mode=0)
@@ -266,7 +270,8 @@ async def test_failed_start_keeps_passive_streak_and_does_not_claim(rig):
     assert rig.scheduler._ambient_humidity.streaks
     rig.manager.send_drying_command.return_value = True
     await tick(rig, 30)
-    assert rig.scheduler._drying_owned_ams == {1: {0}}
+    assert rig.scheduler._drying_owned_ams == {}
+    assert (1, 0) in rig.scheduler._drying_pending
     assert rig.scheduler._ambient_humidity.streaks == {}
 
 
@@ -280,7 +285,8 @@ async def test_running_cycle_spends_wait_and_low_humidity_does_not_stop(rig):
     rig.manager.send_drying_command.reset_mock()
     await tick(rig, 60)
     rig.manager.send_drying_command.assert_not_called()
-    assert rig.scheduler._drying_owned_ams == {1: {0}}
+    assert rig.scheduler._drying_owned_ams == {}
+    assert rig.scheduler._drying_pending == {}
     assert rig.scheduler._ambient_humidity.streaks == {}
     ams["dry_time"] = 0
     await tick(rig, 30)
@@ -736,3 +742,302 @@ async def test_mqtt_other_material_threshold_change_preserves_unconsumed_low_his
     rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
     await tick(rig)
     rig.manager.send_drying_command.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ack", [None, "fail", "success"])
+async def test_mqtt_publication_and_ack_never_own_later_manual_cycle(mqtt_rig, ack):
+    import json
+
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    wire = json.loads(rig.client._client.publish.call_args.args[1])["print"]
+    assert wire["mode"] == 1
+    if ack:
+        rig.client._process_message(
+            {"print": {"command": "ams_filament_drying", "sequence_id": wire["sequence_id"], "result": ack}}
+        )
+    rig.now[0] += 30
+    rig.client._handle_ams_data({"ams": [{"id": 0, "dry_time": 90}]})
+    rig.settings["ambient_drying_enabled"] = "false"
+    rig.manager.send_drying_command.reset_mock()
+    await tick(rig)
+    rig.manager.send_drying_command.assert_not_called()
+    assert rig.scheduler._drying_owned_ams == {}
+    assert rig.scheduler._drying_in_progress == {}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_uncertain_publication_is_unowned_and_not_repeated(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    for _ in range(3):
+        rig.now[0] += 30
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+    assert rig.manager.send_drying_command.call_count == 1
+    assert rig.scheduler._drying_owned_ams == {}
+    await rig.scheduler._stop_drying(1)
+    assert rig.manager.send_drying_command.call_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("printer_state", ["IDLE", "PAUSE"])
+async def test_mqtt_queue_manual_protection_uses_existing_idle_gate(mqtt_rig, printer_state):
+    """Verify the explicitly selected queue behavior for unattributed drying."""
+    from backend.app.services.queue_keep_warm import QueueKeepWarm
+
+    rig = mqtt_rig
+    rig.settings.update(ambient_drying_enabled="false", queue_drying_enabled="true", queue_drying_block="false")
+    future = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    await tick(rig, queue=[future])
+    rig.client._process_message({"print": {"gcode_state": printer_state, "ams": {"ams": [{"id": 0, "dry_time": 90}]}}})
+    assert QueueKeepWarm.drying_reserved(rig.scheduler, rig.manager, 1)
+
+    def publish(topic, body, **kwargs):
+        import json
+
+        if json.loads(body)["print"].get("mode") == 0:
+            rig.client._update_state({"gcode_state": "IDLE"})
+        return SimpleNamespace(rc=0)
+
+    rig.client._client.publish.side_effect = publish
+    rig.manager.send_drying_command.reset_mock()
+    item = SimpleNamespace(
+        id=77,
+        printer_id=1,
+        scheduled_time=None,
+        manual_start=False,
+        waiting_reason=None,
+        archive_id=1,
+        library_file_id=None,
+        cleanup_library_after_dispatch=False,
+        require_previous_success=False,
+    )
+    scheduler = rig.scheduler
+    scheduler._is_printer_idle = PrintScheduler._is_printer_idle.__get__(scheduler)
+    rig.manager.is_awaiting_plate_clear.return_value = False
+    with (
+        patch.object(scheduler, "_schedule_inventory_alerts"),
+        patch.object(scheduler, "_pending_queue_items", AsyncMock(return_value=([item], False))),
+        patch.object(scheduler, "_busy_printers_for_pass", AsyncMock(return_value=set())),
+        patch.object(scheduler, "_ensure_ams_mapping", AsyncMock()),
+        patch.object(scheduler, "_block_on_filament_deficit", AsyncMock(return_value=False)),
+        patch.object(scheduler, "_refresh_keep_warm", AsyncMock()),
+        patch.object(scheduler, "_launch_uploads") as launch,
+        patch("backend.app.services.print_scheduler.ha_sensor_manager.blocked_printers", AsyncMock(return_value={})),
+    ):
+        dispatched = await scheduler.check_queue()
+    print(
+        f"O07 compatibility: state={printer_state}, stop_commands={rig.manager.send_drying_command.call_args_list}, dispatched={dispatched}, launches={launch.call_args_list}"
+    )
+    assert dispatched == (printer_state == "IDLE")
+    rig.manager.send_drying_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_pending_timeout_retries_only_after_new_full_streak(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    rig.settings["ambient_drying_sustained_minutes"] = "2"
+    rig.now[0] += 121
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    assert rig.manager.send_drying_command.call_count == 1
+    for _ in range(2):
+        rig.now[0] += 60
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+    assert rig.manager.send_drying_command.call_count == 2
+    assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+async def test_scheduler_stop_discards_pending_without_live_stop_command(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    assert rig.scheduler._drying_pending
+    rig.manager.send_drying_command.reset_mock()
+    rig.scheduler.stop()
+    assert rig.scheduler._drying_pending == {}
+    assert rig.scheduler._drying_owned_ams == {}
+    rig.manager.send_drying_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exit_mode", ["disabled", "queue_empty"])
+@pytest.mark.parametrize("remaining", [0, 90])
+async def test_mqtt_unconfirmed_cycle_exit_never_sends_stop(mqtt_rig, exit_mode, remaining):
+    rig = mqtt_rig
+    rig.settings.update(ambient_drying_enabled="false", queue_drying_enabled="true")
+    future = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    await tick(rig, queue=[future])
+    rig.client._handle_ams_data({"ams": [{"id": 0, "dry_time": remaining}]})
+    if exit_mode == "disabled":
+        rig.settings["queue_drying_enabled"] = "false"
+    rig.manager.send_drying_command.reset_mock()
+    await tick(rig, 30)
+    rig.manager.send_drying_command.assert_not_called()
+    assert rig.scheduler._drying_owned_ams == rig.scheduler._drying_in_progress == {}
+    # Mode changes cannot cancel an already published command; guard until bounded expiry.
+    assert (1, 0) in rig.scheduler._drying_pending
+    await tick(rig, 90)
+    assert rig.scheduler._drying_pending == {}
+    rig.manager.send_drying_command.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_pending_duplicate_bound_uses_four_scheduler_intervals(mqtt_rig):
+    rig = mqtt_rig
+    rig.scheduler._check_interval = 45
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    await tick(rig, 179)
+    assert rig.manager.send_drying_command.call_count == 1
+    await tick(rig, 1)
+    assert rig.manager.send_drying_command.call_count == 2
+    assert rig.scheduler._drying_owned_ams == rig.scheduler._drying_in_progress == {}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_pending_reconnect_retires_uncertainty_and_requires_fresh_wait(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    old_generation = rig.scheduler._drying_pending[(1, 0)][1]
+    rig.settings["ambient_drying_sustained_minutes"] = "1"
+    rig.now[0] += 30
+    rig.client._last_message_time = 0
+    rig.client._on_disconnect(rig.client._client, None, rc=1)
+    rig.client._client.subscribe.return_value = (0, 1)
+    rig.client._on_connect(rig.client._client, None, {}, 0)
+    assert rig.states[1].drying_telemetry is not old_generation
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    assert rig.scheduler._drying_pending == {}
+    rig.now[0] += 30
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    assert rig.manager.send_drying_command.call_count == 1
+    rig.now[0] += 30
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    assert rig.manager.send_drying_command.call_count == 2
+    assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("disappears", ["printer", "ams"])
+async def test_mqtt_pending_disappearance_cleans_identity_without_stop(mqtt_rig, disappears):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    if disappears == "printer":
+        rig.excluded.add(1)
+    else:
+        rig.states[1].raw_data["ams"] = []
+    await tick(rig, 30)
+    assert rig.scheduler._drying_pending == {}
+    assert rig.scheduler._ambient_humidity.criteria == {}
+    assert rig.manager.send_drying_command.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_mqtt_pending_is_per_ams_and_manual_report_has_no_stop_authority(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    rig.client._handle_ams_data({"ams": [unit(1), unit(2, dry_time=90)]})
+    await tick(rig)
+    assert [call.args[1] for call in rig.manager.send_drying_command.call_args_list] == [0, 1]
+    assert set(rig.scheduler._drying_pending) == {(1, 0), (1, 1)}
+    rig.client._handle_ams_data({"ams": [{"id": 0, "dry_time": 90}]})
+    await tick(rig, 30)
+    assert set(rig.scheduler._drying_pending) == {(1, 1)}
+    await rig.scheduler._stop_drying(1)
+    assert rig.scheduler._drying_pending == {}
+    assert rig.manager.send_drying_command.call_count == 2
+    assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_pending_expiry_cannot_credit_unconsumed_pre_expiry_sample(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "1"
+    rig.settings["queue_drying_enabled"] = "true"
+    future = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    await tick(rig, queue=[future])  # Enabled queue starts without the ambient wait.
+    rig.settings["queue_drying_enabled"] = "false"
+    rig.now[0] += 119
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig, 1)
+    assert rig.scheduler._drying_pending == {}
+    assert rig.scheduler._ambient_humidity.streaks == {}
+    for elapsed in (10, 50):
+        rig.now[0] += elapsed
+        rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+        await tick(rig)
+        assert rig.manager.send_drying_command.call_count == 1
+    rig.now[0] += 10
+    rig.client._handle_ams_data({"ams": [{"id": 0, "humidity_raw": 75}]})
+    await tick(rig)
+    assert rig.manager.send_drying_command.call_count == 2
+    assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_publish_exception_never_grants_pending_or_stop_authority(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    rig.client._client.publish.side_effect = RuntimeError("mock transport unavailable")
+    with pytest.raises(RuntimeError, match="mock transport unavailable"):
+        await tick(rig)
+    assert rig.scheduler._drying_pending == {}
+    assert rig.scheduler._drying_owned_ams == rig.scheduler._drying_in_progress == {}
+    rig.client._client.publish.side_effect = None
+    await tick(rig, 30)
+    assert rig.manager.send_drying_command.call_count == 2
+    assert (1, 0) in rig.scheduler._drying_pending
+    assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+async def test_scheduler_stop_preserves_existing_explicit_ams_authority(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    await tick(rig)
+    # Deliberately seed pre-existing explicit authority; no publication creates this map.
+    rig.scheduler._drying_in_progress[1] = rig.now[0]
+    rig.scheduler._drying_owned_ams[1] = {0}
+    rig.client._handle_ams_data({"ams": [{"id": 0, "dry_time": 90}, unit(1, dry_time=90)]})
+    rig.manager.send_drying_command.reset_mock()
+    rig.scheduler.stop()
+    assert rig.scheduler._drying_pending == {}
+    assert rig.scheduler._drying_in_progress == {1: rig.now[0]}
+    assert rig.scheduler._drying_owned_ams == {1: {0}}
+    rig.manager.send_drying_command.assert_not_called()
+    await rig.scheduler._stop_drying(1)
+    rig.manager.send_drying_command.assert_called_once_with(1, 0, 0, 0, mode=0)
+    assert rig.scheduler._drying_owned_ams == {}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_pending_window_begins_after_actual_publication(mqtt_rig):
+    rig = mqtt_rig
+    rig.settings["ambient_drying_sustained_minutes"] = "0"
+    send = rig.manager.send_drying_command.side_effect
+
+    def delayed_send(*args, **kwargs):
+        rig.now[0] += 20  # Software operation delays before the real mocked MQTT publication.
+        return send(*args, **kwargs)
+
+    rig.manager.send_drying_command.side_effect = delayed_send
+    await tick(rig)
+    await tick(rig, 119)
+    assert rig.manager.send_drying_command.call_count == 1
+    await tick(rig, 1)
+    assert rig.manager.send_drying_command.call_count == 2
+    assert rig.scheduler._drying_owned_ams == {}
