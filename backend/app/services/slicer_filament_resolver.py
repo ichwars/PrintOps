@@ -72,6 +72,7 @@ async def resolve_slicer_filament(
     slicer_filament: str | None,
     slicer_filament_name: str | None,
     material: str | None,
+    orca_lookup_allowed: bool = True,
 ) -> tuple[str, str, str | None, str | None]:
     """Resolve a spool's slicer-preset reference to printer-side ids.
 
@@ -86,6 +87,9 @@ async def resolve_slicer_filament(
 
     ``material``: spool material string for the local-preset fallback
     branch when the LocalPreset's setting JSON doesn't carry a filament_id.
+
+    ``orca_lookup_allowed`` carries the request cloud-scope fence; False
+    selects the generic Orca fallback without reading any stored pairing.
 
     Returns the two preset IDs plus optional descriptive-name and protocol-type
     overrides supplied by the resolved slicer preset.
@@ -111,7 +115,11 @@ async def resolve_slicer_filament(
     # and the printer's calibration table can't resolve it.
     orca_id = sf.removeprefix("orca_")
     if _ORCA_PROFILE_ID.fullmatch(orca_id):
-        found = await lookup_orca_filament_id(db, current_user, orca_id)
+        found = (
+            await lookup_orca_filament_id(db, current_user, orca_id)
+            if orca_lookup_allowed
+            else OrcaFilamentLookup(reason="no_permission")
+        )
         tray_info_idx = found.filament_id
         setting_id = filament_id_to_setting_id(tray_info_idx) if tray_info_idx else ""
         sub_brand_override = found.name.split("@")[0].strip() if found.name else None

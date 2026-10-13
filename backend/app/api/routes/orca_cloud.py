@@ -476,6 +476,8 @@ async def _upsert_settings(db: AsyncSession, values: dict[str, str | None]) -> N
 async def _build_authenticated_service(
     db: AsyncSession,
     user: User | None,
+    *,
+    clear_on_auth_failure: bool = True,
 ) -> OrcaCloudService:
     """Construct an :class:`OrcaCloudService` pre-populated with stored
     credentials. If the access token is within the refresh-leeway of expiry,
@@ -485,7 +487,10 @@ async def _build_authenticated_service(
     We don't lock around the refresh: Orca tolerates concurrent refreshes for
     ~60s (each racer gets its own valid pair on the same connection rather than
     a revoke), so a lost race here is harmless — last-write-wins on the stored
-    pair, and whichever pair we keep is valid."""
+    pair, and whichever pair we keep is valid.
+
+    Opportunistic identity lookups set ``clear_on_auth_failure=False`` so a
+    rejected refresh cannot erase shared credentials during a rotation race."""
     creds = await _load_credentials(db, user)
     if await _clear_legacy_credentials_if_needed(db, user, creds):
         raise HTTPException(status_code=401, detail="Orca Cloud needs to be reconnected with the new device flow.")
@@ -503,9 +508,10 @@ async def _build_authenticated_service(
         try:
             await svc.refresh()
         except OrcaCloudAuthError as e:
-            # Refresh token was revoked or rotated out from under us. Clear
-            # the stale credentials so the UI flips to disconnected.
-            await _clear_credentials(db, user)
+            # Interactive calls clear stale credentials; opportunistic
+            # identity lookups must preserve a pairing during rotation races.
+            if clear_on_auth_failure:
+                await _clear_credentials(db, user)
             raise HTTPException(status_code=401, detail=f"Orca Cloud session refresh failed: {e}") from e
         except OrcaCloudError as e:
             raise HTTPException(status_code=502, detail=f"Orca Cloud unreachable: {e}") from e

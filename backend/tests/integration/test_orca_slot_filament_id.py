@@ -61,7 +61,6 @@ async def _configure(async_client: AsyncClient, printer_id: int, **extra):
 
 class TestConfigureWithOrcaProfile:
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_the_profiles_own_filament_id_goes_to_the_slot(self, async_client: AsyncClient, printer_factory):
         """The id OrcaSlicer itself sends from its Device tab: Pfc74047 in the
         reporter's log, where Bambuddy sent GFL99 for the same profile."""
@@ -88,7 +87,6 @@ class TestConfigureWithOrcaProfile:
         assert ORCA_ID not in kwargs["setting_id"]
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_no_id_falls_back_to_the_generic_and_says_so(self, async_client: AsyncClient, printer_factory):
         """Not the slot's previous filament: reusing it would put the previous
         spool's preset in front of the slicer for a profile the user just chose."""
@@ -111,7 +109,6 @@ class TestConfigureWithOrcaProfile:
         assert client.ams_set_filament_setting.call_args.kwargs["tray_info_idx"] == "GFL99"
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_an_explicit_filament_id_skips_the_lookup(self, async_client: AsyncClient, printer_factory):
         printer = await printer_factory(name="H2D")
         client = _client()
@@ -130,7 +127,6 @@ class TestConfigureWithOrcaProfile:
         assert client.ams_set_filament_setting.call_args.kwargs["tray_info_idx"] == "Pad3f856"
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_other_presets_report_no_fallback(self, async_client: AsyncClient, printer_factory):
         printer = await printer_factory(name="H2D")
         client = _client()
@@ -150,7 +146,6 @@ class TestOrcaFallbackKeepsTheDialogsGenerics:
     the lookup moved to the server: its table has Silk, PCTG, PP and PE."""
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     @pytest.mark.parametrize(
         ("material", "expected"),
         [
@@ -180,7 +175,6 @@ class TestOrcaFallbackKeepsTheDialogsGenerics:
         assert response.json()["orca_fallback_reason"] == "no_filament_id"
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_an_unstorable_looked_up_id_is_refused(self, async_client: AsyncClient, printer_factory):
         """Same refusal as the #3003 guard: an 18-character PFUS would be
         stored truncated and resolve nowhere."""
@@ -200,7 +194,6 @@ class TestOrcaFallbackKeepsTheDialogsGenerics:
         assert response.json()["orca_fallback_reason"] == "no_filament_id"
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_a_kprofile_realignment_clears_the_warning(self, async_client: AsyncClient, printer_factory):
         """The slot ends up on the K-profile's own filament, not a generic."""
         printer = await printer_factory(name="H2D")
@@ -222,7 +215,6 @@ class TestOrcaFallbackKeepsTheDialogsGenerics:
 
 class TestSlotPresetRecordsItsFilamentId:
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_saved_and_returned(self, async_client: AsyncClient, printer_factory):
         printer = await printer_factory(name="H2D")
         url = f"/api/v1/printers/{printer.id}/slot-presets/0/2"
@@ -243,7 +235,6 @@ class TestSlotPresetRecordsItsFilamentId:
         assert listed["2"]["tray_info_idx"] == "Pfc74047"
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_a_save_without_one_clears_the_old_one(self, async_client: AsyncClient, printer_factory):
         """A stale id must not outlive the preset it came with: the slot card
         would compare the new preset against the old preset's filament."""
@@ -261,7 +252,6 @@ class TestSlotPresetRecordsItsFilamentId:
         assert (await async_client.get(url)).json()["tray_info_idx"] is None
 
     @pytest.mark.asyncio
-    @pytest.mark.integration
     async def test_an_overlong_id_is_dropped_not_refused(self, async_client: AsyncClient, printer_factory):
         """Refusing it would lose the preset save itself, which the dialog only
         logs; recording nothing keeps the row shown as before."""
