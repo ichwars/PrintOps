@@ -299,3 +299,30 @@ noch gemeldeter Restzeit 0. Positive Trocknungsrestzeit sperrt das Warmhalten
 weiterhin unabhängig davon. Nach Ablauf der Unsicherheit kann ein neuer Versuch
 folgen; Umgebungstrocknung mit Wartezeit benötigt dafür erneut frische Messungen
 über die volle eingestellte Dauer.
+
+## Python unter macOS für das lokale Netzwerk freigeben
+
+Bei nativer macOS-Installation prüft PrintOps nach dem Aufbau der Python-Umgebung
+und bei abgeschlossenen macOS-Updates die Signatur des tatsächlichen
+Python-Interpreters und einer vorhandenen Framework-App. Nur eindeutig
+unsignierte Ziele erhalten eine Ad-hoc-Signatur. Vorhandene Ad-hoc- und
+Developer-ID-Signaturen bleiben erhalten; ein unbekannter Prüffehler verändert
+das Ziel nicht. Ein Homebrew-Python-Upgrade kann einen neuen Interpreterpfad
+verwenden, deshalb erfolgt die Prüfung bei jedem ausgeführten Update erneut.
+Auch die erste Aktualisierung einer älteren nativen Installation bereitet die
+Identität nach erfolgreicher PDF-Runtime-Prüfung vor dem Dienstneustart vor.
+
+Die Signatur bereitet die Identität vor. Bestätige die Netzwerkfreigabe selbst
+im macOS-Dialog oder unter **Systemeinstellungen → Datenschutz & Sicherheit →
+Lokales Netzwerk** für den betreffenden Python-Eintrag. Nach einem Python-Upgrade
+kann eine neue Freigabe nötig sein. Fehlende Signierwerkzeuge und fehlgeschlagene
+Signierungen erzeugen Warnungen, ohne Installation oder Update abzubrechen.
+Ein ansonsten kompatibler älterer Branch ohne Signierhilfe bleibt installierbar;
+eine Warnung verweist für die automatische Vorbereitung auf einen neueren Branch.
+
+Die [native Installationsanleitung](../install/README.md#macos-local-network-access)
+beschreibt die Wiederholung als Installationsbenutzer und die Prüfung bei
+Warnungen. Die Softwaretests verwenden gemockte Befehle; eine reale macOS-
+Netzwerkfreigabe und Druckerkommunikation wurden damit nicht geprüft.
+
+Diese Erweiterung gehört zu [O09 / Issue #208](https://github.com/ichwars/PrintOps/issues/208).

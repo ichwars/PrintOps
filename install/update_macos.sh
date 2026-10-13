@@ -230,6 +230,12 @@ RUNTIME_BACKUP="$(mktemp -d "$INSTALL_DIR/runtime/.verapdf-backup.XXXXXX")"
   --backup-dir "$RUNTIME_BACKUP/verapdf"
 RUNTIME_UPDATED=1
 
+if [ -f "$INSTALL_DIR/install/macos_python_signature.sh" ]; then
+  bash "$INSTALL_DIR/install/macos_python_signature.sh" macos "$INSTALL_DIR/venv/bin/python" || warn "Python signature preparation failed; rerun install/update_macos.sh from a compatible current branch."
+else
+  warn "Selected branch has no macOS Python signing helper; use a newer compatible branch and rerun install/update_macos.sh for Local Network preparation."
+fi
+
 log "Starting service: $SERVICE_NAME"
 launchctl load "$PLIST_PATH"
 SERVICE_STOPPED=0

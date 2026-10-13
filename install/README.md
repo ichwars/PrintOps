@@ -91,6 +91,44 @@ Installs PrintOps with Python virtual environment and optional systemd/launchd s
 # Skip service setup
 ./install.sh --no-service -y
 ```
+### macOS Local Network access
+
+Native macOS installation and `install/update_macos.sh` inspect the Python
+interpreter used by the PrintOps virtual environment and, when present, its
+framework's `Resources/Python.app`. Only targets explicitly reported as unsigned
+are ad-hoc signed. Existing ad-hoc and Developer ID signatures stay intact so a
+working identity is preserved. An unknown signature-probe failure leaves the
+target unchanged. Every completed update rechecks the interpreter because a
+Homebrew Python upgrade can select a different executable.
+The first update from an older installation also prepares this identity after
+verified native PDF runtime staging, before the service restarts.
+
+Signing prepares an identity; it does not grant Local Network permission.
+Approve Python when macOS asks, or open **System Settings → Privacy & Security →
+Local Network** and allow the relevant Python entry. A Python upgrade may require
+approval again. If the printer remains unreachable, also check its IP address,
+power and network configuration.
+
+Run macOS installation and updates as your normal installation user, without
+`sudo`. Missing `codesign` or a signing failure produces a warning and allows the
+installation/update to continue. For a missing tool, install the Xcode command
+line tools with `xcode-select --install`, then rerun the updater. For other
+warnings, check the target's file permissions or code signature before retrying;
+do not force a replacement of an existing signature.
+Installing or updating an otherwise compatible older branch that has no signing
+helper continues with a warning. Choose a newer compatible branch and rerun the
+macOS updater when you need automatic Local Network identity preparation.
+
+For a native macOS installation at `~/printops`:
+
+```bash
+INSTALL_DIR="$HOME/printops" bash "$HOME/printops/install/update_macos.sh"
+```
+
+This preparation is specific to native macOS Python. Linux and Docker deployments
+keep their existing behavior. Software regression checks use mocked commands;
+real macOS permission prompts and printer access still need manual validation.
+
 ### `windows-installer.ps1` (Windows)
 
 Windows PowerShell (run as Administrator — the installer self-elevates via UAC if not):

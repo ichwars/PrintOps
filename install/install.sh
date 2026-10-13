@@ -417,6 +417,7 @@ setup_virtualenv() {
         $PYTHON_CMD -m venv venv
         "$INSTALL_PATH/venv/bin/pip" install --upgrade pip
         "$INSTALL_PATH/venv/bin/pip" install --require-hashes -r requirements.lock.txt
+        [[ -f "$INSTALL_PATH/install/macos_python_signature.sh" ]] && bash "$INSTALL_PATH/install/macos_python_signature.sh" "$OS_TYPE" "$INSTALL_PATH/venv/bin/python" || log_warn "macOS Python signing unavailable for this branch; use a newer compatible branch and rerun install/update_macos.sh."
     else
         # Venv is owned by the service user, so pip must also run as that user —
         # otherwise `pip install --upgrade pip` fails trying to rewrite its own
@@ -425,7 +426,6 @@ setup_virtualenv() {
         sudo -u "$SERVICE_USER" "$INSTALL_PATH/venv/bin/pip" install --upgrade pip
         sudo -u "$SERVICE_USER" "$INSTALL_PATH/venv/bin/pip" install --require-hashes -r requirements.lock.txt
     fi
-
     log_success "Virtual environment configured"
 }
 
