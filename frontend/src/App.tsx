@@ -172,8 +172,15 @@ function PermissionRoute({ permission, children }: { permission: string; childre
   return <>{children}</>;
 }
 
+const ConnectedAppsSettings = lazy(() => import('./components/ConnectedAppsSettings').then(m => ({ default: m.ConnectedAppsSettings })));
+
 function SettingsRoute() {
   const { authEnabled, hasPermission } = useAuth();
+  const { search } = useLocation();
+  if (authEnabled && !hasPermission('settings:read') && hasPermission('settings:update')
+      && (new URLSearchParams(search).get('tab') === 'integrations' || !hasPermission('accounting_integrations:manage'))) {
+    return <PermissionRoute permission="settings:update"><div className="min-w-0 p-4 md:p-8"><ConnectedAppsSettings /></div></PermissionRoute>;
+  }
   if (authEnabled && !hasPermission('settings:read') && hasPermission('accounting_integrations:manage')) {
     return <PermissionRoute permission="accounting_integrations:manage"><LexwareSettingsPage /></PermissionRoute>;
   }

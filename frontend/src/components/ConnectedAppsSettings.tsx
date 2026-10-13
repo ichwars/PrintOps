@@ -52,7 +52,7 @@ export function ConnectedAppsSettings() {
         <label className="block text-sm">{t('connectedApps.name')}<TextField required maxLength={100} className={inputClass} value={name} onChange={e => setName(e.target.value)} /></label>
         <label className="block text-sm">{t('connectedApps.callback')}<TextField required type="url" maxLength={500} className={inputClass} value={callback} onChange={e => setCallback(e.target.value)} /></label>
         <div className="flex flex-wrap gap-2"><Button type="submit" disabled={mutation.isPending}>{editing === null ? t('connectedApps.register') : t('common.save')}</Button>
-          {editing !== null && <Button variant="secondary" onClick={() => { setEditing(null); setName(''); setCallback(''); }}>{t('common.cancel')}</Button>}</div>
+          {editing !== null && <Button type="button" variant="secondary" onClick={() => { setEditing(null); setName(''); setCallback(''); }}>{t('common.cancel')}</Button>}</div>
       </form>
       {apps.isPending ? <p>{t('common.loading')}</p> : apps.data?.length === 0 ? <p className="text-sm text-bambu-gray">{t('connectedApps.empty')}</p> :
         <ul className="space-y-3">{apps.data?.map(app => <li key={app.id} className="rounded-lg border border-bambu-dark-tertiary p-3 space-y-2">

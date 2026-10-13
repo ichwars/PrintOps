@@ -90,3 +90,33 @@ it('integrates app management at the existing API and metrics settings path', as
   expect(screen.getByRole('button', { name: 'Register application' })).toBeInTheDocument();
   expect(document.getElementById('card-connected-apps')).toBeInTheDocument();
 });
+
+
+it('lets an update-only manager navigate to connected apps without reading other settings', async () => {
+  permissions = ['settings:update'];
+  let settingsRequests = 0;
+  server.use(http.get('/api/v1/settings/', () => {
+    settingsRequests += 1;
+    return HttpResponse.json({ detail: 'Forbidden' }, { status: 403 });
+  }));
+  window.history.replaceState({}, '', '/settings');
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: 'Connected applications' })).toBeInTheDocument();
+  const navigation = document.querySelector('aside a[href="/settings?tab=integrations"]');
+  expect(navigation).toBeInTheDocument();
+  fireEvent.click(navigation!);
+  expect(await screen.findByRole('button', { name: 'Register application' })).toBeInTheDocument();
+  expect(window.location.pathname + window.location.search).toBe('/settings?tab=integrations');
+  expect(document.querySelector('aside a[href="/settings?tab=general"]')).not.toBeInTheDocument();
+  expect(document.querySelector('aside a[href="/settings?tab=users-security"]')).not.toBeInTheDocument();
+  expect(settingsRequests).toBe(0);
+});
+
+it('does not expose connected app management without settings:update', async () => {
+  permissions = [];
+  window.history.replaceState({}, '', '/settings?tab=integrations&sub=api-metrics');
+  render(<App />);
+  await waitFor(() => expect(window.location.pathname).toBe('/'));
+  expect(screen.queryByRole('heading', { name: 'Connected applications' })).not.toBeInTheDocument();
+  expect(document.querySelector('aside a[href="/settings?tab=integrations"]')).not.toBeInTheDocument();
+});

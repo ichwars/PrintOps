@@ -121,8 +121,15 @@ The additive startup migration creates `connected_apps` and `connected_app_grant
 and backfills a random `users.connected_identity` exactly once for legacy accounts.
 Codes and failure events use the existing ephemeral authentication tables, without
 changing MFA, OIDC, camera or media token purposes. Explicit cleanup also works on
-SQLite deployments where foreign-key enforcement is off. PostgreSQL schema and SQL
-compilation are checked; runtime concurrency tests use committed SQLite transactions.
+SQLite deployments where foreign-key enforcement is off. Schema and SQL
+compatibility are checked, and committed cleanup/exchange
+concurrency regressions run against SQLite and isolated PostgreSQL 16. CI also
+exercises live PostgreSQL startup migrations and the connected-app lock ordering.
 
 User documentation lives in [the existing feature guide](upstream-features-guide.md).
 The separate wiki/website repository was unavailable during this integration.
+
+Delegated managers with only `settings:update` can open **Settings → Integrations**
+(`/settings?tab=integrations&sub=api-metrics`) to manage connected applications.
+That route mounts only this panel for them; other settings still require
+`settings:read`. Managers with both permissions keep the full settings interface.

@@ -3,12 +3,15 @@
 import asyncio
 import base64
 import hashlib
+import os
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select, text, update
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy import delete, event, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.sql.dml import Update
 
 from backend.app.core import auth
 from backend.app.core.database import Base, get_db
@@ -24,14 +27,35 @@ PREFIX = "/api/v1/connect"
 
 
 @pytest.fixture
-async def connected(tmp_path, monkeypatch, test_engine):
+async def connected(tmp_path, monkeypatch, test_engine, request):
     from backend.app.main import app
 
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/connect.db")
+    postgres = getattr(request, "param", "sqlite") == "postgres"
+    admin_engine = None
+    if postgres:
+        url = os.environ.get("PRINTOPS_POSTGRES_TEST_URL")
+        if not url:
+            pytest.skip("live PostgreSQL test URL not configured")
+        schema = f"connected_{uuid4().hex}"
+        admin_engine = create_async_engine(url)
+        async with admin_engine.begin() as conn:
+            await conn.execute(text(f"CREATE SCHEMA {schema}"))
+        engine = create_async_engine(
+            url,
+            connect_args={
+                "server_settings": {
+                    "search_path": schema,
+                    "statement_timeout": "8000",
+                }
+            },
+        )
+    else:
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/connect.db")
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        assert (await conn.execute(text("PRAGMA foreign_keys"))).scalar() == 0
+        if not postgres:
+            assert (await conn.execute(text("PRAGMA foreign_keys"))).scalar() == 0
     async with sessions() as db:
         db.add(Settings(key="auth_enabled", value="true"))
         db.add_all([User(id=101, username="admin", role="admin"), User(id=102, username="person", role="user")])
@@ -48,6 +72,10 @@ async def connected(tmp_path, monkeypatch, test_engine):
         yield client, sessions
     app.dependency_overrides.clear()
     await engine.dispose()
+    if admin_engine:
+        async with admin_engine.begin() as conn:
+            await conn.execute(text(f"DROP SCHEMA {schema} CASCADE"))
+        await admin_engine.dispose()
 
 
 def headers(username="admin"):
@@ -517,3 +545,105 @@ async def test_verifier_request_input_is_bounded(connected):
     code = (await issue(client, app)).json()["code"]
     assert (await redeem(client, app, code, code_verifier="v" * 1025)).status_code == 422
     assert (await redeem(client, app, code)).status_code == 200
+
+
+async def test_user_cleanup_locks_apps_before_dependent_rows(connected):
+    from backend.app.models.connected_app import ConnectedApp, ConnectedAppGrant
+    from backend.app.services.connected_apps import cleanup_user
+
+    client, sessions = connected
+    apps = [await create(client), await create(client), await create(client)]
+    for app in apps:
+        await issue(client, app)
+    async with sessions() as db:
+        await db.execute(update(ConnectedApp).where(ConnectedApp.id == apps[0]["id"]).values(created_by_id=102))
+        # Exercise creator-only, grant-only, and code-only app selection separately.
+        await db.execute(delete(ConnectedAppGrant).where(ConnectedAppGrant.app_id.in_([apps[0]["id"], apps[2]["id"]])))
+        await db.execute(
+            delete(AuthEphemeralToken).where(AuthEphemeralToken.provider_id.in_([apps[0]["id"], apps[1]["id"]]))
+        )
+        await db.commit()
+    dangling = await create(client)
+    await issue(client, dangling)
+    unrelated = await create(client)
+    async with sessions() as db:
+        await db.execute(delete(ConnectedApp).where(ConnectedApp.id == dangling["id"]))
+        await db.commit()  # Leave orphan grants/codes deliberately (SQLite FK off).
+    statements = []
+
+    def record(_conn, _cursor, statement, parameters, _context, _many):
+        if statement.startswith(
+            ("UPDATE connected_apps", "DELETE FROM connected_app_grants", "DELETE FROM auth_ephemeral_tokens")
+        ):
+            statements.append((statement, parameters))
+
+    engine = sessions.kw["bind"]
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        async with sessions() as db:
+            await cleanup_user(db, 102)
+            await db.commit()
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+    first_delete = next(i for i, (sql, _) in enumerate(statements) if sql.startswith("DELETE"))
+    assert first_delete > 0, "Cleanup must lock apps before deleting their grants or codes"
+    assert all(sql.startswith("UPDATE connected_apps") for sql, _ in statements[:first_delete])
+    locked_ids = [args[-1] for sql, args in statements[:first_delete] if "SET id=" in sql]
+    assert locked_ids == sorted(app["id"] for app in apps), "Lock every app in deterministic ID order"
+    async with sessions() as db:
+        assert (await db.execute(select(ConnectedAppGrant))).scalars().all() == []
+        assert (await db.execute(select(AuthEphemeralToken))).scalars().all() == []
+        owners = {app.id: app.created_by_id for app in (await db.execute(select(ConnectedApp))).scalars()}
+        assert owners == {apps[0]["id"]: None, apps[1]["id"]: 101, apps[2]["id"]: 101, unrelated["id"]: 101}
+
+
+@pytest.mark.parametrize("connected", ["sqlite", "postgres"], indirect=True)
+async def test_user_deletion_and_exchange_do_not_deadlock(connected, monkeypatch):
+    from backend.app.models.connected_app import ConnectedApp, ConnectedAppGrant
+    from backend.app.services.connected_apps import cleanup_user
+
+    client, sessions = connected
+    app = await create(client)
+    code = (await issue(client, app)).json()["code"]
+    async with sessions() as db:
+        await db.execute(update(ConnectedApp).where(ConnectedApp.id == app["id"]).values(created_by_id=102))
+        await db.commit()
+    acquired, release, deletion_waiting = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    original_execute = AsyncSession.execute
+    async with sessions() as deleting_db:
+
+        async def execute(db, statement, *args, **kwargs):
+            app_update = isinstance(statement, Update) and statement.table.name == "connected_apps"
+            if app_update and db is deleting_db:
+                deletion_waiting.set()
+            result = await original_execute(db, statement, *args, **kwargs)
+            if app_update and db is not deleting_db and not acquired.is_set():
+                acquired.set()
+                await release.wait()
+            return result
+
+        monkeypatch.setattr(AsyncSession, "execute", execute)
+
+        async def remove_user():
+            await cleanup_user(deleting_db, 102)
+            await deleting_db.delete(await deleting_db.get(User, 102))
+            await deleting_db.commit()
+
+        exchanging = asyncio.create_task(redeem(client, app, code))
+        await asyncio.wait_for(acquired.wait(), 5)
+        deleting = asyncio.create_task(remove_user())
+        try:
+            # On the broken order PG has already locked the code before it waits
+            # for the app; releasing exchange then completes the deadlock cycle.
+            await asyncio.wait_for(deletion_waiting.wait(), 5)
+        finally:
+            release.set()
+        results = await asyncio.wait_for(asyncio.gather(exchanging, deleting, return_exceptions=True), 12)
+        assert not any(isinstance(result, BaseException) for result in results), repr(results)
+        assert results[0].status_code == 200
+    assert (await redeem(client, app, code)).status_code == 400
+    async with sessions() as db:
+        assert await db.get(User, 102) is None
+        assert (await db.execute(select(ConnectedAppGrant))).scalars().all() == []
+        assert (await db.execute(select(AuthEphemeralToken))).scalars().all() == []
+        assert (await db.get(ConnectedApp, app["id"])).created_by_id is None

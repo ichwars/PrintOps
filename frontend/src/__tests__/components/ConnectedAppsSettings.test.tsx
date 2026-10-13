@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { render } from '../utils';
 import { server } from '../mocks/server';
@@ -66,4 +66,21 @@ it('preserves opaque state and existing query parameters in allow and deny redir
   expect([...allowed.searchParams]).toEqual([['existing', 'yes'], ['code', 'new-code'], ['state', 'opaque & value']]);
   const denied = new URL(connectCallbackUrl(callback, '', { error: 'access_denied' }));
   expect([...denied.searchParams]).toEqual([['existing', 'yes'], ['error', 'access_denied'], ['state', '']]);
+});
+
+
+it('discards edited name and callback on Cancel without saving', async () => {
+  apps = [{ id: 1, name: 'Workshop', redirect_uri: 'https://workshop.example/cb',
+    client_id: 'poa_fixture', enabled: true, created_at: '2026-10-13T00:00:00Z', last_used_at: null }];
+  const original = { ...apps[0] };
+  render(<ConnectedAppsSettings />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  fireEvent.change(screen.getByLabelText('Application name'), { target: { value: 'Discard me' } });
+  fireEvent.change(screen.getByLabelText('Callback URL'), { target: { value: 'https://discard.example/cb' } });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); });
+  expect(screen.getByRole('button', { name: 'Register application' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Application name')).toHaveValue('');
+  expect(screen.getByLabelText('Callback URL')).toHaveValue('');
+  expect(apps).toEqual([original]);
+  expect(screen.getByText('Workshop')).toBeInTheDocument();
 });
