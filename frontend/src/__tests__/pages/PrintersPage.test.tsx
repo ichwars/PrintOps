@@ -182,7 +182,7 @@ describe('PrintersPage', () => {
       expect(reopened).toHaveAttribute('data-value', 'snapshot');
       selectComboboxOption(reopened, 'Default (Stream)');
       expect(reopened).toHaveAttribute('data-value', 'default');
-      expect(localStorage.getItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1')).toBeNull();
+      expect(localStorage.getItem('printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:appliance:printer:00M09A350100001')).toBeNull();
     });
 
     it('preserves the global embedded choice while opening the selected snapshot', async () => {

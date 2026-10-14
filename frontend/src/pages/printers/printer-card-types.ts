@@ -27,7 +27,7 @@ export type PrinterCardProps = {
   onUnassignSpoolmanSpool?: (spoolmanSpoolId: number) => void;
   timeFormat?: 'system' | '12h' | '24h';
   cameraViewMode?: 'window' | 'embedded';
-  onOpenEmbeddedCamera?: (printerId: number, printerName: string) => void;
+  onOpenEmbeddedCamera?: (printerId: number, printerName: string) => boolean | void;
   checkPrinterFirmware?: boolean;
   dryingPresets?: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }>;
   requirePlateClear?: boolean;

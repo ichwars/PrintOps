@@ -5573,6 +5573,7 @@ export default {
     understand: '확인했습니다'
   },
   camera: {
+    choosePlacement: '카메라 표시 위치 선택',
     defaultView: '기본 카메라 보기',
     defaultStream: '기본값 (스트림)',
     stream: '스트림',

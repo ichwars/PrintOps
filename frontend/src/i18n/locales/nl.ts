@@ -5809,6 +5809,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: 'Cameraweergavelocatie kiezen',
     defaultView: "Standaard cameraweergave",
     defaultStream: "Standaard (stream)",
     stream: "Stream",

@@ -26,8 +26,19 @@ export function CameraPage() {
   const id = parseInt(printerId || '0', 10);
   const [searchParams] = useSearchParams();
   const launchView = searchParams.get('view');
-  const { mode: streamMode, setPreference: setStreamMode, ready: preferenceReady, identity: preferenceIdentity } = useCameraViewPreference(id, {
-    anonymous: searchParams.has('camera_token'),
+  const publicToken = searchParams.get('camera_token');
+  const anonymous = publicToken !== null;
+  // Only the in-memory generation enters preference identity; never the token.
+  const [publicLink, setPublicLink] = useState({ token: publicToken, generation: 0 });
+  const linkGeneration = publicLink.generation + Number(publicLink.token !== publicToken);
+  if (publicLink.token !== publicToken) setPublicLink({ token: publicToken, generation: linkGeneration });
+  const { data: printer, isPending: printerPending } = useQuery({
+    queryKey: ['printer', id],
+    queryFn: () => api.getPrinter(id),
+    enabled: id > 0,
+  });
+  const { mode: streamMode, setPreference: setStreamMode, ready: preferenceReady, identity: preferenceIdentity } = useCameraViewPreference(anonymous ? `public-printer:${id}:link:${linkGeneration}` : printer?.serial_number, {
+    anonymous,
     initialMode: launchView === 'stream' || launchView === 'snapshot' ? launchView : undefined,
   });
   const fpsParam = parseInt(searchParams.get('fps') || '15', 10);
@@ -85,13 +96,6 @@ export function CameraPage() {
     countdownIntervalRef.current = null;
     stallCheckIntervalRef.current = null;
   }, [streamMode, preferenceIdentity]);
-
-  // Fetch printer info for the title
-  const { data: printer } = useQuery({
-    queryKey: ['printer', id],
-    queryFn: () => api.getPrinter(id),
-    enabled: id > 0,
-  });
 
   // MSE (fMP4-over-WebSocket, via go2rtc) is the primary player — see
   // useCameraStream and the matching integration in EmbeddedCameraViewer.tsx
@@ -677,7 +681,7 @@ export function CameraPage() {
             <button
               onClick={() => switchToMode('stream')}
               aria-pressed={streamMode === 'stream'}
-              disabled={isDisabled}
+              disabled={isDisabled || (!anonymous && printerPending)}
               className={`px-3 py-1 text-xs rounded transition-colors ${
                 streamMode === 'stream'
                   ? 'bg-bambu-green text-white'
@@ -689,7 +693,7 @@ export function CameraPage() {
             <button
               onClick={() => switchToMode('snapshot')}
               aria-pressed={streamMode === 'snapshot'}
-              disabled={isDisabled}
+              disabled={isDisabled || (!anonymous && printerPending)}
               className={`px-3 py-1 text-xs rounded transition-colors ${
                 streamMode === 'snapshot'
                   ? 'bg-bambu-green text-white'

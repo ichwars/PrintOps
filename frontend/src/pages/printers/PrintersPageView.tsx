@@ -3,6 +3,7 @@ import { BED_TEMP_DEFAULTS, CHAMBER_TEMP_DEFAULTS, FAN_SPEED_DEFAULTS, NOZZLE_TE
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useEmbeddedCameraSelection } from '../../hooks/useEmbeddedCameraSelection';
 import { useAuth } from '../../contexts/AuthContext';
 import { TextField } from '../../components/ui';
 import { Plus, Power, ChevronDown, Filter, ArrowLeft, ArrowUp, ArrowDown, Search, X, CheckSquare, Printer as PrinterIcon, MoreHorizontal, SlidersHorizontal, LayoutGrid, MonitorPlay } from 'lucide-react';
@@ -191,36 +192,12 @@ export function PrintersPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
-  // Embedded camera viewer state - supports multiple simultaneous viewers
-  // Persisted to localStorage so cameras reopen after navigation
-  const [embeddedCameraPrinters, setEmbeddedCameraPrinters] = useState<Map<number, { id: number; name: string }>>(() => {
-    // Initialize from localStorage if camera_view_mode is embedded
-    const saved = localStorage.getItem('openEmbeddedCameras');
-    if (saved) {
-      try {
-        const cameras = JSON.parse(saved) as Array<{ id: number; name: string }>;
-        return new Map(cameras.map(c => [c.id, c]));
-      } catch {
-        return new Map();
-      }
-    }
-    return new Map();
-  });
-
-  // Persist open cameras to localStorage when they change
-  useEffect(() => {
-    const cameras = Array.from(embeddedCameraPrinters.values());
-    if (cameras.length > 0) {
-      localStorage.setItem('openEmbeddedCameras', JSON.stringify(cameras));
-    } else {
-      localStorage.removeItem('openEmbeddedCameras');
-    }
-  }, [embeddedCameraPrinters]);
-
   const { data: printers, isLoading } = useQuery({
     queryKey: ['printers'],
     queryFn: api.getPrinters,
   });
+
+  const { cameras: embeddedCameras, ready: cameraLaunchReady, openCamera: openEmbeddedCamera, closeCamera: closeEmbeddedCamera } = useEmbeddedCameraSelection(printers);
 
   // Fetch the UI-rendering subset of settings. Uses /ui-preferences (not /settings)
   // so users with printers:read but no settings:read still get the values needed
@@ -262,13 +239,6 @@ export function PrintersPage() {
     }
     return DRYING_PRESETS;
   }, [settings?.drying_presets]);
-
-  // Close embedded cameras if mode changes to 'window'
-  useEffect(() => {
-    if (settings?.camera_view_mode === 'window' && embeddedCameraPrinters.size > 0) {
-      setEmbeddedCameraPrinters(new Map());
-    }
-  }, [settings?.camera_view_mode, embeddedCameraPrinters.size]);
 
   // Fetch all smart plugs to know which printers have them
   const { data: smartPlugs } = useQuery({
@@ -1122,22 +1092,21 @@ export function PrintersPage() {
           printers={sortedPrinters}
           maxLive={camWallMaxLive}
           snapshotIntervalSec={camWallSnapshotSec}
-          onTileClick={(id, name) => {
+          launchDisabled={!cameraLaunchReady}
+          onTileClick={(id) => {
+            if (!cameraLaunchReady) return;
             const cameraMode = settings?.camera_view_mode || 'window';
-            if (cameraMode === 'embedded') {
-              setEmbeddedCameraPrinters(prev => new Map(prev).set(id, { id, name }));
-            } else {
-              const saved = localStorage.getItem('cameraWindowState');
-              const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
-              const features = [
-                `width=${state.width}`,
-                `height=${state.height}`,
-                state.left !== undefined ? `left=${state.left}` : '',
-                state.top !== undefined ? `top=${state.top}` : '',
-                'menubar=no,toolbar=no,location=no,status=no',
-              ].filter(Boolean).join(',');
-              window.open(`/camera/${id}`, `camera-${id}`, features);
-            }
+            if (cameraMode === 'embedded' && openEmbeddedCamera(id)) return;
+            const saved = localStorage.getItem('cameraWindowState');
+            const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
+            const features = [
+              `width=${state.width}`,
+              `height=${state.height}`,
+              state.left !== undefined ? `left=${state.left}` : '',
+              state.top !== undefined ? `top=${state.top}` : '',
+              'menubar=no,toolbar=no,location=no,status=no',
+            ].filter(Boolean).join(',');
+            window.open(`/camera/${id}`, `camera-${id}`, features);
           }}
           statusMode={camWallStatusMode}
           onChangeMaxLive={(next) => {
@@ -1231,7 +1200,7 @@ export function PrintersPage() {
                       onUnassignSpoolmanSpool={(id) => unassignSpoolmanMutation.mutate(id)}
                       timeFormat={settings?.time_format || 'system'}
                       cameraViewMode={settings?.camera_view_mode || 'window'}
-                      onOpenEmbeddedCamera={(id, name) => setEmbeddedCameraPrinters(prev => new Map(prev).set(id, { id, name }))}
+                      onOpenEmbeddedCamera={openEmbeddedCamera}
                       checkPrinterFirmware={settings?.check_printer_firmware !== false}
                       dryingPresets={effectiveDryingPresets}
                       nozzleTempPresets={effectiveNozzleTempPresets}
@@ -1280,7 +1249,7 @@ export function PrintersPage() {
               } : undefined}
               timeFormat={settings?.time_format || 'system'}
               cameraViewMode={settings?.camera_view_mode || 'window'}
-              onOpenEmbeddedCamera={(id, name) => setEmbeddedCameraPrinters(prev => new Map(prev).set(id, { id, name }))}
+              onOpenEmbeddedCamera={openEmbeddedCamera}
               checkPrinterFirmware={settings?.check_printer_firmware !== false}
               dryingPresets={effectiveDryingPresets}
               nozzleTempPresets={effectiveNozzleTempPresets}
@@ -1365,17 +1334,13 @@ export function PrintersPage() {
       )}
 
       {/* Embedded Camera Viewers - multiple viewers can be open simultaneously */}
-      {Array.from(embeddedCameraPrinters.values()).map((camera, index) => (
+      {embeddedCameras.map((camera, index) => (
         <EmbeddedCameraViewer
           key={camera.id}
           printerId={camera.id}
           printerName={camera.name}
           viewerIndex={index}
-          onClose={() => setEmbeddedCameraPrinters(prev => {
-            const next = new Map(prev);
-            next.delete(camera.id);
-            return next;
-          })}
+          onClose={() => closeEmbeddedCamera(camera.id)}
         />
       ))}
     </div>

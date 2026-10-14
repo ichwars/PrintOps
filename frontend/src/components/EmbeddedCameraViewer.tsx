@@ -49,7 +49,12 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
-  const { mode: streamMode, preference, setPreference, ready: preferenceReady, identity: preferenceIdentity } = useCameraViewPreference(printerId);
+  const { data: printer, isPending: printerPending } = useQuery({
+    queryKey: ['printer', printerId],
+    queryFn: () => api.getPrinter(printerId),
+    enabled: printerId > 0,
+  });
+  const { mode: streamMode, preference, setPreference, ready: preferenceReady, identity: preferenceIdentity } = useCameraViewPreference(printer?.serial_number);
 
   // Printer-specific storage key
   const storageKey = `${STORAGE_KEY_PREFIX}${printerId}`;
@@ -115,13 +120,6 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   // hits "Camera unavailable" — saves a round trip through "open a
   // ticket → wait for response → check setting". See #1395 follow-up.
   const [showDiagnoseModal, setShowDiagnoseModal] = useState(false);
-
-  // Fetch printer info
-  const { data: printer } = useQuery({
-    queryKey: ['printer', printerId],
-    queryFn: () => api.getPrinter(printerId),
-    enabled: printerId > 0,
-  });
 
   // Fetch printer status for light toggle and skip objects
   const { data: status } = useQuery({
@@ -715,7 +713,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
         >
           <CameraViewPreferenceSelect
             preference={preference}
-            disabled={!preferenceReady || !hasPermission('camera:view')}
+            disabled={printerPending || !preferenceReady || !hasPermission('camera:view')}
             onPreferenceChange={setPreference}
             className="absolute top-2 right-2 z-20 w-36 max-w-full min-w-0 no-drag"
             controlClassName="h-8 px-2 text-xs"

@@ -5778,6 +5778,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: 'Kameraanzeige wählen',
     defaultView: 'Standard-Kameraansicht',
     defaultStream: 'Standard (Stream)',
     stream: 'Livestream',

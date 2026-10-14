@@ -5744,6 +5744,7 @@ export default {
 
   // Kamera sayfası
   camera: {
+    choosePlacement: 'Kamera görüntüleme yerini seç',
     defaultView: 'Varsayılan kamera görünümü',
     defaultStream: 'Varsayılan (akış)',
     stream: 'Akış',

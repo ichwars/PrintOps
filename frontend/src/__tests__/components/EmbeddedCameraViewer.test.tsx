@@ -8,13 +8,13 @@ import { server } from '../mocks/server';
 describe('EmbeddedCameraViewer camera defaults', () => {
   beforeEach(() => {
     const storage = new Map<string, string>([
-      ['printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1', JSON.stringify({ version: 1, mode: 'snapshot' })],
+      ['printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:appliance:printer:serial-workshop', JSON.stringify({ version: 1, mode: 'snapshot' })],
     ]);
     vi.mocked(localStorage.getItem).mockImplementation(key => storage.get(key) ?? null);
     vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, value); });
     vi.mocked(localStorage.removeItem).mockImplementation(key => { storage.delete(key); });
     server.use(
-      http.get('*/api/v1/printers/1', () => HttpResponse.json({ id: 1, name: 'Workshop', model: 'X1C' })),
+      http.get('*/api/v1/printers/1', () => HttpResponse.json({ id: 1, name: 'Workshop', serial_number: 'serial-workshop', model: 'X1C' })),
       http.get('*/api/v1/printers/1/status', () => HttpResponse.json({ connected: true, state: 'IDLE' })),
       http.post('*/api/v1/printers/1/camera/stop', () => HttpResponse.json({ success: true })),
     );
@@ -24,6 +24,51 @@ describe('EmbeddedCameraViewer camera defaults', () => {
     vi.mocked(localStorage.getItem).mockReset();
     vi.mocked(localStorage.setItem).mockReset();
     vi.mocked(localStorage.removeItem).mockReset();
+  });
+
+  it('waits for hardware identity before starting the saved camera content', async () => {
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    let requested = false;
+    server.use(http.get('*/api/v1/printers/1', async () => {
+      requested = true; await pending;
+      return HttpResponse.json({ id: 1, name: 'Workshop', serial_number: 'serial-workshop', model: 'X1C' });
+    }));
+    render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    await waitFor(() => expect(requested).toBe(true));
+    expect(document.querySelector('img')?.getAttribute('src') ?? '').not.toContain('/camera/stream');
+    release();
+    await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+  });
+
+  it('disables the content selector until the first printer lookup resolves, then preserves a selectable mode', async () => {
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    let requested = false;
+    server.use(http.get('*/api/v1/printers/1', async () => {
+      requested = true; await pending;
+      return HttpResponse.json({ id: 1, name: 'Workshop', serial_number: 'serial-workshop', model: 'X1C' });
+    }));
+    render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    await waitFor(() => expect(requested).toBe(true));
+    const control = screen.getByRole('combobox', { name: 'Default camera view' });
+    expect(control).toBeDisabled();
+    release();
+    await waitFor(() => expect(control).toBeEnabled());
+    selectComboboxOption(control, 'Stream');
+    expect(control).toHaveAttribute('data-value', 'stream');
+    expect(localStorage.getItem('printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:appliance:printer:serial-workshop')).toBe('{"version":1,"mode":"stream"}');
+  });
+
+  it('keeps transient content selection usable after a successful lookup with no serial', async () => {
+    server.use(http.get('*/api/v1/printers/1', () => HttpResponse.json({ id: 1, name: 'Workshop', serial_number: '', model: 'X1C' })));
+    render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    const control = screen.getByRole('combobox', { name: 'Default camera view' });
+    await waitFor(() => expect(control).toBeEnabled());
+    selectComboboxOption(control, 'Snapshot');
+    await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+    expect(control).toHaveAttribute('data-value', 'snapshot');
+    expect(localStorage.setItem).not.toHaveBeenCalledWith(expect.stringContaining('printops:camera-view:'), expect.anything());
   });
 
   it('honors the saved snapshot in the existing embedded viewer', async () => {
@@ -44,7 +89,7 @@ describe('EmbeddedCameraViewer camera defaults', () => {
     await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
     selectComboboxOption(control, 'Default (Stream)');
     expect(control).toHaveAttribute('data-value', 'default');
-    expect(localStorage.getItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1')).toBeNull();
+    expect(localStorage.getItem('printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:appliance:printer:serial-workshop')).toBeNull();
   });
 
   it('keeps camera choices inside the actual viewer fullscreen element', async () => {

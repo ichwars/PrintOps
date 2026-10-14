@@ -5729,6 +5729,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: '选择摄像头显示位置',
     defaultView: '默认摄像头视图',
     defaultStream: '默认（实时流）',
     stream: '实时流',

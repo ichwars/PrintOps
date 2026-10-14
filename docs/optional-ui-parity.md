@@ -56,3 +56,63 @@ The rendered checks cover persistence, linked-view priority, clear/reset and the
 camera snapshot/default controls at 1440 and 390 pixels. The snapshot fixture is
 explicitly synthetic. Financial values, payloads and CSV field values are covered
 by the existing commerce suites and focused Dutch rendering tests.
+
+## Camera launch placement (O13c, #220)
+
+The printer-card camera button opens the last placement selected in its adjacent
+menu: a separate window or the embedded viewer. With no local choice, it follows
+Settings → camera view mode. Choosing a menu item opens that placement immediately;
+the separate Stream/Snapshot control remains independent. This local menu never
+updates global settings and is available to users with camera viewing permission.
+Both launch controls wait for verified authentication and preferences and require
+a connected printer. If auth-status discovery fails, they remain disabled until
+it succeeds. This card gate does not change direct camera-route transport.
+Keyboard users can open the menu, navigate with arrows/Home/End, select with
+Enter/Space, and dismiss with Escape, Tab or an outside click.
+
+Both camera preferences use the browser origin, the verified session-bound account
+subject and the printer hardware serial. Explicitly verified authentication-off
+installations use the appliance scope. Missing identity proof or hardware serial
+allows only transient choices. With verified authentication but a missing serial,
+an Embedded launch falls back synchronously to the existing separate window,
+including its current Stream/Snapshot choice. Anonymous camera links never read
+or write account defaults. Old numeric account/printer keys are deliberately not migrated because
+those IDs can be reused after deletion. Existing stream/snapshot choices therefore
+return once to the default Stream until selected again. Blocked browser storage
+keeps choices usable within the current tab and identity.
+
+Separate windows retain the existing opener/sessionStorage authentication and
+narrow camera-token flow. Hosts without an embedded-view callback fall back to the
+existing separate window. Tests use software fixtures and do not contact a camera,
+physical printer or notification provider. The existing card scale and external
+spool visibility controls remain independent of camera placement.
+
+Open embedded viewers also restore across navigation/reload using a separate,
+verified account-scoped list of hardware serials. Only currently accessible
+printers with camera viewing permission are rendered. The old unscoped
+`openEmbeddedCameras` ID list is not migrated; previously open viewers need to be
+opened once again. The camera-wall entry continues to follow its existing global
+placement setting and uses the same verified overlay restoration list. Its tiles
+visibly disable camera launch while authentication proof or camera permission is
+unavailable. With verified access but a missing serial, Embedded uses the existing
+separate-window launch without saving an overlay or local placement preference.
+
+The global placement setting now supplies the initial launch fallback only.
+Changing it to Window does not dismiss locally opened overlays; use their existing
+close button to dismiss them. This avoids immediately closing an Overlay chosen
+from the new menu while the global fallback is Window.
+
+Embedded viewers and ordinary camera pages wait for the first printer-information
+request to finish before enabling Stream/Snapshot changes. Existing image loading
+continues during that request. If the response has no serial, or the request fails,
+mode changes remain usable for the current view without saving a printer default.
+Public camera-token preference controls remain switchable while metadata loads;
+later metadata or authentication discovery does not discard their current choice. Opening a
+different public link starts its own requested/default view, even on the same
+printer route, without saving the link token or its choices.
+
+Public-link tests establish transient preference isolation only. They do not prove
+signed-out playback on an authentication-enabled installation: the existing camera
+media URLs and waiting gate still use the session stream token. That unchanged
+transport limitation requires separate investigation; O13c adds no public-token
+authorization or playback support.

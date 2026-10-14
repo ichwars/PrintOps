@@ -5729,6 +5729,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: '選擇攝影機顯示位置',
     defaultView: '預設攝影機檢視',
     defaultStream: '預設（即時串流）',
     stream: '即時串流',

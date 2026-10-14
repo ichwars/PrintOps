@@ -7,7 +7,7 @@ import { act, screen, waitFor, fireEvent, render as rtlRender } from '@testing-l
 import { CameraPage } from '../../pages/CameraPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { ToastProvider } from '../../contexts/ToastContext';
@@ -33,7 +33,7 @@ const mockPrinter = {
 };
 
 // Custom render for CameraPage which needs specific route params
-function renderCameraPage(printerId: number, search = '') {
+function renderCameraPage(printerId: number, search = '', nextPublicLink?: string) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
@@ -48,6 +48,7 @@ function renderCameraPage(printerId: number, search = '') {
           <AuthProvider>
             <ThemeProvider>
               <ToastProvider>
+                {nextPublicLink && <Link to={nextPublicLink}>Change public link</Link>}
                 <Routes>
                   <Route path="/cameras/:printerId" element={<CameraPage />} />
                 </Routes>
@@ -97,7 +98,7 @@ describe('CameraPage', () => {
   });
 
   describe('per-printer camera preference', () => {
-    const preferenceKey = 'printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1';
+    const preferenceKey = 'printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:appliance:printer:00M09A350100001';
 
     it('updates the camera window title when the interface language changes', async () => {
       try {
@@ -125,7 +126,7 @@ describe('CameraPage', () => {
     });
 
     it('waits for the signed-in identity before opening its saved snapshot', async () => {
-      localStorage.setItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:user:1:1', '{"version":1,"mode":"snapshot"}');
+      localStorage.setItem('printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:user:account-1:printer:00M09A350100001', '{"version":1,"mode":"snapshot"}');
       setAuthToken('preference-test-token', 'session');
       let resolveIdentity!: () => void;
       let identityRequested = false;
@@ -135,7 +136,7 @@ describe('CameraPage', () => {
         http.get('*/api/v1/auth/me', async () => {
           identityRequested = true;
           await identity;
-          return HttpResponse.json({ id: 1, username: 'admin', role: 'admin', is_active: true, is_admin: true, groups: [], permissions: [], created_at: '2024-01-01T00:00:00Z' });
+          return HttpResponse.json({ id: 1, sub: 'account-1', username: 'admin', role: 'admin', is_active: true, is_admin: true, groups: [], permissions: [], created_at: '2024-01-01T00:00:00Z' });
         }),
         http.post('*/api/v1/printers/camera/stream-token', () => HttpResponse.json({ token: 'camera-test-token' })),
       );
@@ -166,7 +167,8 @@ describe('CameraPage', () => {
       expect(JSON.parse(localStorage.getItem(preferenceKey)!)).toEqual({ version: 1, mode: 'snapshot' });
     });
 
-    it('keeps camera-token links independent of stored appliance preferences', async () => {
+    it.each([false, true])('keeps camera-token links independent of stored appliance preferences when auth discovery fails: %s', async statusFails => {
+      if (statusFails) server.use(http.get('/api/v1/auth/status', () => HttpResponse.error()));
       localStorage.setItem(preferenceKey, JSON.stringify({ version: 1, mode: 'snapshot' }));
       renderCameraPage(1, '?camera_token=anonymous-link');
       await waitFor(() => {
@@ -183,6 +185,62 @@ describe('CameraPage', () => {
         expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream');
       });
       expect(JSON.parse(localStorage.getItem(preferenceKey)!)).toEqual({ version: 1, mode: 'snapshot' });
+    });
+
+    it('disables private mode choices during delayed printer metadata without delaying the launch-hint image', async () => {
+      let release!: () => void;
+      const pending = new Promise<void>(resolve => { release = resolve; });
+      server.use(http.get('*/api/v1/printers/1', async () => { await pending; return HttpResponse.json(mockPrinter); }));
+      renderCameraPage(1, '?view=snapshot');
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+      fireEvent.load(document.querySelector('img')!);
+      expect(screen.getByRole('button', { name: 'Live' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Snapshot' })).toBeDisabled();
+      release();
+      await screen.findByText('X1 Carbon');
+      fireEvent.load(document.querySelector('img')!);
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Live' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Live' }));
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
+    });
+
+    it('retains an anonymous mode change when delayed printer metadata arrives', async () => {
+      let release!: () => void;
+      const pending = new Promise<void>(resolve => { release = resolve; });
+      server.use(http.get('*/api/v1/printers/1', async () => { await pending; return HttpResponse.json(mockPrinter); }));
+      renderCameraPage(1, '?camera_token=public-link&view=snapshot');
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+      fireEvent.load(document.querySelector('img')!);
+      fireEvent.click(screen.getByRole('button', { name: 'Live' }));
+      expect(screen.getByRole('button', { name: 'Live' })).toHaveAttribute('aria-pressed', 'true');
+      release();
+      await screen.findByText('X1 Carbon');
+      expect(screen.getByRole('button', { name: 'Live' })).toHaveAttribute('aria-pressed', 'true');
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
+      expect(localStorage.setItem).not.toHaveBeenCalledWith(expect.stringContaining('printops:camera-view:'), expect.anything());
+    });
+
+    it('resets transient content for a different public token on the same mounted printer route', async () => {
+      renderCameraPage(1, '?camera_token=public-a&view=snapshot', '/cameras/1?camera_token=public-b&view=snapshot');
+      await screen.findByText('X1 Carbon');
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+      fireEvent.load(document.querySelector('img')!);
+      fireEvent.click(screen.getByRole('button', { name: 'Live' }));
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
+      fireEvent.click(screen.getByRole('link', { name: 'Change public link' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Snapshot' })).toHaveAttribute('aria-pressed', 'true'));
+      expect(localStorage.setItem).not.toHaveBeenCalledWith(expect.stringContaining('printops:camera-view:'), expect.anything());
+    });
+
+    it.each([false, true])('keeps private mode changes usable after metadata settles without a serial (lookup fails: %s)', async fails => {
+      server.use(http.get('*/api/v1/printers/1', () => fails ? HttpResponse.error() : HttpResponse.json({ ...mockPrinter, serial_number: '' })));
+      renderCameraPage(1, '?view=snapshot');
+      await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+      fireEvent.load(document.querySelector('img')!);
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Live' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Live' }));
+      expect(screen.getByRole('button', { name: 'Live' })).toHaveAttribute('aria-pressed', 'true');
+      expect(localStorage.setItem).not.toHaveBeenCalledWith(expect.stringContaining('printops:camera-view:'), expect.anything());
     });
 
     it('honors an explicit launch view without rewriting the saved default', async () => {
