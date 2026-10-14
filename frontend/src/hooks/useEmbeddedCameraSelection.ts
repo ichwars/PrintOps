@@ -40,9 +40,9 @@ export function useEmbeddedCameraSelection(printers: Printer[] | undefined) {
     return (printers ?? []).filter(printer => selected.has(printer.serial_number));
   }, [key, printers, raw]);
   const update = useCallback((id: number, open: boolean) => {
-    if (!key) return;
+    if (!key) return false;
     const printer = printers?.find(candidate => candidate.id === id);
-    if (!printer?.serial_number?.trim()) return;
+    if (!printer?.serial_number?.trim()) return false;
     const serials = new Set(decode(read(key)));
     if (open) serials.add(printer.serial_number); else serials.delete(printer.serial_number);
     const value = JSON.stringify([...serials]);
@@ -51,6 +51,7 @@ export function useEmbeddedCameraSelection(printers: Printer[] | undefined) {
       unsaved.delete(key);
     } catch { unsaved.set(key, value); }
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: key }));
+    return true;
   }, [key, printers]);
   return { cameras, openCamera: (id: number) => update(id, true), closeCamera: (id: number) => update(id, false) };
 }

@@ -64,15 +64,19 @@ menu: a separate window or the embedded viewer. With no local choice, it follows
 Settings → camera view mode. Choosing a menu item opens that placement immediately;
 the separate Stream/Snapshot control remains independent. This local menu never
 updates global settings and is available to users with camera viewing permission.
-Both launch controls wait for preferences and require a connected printer.
+Both launch controls wait for verified authentication and preferences and require
+a connected printer. If auth-status discovery fails, they remain disabled until
+it succeeds; public camera-token routes remain independently usable.
 Keyboard users can open the menu, navigate with arrows/Home/End, select with
 Enter/Space, and dismiss with Escape, Tab or an outside click.
 
 Both camera preferences use the browser origin, the verified session-bound account
 subject and the printer hardware serial. Explicitly verified authentication-off
 installations use the appliance scope. Missing identity proof or hardware serial
-allows only transient choices; anonymous camera links never read or write account
-defaults. Old numeric account/printer keys are deliberately not migrated because
+allows only transient choices. With verified authentication but a missing serial,
+an Embedded launch falls back synchronously to the existing separate window,
+including its current Stream/Snapshot choice. Anonymous camera links never read
+or write account defaults. Old numeric account/printer keys are deliberately not migrated because
 those IDs can be reused after deletion. Existing stream/snapshot choices therefore
 return once to the default Stream until selected again. Blocked browser storage
 keeps choices usable within the current tab and identity.

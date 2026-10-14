@@ -14,7 +14,8 @@ interface CameraLaunchButtonProps {
   ready: boolean;
   connected: boolean;
   permitted: boolean;
-  onOpenEmbeddedCamera?: (id: number, name: string) => void;
+  /** Returning false declines embedding and uses the existing window fallback. */
+  onOpenEmbeddedCamera?: (id: number, name: string) => boolean | void;
   className?: string;
 }
 
@@ -46,8 +47,8 @@ export function CameraLaunchButton({ printerId, printerName, serialNumber, fallb
   }, [open]);
   const launch = (mode: CameraPlacement) => {
     if (disabled) return;
-    if (mode === 'embedded' && onOpenEmbeddedCamera) onOpenEmbeddedCamera(printerId, printerName);
-    else openCameraWindow(printerId, contentMode); // Synchronous: preserve popup gesture and sessionStorage opener.
+    if (mode === 'embedded' && onOpenEmbeddedCamera && onOpenEmbeddedCamera(printerId, printerName) !== false) return;
+    openCameraWindow(printerId, contentMode); // Synchronous: preserve popup gesture and sessionStorage opener.
   };
   return <div ref={root} className="relative inline-flex shrink-0" onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) close();

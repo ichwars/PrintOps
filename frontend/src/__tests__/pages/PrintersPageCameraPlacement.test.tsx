@@ -2,6 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
+import { useAuth } from '../../contexts/AuthContext';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -127,6 +128,54 @@ it('restores explicitly opened overlays on navigation by hardware serial and doe
   second.unmount();
   server.use(http.get('/api/v1/printers/', () => HttpResponse.json([{ ...printer, serial_number: 'replacement-hardware' }])));
   render(<PrintersPage />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Choose camera placement' })).toBeEnabled());
+  expect(screen.queryByRole('combobox', { name: 'Default camera view' })).toBeNull();
+});
+
+function AuthReadinessProbe() {
+  const { loading } = useAuth();
+  return <output data-testid="auth-loading">{String(loading)}</output>;
+}
+it('keeps both card launch controls disabled after a real auth-status failure without writes or camera launch', async () => {
+  server.use(http.get('/api/v1/auth/status', () => HttpResponse.error()));
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  render(<><AuthReadinessProbe /><PrintersPage /></>);
+  await waitFor(() => expect(screen.getByTestId('auth-loading')).toHaveTextContent('false'));
+  await screen.findByText('Camera fixture');
+  const menu = screen.getByRole('button', { name: 'Choose camera placement' });
+  const main = screen.getByRole('button', { name: 'Open camera in new window' });
+  expect(menu).toBeDisabled(); expect(main).toBeDisabled();
+  fireEvent.click(menu); fireEvent.click(main);
+  expect(screen.queryByRole('menu')).toBeNull();
+  expect(screen.queryByRole('combobox', { name: 'Default camera view' })).toBeNull();
+  expect(open).not.toHaveBeenCalled();
+  expect([...storage.keys()].filter(k => /printops:(camera-|open-cameras)/.test(k))).toEqual([]);
+});
+it.each(['stream', 'snapshot'] as const)('falls back synchronously to a %s window for embedded menu and main launch when verified hardware lacks a serial', async mode => {
+  server.use(http.get('/api/v1/printers/', () => HttpResponse.json([{ ...printer, serial_number: '' }])));
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  render(<PrintersPage />);
+  const menu = await screen.findByRole('button', { name: 'Choose camera placement' });
+  await waitFor(() => expect(menu).toBeEnabled());
+  // The content choice remains transient, but the window still gets its launch hint.
+  const { selectComboboxOption } = await import('../utils');
+  selectComboboxOption(screen.getByRole('combobox', { name: 'Default camera view — Camera fixture' }), mode === 'snapshot' ? 'Snapshot' : 'Stream');
+  fireEvent.click(menu); fireEvent.click(screen.getByRole('menuitemradio', { name: 'Open camera overlay' }));
+  expect(open).toHaveBeenCalledWith(`/camera/1?view=${mode}`, 'camera-1', expect.not.stringContaining('noopener'));
+  fireEvent.click(screen.getByRole('button', { name: 'Open camera overlay' }));
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole('combobox', { name: 'Default camera view' })).toBeNull();
+  expect([...storage.keys()].filter(k => /printops:(camera-|open-cameras)/.test(k))).toEqual([]);
+});
+it('does not restore an explicitly closed overlay after remount', async () => {
+  const view = render(<PrintersPage />);
+  const menu = await screen.findByRole('button', { name: 'Choose camera placement' });
+  await waitFor(() => expect(menu).toBeEnabled());
+  fireEvent.click(menu); fireEvent.click(screen.getByRole('menuitemradio', { name: 'Open camera overlay' }));
+  await screen.findByRole('combobox', { name: 'Default camera view' });
+  fireEvent.click(screen.getByTitle('Close'));
+  expect(screen.queryByRole('combobox', { name: 'Default camera view' })).toBeNull();
+  view.unmount(); render(<PrintersPage />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'Choose camera placement' })).toBeEnabled());
   expect(screen.queryByRole('combobox', { name: 'Default camera view' })).toBeNull();
 });

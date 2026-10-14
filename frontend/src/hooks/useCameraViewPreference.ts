@@ -95,7 +95,7 @@ function useCameraPreference<T extends CameraPreference>(serialNumber: string | 
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: key }));
   }, [identity, key, loading, anonymous]);
 
-  return { preference, mode: preference ?? fallback, setPreference, ready: anonymous || !loading, identity };
+  return { preference, mode: preference ?? fallback, setPreference, ready: anonymous || !loading, identity, verified: scope !== null };
 }
 
 const CONTENT_CHOICES = ['stream', 'snapshot'] as const;
@@ -106,5 +106,6 @@ export function useCameraViewPreference(serialNumber: string | undefined, option
 }
 
 export function useCameraPlacementPreference(serialNumber: string | undefined, fallback: CameraPlacement) {
-  return useCameraPreference(serialNumber, 'camera-placement:v1', PLACEMENT_CHOICES, fallback);
+  const placement = useCameraPreference(serialNumber, 'camera-placement:v1', PLACEMENT_CHOICES, fallback);
+  return { ...placement, ready: placement.ready && placement.verified };
 }

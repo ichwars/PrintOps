@@ -166,7 +166,8 @@ describe('CameraPage', () => {
       expect(JSON.parse(localStorage.getItem(preferenceKey)!)).toEqual({ version: 1, mode: 'snapshot' });
     });
 
-    it('keeps camera-token links independent of stored appliance preferences', async () => {
+    it.each([false, true])('keeps camera-token links independent of stored appliance preferences when auth discovery fails: %s', async statusFails => {
+      if (statusFails) server.use(http.get('/api/v1/auth/status', () => HttpResponse.error()));
       localStorage.setItem(preferenceKey, JSON.stringify({ version: 1, mode: 'snapshot' }));
       renderCameraPage(1, '?camera_token=anonymous-link');
       await waitFor(() => {
