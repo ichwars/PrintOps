@@ -145,11 +145,12 @@ Merge: `76802b5c368f6aa7725d27f257a3ed2ead2187ba` (2026-10-14T15:49:44Z).
 
 MERGED normally exact independently Task+Whole reviewed head2667, normal parents b2f68c+2667, merge76802b. Saved strict gate31/31 actual COMPLETED/SUCCESS with same27 unique/multiplicity contexts as O16, final paginated GH reviewThreads3/3 resolved/hasNextPage=false, CLEAN. Exact PG job115910772432/run38580720155 dedicated owner/index+independent disable/enabled actor-removal step12passed/0skip and portable compatibility7passed, raw /tmp/o17-pr231-final2667-postgres-job.log SHA256 f1af63b6cbca418ed47351495e0b04f16a610995f90d59ea3b455cde0e3e6b7c. First Docker Build job115917945700 CANCELLED at35m26s/98% without pytest summary, raw /tmp/o17-pr231-final2667-docker-build-cancelled.log SHA256 d20e426bb5802785e45216088b802e612961c5c2da9cb903bc271cb13641286e; one targeted unchanged-head retry job115936690965 SUCCESS, integration4078passed/17skipped/4warnings in1442.58s and cleanup SUCCESS, raw /tmp/o17-pr231-final2667-docker-build-retry-success.log SHA256 3a07cc494b42aac4d8dd36e078cbfe606d0d2470c983f4630fdae5e3e8762d8f. Local R3 browser-route SQLite RED1fail/1pass→DELETE/WAL GREEN4pass, affected117pass/0skip, R2 frontend81pass/build/browser unchanged. No live Bot, chat-admin, physical printer or comprehensive live PG poller stress. Telegram own-only legacy archives without nonreused owner provenance deny; explicit dirty form edits persist across remote refetch. Original R1/R2 NOT READY and initial PG/Frontend failures retained; final R3 approvals supersede code findings only.
 
-### O18 — native Orca-HTTP-Variante
+### O18 — [PR #233](https://github.com/ichwars/PrintOps/pull/233): native Orca-HTTP-Variante
 
-Status: implementiert, lokaler AMD64-Nachweis vorhanden; aktuelle PR-URL wird
-vor dem abschließenden Commit ergänzt. ARM64-CI und unabhängiges Review sind
-noch nicht als erfolgreich belegt. Issue: [#232](https://github.com/ichwars/PrintOps/issues/232).
+Status: geliefert durch diesen aktuellen [PR #233](https://github.com/ichwars/PrintOps/pull/233),
+lokaler AMD64-Nachweis vorhanden. Der PR ist zum dokumentierten Stand offen;
+Merge-SHA und abschließender Status sind noch unbekannt. ARM64-CI und
+unabhängiges Review sind noch nicht als erfolgreich belegt. Issue: [#232](https://github.com/ichwars/PrintOps/issues/232).
 
 Offizieller OrcaSlicer 2.4.2 und der bestehende Wrapper-Commit
 `4c05506e40a0057db33234837db164143cbf3ad3` werden mit SHA256 geprüft.
