@@ -27,6 +27,7 @@ Screenshots gehören nicht in das Repository.
 | Upstream | [H2C- und Home-Assistant-Funktionen 2026-08-27](upstream-h2c-home-assistant-evaluation-2026-08-27.md) | Gerätebestand, Sensorzustände, Interlock-Fallbacks und Folgeissues |
 | Betrieb | [H2C-Nozzle-Mapping-Audit](h2c-nozzle-mapping-dispatch-audit.md) | Software-Sicherheitsgrenze und Hardware-Freigabenachweis für physische H2C-Düsen-IDs |
 | Drucker | [Geräteabnahme und Telemetrie-Nachweise](hardware-acceptance.md) | Issue-Kriterien, Firmware-Vergleiche, lesende Erhebung und anonymisierte Hardware-Nachweise |
+| Entwicklung | [Eingebettete Sidebar-Apps](sidebar-apps.md) | Theme-Nachrichten, Navigation, Origins und Sitzungsgrenzen |
 | Entwicklung | [Modellanbieter](model-providers.md) | MakerWorld-Import, Anbieter-Vertrag, Berechtigungen und HTTP-Lebenszyklus |
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 | Browser | [Browser-Kompatibilität](browser-compatibility.md) | Safari-16-Syntaxbaseline, README-Markdown und Grenzen der PDF-Vorschau |
