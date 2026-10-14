@@ -423,3 +423,22 @@ Poolgröße für einen Worker garantiert keine Kapazität für weitere Worker un
 andere Clients. Details und Grenzen stehen in der
 [Datenbank-Poolkonfiguration](database-pool-configuration.md).
 Die Ergänzung gehört zu [O14 / Issue #224](https://github.com/ichwars/PrintOps/issues/224).
+
+## Orca-Sidecar nativ auf ARM64 betreiben
+
+Für 64-Bit-ARM-Linux steht eine lokal baubare OrcaSlicer-Variante bereit. Starte
+den optionalen Sidecar mit `docker-compose.yml` und `compose.native.yml` aus
+`slicer-api/`. Die genaue Installation und die gepinnten Quellen stehen in der
+[Sidecar-Anleitung](../slicer-api/README.md). Aktiviere anschließend unter
+**Einstellungen → Slicer** die Slicer-API und trage die vom PrintOps-Backend
+erreichbare Sidecar-URL ein. Die bisherige AMD64-Konfiguration bleibt verfügbar.
+
+Die native Variante verwendet den vorhandenen HTTP-Wrapper mit expliziten
+Drucker-, Prozess- und Filamentprofilen samt Vererbungsauflösung. Sie erweitert
+nur OrcaSlicer; Bambu Studio erhält dadurch keine ARM64-Unterstützung.
+Speicherbedarf und Laufzeit hängen vom Modell ab; ein Betrieb mit 2 GB RAM wurde
+nicht gemessen. Bei ungeeigneter Hardware kannst du den Sidecar auf einem
+separaten Linux-Rechner betreiben oder den lokalen Desktop-Slicer verwenden.
+
+Die Ergebnisse und Grenzen aller ausgewählten optionalen Erweiterungen stehen
+im [optionalen Umsetzungsbericht](optional-upstream-implementation-2026-10-14.md).
