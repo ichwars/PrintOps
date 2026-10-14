@@ -2433,6 +2433,10 @@ export default {
 
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "Externe spoel verbergen",
+      "show": "Externe spoel tonen"
+    },
     textScale: {
       label: "Kaarttekst en pictogrammen",
       description: "Tekst en pictogrammen van 90 tot 120%, onafhankelijk van de kaartgrootte. In deze browser opgeslagen voor je account.",

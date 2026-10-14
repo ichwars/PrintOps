@@ -2394,6 +2394,10 @@ export default {
 
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "隐藏外置料卷",
+      "show": "显示外置料卷"
+    },
     textScale: {
       label: "卡片文字和图标",
       description: "将文字和图标调整为90%至120%，不影响卡片布局大小。按账户保存在此浏览器中。",

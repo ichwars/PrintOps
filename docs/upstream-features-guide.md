@@ -384,3 +384,28 @@ gespeicherte Abweichung.
 
 Die Softwareprüfung verwendet simulierte Druckerdaten und steuert keinen
 physischen Drucker. Sie gehört zu [O13a / Issue #216](https://github.com/ichwars/PrintOps/issues/216).
+
+## Externe Spule auf Druckerkarten ausblenden (O13b)
+
+Bei Druckern mit AMS und externer Spule lässt sich die externe Spulendarstellung
+über das Augensymbol rechts in der Filament-Kopfzeile ausblenden. Standardmäßig
+bleibt sie sichtbar. Dasselbe Symbol blendet sie wieder ein und ist auch per
+Tastatur erreichbar. Ohne aktuell gemeldetes AMS erscheint die externe Spule
+stets, selbst wenn sie vorher ausgeblendet wurde. Meldet sich das AMS wieder,
+gilt die gespeicherte Auswahl erneut.
+
+Die Einstellung gilt nur für diese Browserinstallation, diesen Server, das
+verifizierte Benutzerkonto und die Druckerseriennummer. Bei deaktivierter
+Authentifizierung gilt sie für die lokale Appliance-Ansicht. Ungeklärter
+Anmeldestatus oder fehlende Seriennummer lassen die externe Spule sichtbar;
+bei gesperrtem Browserspeicher gilt die Auswahl nur bis zum Neuladen.
+Kartengröße S/M/L/XL sowie die unabhängige Text- und Symbolskalierung bleiben
+separat einstellbar.
+
+Ausgeblendet wird ausschließlich die Darstellung. Um deren bisherige Aktionen
+(Laden, Entladen, Konfigurieren und Spulenzuweisung) zu erreichen, zunächst
+„Externe Spule anzeigen“ wählen. Berechtigungen, Zuordnungen, Bestand und
+Druckerstatus ändern sich dadurch nicht. Tag-Verknüpfungen und deren Aufhebung
+bleiben an den bestehenden Einstellungs-/Inventar-Einstiegen verfügbar.
+Die Anzeigeoption sendet keine Befehle an den Drucker und gehört zu
+[O13b / Issue #218](https://github.com/ichwars/PrintOps/issues/218).

@@ -2394,6 +2394,10 @@ export default {
 
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "Masquer la bobine externe",
+      "show": "Afficher la bobine externe"
+    },
     textScale: {
       label: "Texte et icônes des cartes",
       description: "Texte et icônes de 90 à 120 %, indépendamment de la taille des cartes. Enregistré dans ce navigateur pour votre compte.",

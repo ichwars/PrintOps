@@ -2393,6 +2393,10 @@ export default {
 
   // Yazıcılar sayfası
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "Harici makarayı gizle",
+      "show": "Harici makarayı göster"
+    },
     textScale: {
       label: "Kart metni ve simgeleri",
       description: "Kart boyutundan bağımsız olarak metin ve simge boyutunu %90–120 arasında ayarlar. Bu tarayıcıda hesabınız için kaydedilir.",

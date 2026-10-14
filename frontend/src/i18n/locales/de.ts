@@ -2431,6 +2431,10 @@ export default {
 
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "Externe Spule ausblenden",
+      "show": "Externe Spule anzeigen"
+    },
     textScale: {
       label: "Kartentext und Symbole",
       description: "Text und Symbole von 90 bis 120 %, unabhängig von der Kartengröße. In diesem Browser für dein Konto gespeichert.",
