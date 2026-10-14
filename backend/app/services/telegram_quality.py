@@ -211,21 +211,28 @@ async def apply_reaction(db, config_id, payload, *, commit=None, guard=None):
     )
     if not binding:
         return False
-    # Lock config before archive/outcome, matching send and revocation order.
-    # If revocation commits first, its revision makes this a no-op; otherwise
-    # revocation cannot return until this decision and cursor have committed.
-    fenced = await db.execute(
-        update(TelegramQualityConfig)
-        .where(
-            TelegramQualityConfig.id == config_id,
-            TelegramQualityConfig.revision == binding.config_revision,
-            TelegramQualityConfig.enabled.is_(True),
+
+    async def fence_config():
+        fenced = await db.execute(
+            update(TelegramQualityConfig)
+            .where(
+                TelegramQualityConfig.id == config_id,
+                TelegramQualityConfig.revision == binding.config_revision,
+                TelegramQualityConfig.enabled.is_(True),
+            )
+            .values(revision=binding.config_revision)
         )
-        .values(revision=binding.config_revision)
-    )
-    if fenced.rowcount != 1:
+        return fenced.rowcount == 1
+
+    # PostgreSQL: config before archive/FK row locks, matching prompt issuance.
+    # SQLite: all local outcome/batch mutexes before acquiring its single writer,
+    # so a browser/queue holder can finish its DB write while reactions wait.
+    sqlite = db.get_bind().dialect.name == "sqlite"
+    if not sqlite and not await fence_config():
         return False
     async with outcome_lock(db, binding.archive_id, binding.run_id):
+        if sqlite and not await fence_config():
+            return False
         if guard and not await guard():
             return False
         match = await active_config(db, config_id)
