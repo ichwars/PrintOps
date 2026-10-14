@@ -13,6 +13,8 @@ import { PipelineRunsView } from '../../pages/PipelineRunsPage';
 import { api, type PipelineRun } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     listSlicerPipelines: vi.fn(),
     listAllPipelineRuns: vi.fn(),

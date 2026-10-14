@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { AuthProvider, useAuth } from '../../contexts/AuthContext';
-import { setAuthToken } from '../../api/client';
+import { api, getAuthSessionId, getAuthToken, setAuthToken } from '../../api/client';
 import { usePrinterCardTextScale } from '../../hooks/usePrinterCardTextScale';
 import { PrinterCardTextScaleControl } from '../../pages/printers/PrinterCardTextScale';
 
@@ -12,6 +12,8 @@ const prefix = 'printops:card-text-scale:v1:http%3A%2F%2Flocalhost%3A3000:';
 const account = { id: 7, sub: 'provider-account', username: 'viewer', role: 'user', is_active: true,
   is_admin: false, auth_source: 'local', groups: [], permissions: [], created_at: '2026-01-01T00:00:00Z' };
 let refresh: () => Promise<void>;
+let refreshUser: () => Promise<void>;
+let signOut: () => void;
 let finishLogin: ReturnType<typeof useAuth>['loginWithToken'];
 function Probe() {
   const auth = useAuth();
@@ -19,6 +21,8 @@ function Probe() {
   useEffect(() => {
     refresh = auth.refreshAuth;
     finishLogin = auth.loginWithToken;
+    refreshUser = auth.refreshUser;
+    signOut = auth.logout;
   }, [auth]);
   return <>
     <output data-testid="verified">{String(auth.authStatusVerified)}</output>
@@ -46,6 +50,8 @@ describe('card scale with real auth-status provenance', () => {
     window.history.replaceState({}, '', '/');
   });
   afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     setAuthToken(null);
     vi.mocked(localStorage.getItem).mockReset();
     vi.mocked(localStorage.setItem).mockReset();
@@ -151,6 +157,110 @@ describe('card scale with real auth-status provenance', () => {
     } else {
       expect(screen.getByTestId('scale')).toHaveTextContent('120');
       expect(screen.getByRole('combobox', { name: 'Card text and icons' })).toBeEnabled();
+    }
+  });
+
+  it.each(['mount', 'refreshUser'] as const)('never authorizes A preferences after token login B overtakes %s /me A', async source => {
+    storage.set(prefix + 'user:account-b', '120');
+    setAuthToken('token-a');
+    let releaseA!: () => void;
+    const pending = new Promise<void>(resolve => { releaseA = resolve; });
+    let requests = 0;
+    server.use(
+      http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+      http.get('/api/v1/auth/me', async ({ request }) => {
+        expect(request.headers.get('Authorization')).toBe('Bearer token-a');
+        requests++;
+        if (source === 'mount' || requests > 1) await pending;
+        return HttpResponse.json(account);
+      }),
+    );
+    render(<AuthProvider><Probe /></AuthProvider>);
+    let refreshRequest: Promise<void> | undefined;
+    if (source === 'refreshUser') {
+      await waitFor(() => expect(screen.getByTestId('scale')).toHaveTextContent('110'));
+      await act(async () => { refreshRequest = refreshUser(); });
+    }
+    await waitFor(() => expect(requests).toBe(source === 'mount' ? 1 : 2));
+    const sessionA = getAuthSessionId();
+    act(() => finishLogin('token-b', { ...account, id: 8, sub: 'account-b' }));
+    expect(getAuthSessionId()).toBeGreaterThan(sessionA);
+    await act(async () => { releaseA(); await refreshRequest; });
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+    await waitFor(() => expect(screen.getByTestId('scale')).toHaveTextContent('120'));
+    expect(getAuthToken()).toBe('token-b');
+    fireEvent.click(screen.getByText('Attempt preference write'));
+    expect(storage.get(prefix + 'user:provider-account')).toBe('110');
+    expect(storage.get(prefix + 'user:account-b')).toBe('90');
+  });
+
+  it.each(['expired', 'logout'] as const)('cannot revive preference identity after %s while /me is pending', async boundary => {
+    setAuthToken('token-a');
+    let releaseA!: () => void;
+    const pending = new Promise<void>(resolve => { releaseA = resolve; });
+    let requests = 0;
+    server.use(
+      http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+      http.get('/api/v1/auth/me', async () => { requests++; await pending; return HttpResponse.json(account); }),
+    );
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(requests).toBe(1));
+    act(() => {
+      if (boundary === 'logout') signOut();
+      else window.dispatchEvent(new Event('auth:expired'));
+    });
+    await act(async () => { releaseA(); });
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+    expectUnavailable();
+    fireEvent.click(screen.getByText('Attempt preference write'));
+    expect(storage.get(prefix + 'user:provider-account')).toBe('110');
+  });
+
+  it('invalidates proof on actual token changes, including switching back to identical token bytes', async () => {
+    setAuthToken('token-a');
+    server.use(
+      http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+      http.get('/api/v1/auth/me', () => HttpResponse.json(account)),
+    );
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('scale')).toHaveTextContent('110'));
+    const sessionA = getAuthSessionId();
+    act(() => setAuthToken('token-b'));
+    expect(getAuthSessionId()).toBeGreaterThan(sessionA);
+    expectUnavailable();
+    act(() => setAuthToken('token-a'));
+    expect(getAuthSessionId()).toBeGreaterThan(sessionA + 1);
+    expectUnavailable();
+    fireEvent.click(screen.getByText('Attempt preference write'));
+    expect(storage.get(prefix + 'user:provider-account')).toBe('110');
+    await act(async () => { await refreshUser(); });
+    expect(screen.getByTestId('scale')).toHaveTextContent('110');
+  });
+
+  it.each([false, true])('handles silent renewal with intervening login = %s without transferring another account proof', async switchAccount => {
+    server.use(http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })));
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+    vi.useFakeTimers();
+    const expiringToken = `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 }))}.signature`;
+    let release!: (value: { access_token: string; token_type: string }) => void;
+    const pending = new Promise<{ access_token: string; token_type: string }>(resolve => { release = resolve; });
+    const renewal = vi.spyOn(api, 'refreshToken').mockReturnValue(pending);
+    act(() => finishLogin(expiringToken, account));
+    const sessionA = getAuthSessionId();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(renewal).toHaveBeenCalledOnce();
+    if (switchAccount) act(() => finishLogin('token-b', { ...account, id: 8, sub: 'account-b' }));
+    await act(async () => { release({ access_token: 'renewed-token-a', token_type: 'bearer' }); });
+    expect(getAuthSessionId()).toBeGreaterThan(sessionA);
+    if (switchAccount) {
+      expectUnavailable();
+      fireEvent.click(screen.getByText('Attempt preference write'));
+      expect(storage.get(prefix + 'user:provider-account')).toBe('110');
+    } else {
+      expect(screen.getByTestId('scale')).toHaveTextContent('110');
+      fireEvent.click(screen.getByText('Attempt preference write'));
+      expect(storage.get(prefix + 'user:provider-account')).toBe('90');
     }
   });
 

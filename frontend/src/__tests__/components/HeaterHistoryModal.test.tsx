@@ -9,6 +9,8 @@ import { HeaterHistoryModal } from '../../components/HeaterHistoryModal';
 import { api } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getPrinterSensorHistory: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),

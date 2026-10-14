@@ -9,6 +9,8 @@ import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getPrinterStatus: vi.fn(),
     getPrinter: vi.fn(),

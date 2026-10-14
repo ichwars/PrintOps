@@ -5,6 +5,8 @@ import { PrintLogModal } from '../../components/PrintLogModal';
 import { api } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getArchiveRuns: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),

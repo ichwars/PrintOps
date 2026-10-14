@@ -6,6 +6,8 @@ import { api } from '../../api/client';
 import { smallPartsApi } from '../../api/smallParts';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     printSpoolLabels: vi.fn(),
     previewLabels: vi.fn().mockResolvedValue(new Blob(["png"], { type: "image/png" })),

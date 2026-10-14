@@ -2,14 +2,14 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePrinterCardTextScale } from '../../hooks/usePrinterCardTextScale';
 
-let auth: { authEnabled: boolean; authStatusVerified: boolean; loading: boolean; user: { id: number; sub?: string } | null };
+let auth: { authEnabled: boolean; authStatusVerified: boolean; loading: boolean; preferenceSubject: string | null; user: { id: number; sub?: string } | null };
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth }));
 const prefix = 'printops:card-text-scale:v1:http%3A%2F%2Flocalhost%3A3000:';
 
 describe('printer card scale storage boundaries', () => {
   let storage: Map<string, string>;
   beforeEach(() => {
-    auth = { authStatusVerified: true, authEnabled: true, loading: false, user: { id: 7, sub: 'original' } };
+    auth = { authStatusVerified: true, authEnabled: true, loading: false, preferenceSubject: 'original', user: { id: 7, sub: 'original' } };
     storage = new Map();
     vi.mocked(localStorage.getItem).mockImplementation(key => storage.get(key) ?? null);
     vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, value); });
@@ -31,32 +31,32 @@ describe('printer card scale storage boundaries', () => {
     expect(hook.result.current.scale).toBe(100);
     act(() => hook.result.current.setScale(120));
     expect(storage.get(prefix + 'user:original')).toBe('120');
-    auth = { ...auth, user: { id: 8, sub: 'second' } };
+    auth = { ...auth, preferenceSubject: 'second', user: { id: 8, sub: 'second' } };
     hook.rerender();
     expect(hook.result.current.scale).toBe(100);
     act(() => hook.result.current.setScale(90));
-    auth = { ...auth, user: null };
+    auth = { ...auth, preferenceSubject: null, user: null };
     hook.rerender();
     expect(hook.result.current.scale).toBe(100);
     expect(hook.result.current.ready).toBe(false);
-    auth = { ...auth, user: { id: 7, sub: 'replacement' } };
+    auth = { ...auth, preferenceSubject: 'replacement', user: { id: 7, sub: 'replacement' } };
     const before = renders.length;
     hook.rerender();
     expect(renders.slice(before)).not.toContain(120);
     expect(hook.result.current.scale).toBe(100);
-    auth = { ...auth, user: { id: 7, sub: 'original' } };
+    auth = { ...auth, preferenceSubject: 'original', user: { id: 7, sub: 'original' } };
     hook.rerender();
     expect(hook.result.current.scale).toBe(120);
     act(() => hook.result.current.setScale(100));
     expect(storage.has(prefix + 'user:original')).toBe(false);
-    auth = { ...auth, user: { id: 8, sub: 'second' } };
+    auth = { ...auth, preferenceSubject: 'second', user: { id: 8, sub: 'second' } };
     hook.rerender();
     expect(hook.result.current.scale).toBe(90);
   });
 
   it('does not persist under numeric-only, synthetic, signed-out or unresolved identities', () => {
     storage.set(prefix + 'appliance', '120');
-    auth = { authStatusVerified: false, authEnabled: false, loading: true, user: null };
+    auth = { authStatusVerified: false, authEnabled: false, loading: true, preferenceSubject: null, user: null };
     const hook = renderHook(() => usePrinterCardTextScale());
     expect(hook.result.current.scale).toBe(100);
     act(() => hook.result.current.setScale(90));
@@ -65,7 +65,7 @@ describe('printer card scale storage boundaries', () => {
     hook.rerender();
     expect(hook.result.current.scale).toBe(120);
     for (const user of [{ id: 7 }, { id: 0 }, null]) {
-      auth = { authStatusVerified: true, authEnabled: true, loading: false, user };
+      auth = { authStatusVerified: true, authEnabled: true, loading: false, preferenceSubject: null, user };
       hook.rerender();
       expect(hook.result.current.scale).toBe(100);
       expect(hook.result.current.ready).toBe(false);
@@ -99,7 +99,7 @@ describe('printer card scale storage boundaries', () => {
   });
 
   it('keeps blocked-storage choices usable across cards and scoped to the stable subject', () => {
-    auth = { ...auth, user: { id: 7, sub: 'blocked-original' } };
+    auth = { ...auth, preferenceSubject: 'blocked-original', user: { id: 7, sub: 'blocked-original' } };
     vi.mocked(localStorage.getItem).mockImplementation(() => { throw Error('blocked'); });
     vi.mocked(localStorage.setItem).mockImplementation(() => { throw Error('blocked'); });
     vi.mocked(localStorage.removeItem).mockImplementation(() => { throw Error('blocked'); });
@@ -107,10 +107,10 @@ describe('printer card scale storage boundaries', () => {
     const card = renderHook(() => usePrinterCardTextScale());
     act(() => toolbar.result.current.setScale(120));
     expect(card.result.current.scale).toBe(120);
-    auth = { ...auth, user: { id: 7, sub: 'blocked-replacement' } };
+    auth = { ...auth, preferenceSubject: 'blocked-replacement', user: { id: 7, sub: 'blocked-replacement' } };
     card.rerender();
     expect(card.result.current.scale).toBe(100);
-    auth = { ...auth, user: { id: 7, sub: 'blocked-original' } };
+    auth = { ...auth, preferenceSubject: 'blocked-original', user: { id: 7, sub: 'blocked-original' } };
     card.rerender();
     expect(card.result.current.scale).toBe(120);
     act(() => toolbar.result.current.setScale(100));
