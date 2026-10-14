@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.routes.cloud import get_stored_token, resolve_api_key_cloud_owner
 from backend.app.api.routes.library import save_3mf_bytes_to_library
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.auth import RequirePermissionIfAuthEnabled, is_auth_enabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.models.library import LibraryFile, LibraryFolder
@@ -54,6 +54,18 @@ router = APIRouter(prefix="/makerworld", tags=["makerworld"])
 _SOURCE_TYPE = "makerworld"
 
 
+async def _get_makerworld_token(db: AsyncSession, user: User | None) -> str | None:
+    """Read global credentials only while auth is disabled.
+
+    A key without cloud scope has no resolved owner. Retained global Settings
+    credentials must never substitute for that missing authorized identity.
+    """
+    if user is None and await is_auth_enabled(db):
+        return None
+    token, _email, _region = await get_stored_token(db, user)
+    return token
+
+
 async def _build_service(db: AsyncSession, user: User | None) -> ModelProvider:
     """Construct a per-request model provider seeded with the caller's
     stored Bambu Cloud bearer token when available.
@@ -61,7 +73,7 @@ async def _build_service(db: AsyncSession, user: User | None) -> ModelProvider:
     Mirrors ``cloud.build_authenticated_cloud`` — the token is entirely
     optional; anonymous calls (metadata, URL resolution) still work.
     """
-    token, _email, _region = await get_stored_token(db, user)
+    token = await _get_makerworld_token(db, user)
     return model_providers.for_source(_SOURCE_TYPE).create(auth_token=token)
 
 
@@ -155,7 +167,7 @@ async def get_status(
     as the cloud-presets fix in #1182).
     """
     cloud_token_user = current_user or api_key_cloud_owner
-    token, _email, _region = await get_stored_token(db, cloud_token_user)
+    token = await _get_makerworld_token(db, cloud_token_user)
     has_token = bool(token)
     descriptor = model_providers.for_source(_SOURCE_TYPE).descriptor
     return MakerWorldStatus(

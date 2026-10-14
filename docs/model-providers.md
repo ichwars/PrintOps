@@ -24,7 +24,11 @@ Verfügbarkeit des Tokens, nicht dessen Gültigkeit beim Anbieter.
 
 `catalog.py` registriert ausdrücklich nur MakerWorld. Die Registry sucht nach
 Bibliotheks-Quelltyp oder lässt den validierenden Parser eine Modell-URL
-zuordnen. Unbekannte URLs und doppelte Quelltypen werden abgelehnt. Der
+zuordnen. Eine weitere Registrierung allein ändert weder die festen
+`/makerworld`-Routen noch den beim Import gespeicherten Quelltyp `makerworld`.
+Ein weiterer Anbieter benötigt ausdrücklich festgelegte Anwendungsrouten und
+eine passende Entscheidung über den gespeicherten Bibliotheks-Quelltyp.
+Unbekannte URLs und doppelte Quelltypen werden abgelehnt. Der
 MakerWorld-Parser bleibt maßgeblich für bekannte URL-Formen, einschließlich
 Locale-Pfad, Slug, optionalem Schema und Profilfragment. Eine URL mit
 `makerworld.com` lediglich im fremden Host oder Benutzerinfo-Feld passt nicht.
@@ -46,6 +50,11 @@ Anwendung: API-Schlüssel benötigen für Status/Auflösung `can_read_status`,
 für Import `can_manage_library` und für den Token des Schlüsselinhabers
 zusätzlich `can_access_cloud`. Ohne Cloud-Scope bleibt öffentliche Auflösung
 möglich, aber der echte Download-Manifest-Aufruf wird mit 401 abgelehnt.
+Bei aktivierter Authentifizierung ersetzen eventuell behaltene globale
+Cloud-Zugangsdaten keine fehlende berechtigte Benutzeridentität. Die gemeinsame
+MakerWorld-Tokenauflösung für Status und Dienste liest globale Zugangsdaten
+nur bei deaktivierter Authentifizierung; der bisherige anonyme Import mit
+globalem Token bleibt in diesem Betriebsmodus möglich.
 
 Ordnerwahl, Schreibschutz externer Ordner, Deduplizierung pro Profil,
 Dateinamenbereinigung, Bibliotheks-Speicherung und `created_by_id` verbleiben
