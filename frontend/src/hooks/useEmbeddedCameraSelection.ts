@@ -53,5 +53,5 @@ export function useEmbeddedCameraSelection(printers: Printer[] | undefined) {
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: key }));
     return true;
   }, [key, printers]);
-  return { cameras, openCamera: (id: number) => update(id, true), closeCamera: (id: number) => update(id, false) };
+  return { cameras, ready: key !== null, openCamera: (id: number) => update(id, true), closeCamera: (id: number) => update(id, false) };
 }

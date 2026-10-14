@@ -30,6 +30,7 @@ interface CameraWallProps {
   maxLive: number;
   snapshotIntervalSec: number;
   statusMode: CameraTileStatusMode;
+  launchDisabled?: boolean;
   onTileClick?: (printerId: number, printerName: string) => void;
   onChangeMaxLive: (next: number) => void;
   onChangeSnapshotIntervalSec: (next: number) => void;
@@ -50,6 +51,7 @@ export function CameraWall({
   snapshotIntervalSec,
   statusMode,
   onTileClick,
+  launchDisabled = false,
   onChangeMaxLive,
   onChangeSnapshotIntervalSec,
   onChangeStatusMode,
@@ -284,6 +286,7 @@ export function CameraWall({
                 hmsErrorCount={
                   filterKnownHMSErrors(statusByPrinter.get(p.id)?.hms_errors ?? []).length
                 }
+                disabled={launchDisabled}
                 onClick={onTileClick ? () => onTileClick(p.id, p.name) : undefined}
               />
             </div>

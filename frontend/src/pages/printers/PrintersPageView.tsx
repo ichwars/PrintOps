@@ -197,7 +197,7 @@ export function PrintersPage() {
     queryFn: api.getPrinters,
   });
 
-  const { cameras: embeddedCameras, openCamera: openEmbeddedCamera, closeCamera: closeEmbeddedCamera } = useEmbeddedCameraSelection(printers);
+  const { cameras: embeddedCameras, ready: cameraLaunchReady, openCamera: openEmbeddedCamera, closeCamera: closeEmbeddedCamera } = useEmbeddedCameraSelection(printers);
 
   // Fetch the UI-rendering subset of settings. Uses /ui-preferences (not /settings)
   // so users with printers:read but no settings:read still get the values needed
@@ -1092,22 +1092,21 @@ export function PrintersPage() {
           printers={sortedPrinters}
           maxLive={camWallMaxLive}
           snapshotIntervalSec={camWallSnapshotSec}
+          launchDisabled={!cameraLaunchReady}
           onTileClick={(id) => {
+            if (!cameraLaunchReady) return;
             const cameraMode = settings?.camera_view_mode || 'window';
-            if (cameraMode === 'embedded') {
-              openEmbeddedCamera(id);
-            } else {
-              const saved = localStorage.getItem('cameraWindowState');
-              const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
-              const features = [
-                `width=${state.width}`,
-                `height=${state.height}`,
-                state.left !== undefined ? `left=${state.left}` : '',
-                state.top !== undefined ? `top=${state.top}` : '',
-                'menubar=no,toolbar=no,location=no,status=no',
-              ].filter(Boolean).join(',');
-              window.open(`/camera/${id}`, `camera-${id}`, features);
-            }
+            if (cameraMode === 'embedded' && openEmbeddedCamera(id)) return;
+            const saved = localStorage.getItem('cameraWindowState');
+            const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
+            const features = [
+              `width=${state.width}`,
+              `height=${state.height}`,
+              state.left !== undefined ? `left=${state.left}` : '',
+              state.top !== undefined ? `top=${state.top}` : '',
+              'menubar=no,toolbar=no,location=no,status=no',
+            ].filter(Boolean).join(',');
+            window.open(`/camera/${id}`, `camera-${id}`, features);
           }}
           statusMode={camWallStatusMode}
           onChangeMaxLive={(next) => {

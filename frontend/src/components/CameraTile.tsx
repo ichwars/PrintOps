@@ -14,6 +14,7 @@ interface CameraTileProps {
   mode: CameraTileMode;
   snapshotIntervalMs: number;
   connected: boolean;
+  disabled?: boolean;
   onClick?: () => void;
   // Optional status overlay — wired by CameraWall from the shared
   // ['printerStatus', id] query. All optional so existing tests don't break.
@@ -65,6 +66,7 @@ export function CameraTile({
   snapshotIntervalMs,
   connected,
   onClick,
+  disabled = false,
   statusMode = 'off',
   printerState = null,
   progress = null,
@@ -148,8 +150,9 @@ export function CameraTile({
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={handleClick}
-      className="group relative aspect-video w-full overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-black text-left focus:outline-none focus:ring-2 focus:ring-bambu-green"
+      className="group relative aspect-video w-full overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-black text-left focus:outline-none focus:ring-2 focus:ring-bambu-green disabled:cursor-not-allowed disabled:opacity-50"
       title={printerName}
     >
       {!connected || mode === 'paused' ? (
