@@ -1,0 +1,84 @@
+name: Native Orca sidecar
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'slicer-api/**'
+      - 'backend/app/services/slicer_api.py'
+      - '.github/workflows/slicer-native.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'slicer-api/**'
+      - 'backend/app/services/slicer_api.py'
+      - '.github/workflows/slicer-native.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-orca-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-slice:
+    name: Native Orca (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            machine: aarch64
+          - runner: ubuntu-24.04
+            arch: amd64
+            machine: x86_64
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify native runner and integrity tests
+        run: |
+          mkdir -p evidence
+          test "$(uname -m)" = '${{ matrix.machine }}'
+          uname -a | tee evidence/host.txt
+          docker version | tee evidence/docker-version.txt
+          python3 -m unittest discover -s slicer-api/tests -v 2>&1 | tee evidence/unit.log
+      - uses: docker/setup-buildx-action@v4
+      - name: Build pinned engine and wrapper on native host
+        uses: docker/build-push-action@v7
+        with:
+          context: slicer-api
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: printops-orca-native:2.4.2
+          cache-from: type=gha,scope=orca-${{ matrix.arch }}
+          cache-to: type=gha,scope=orca-${{ matrix.arch }},mode=max
+      - name: Check extracted engine architecture and version
+        run: |
+          docker image inspect printops-orca-native:2.4.2 > evidence/image.json
+          test "$(docker image inspect -f '{{.Architecture}}' printops-orca-native:2.4.2)" = '${{ matrix.arch }}'
+          docker run --name orca-engine-check printops-orca-native:2.4.2 /app/squashfs-root/AppRun --help > evidence/engine-help.txt 2>&1
+          grep -F 'OrcaSlicer-2.4.2' evidence/engine-help.txt
+          docker cp orca-engine-check:/app/squashfs-root/bin/orca-slicer evidence/orca-slicer.elf
+          python3 slicer-api/native_build.py verify-elf evidence/orca-slicer.elf --arch '${{ matrix.arch }}' | tee evidence/elf.txt
+          rm evidence/orca-slicer.elf
+      - name: Unprivileged Compose persistence and real HTTP contract
+        env:
+          SMOKE_EVIDENCE_DIR: evidence
+        run: bash slicer-api/tests/nonroot_native.sh
+      - name: Clean engine check container
+        if: always()
+        run: docker rm -f orca-engine-check || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: native-orca-${{ matrix.arch }}-${{ github.sha }}
+          path: evidence/
+          retention-days: 14

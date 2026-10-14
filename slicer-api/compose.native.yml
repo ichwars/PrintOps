@@ -1,0 +1,15 @@
+# Use together with docker-compose.yml. Build on the target Linux host.
+services:
+  orca-slicer-api:
+    image: printops-orca-native:2.4.2
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Replaces the default bind mount at the same container target. Docker
+    # initializes this dedicated volume with the image's non-root ownership.
+    volumes:
+      - orca-native-data:/app/data
+
+volumes:
+  orca-native-data:

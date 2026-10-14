@@ -1,7 +1,7 @@
 # Optional slicer-API sidecar stack for PrintOps.
 #
 # Both services are HTTP wrappers around a slicer CLI: the same Node code
-# (`maziggy/orca-slicer-api`, `printops/profile-resolver` branch) bundled
+# (`maziggy/orca-slicer-api`, `bambuddy/profile-resolver` branch) bundled
 # with a different binary in each image. PrintOps talks to them via the
 # URLs configured in Settings -> Slicer.
 #
@@ -17,13 +17,9 @@
 #   docker compose up -d                       # starts OrcaSlicer only
 #   docker compose --profile bambu up -d       # starts both
 #
-# First start pulls pre-built images from GHCR (~110 MB OrcaSlicer,
-# ~220 MB BambuStudio). No local build, no git in the BuildKit worker,
-# works on QNAP / Synology / Container Station out of the box.
-#
-# Both images are linux/amd64 only. OrcaSlicer's ARM64 path is on hold
-# pending an upstream extraction fix; BambuStudio doesn't publish ARM64
-# at all.
+# Default: existing third-party pre-built GHCR images (AMD64 route).
+# For a pinned native ARM64/AMD64 Orca local build, add compose.native.yml.
+# This does not change the optional Bambu Studio image or its platforms.
 
 services:
   orca-slicer-api:
