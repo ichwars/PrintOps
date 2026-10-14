@@ -2394,6 +2394,10 @@ export default {
 
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "Ocultar bobina externa",
+      "show": "Mostrar bobina externa"
+    },
     textScale: {
       label: "Texto e ícones dos cartões",
       description: "Texto e ícones de 90 a 120%, independentemente do tamanho dos cartões. Salvo neste navegador para sua conta.",

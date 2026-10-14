@@ -2388,6 +2388,10 @@ export default {
     "saved": "Saved",
   },
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "외부 스풀 숨기기",
+      "show": "외부 스풀 표시"
+    },
     textScale: {
       label: "카드 글자 및 아이콘",
       description: "카드 크기와 별도로 글자와 아이콘을 90~120%로 조절합니다. 이 브라우저에 계정별로 저장됩니다.",

@@ -2394,6 +2394,10 @@ export default {
 
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "Nascondi bobina esterna",
+      "show": "Mostra bobina esterna"
+    },
     textScale: {
       label: "Testo e icone delle schede",
       description: "Testo e icone dal 90 al 120%, indipendentemente dalle dimensioni delle schede. Salvato in questo browser per il tuo account.",

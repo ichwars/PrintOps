@@ -2393,6 +2393,10 @@ export default {
   },
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "外部スプールを非表示",
+      "show": "外部スプールを表示"
+    },
     textScale: {
       label: "カードの文字とアイコン",
       description: "カードの配置サイズとは別に、文字とアイコンを90～120%に調整します。このブラウザーにアカウントごとに保存されます。",

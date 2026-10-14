@@ -2431,6 +2431,10 @@ export default {
 
   // Printers page
   printers: {
+    "externalSpoolDisplay": {
+      "hide": "Hide external spool",
+      "show": "Show external spool"
+    },
     textScale: {
       label: "Card text and icons",
       description: "90–120% text and icon size, independent of card grid size. Saved in this browser for your account.",

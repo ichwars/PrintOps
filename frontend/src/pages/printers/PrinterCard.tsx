@@ -21,7 +21,7 @@ import { PRINTER_CONTROL_CAPABILITIES, isCloudControlCandidate, isCloudControlUn
 import { FilamentSlotCircle } from '../../components/FilamentSlotCircle';
 import { getColorName } from '../../utils/colors';
 import { MODELS_WITH_CHAMBER_FAN, getStatusDisplay } from './printer-status';
-import { AmsBackupBadge, CoverImage, DualNozzleHoverCard, HeaterThermometer, HumidityIndicator, NozzleBadge, NozzleIcon, NozzleRackCard, NozzleSlotHoverCard, TemperatureIndicator } from './printer-card-visuals';
+import { CoverImage, DualNozzleHoverCard, HeaterThermometer, HumidityIndicator, NozzleBadge, NozzleIcon, NozzleRackCard, NozzleSlotHoverCard, TemperatureIndicator } from './printer-card-visuals';
 import { IndicatorControlPopover, NozzleTemperatureControlBox } from './printer-toolbar';
 import { AmsNameHoverCard } from './AmsNameHoverCard';
 import { DRYING_POPOVER_ESTIMATED_HEIGHT, DRYING_POPOVER_WIDTH } from './printer-card-constants';
@@ -33,9 +33,12 @@ import { AiDetectionBadge } from '../../components/AiDetectionBadge';
 import { useCameraViewPreference } from '../../hooks/useCameraViewPreference';
 import { CameraViewPreferenceSelect } from '../../components/CameraViewPreferenceSelect';
 import { openCameraWindow } from '../../utils/cameraWindow';
+import { useExternalSpoolDisplay } from '../../hooks/useExternalSpoolDisplay';
+import { PrinterFilamentHeader } from './PrinterFilamentHeader';
 
 export function PrinterCard(props: PrinterCardProps) {
   const cameraPreference = useCameraViewPreference(props.printer.id);
+  const externalDisplay = useExternalSpoolDisplay(props.printer.serial_number);
   const model = usePrinterCardModel(props);
   if (!model) return null;
   const {
@@ -1674,6 +1677,7 @@ return (
 
             {/* AMS Units - 2-Column Grid Layout */}
             {(amsData?.length > 0 || status.vt_tray.length > 0) && viewMode === 'expanded' && (() => {
+              const hasLiveAms = (status.ams?.length ?? 0) > 0;
               // Separate regular AMS (4-tray) from HT AMS (1-tray)
               const regularAms = amsData.filter(ams => ams.tray.length > 1);
               const htAms = amsData.filter(ams => ams.tray.length === 1);
@@ -1700,17 +1704,7 @@ return (
 
               return (
                 <div className="mt-3">
-                  {/* Section Header */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
-                      {t('printers.filaments')}
-                    </span>
-                    <AmsBackupBadge
-                      state={status.ams_filament_backup}
-                      onClick={() => setAmsBackupModalOpen(true)}
-                    />
-                    <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
-                  </div>
+                  <PrinterFilamentHeader backupState={status.ams_filament_backup} onBackupClick={() => setAmsBackupModalOpen(true)} canToggleExternal={hasLiveAms && status.vt_tray.length > 0} externalDisplay={externalDisplay} />
 
                   {/* AMS Content */}
                   <div className="flex flex-wrap gap-2">
@@ -2552,7 +2546,7 @@ return (
                         );
                       })}
                       {/* External spool(s) - grouped in one card like regular AMS */}
-                      {status.vt_tray.length > 0 && (
+                      {status.vt_tray.length > 0 && (!hasLiveAms || !externalDisplay.hidden) && (
                         <div style={getAmsCardStyle(status.vt_tray.length)} className="min-w-0 p-2 bg-bambu-dark rounded-[10px] space-y-1">
                           <div className="flex w-full min-h-7 items-center gap-1.5 rounded-lg bg-bambu-dark-secondary px-2 py-1">
                             <span className="block min-w-0 flex-1 truncate text-[10px] text-white font-medium">{t('printers.external')}</span>
