@@ -376,7 +376,9 @@ Benutzerantwort ein öffentliches, dauerhaftes `sub` aus der bereits vorhandenen
 Kontoidentität. Ohne Anmeldung bei ausdrücklich deaktivierter Authentifizierung
 gilt die Auswahl für diesen Browser und diese Installation. Während die
 Anmeldung lädt sowie für synthetische API-Key-Benutzer ohne Kontoidentität ist
-die Einstellung gesperrt. Blockierter Browserspeicher erlaubt die Auswahl
+die Einstellung gesperrt. Das gilt auch nach einer fehlgeschlagenen Abfrage des
+Authentifizierungsstatus, bis eine erneute Abfrage erfolgreich ist.
+Blockierter Browserspeicher erlaubt die Auswahl
 weiterhin im aktuellen Tab. Die Auswahl von 100 Prozent entfernt die
 gespeicherte Abweichung.
 

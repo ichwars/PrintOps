@@ -2,14 +2,14 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePrinterCardTextScale } from '../../hooks/usePrinterCardTextScale';
 
-let auth: { authEnabled: boolean; loading: boolean; user: { id: number; sub?: string } | null };
+let auth: { authEnabled: boolean; authStatusVerified: boolean; loading: boolean; user: { id: number; sub?: string } | null };
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth }));
 const prefix = 'printops:card-text-scale:v1:http%3A%2F%2Flocalhost%3A3000:';
 
 describe('printer card scale storage boundaries', () => {
   let storage: Map<string, string>;
   beforeEach(() => {
-    auth = { authEnabled: true, loading: false, user: { id: 7, sub: 'original' } };
+    auth = { authStatusVerified: true, authEnabled: true, loading: false, user: { id: 7, sub: 'original' } };
     storage = new Map();
     vi.mocked(localStorage.getItem).mockImplementation(key => storage.get(key) ?? null);
     vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, value); });
@@ -56,16 +56,16 @@ describe('printer card scale storage boundaries', () => {
 
   it('does not persist under numeric-only, synthetic, signed-out or unresolved identities', () => {
     storage.set(prefix + 'appliance', '120');
-    auth = { authEnabled: false, loading: true, user: null };
+    auth = { authStatusVerified: false, authEnabled: false, loading: true, user: null };
     const hook = renderHook(() => usePrinterCardTextScale());
     expect(hook.result.current.scale).toBe(100);
     act(() => hook.result.current.setScale(90));
     expect(storage.get(prefix + 'appliance')).toBe('120');
-    auth = { ...auth, loading: false };
+    auth = { ...auth, authStatusVerified: true, loading: false };
     hook.rerender();
     expect(hook.result.current.scale).toBe(120);
     for (const user of [{ id: 7 }, { id: 0 }, null]) {
-      auth = { authEnabled: true, loading: false, user };
+      auth = { authStatusVerified: true, authEnabled: true, loading: false, user };
       hook.rerender();
       expect(hook.result.current.scale).toBe(100);
       expect(hook.result.current.ready).toBe(false);

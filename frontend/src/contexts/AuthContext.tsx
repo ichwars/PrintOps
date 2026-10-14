@@ -12,6 +12,8 @@ const MAX_TIMEOUT_MS = 20 * 24 * 60 * 60 * 1000;
 interface AuthContextType {
   user: UserResponse | null;
   authEnabled: boolean;
+  /** Server-confirmed auth mode; false while discovery is pending or failed. */
+  authStatusVerified: boolean;
   requiresSetup: boolean;
   loading: boolean;
   isAdmin: boolean;
@@ -33,8 +35,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [authEnabled, setAuthEnabled] = useState(false);
+  const [verifiedAuthMode, setVerifiedAuthMode] = useState<boolean | null>(null);
   const [requiresSetup, setRequiresSetup] = useState(false);
   const [loading, setLoading] = useState(true);
+  const authStatusCheckRef = useRef(0);
   const hasRedirectedRef = useRef(false);
   const mountedRef = useRef(true);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,6 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkAuthStatus = async () => {
+    const check = ++authStatusCheckRef.current;
+    setVerifiedAuthMode(null);
     try {
       // Bootstrap: if URL has ?token= param, store it session-only first and
       // strip it from the URL. Allows SpoolBuddy kiosk to pass an API key via
@@ -165,8 +171,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Auth not enabled, allow access
         setUser(null);
       }
+      // Late lookups cannot revive display preferences after a newer check failed.
+      if (check === authStatusCheckRef.current) {
+        setVerifiedAuthMode(typeof status.auth_enabled === 'boolean' ? status.auth_enabled : null);
+      }
     } catch {
       if (!mountedRef.current) return;
+      if (check === authStatusCheckRef.current) setVerifiedAuthMode(null);
       setAuthEnabled(false);
       setUser(null);
     } finally {
@@ -235,9 +246,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithToken = (token: string, userObj: UserResponse, persistence: TokenPersistence = 'session') => {
+    authStatusCheckRef.current += 1;
     setAuthToken(token, persistence);
     setUser(userObj);
     setAuthEnabled(true);
+    setVerifiedAuthMode(true);
   };
 
   const logout = () => {
@@ -330,6 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         authEnabled,
+        authStatusVerified: verifiedAuthMode !== null && verifiedAuthMode === authEnabled,
         requiresSetup,
         loading,
         isAdmin,

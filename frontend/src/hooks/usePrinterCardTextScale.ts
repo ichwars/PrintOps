@@ -21,8 +21,8 @@ function readScale(key: string | null): CardTextScale {
 
 /** Browser-local display preference; numeric SQLite IDs can be reused after deletion. */
 export function usePrinterCardTextScale() {
-  const { authEnabled, loading, user } = useAuth();
-  const scope = loading ? null : !authEnabled ? 'appliance'
+  const { authEnabled, authStatusVerified, loading, user } = useAuth();
+  const scope = loading || authStatusVerified !== true ? null : !authEnabled ? 'appliance'
     : user?.sub && user.id > 0 ? `user:${encodeURIComponent(user.sub)}` : null;
   const key = scope ? `printops:card-text-scale:v1:${encodeURIComponent(window.location.origin)}:${scope}` : null;
   const subscribe = useCallback((notify: () => void) => {
