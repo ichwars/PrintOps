@@ -326,3 +326,36 @@ Warnungen. Die Softwaretests verwenden gemockte Befehle; eine reale macOS-
 Netzwerkfreigabe und Druckerkommunikation wurden damit nicht geprüft.
 
 Diese Erweiterung gehört zu [O09 / Issue #208](https://github.com/ichwars/PrintOps/issues/208).
+
+## O12: Objekte auf der Bauplatte überspringen
+
+Öffne während eines laufenden oder pausierten Drucks mit mehreren erkannten
+Objekten die Objektauswahl auf der Druckerkarte oder in der Kameraansicht.
+Klicke ein Objekt in der Bauplattenvorschau oder in der Liste an; ein erneuter
+Klick hebt die Auswahl auf. Die vergrößerte Vorschau verwendet dieselbe Auswahl.
+Bereits übersprungene Objekte lassen sich nicht erneut auswählen. Ist keine
+Auswahlmaske verfügbar, bleibt die Auswahl über die Objektliste möglich.
+
+„Ausgewählte überspringen“ öffnet zunächst eine Bestätigung. Bei Auswahl aller
+verbleibenden Objekte warnt sie vor dem Ende des Drucks. Der Befehl wird erst
+nach der Bestätigung gesendet. Die Objektdaten werden alle fünf Sekunden
+aktualisiert: Verschwundene oder inzwischen übersprungene Objekte fallen aus
+der Auswahl, auch bei bereits geöffneter Bestätigung. Andere aktive Auswahlen
+bleiben erhalten. Ohne verbleibende Auswahl ist die Bestätigung gesperrt.
+
+Die Oberfläche erlaubt das Überspringen erst nach der ersten Druckschicht und
+mit `printers:control`. Objektlisten benötigen `printers:read`; beide
+Objekt-Endpunkte beachten zusätzlich die Druckerfreigaben des Benutzers oder
+API-Keys. Eine leere Freigabeliste erlaubt keinen Drucker. Die vorhandenen
+Prüfungen auf einen verbundenen Drucker, bekannte Objekt-IDs und eine
+Trocknungsreservierung bleiben wirksam. Der MQTT-Befehl ist nur im Zustand
+`RUNNING` oder `PAUSE` möglich. Objekt-IDs und Vorschauen stammen aus den vom
+Drucker beziehungsweise Slicer bereitgestellten Daten; die Softwareprüfung
+ersetzt keine Abnahme mit konkretem Druckermodell und Firmware.
+
+Die Bauplattenauswahl war bereits vorhanden. O12 ergänzt die Prüfung des
+gerenderten Ablaufs und behebt veraltete Auswahlen sowie die Druckerbindung der
+beiden Objekt-Endpunkte. Die Softwaretests und Browserfixtures verwenden
+ausschließlich simulierte Transportantworten und steuern keinen Drucker.
+
+Diese Prüfung gehört zu [O12 / Issue #214](https://github.com/ichwars/PrintOps/issues/214).
