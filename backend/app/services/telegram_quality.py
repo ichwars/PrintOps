@@ -182,9 +182,9 @@ async def bind_message(db, provider, sent, archive_id, run_id, *, expected_revis
     return True
 
 
-async def apply_reaction(db, config_id, update, *, commit=None, guard=None):
+async def apply_reaction(db, config_id, payload, *, commit=None, guard=None):
     """Caller commits inside the shared outcome lock; poller also commits its cursor."""
-    event = update.get("message_reaction")
+    event = payload.get("message_reaction")
     if not isinstance(event, dict) or event.get("actor_chat") or not isinstance(event.get("user"), dict):
         return False
     actor_id = event["user"].get("id")
@@ -210,6 +210,20 @@ async def apply_reaction(db, config_id, update, *, commit=None, guard=None):
         )
     )
     if not binding:
+        return False
+    # Lock config before archive/outcome, matching send and revocation order.
+    # If revocation commits first, its revision makes this a no-op; otherwise
+    # revocation cannot return until this decision and cursor have committed.
+    fenced = await db.execute(
+        update(TelegramQualityConfig)
+        .where(
+            TelegramQualityConfig.id == config_id,
+            TelegramQualityConfig.revision == binding.config_revision,
+            TelegramQualityConfig.enabled.is_(True),
+        )
+        .values(revision=binding.config_revision)
+    )
+    if fenced.rowcount != 1:
         return False
     async with outcome_lock(db, binding.archive_id, binding.run_id):
         if guard and not await guard():
@@ -263,6 +277,7 @@ async def apply_reaction(db, config_id, update, *, commit=None, guard=None):
             )
         except OutcomeConflict:
             return False
+        await db.delete(binding)
         await (commit() if commit else db.commit())
         return True
 
@@ -282,9 +297,9 @@ async def send_quality_prompt(service, db, provider, config, message, image_data
 
 async def invalidate_provider(db, provider_id):
     configs = select(TelegramQualityConfig.id).where(TelegramQualityConfig.provider_id == provider_id)
-    await db.execute(delete(TelegramQualityMessage).where(TelegramQualityMessage.config_id.in_(configs)))
     await db.execute(
         update(TelegramQualityConfig)
         .where(TelegramQualityConfig.provider_id == provider_id)
         .values(revision=secrets.token_hex(16))
     )
+    await db.execute(delete(TelegramQualityMessage).where(TelegramQualityMessage.config_id.in_(configs)))

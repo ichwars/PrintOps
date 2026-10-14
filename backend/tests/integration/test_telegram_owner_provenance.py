@@ -97,3 +97,51 @@ async def test_owner_generation_migration_repeatable_no_legacy_backfill(monkeypa
             async with engine.begin() as conn:
                 await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         await engine.dispose()
+
+
+@pytest.mark.parametrize("dialect", ["sqlite", "postgresql"])
+async def test_binding_indexes_upgrade_existing_rows_repeatably(dialect):
+    from sqlalchemy import inspect
+
+    from backend.app.core.telegram_quality_migration import migrate_telegram_quality_indexes
+
+    dsn = "sqlite+aiosqlite:///:memory:" if dialect == "sqlite" else os.environ.get("F01_TEST_POSTGRES_DSN")
+    if not dsn:
+        pytest.skip("Set F01_TEST_POSTGRES_DSN for isolated PostgreSQL index verification")
+    engine = create_async_engine(dsn)
+    schema = "o17_indexes_" + uuid4().hex
+    try:
+        async with engine.begin() as conn:
+            if dialect == "postgresql":
+                await conn.execute(text(f'CREATE SCHEMA "{schema}"'))
+                await conn.execute(text(f'SET LOCAL search_path TO "{schema}"'))
+            await conn.execute(
+                text(
+                    "CREATE TABLE telegram_quality_messages (config_id VARCHAR(32), chat_id BIGINT, "
+                    "message_id BIGINT, expires_at TIMESTAMP)"
+                )
+            )
+            await conn.execute(text("INSERT INTO telegram_quality_messages VALUES ('config',-100,12,'2030-01-01')"))
+            for _ in range(2):
+                await migrate_telegram_quality_indexes(conn)
+            indexes = await conn.run_sync(lambda sync: inspect(sync).get_indexes("telegram_quality_messages"))
+            assert {tuple(index["column_names"]) for index in indexes} == {
+                ("config_id", "chat_id", "message_id"),
+                ("expires_at",),
+            }
+            assert (await conn.execute(text("SELECT message_id FROM telegram_quality_messages"))).scalar_one() == 12
+            if dialect == "sqlite":
+                plan = (
+                    await conn.execute(
+                        text(
+                            "EXPLAIN QUERY PLAN SELECT * FROM telegram_quality_messages "
+                            "WHERE config_id='config' AND chat_id=-100 AND message_id=12"
+                        )
+                    )
+                ).all()
+                assert "ix_telegram_quality_lookup" in str(plan)
+    finally:
+        if dialect == "postgresql":
+            async with engine.begin() as conn:
+                await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        await engine.dispose()

@@ -4,12 +4,13 @@ import asyncio
 import logging
 import secrets
 from datetime import timedelta
+from time import monotonic
 
 import httpx
-from sqlalchemy import or_, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
-from backend.app.models.telegram_quality import TelegramPollState, TelegramQualityConfig
+from backend.app.models.telegram_quality import TelegramPollState, TelegramQualityConfig, TelegramQualityMessage
 from backend.app.services.telegram_quality import active_config, apply_reaction, now, provider_config
 
 logger = logging.getLogger(__name__)
@@ -131,10 +132,17 @@ async def poll_once(sessions, client, config_id):
 
 
 async def run_polling(sessions):
+    next_cleanup = 0
     async with httpx.AsyncClient() as client:
         while True:
             try:
                 async with sessions() as db:
+                    if monotonic() >= next_cleanup:
+                        await db.execute(
+                            delete(TelegramQualityMessage).where(TelegramQualityMessage.expires_at <= now())
+                        )
+                        await db.commit()
+                        next_cleanup = monotonic() + 300
                     ids = list(
                         (
                             await db.scalars(

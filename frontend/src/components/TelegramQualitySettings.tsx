@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { getTelegramQuality, saveTelegramQuality } from '../api/telegram-quality';
 import type { TelegramQualityConfig } from '../api/telegram-quality';
 import { Button } from './Button';
+import { Checkbox } from './ui/Checkbox';
+import { TextArea } from './ui/TextArea';
 
 export function TelegramQualitySettings({ providerId }: { providerId: number }) {
   const { user, authEnabled } = useAuth();
@@ -20,12 +22,12 @@ export function TelegramQualitySettings({ providerId }: { providerId: number }) 
 function QualityForm({ providerId, config }: { providerId: number; config: TelegramQualityConfig }) {
   const { t } = useTranslation();
   const client = useQueryClient();
-  const [enabled, setEnabled] = useState(config.enabled);
-  const [actors, setActors] = useState(config.actors.map(a => `${a.actor_id}=${a.user_id}`).join('\n'));
+  const [draft, setDraft] = useState<{ enabled: boolean; actors: string } | null>(null);
+  const { enabled, actors } = draft ?? { enabled: config.enabled, actors: config.actors.map(a => `${a.actor_id}=${a.user_id}`).join('\n') };
   const [invalid, setInvalid] = useState(false);
   const mutation = useMutation({
     mutationFn: (data: Pick<TelegramQualityConfig, 'enabled' | 'actors'>) => saveTelegramQuality(providerId, data),
-    onSuccess: (data) => client.setQueryData(['telegram-quality', providerId], data),
+    onSuccess: (data) => { client.setQueryData(['telegram-quality', providerId], data); setDraft(null); },
   });
   function save() {
     const lines = actors.trim() ? actors.trim().split('\n') : [];
@@ -46,15 +48,11 @@ function QualityForm({ providerId, config }: { providerId: number; config: Teleg
   return <section className="space-y-3 border-t border-bambu-dark-tertiary pt-3">
     <h3 className="font-medium">{t('telegramQuality.title')}</h3>
     <p className="text-xs text-bambu-gray">{t('telegramQuality.instructions')}</p>
-    <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
-      {t('telegramQuality.enable')}
-    </label>
-    <label className="block text-sm">
-      {t('telegramQuality.actors')}
-      <textarea aria-label={t('telegramQuality.actors')} className="mt-1 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-2 text-white" rows={3}
-        value={actors} onChange={e => setActors(e.target.value)} placeholder="123456789=7" />
-    </label>
+    <Checkbox checked={enabled} onCheckedChange={value => setDraft({ enabled: value, actors })}
+      disabled={mutation.isPending} label={t('telegramQuality.enable')} />
+    <TextArea label={t('telegramQuality.actors')} aria-label={t('telegramQuality.actors')} rows={3}
+      value={actors} onValueChange={value => setDraft({ enabled, actors: value })}
+      disabled={mutation.isPending} placeholder="123456789=7" />
     <p className="text-xs text-bambu-gray">{t('telegramQuality.format')}</p>
     <p role="status" className="text-sm">{t(`telegramQuality.status.${config.status}`)}</p>
     {invalid && <p role="alert" className="text-red-400">{t('telegramQuality.format')}</p>}

@@ -6,7 +6,7 @@ New tables are installed on existing and fresh databases by metadata.create_all.
 import secrets
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base
@@ -24,7 +24,11 @@ class TelegramQualityConfig(Base):
 
 class TelegramQualityMessage(Base):
     __tablename__ = "telegram_quality_messages"
-    __table_args__ = (UniqueConstraint("bot_id", "chat_id", "message_id"),)
+    __table_args__ = (
+        UniqueConstraint("bot_id", "chat_id", "message_id"),
+        Index("ix_telegram_quality_lookup", "config_id", "chat_id", "message_id"),
+        Index("ix_telegram_quality_expiry", "expires_at"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     config_id: Mapped[str] = mapped_column(ForeignKey("telegram_quality_configs.id", ondelete="CASCADE"))
     bot_id: Mapped[str] = mapped_column(String(32))

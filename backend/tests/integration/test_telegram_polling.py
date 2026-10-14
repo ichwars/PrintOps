@@ -155,6 +155,9 @@ async def test_decision_and_cursor_rollback_together(context, test_engine):
     assert run.good_quantity is None
     state = await db.get(TelegramPollState, "123")
     assert state.cursor is None
+    from backend.app.models.telegram_quality import TelegramQualityMessage
+
+    assert await db.scalar(select(TelegramQualityMessage.id)) is not None
 
 
 async def test_expired_worker_cannot_apply_after_network_wait(context, test_engine):
@@ -229,3 +232,30 @@ async def test_send_race_separate_database_sessions(context, test_engine, monkey
         )
     async with sessions() as check:
         assert await check.scalar(select(TelegramQualityMessage.id)) is None
+
+
+async def test_worker_prunes_expired_bindings_even_with_no_enabled_provider(context, test_engine, monkeypatch):
+    from backend.app.models.telegram_quality import TelegramQualityMessage
+
+    db, user, archive, run, provider, config = context
+    from backend.app.services.telegram_quality import bind_message
+
+    assert await bind_message(db, provider, {"message_id": 13, "chat_id": -100}, archive.id, run.id)
+    binding = await db.scalar(select(TelegramQualityMessage).where(TelegramQualityMessage.message_id == 12))
+    binding.expires_at = now() - timedelta(seconds=1)
+    config.enabled = False
+    await db.commit()
+    original_sleep = asyncio.sleep
+
+    class IterationFinished(Exception):
+        pass
+
+    async def stop_after_iteration(seconds):
+        if seconds == 5:
+            raise IterationFinished
+        await original_sleep(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", stop_after_iteration)
+    with pytest.raises(IterationFinished):
+        await polling.run_polling(async_sessionmaker(test_engine, expire_on_commit=False))
+    assert list((await db.scalars(select(TelegramQualityMessage.message_id))).all()) == [13]

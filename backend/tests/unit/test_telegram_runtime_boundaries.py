@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,7 @@ import pytest
 def isolated(code, tmp_path, **environment):
     result = subprocess.run(
         [sys.executable, "-c", textwrap.dedent(code)],
+        cwd=Path(__file__).resolve().parents[3],
         env={**os.environ, "DATA_DIR": str(tmp_path), "LOG_TO_FILE": "false", **environment},
         capture_output=True,
         text=True,

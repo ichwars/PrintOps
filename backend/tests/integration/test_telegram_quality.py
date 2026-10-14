@@ -332,3 +332,12 @@ async def test_same_second_owner_can_confirm(context):
     user.groups = [Group(name="same-second-owner", permissions=[Permission.ARCHIVES_UPDATE_OWN.value])]
     await db.commit()
     assert await quality.apply_reaction(db, config.id, reaction())
+
+
+async def test_success_consumes_binding_with_outcome(context):
+    from backend.app.models.telegram_quality import TelegramQualityMessage
+
+    db, user, archive, run, provider, config = context
+    assert await quality.apply_reaction(db, config.id, reaction())
+    assert not list((await db.scalars(select(TelegramQualityMessage))).all())
+    assert not await quality.apply_reaction(db, config.id, reaction())

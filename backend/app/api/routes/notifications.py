@@ -472,10 +472,10 @@ async def delete_notification_provider(
     if not provider:
         raise HTTPException(status_code=404, detail="Notification provider not found")
 
-    from backend.app.models.telegram_quality import TelegramQualityConfig, TelegramQualityMessage
+    from backend.app.models.telegram_quality import TelegramQualityConfig
+    from backend.app.services.telegram_quality import invalidate_provider
 
-    configs = select(TelegramQualityConfig.id).where(TelegramQualityConfig.provider_id == provider_id)
-    await db.execute(delete(TelegramQualityMessage).where(TelegramQualityMessage.config_id.in_(configs)))
+    await invalidate_provider(db, provider_id)
     await db.execute(delete(TelegramQualityConfig).where(TelegramQualityConfig.provider_id == provider_id))
     name = provider.name
     await db.delete(provider)

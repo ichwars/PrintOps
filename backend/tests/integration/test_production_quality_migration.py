@@ -74,7 +74,14 @@ async def test_postgresql_migration_uses_boolean_timestamp_and_check_constraint(
 
     monkeypatch.setattr(database, "is_sqlite", lambda: False)
     monkeypatch.setattr(database, "_safe_execute", capture)
-    await database._migrate_production_quality(object())
+    # Index upgrades inspect the connection; keep PostgreSQL DDL captured while
+    # providing a real isolated connection for metadata inspection.
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    try:
+        async with engine.begin() as conn:
+            await database._migrate_production_quality(conn)
+    finally:
+        await engine.dispose()
     assert any("confirm_requested BOOLEAN DEFAULT FALSE" in statement for statement in statements)
     assert any("confirm_token_expires_at TIMESTAMP" in statement for statement in statements)
     assert any("confirm_prompted_at TIMESTAMP" in statement for statement in statements)
