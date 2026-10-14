@@ -25,6 +25,18 @@ from urllib.parse import urlparse
 
 import httpx
 
+from backend.app.services.model_providers.base import (
+    ModelProviderAuthError as MakerWorldAuthError,
+    ModelProviderError,
+    ModelProviderForbiddenError as MakerWorldForbiddenError,
+    ModelProviderNotFoundError as MakerWorldNotFoundError,
+    ModelProviderUnavailableError as MakerWorldUnavailableError,
+    ModelProviderUrlError as MakerWorldUrlError,
+)
+
+# Backwards-compatible public error names for existing service callers.
+MakerWorldError = ModelProviderError
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,34 +97,6 @@ def set_shared_http_client(client: httpx.AsyncClient | None) -> None:
     """
     global _shared_http_client
     _shared_http_client = client
-
-
-class MakerWorldError(Exception):
-    """Base exception for MakerWorld API errors."""
-
-
-class MakerWorldAuthError(MakerWorldError):
-    """Raised when the endpoint requires a Bambu Cloud token and we don't have
-    one (or the one we sent was rejected). True auth failure."""
-
-
-class MakerWorldForbiddenError(MakerWorldError):
-    """Raised when MakerWorld refuses access despite valid authentication —
-    content-gated (points required, purchase required, region restricted,
-    early-access, etc.). The message includes MakerWorld's own reason text
-    when provided."""
-
-
-class MakerWorldNotFoundError(MakerWorldError):
-    """Raised when a design / profile / instance doesn't exist."""
-
-
-class MakerWorldUnavailableError(MakerWorldError):
-    """Raised on 5xx, network errors, or malformed payloads."""
-
-
-class MakerWorldUrlError(MakerWorldError):
-    """Raised when a URL isn't a makerworld.com model page."""
 
 
 async def _download_s3_urllib(url: str, filename_fallback: str) -> tuple[bytes, str]:

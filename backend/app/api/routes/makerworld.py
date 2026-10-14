@@ -41,10 +41,11 @@ from backend.app.services.makerworld import (
     MakerWorldError,
     MakerWorldForbiddenError,
     MakerWorldNotFoundError,
-    MakerWorldService,
     MakerWorldUnavailableError,
     MakerWorldUrlError,
 )
+from backend.app.services.model_providers.base import ModelProvider
+from backend.app.services.model_providers.catalog import model_providers
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +54,15 @@ router = APIRouter(prefix="/makerworld", tags=["makerworld"])
 _SOURCE_TYPE = "makerworld"
 
 
-async def _build_service(db: AsyncSession, user: User | None) -> MakerWorldService:
-    """Construct a per-request MakerWorldService seeded with the caller's
+async def _build_service(db: AsyncSession, user: User | None) -> ModelProvider:
+    """Construct a per-request model provider seeded with the caller's
     stored Bambu Cloud bearer token when available.
 
     Mirrors ``cloud.build_authenticated_cloud`` — the token is entirely
     optional; anonymous calls (metadata, URL resolution) still work.
     """
     token, _email, _region = await get_stored_token(db, user)
-    return MakerWorldService(auth_token=token)
+    return model_providers.for_source(_SOURCE_TYPE).create(auth_token=token)
 
 
 def _canonical_url(model_id: int, profile_id: int | None = None) -> str:
@@ -122,7 +123,7 @@ async def proxy_thumbnail(
     URLs are content-addressable (filename contains a hash), so the
     aggressive ``immutable`` cache-control is safe.
     """
-    service = MakerWorldService()
+    service = model_providers.for_source(_SOURCE_TYPE).create()
     try:
         payload, content_type = await service.fetch_thumbnail(url)
     except MakerWorldError as exc:
@@ -156,7 +157,11 @@ async def get_status(
     cloud_token_user = current_user or api_key_cloud_owner
     token, _email, _region = await get_stored_token(db, cloud_token_user)
     has_token = bool(token)
-    return MakerWorldStatus(has_cloud_token=has_token, can_download=has_token)
+    descriptor = model_providers.for_source(_SOURCE_TYPE).descriptor
+    return MakerWorldStatus(
+        has_cloud_token=has_token,
+        can_download=has_token if descriptor.download_requires_token else True,
+    )
 
 
 @router.post("/resolve", response_model=MakerWorldResolvedModel)
@@ -173,7 +178,8 @@ async def resolve_url(
     badge and skip a redundant download.
     """
     try:
-        model_id, profile_id = MakerWorldService.parse_url(body.url)
+        provider = model_providers.for_url(body.url)
+        model_id, profile_id = provider.parse_url(body.url)
     except MakerWorldError as exc:
         raise _map_service_error(exc) from exc
 
