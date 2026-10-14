@@ -5684,11 +5684,11 @@ async def lifespan(app: FastAPI):
     # Install Windows-only asyncio Proactor cleanup-RST filter (#1113) before
     # anything else can spawn tasks that might trip it.
     from backend.app.core.asyncio_handlers import install_proactor_reset_filter
+    from backend.app.core.postgres_pool_capacity import check_pool_fits_server
 
     install_proactor_reset_filter()
-
     await init_db()
-
+    await check_pool_fits_server()
     try:
         async with async_session() as db:
             from backend.app.core.oidc_env import apply_env_oidc_provider

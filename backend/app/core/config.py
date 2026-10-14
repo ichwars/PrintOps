@@ -149,7 +149,7 @@ class Settings(BaseSettings):
     database_url: str = _external_db_url or f"sqlite+aiosqlite:///{_db_path}"
 
     # Database connection pool sizing. None keeps the dialect-aware defaults
-    # below (PostgreSQL: 20 + 80, SQLite: 20 + 200). Large printer farms can
+    # below (PostgreSQL: 20 + 20, SQLite: 20 + 200). Large printer farms can
     # raise these with DB_POOL_SIZE / DB_MAX_OVERFLOW / DB_POOL_TIMEOUT /
     # DB_POOL_RECYCLE after checking database max_connections.
     db_pool_size: int | None = Field(default=None, gt=0)

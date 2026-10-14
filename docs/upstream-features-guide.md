@@ -409,3 +409,17 @@ Druckerstatus ändern sich dadurch nicht. Tag-Verknüpfungen und deren Aufhebung
 bleiben an den bestehenden Einstellungs-/Inventar-Einstiegen verfügbar.
 Die Anzeigeoption sendet keine Befehle an den Drucker und gehört zu
 [O13b / Issue #218](https://github.com/ichwars/PrintOps/issues/218).
+
+## PostgreSQL-Pool prüfen (O14)
+
+Beim Start warnt PrintOps, wenn der konfigurierte Pool eines Worker-Prozesses
+mehr Verbindungen öffnen könnte als PostgreSQL außerhalb seiner bekannten
+Reserven erlaubt. Die Warnung nennt Poolgröße, Überlauf und Servergrenze sowie
+die Einstellungen `DB_POOL_SIZE` und `DB_MAX_OVERFLOW`. Abfragefehler bleiben
+eine kurze Warnung; SQLite benötigt keine PostgreSQL-Abfrage.
+
+Die Standards bleiben PostgreSQL `20 + 20` und SQLite `20 + 200`. Eine passende
+Poolgröße für einen Worker garantiert keine Kapazität für weitere Worker und
+andere Clients. Details und Grenzen stehen in der
+[Datenbank-Poolkonfiguration](database-pool-configuration.md).
+Die Ergänzung gehört zu [O14 / Issue #224](https://github.com/ichwars/PrintOps/issues/224).
