@@ -16,10 +16,13 @@ from backend.app.services.bambu_mqtt import BambuMQTTClient
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("method,suffix,permission,other", [
-    ("GET", "objects", "printers:read", "printers:control"),
-    ("POST", "skip-objects", "printers:control", "printers:read"),
-])
+@pytest.mark.parametrize(
+    "method,suffix,permission,other",
+    [
+        ("GET", "objects", "printers:read", "printers:control"),
+        ("POST", "skip-objects", "printers:control", "printers:read"),
+    ],
+)
 @pytest.mark.parametrize("granted", [False, True])
 async def test_object_endpoints_keep_distinct_read_and_control_permissions(
     async_client, db_session, printer_factory, method, suffix, permission, other, granted
@@ -36,7 +39,9 @@ async def test_object_endpoints_keep_distinct_read_and_control_permissions(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method,suffix", [("GET", "objects"), ("POST", "skip-objects")])
 @pytest.mark.parametrize("scope", ["empty", "allowed", "denied", "unrestricted"])
-async def test_object_endpoints_enforce_jwt_printer_scope(async_client, db_session, printer_factory, method, suffix, scope):
+async def test_object_endpoints_enforce_jwt_printer_scope(
+    async_client, db_session, printer_factory, method, suffix, scope
+):
     printer = await printer_factory()
     other = await printer_factory()
     scopes = {"empty": [], "allowed": [printer.id], "denied": [other.id], "unrestricted": None}
@@ -59,11 +64,20 @@ async def test_object_endpoints_enforce_api_key_printer_scope(
     other = await printer_factory()
     scopes = {"empty": [], "allowed": [printer.id], "denied": [other.id], "unrestricted": None}
     full_key, key_hash, key_prefix = generate_api_key()
-    db_session.add_all([
-        APIKey(name="object-key", key_hash=key_hash, key_prefix=key_prefix,
-               can_control_printer=True, can_read_status=True, printer_ids=scopes[scope], enabled=True),
-        Settings(key="auth_enabled", value="true"),
-    ])
+    db_session.add_all(
+        [
+            APIKey(
+                name="object-key",
+                key_hash=key_hash,
+                key_prefix=key_prefix,
+                can_control_printer=True,
+                can_read_status=True,
+                printer_ids=scopes[scope],
+                enabled=True,
+            ),
+            Settings(key="auth_enabled", value="true"),
+        ]
+    )
     await db_session.commit()
     headers = {"Authorization": f"Bearer {full_key}"} if bearer else {"X-API-Key": full_key}
     await assert_scoped_request(async_client, printer.id, method, suffix, headers, scope in ("allowed", "unrestricted"))
@@ -76,9 +90,13 @@ async def assert_scoped_request(http_client, printer_id, method, suffix, headers
     transport.state.state = "RUNNING"
     transport.state.printable_objects_bbox_all = None
     transport.skip_objects.return_value = True
-    with patch("backend.app.api.routes.printers_controls.printer_manager.get_client", return_value=transport) as get_client:
+    with patch(
+        "backend.app.api.routes.printers_controls.printer_manager.get_client", return_value=transport
+    ) as get_client:
         response = await http_client.request(
-            method, f"/api/v1/printers/{printer_id}/print/{suffix}", headers=headers,
+            method,
+            f"/api/v1/printers/{printer_id}/print/{suffix}",
+            headers=headers,
             **({"json": [100]} if method == "POST" else {}),
         )
     assert response.status_code == (200 if allowed else 403), response.text
@@ -98,16 +116,30 @@ async def assert_scoped_request(http_client, printer_id, method, suffix, headers
 async def test_skip_objects_checks_scope_before_durable_drying(async_client, db_session, printer_factory, principal):
     printer = await printer_factory(model="P2S")
     schedule = DryingSchedule(
-        printer_id=printer.id, ams_id=0, local_time="06:30", timezone="UTC", filament="PLA",
-        temperature=45, duration_hours=4, enabled=False,
+        printer_id=printer.id,
+        ams_id=0,
+        local_time="06:30",
+        timezone="UTC",
+        filament="PLA",
+        temperature=45,
+        duration_hours=4,
+        enabled=False,
     )
     db_session.add(schedule)
     await db_session.flush()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    db_session.add(DryingScheduleRun(
-        schedule_id=schedule.id, printer_id=printer.id, active_printer_id=printer.id, ams_id=0,
-        occurrence_day=now.date().isoformat(), due_at=now, claimed_at=now, status="uncertain",
-    ))
+    db_session.add(
+        DryingScheduleRun(
+            schedule_id=schedule.id,
+            printer_id=printer.id,
+            active_printer_id=printer.id,
+            ams_id=0,
+            occurrence_day=now.date().isoformat(),
+            due_at=now,
+            claimed_at=now,
+            status="uncertain",
+        )
+    )
     headers = {}
     if principal == "jwt-denied":
         group = Group(name="Denied picker", permissions=["printers:control"])
@@ -116,24 +148,42 @@ async def test_skip_objects_checks_scope_before_durable_drying(async_client, db_
         headers = {"Authorization": f"Bearer {create_access_token({'sub': user.username})}"}
     elif principal != "anonymous":
         full_key, key_hash, key_prefix = generate_api_key()
-        db_session.add_all([
-            APIKey(name="denied-object-key", key_hash=key_hash, key_prefix=key_prefix,
-                   can_control_printer=True, printer_ids=[], enabled=True),
-            Settings(key="auth_enabled", value="true"),
-        ])
-        headers = {"Authorization": f"Bearer {full_key}"} if principal == "bearer-key-denied" else {"X-API-Key": full_key}
+        db_session.add_all(
+            [
+                APIKey(
+                    name="denied-object-key",
+                    key_hash=key_hash,
+                    key_prefix=key_prefix,
+                    can_control_printer=True,
+                    printer_ids=[],
+                    enabled=True,
+                ),
+                Settings(key="auth_enabled", value="true"),
+            ]
+        )
+        headers = (
+            {"Authorization": f"Bearer {full_key}"} if principal == "bearer-key-denied" else {"X-API-Key": full_key}
+        )
     await db_session.commit()
     with patch("backend.app.api.routes.printers_controls.printer_manager.get_client") as get_client:
-        response = await async_client.post(f"/api/v1/printers/{printer.id}/print/skip-objects", json=[100], headers=headers)
+        response = await async_client.post(
+            f"/api/v1/printers/{printer.id}/print/skip-objects", json=[100], headers=headers
+        )
     assert response.status_code == (409 if principal == "anonymous" else 403), response.text
     if principal == "anonymous":
         assert "Scheduled drying owns this printer" in response.json()["detail"]
     get_client.assert_not_called()
 
 
-@pytest.mark.parametrize("state,connected,expected", [
-    ("RUNNING", True, True), ("PAUSE", True, True), ("IDLE", True, False), ("RUNNING", False, False),
-])
+@pytest.mark.parametrize(
+    "state,connected,expected",
+    [
+        ("RUNNING", True, True),
+        ("PAUSE", True, True),
+        ("IDLE", True, False),
+        ("RUNNING", False, False),
+    ],
+)
 def test_skip_objects_mqtt_state_gate_uses_fake_transport(state, connected, expected):
     client = BambuMQTTClient("192.0.2.1", "software-fixture", "00000000")
     transport = MagicMock()
