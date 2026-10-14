@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Telegram 质量反馈",
+    "enable": "启用质量反馈",
+    "actors": "受信任用户",
+    "save": "保存反馈设置",
+    "adminOnly": "已登录的管理员可以配置受信任用户。",
+    "format": "每行输入 Telegram ID=PrintOps 用户 ID。删除该行即可撤销访问权限。",
+    "instructions": "使用已设为聊天管理员的专用机器人，不要同时使用其他轮询程序或 Webhook。赞 (👍) 确认全部零件合格；踩 (👎) 确认全部不合格。48 小时内首个有效回复生效。混合数量请使用 PrintOps 链接。当前用户权限和打印机访问范围始终适用。",
+    "error": "无法加载或保存设置。请检查有效用户 ID、数字聊天 ID 以及机器人是否独占使用。",
+    "status": {
+        "disabled": "已禁用",
+        "idle": "等待轮询",
+        "polling": "轮询中",
+        "webhook_conflict": "Webhook 已启用：轮询暂停",
+        "transport_error": "Telegram 不可用或轮询冲突；稍后重试"
+    }
+},
   appNotifications: {
     "label": "应用消息",
     "channelDescription": "允许持有已授权 API 密钥的外部应用向此频道发送消息。",

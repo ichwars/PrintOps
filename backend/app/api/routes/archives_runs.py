@@ -211,6 +211,7 @@ async def confirm_production_outcome(
     """Inspect or correct the current run with normal ownership and printer scopes."""
     from backend.app.api.routes import archives
     from backend.app.services.print_confirmation import OutcomeConflict, outcome_lock, record_outcome
+    from backend.app.services.quality_authorization import can_inspect_run
 
     user, can_modify_all = auth_result
     if run_id is not None and outcome.run_id != run_id:
@@ -218,11 +219,7 @@ async def confirm_production_outcome(
     async with outcome_lock(db, archive_id, run_id):
         archive = archives._ensure_archive_visible(await db.get(PrintArchive, archive_id), user, can_modify_all)
         selected = await db.get(PrintLogEntry, outcome.run_id)
-        if (
-            selected is None
-            or selected.archive_id != archive_id
-            or not archives.user_can_access_printer(user, selected.printer_id)
-        ):
+        if not can_inspect_run(user, can_modify_all, archive, selected):
             raise HTTPException(404, "Print run not found")
         if api_key is not None and api_key.printer_ids is not None:
             if any(

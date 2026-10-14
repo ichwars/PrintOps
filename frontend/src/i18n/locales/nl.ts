@@ -1,6 +1,23 @@
 // Dutch translations adapted from maziggy/bambuddy (nl.ts blob f6b6c638913a21cbc3aa98dde755ffda6e64aa7b).
 // PrintOps-specific text and source changes translated for PrintOps.
 export default {
+  telegramQuality: {
+    "title": "Telegram-kwaliteitsreacties",
+    "enable": "Kwaliteitsreacties inschakelen",
+    "actors": "Vertrouwde gebruikers",
+    "save": "Reactie-instellingen opslaan",
+    "adminOnly": "Aangemelde beheerders kunnen vertrouwde gebruikers instellen.",
+    "format": "Eén Telegram-ID=PrintOps-gebruikers-ID per regel. Verwijder de regel om toegang in te trekken.",
+    "instructions": "Gebruik een eigen bot als chatbeheerder, zonder andere polling of webhook. Duim omhoog (👍) keurt alle onderdelen goed; Duim omlaag (👎) keurt alles af. Het eerste geldige antwoord binnen 48 uur telt. Gebruik de PrintOps-link voor gemengde aantallen. Actuele rechten en printertoegang gelden.",
+    "error": "Laden of opslaan mislukt. Controleer actieve gebruikers, de numerieke chat-ID en exclusief botgebruik.",
+    "status": {
+        "disabled": "Uitgeschakeld",
+        "idle": "Wacht op polling",
+        "polling": "Polling actief",
+        "webhook_conflict": "Webhook actief: polling gepauzeerd",
+        "transport_error": "Telegram niet beschikbaar of pollingconflict; later opnieuw proberen"
+    }
+},
   appNotifications: {
     "label": "App-berichten",
     "channelDescription": "Sta externe toepassingen met een bevoegde API-sleutel toe berichten naar dit kanaal te sturen.",

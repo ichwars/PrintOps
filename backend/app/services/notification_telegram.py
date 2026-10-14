@@ -13,6 +13,7 @@ async def send_telegram(
     image_data: bytes | None = None,
     outcome_urls: dict[str, str] | None = None,
     plain_text: bool = False,
+    sent_message: dict | None = None,
 ) -> tuple[bool, str]:
     """Send notification via Telegram bot."""
     # App-containing digests include full bodies; keep each plain message within
@@ -91,8 +92,12 @@ async def send_telegram(
     if response.status_code == 200:
         result = response.json()
         if result.get("ok"):
+            sent = result.get("result") or {}
+            message_id, chat_id = sent.get("message_id"), (sent.get("chat") or {}).get("id")
+            if sent_message is not None and type(message_id) is int and message_id > 0 and type(chat_id) is int:
+                sent_message.update(message_id=message_id, chat_id=chat_id)
             return True, "Message sent successfully"
         else:
-            return False, f"Telegram error: {result.get('description', 'Unknown error')}"
+            return False, "Telegram rejected the message"
     else:
-        return False, f"HTTP {response.status_code}: {response.text[:200]}"
+        return False, f"Telegram HTTP {response.status_code}"

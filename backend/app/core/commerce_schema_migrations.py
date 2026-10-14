@@ -62,6 +62,9 @@ async def migrate_commercial_settings(conn, _safe_execute, is_sqlite) -> None:
 
 async def migrate_production_quality(conn, _safe_execute, is_sqlite) -> None:
     """Additive migration; historical production is never made pending."""
+    from backend.app.core.archive_owner_identity import migrate_archive_owner_identity
+
+    await migrate_archive_owner_identity(conn, _safe_execute)
     timestamp = "DATETIME" if is_sqlite() else "TIMESTAMP"
     for table in ("print_archives", "print_log_entries"):
         for column, declaration in (

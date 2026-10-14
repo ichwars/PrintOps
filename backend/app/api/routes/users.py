@@ -443,7 +443,11 @@ async def delete_user(
         # users would otherwise leave dangling created_by_id on SQLite (#1295 review nit).
         from sqlalchemy import update
 
-        await db.execute(update(PrintArchive).where(PrintArchive.created_by_id == user_id).values(created_by_id=None))
+        await db.execute(
+            update(PrintArchive)
+            .where(PrintArchive.created_by_id == user_id)
+            .values(created_by_id=None, created_by_identity=None)
+        )
         await db.execute(
             update(PrintQueueItem).where(PrintQueueItem.created_by_id == user_id).values(created_by_id=None)
         )

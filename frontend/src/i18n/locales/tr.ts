@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Telegram kalite tepkileri",
+    "enable": "Kalite tepkilerini etkinleştir",
+    "actors": "Güvenilir kullanıcılar",
+    "save": "Tepki ayarlarını kaydet",
+    "adminOnly": "Oturum açmış yöneticiler güvenilir kullanıcıları yapılandırabilir.",
+    "format": "Her satıra Telegram kimliği=PrintOps kullanıcı kimliği yazın. Erişimi kaldırmak için satırı silin.",
+    "instructions": "Sohbet yöneticisi olan özel bir bot kullanın; başka sorgulayıcı veya webhook olmasın. Başparmak yukarı (👍) tüm parçaları onaylar; Başparmak aşağı (👎) tümünü reddeder. 48 saat içindeki ilk geçerli yanıt sayılır. Karışık miktarlar için PrintOps bağlantısını kullanın. Güncel izinler ve yazıcı erişimi geçerlidir.",
+    "error": "Ayarlar yüklenemedi veya kaydedilemedi. Etkin kullanıcıları, sayısal sohbet kimliğini ve botun özel kullanımını kontrol edin.",
+    "status": {
+        "disabled": "Devre dışı",
+        "idle": "Sorgu bekleniyor",
+        "polling": "Sorgu etkin",
+        "webhook_conflict": "Webhook etkin: sorgu duraklatıldı",
+        "transport_error": "Telegram kullanılamıyor veya sorgu çakışması; daha sonra yeniden denenecek"
+    }
+},
   appNotifications: {
     "label": "Uygulama mesajları",
     "channelDescription": "Yetkili bir API anahtarına sahip harici uygulamaların bu kanala mesaj göndermesine izin verin.",

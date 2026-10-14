@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Telegram 품질 반응",
+    "enable": "품질 반응 활성화",
+    "actors": "신뢰할 사용자",
+    "save": "반응 설정 저장",
+    "adminOnly": "인증된 관리자가 신뢰할 사용자를 설정할 수 있습니다.",
+    "format": "줄마다 Telegram ID=PrintOps 사용자 ID를 입력하세요. 줄을 삭제하면 접근 권한이 취소됩니다.",
+    "instructions": "채팅 관리자로 지정한 전용 봇을 사용하고 다른 폴링이나 웹훅은 사용하지 마세요. 엄지 올리기 (👍)는 모든 부품을 양품으로, 엄지 내리기 (👎)는 모두 불량으로 확정합니다. 48시간 이내의 첫 유효 응답이 적용됩니다. 혼합 수량은 PrintOps 링크를 사용하세요. 현재 권한과 프린터 접근 범위가 적용됩니다.",
+    "error": "설정을 불러오거나 저장할 수 없습니다. 활성 사용자 ID, 숫자 채팅 ID, 봇의 단독 사용을 확인하세요.",
+    "status": {
+        "disabled": "비활성화",
+        "idle": "폴링 대기 중",
+        "polling": "폴링 활성",
+        "webhook_conflict": "웹훅 활성: 폴링 일시 중지",
+        "transport_error": "Telegram 연결 불가 또는 폴링 충돌; 나중에 재시도"
+    }
+},
   appNotifications: {
     "label": "앱 메시지",
     "channelDescription": "승인된 API 키가 있는 외부 애플리케이션이 이 채널로 메시지를 보낼 수 있도록 허용합니다.",

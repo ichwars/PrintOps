@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Telegram-Qualitätsreaktionen",
+    "enable": "Qualitätsreaktionen aktivieren",
+    "actors": "Vertrauenswürdige Akteure",
+    "save": "Reaktionseinstellungen speichern",
+    "adminOnly": "Angemeldete Administratoren können vertrauenswürdige Akteure konfigurieren.",
+    "format": "Eine Telegram-ID=PrintOps-Benutzer-ID pro Zeile. Zum Entziehen des Zugriffs die Zeile entfernen.",
+    "instructions": "Einen eigenen Bot als Chat-Administrator ohne weiteren Poller oder Webhook verwenden. Daumen hoch (👍) bestätigt alle Teile als gut; Daumen runter (👎) lehnt alle Teile ab. Die erste gültige Antwort innerhalb von 48 Stunden zählt. Für gemischte Mengen den PrintOps-Link verwenden. Aktuelle Benutzerrechte und Druckerzugriffe gelten.",
+    "error": "Einstellungen konnten nicht geladen oder gespeichert werden. Aktive Benutzer-IDs, numerische Chat-ID und alleinige Bot-Nutzung prüfen.",
+    "status": {
+        "disabled": "Deaktiviert",
+        "idle": "Wartet auf Abfrage",
+        "polling": "Abfrage aktiv",
+        "webhook_conflict": "Webhook aktiv: Abfrage pausiert",
+        "transport_error": "Telegram nicht erreichbar oder Abfragekonflikt; späterer Neuversuch"
+    }
+},
   appNotifications: {
     "label": "App-Nachrichten",
     "channelDescription": "Externen Anwendungen mit berechtigtem API-Schlüssel erlauben, Nachrichten an diesen Kanal zu senden.",

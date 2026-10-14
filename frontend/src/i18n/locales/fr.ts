@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Réactions de qualité Telegram",
+    "enable": "Activer les réactions de qualité",
+    "actors": "Utilisateurs de confiance",
+    "save": "Enregistrer les réactions",
+    "adminOnly": "Les administrateurs authentifiés peuvent configurer les utilisateurs de confiance.",
+    "format": "Une ligne par ID Telegram=ID utilisateur PrintOps. Supprimez la ligne pour révoquer cet accès.",
+    "instructions": "Utilisez un bot dédié, administrateur du chat, sans autre interrogation ni webhook. Pouce levé (👍) valide toutes les pièces ; Pouce baissé (👎) rejette toutes les pièces. La première réponse valide sous 48 heures compte. Utilisez le lien PrintOps pour les quantités mixtes. Les permissions et accès aux imprimantes actuels s’appliquent.",
+    "error": "Impossible de charger ou enregistrer. Vérifiez les utilisateurs actifs, l’ID numérique du chat et l’usage exclusif du bot.",
+    "status": {
+        "disabled": "Désactivé",
+        "idle": "En attente",
+        "polling": "Interrogation active",
+        "webhook_conflict": "Webhook actif : interrogation suspendue",
+        "transport_error": "Telegram indisponible ou conflit ; nouvelle tentative ultérieure"
+    }
+},
   appNotifications: {
     "label": "Messages d’applications",
     "channelDescription": "Autoriser les applications externes disposant d’une clé API autorisée à envoyer des messages à ce canal.",

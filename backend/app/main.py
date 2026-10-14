@@ -5956,7 +5956,7 @@ async def lifespan(app: FastAPI):
     await smart_plug_manager.resume_pending_auto_offs()
 
     # Start the notification digest scheduler
-    notification_service.start_digest_scheduler()
+    notification_service.start_background()
 
     # Start the GitHub backup scheduler
     await github_backup_service.start_scheduler()
@@ -6024,7 +6024,7 @@ async def lifespan(app: FastAPI):
     await print_scheduler.close_inventory_alerts()
     smart_plug_manager.stop_scheduler()
     ha_sensor_manager.stop()
-    notification_service.stop_digest_scheduler()
+    await notification_service.stop_background()
     github_backup_service.stop_scheduler()
     await business_runtime.stop()
     library_trash_service.stop_scheduler()

@@ -123,6 +123,7 @@ from backend.app.models.stock_reservation import (
     StockResourceLock,
 )
 from backend.app.models.storage_ha_sensor import StorageHASensor
+from backend.app.models.telegram_quality import TelegramPollState, TelegramQualityConfig, TelegramQualityMessage
 from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
 from backend.app.models.user_otp_code import UserOTPCode
