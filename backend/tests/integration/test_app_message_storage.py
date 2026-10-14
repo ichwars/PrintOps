@@ -4,6 +4,7 @@ import asyncio
 import os
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -132,9 +133,22 @@ asyncio.run(main())
 """
 
     def run_worker():
-        return subprocess.run(
-            [sys.executable, "-c", script, dsn], capture_output=True, text=True, timeout=30, check=True
-        )
+        # CI invokes pytest from backend/; a fresh Python process does not inherit
+        # pytest's sys.path additions. Resolve the package root from this file.
+        try:
+            return subprocess.run(
+                [sys.executable, "-c", script, dsn],
+                cwd=Path(__file__).resolve().parents[3],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            pytest.fail(
+                f"Quota worker exited {exc.returncode}.\nstdout:\n{exc.stdout}\nstderr:\n{exc.stderr}",
+                pytrace=False,
+            )
 
     try:
         workers = await asyncio.gather(asyncio.to_thread(run_worker), asyncio.to_thread(run_worker))
