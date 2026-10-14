@@ -354,6 +354,9 @@ export interface PrintQueueItem {
   batch_name?: string | null;
   // Shortest-job-first scheduling
   been_jumped?: boolean;
+  scheduler_shortest_first?: boolean | null; // List snapshot, no settings:read permission needed
+  scheduler_print_time_seconds?: number | null; // Persisted SJF key; source duration can differ
+  dispatching?: boolean; // Snapshot of an in-flight dispatch claim
   // Auto-print G-code injection
   gcode_injection?: boolean;
   cleanup_library_after_dispatch?: boolean;

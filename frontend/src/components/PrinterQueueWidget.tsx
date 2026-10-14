@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
-import { Clock, Calendar, ChevronRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Calendar, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/client';
-import { formatRelativeTime } from '../utils/date';
+import { usePrinterPendingQueue } from '../hooks/usePrinterPendingQueue';
+import { queuePreview } from '../utils/queuePreview';
 import { filterCompatibleQueueItems } from '../utils/printer';
 import { queueItemDisplayName } from '../utils/queueItemName';
 
@@ -17,14 +17,16 @@ interface PrinterQueueWidgetProps {
 }
 
 export function PrinterQueueWidget({ printerId, printerModel, loadedFilamentTypes, loadedFilaments, loadedVariants, variant = 'card' }: PrinterQueueWidgetProps) {
-  const { t } = useTranslation();
-  const { data: queue } = useQuery({
-    queryKey: ['queue', printerId, 'pending', printerModel],
-    queryFn: () => api.getQueue(printerId, 'pending', printerModel || undefined),
-    refetchInterval: 30000,
-  });
+  const { t, i18n } = useTranslation();
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    // A cached unchanged response must still age past a scheduled hold.
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const { data: queue } = usePrinterPendingQueue(printerId, printerModel);
 
-  // Filter queue to items this printer can actually print (filament type + color check)
+  // Filament compatibility is only one prerequisite, not dispatch eligibility.
   const compatibleQueue = queue ? filterCompatibleQueueItems(queue, loadedFilamentTypes, loadedFilaments, loadedVariants) : undefined;
   const totalPending = compatibleQueue?.length || 0;
 
@@ -32,7 +34,12 @@ export function PrinterQueueWidget({ printerId, printerModel, loadedFilamentType
     return null;
   }
 
-  const nextItem = compatibleQueue?.[0];
+  const preview = queuePreview(compatibleQueue ?? [], queue?.[0]?.scheduler_shortest_first === true, now);
+  const nextItem = preview?.item;
+  const previewState = preview?.state ?? 'checks';
+  const scheduledLabel = nextItem?.scheduled_time
+    ? new Date(nextItem.scheduled_time).toLocaleString(i18n.language, { dateStyle: 'short', timeStyle: 'short' })
+    : undefined;
 
   // Passive next-in-queue preview. Plate-clear acknowledgment is handled by the
   // card-level "Mark plate as cleared" button (PrintersPage.tsx). Having a
@@ -48,21 +55,21 @@ export function PrinterQueueWidget({ printerId, printerModel, loadedFilamentType
       to="/queue"
       className={linkClassName}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Calendar className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-bambu-gray">{t('queue.nextInQueue')}</p>
-            <p className="text-sm text-white truncate">
+            <p className="text-xs text-bambu-gray">{t('queue.cardPreview.candidate')}</p>
+            <p className="text-sm text-white truncate" title={nextItem ? queueItemDisplayName(nextItem) : undefined}>
               {nextItem ? queueItemDisplayName(nextItem) : ''}
             </p>
+            <p className="text-xs text-bambu-gray break-words">{t(`queue.cardPreview.${previewState}`)}</p>
+            {previewState === 'scheduled' && nextItem?.scheduled_time && (
+              <time className="block text-xs text-bambu-gray" dateTime={nextItem.scheduled_time}>{scheduledLabel}</time>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs text-bambu-gray flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {nextItem?.scheduled_time ? formatRelativeTime(nextItem.scheduled_time, 'system', t) : t('time.waiting')}
-          </span>
           {totalPending > 1 && (
             <span className="text-xs px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-400/20 text-yellow-700 dark:text-yellow-400 rounded">
               +{totalPending - 1}

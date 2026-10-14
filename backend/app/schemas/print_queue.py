@@ -222,6 +222,9 @@ class PrintQueueItemResponse(BaseModel):
 
     # Shortest-job-first scheduling
     been_jumped: bool = False
+    scheduler_shortest_first: bool | None = None  # List snapshot; unknown on other response routes
+    scheduler_print_time_seconds: int | None = None  # Persisted SJF key, not enriched source metadata
+    dispatching: bool = False  # Snapshot only; never authorizes a start
 
     # Auto-print G-code injection
     gcode_injection: bool = False

@@ -3,6 +3,7 @@ import { formatPrintName } from '../../utils/printName';
 import { BED_TEMP_DEFAULTS, CHAMBER_TEMP_DEFAULTS, FAN_SPEED_DEFAULTS, NOZZLE_TEMP_DEFAULTS } from '../../utils/temperatureFanPresets';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { usePrinterPendingQueue } from '../../hooks/usePrinterPendingQueue';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router';
 import { api, firmwareApi } from '../../api/client';
@@ -469,10 +470,7 @@ const { data: plugStatus } = useQuery({
   });
 
 // Fetch queue count for this printer
-const { data: queueItems } = useQuery({
-    queryKey: ['queue', printer.id, 'pending'],
-    queryFn: () => api.getQueue(printer.id, 'pending'),
-  });
+const { data: queueItems } = usePrinterPendingQueue(printer.id, printer.model);
 
 // Filter queue items by filament compatibility (same logic as PrinterQueueWidget)
   // so the badge only shows on printers that can actually run the queued jobs.
