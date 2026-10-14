@@ -42,7 +42,8 @@ Proxy-Limits. Sie verändert weder den Pool noch Servereinstellungen.
 
 Nicht erreichbare, eingeschränkte oder ungültige Antworten führen zu einer
 kurzen Warnung ohne Verbindungsdaten, Antwortinhalte oder Ausnahme-Traceback.
-Für die Diagnose gilt ein Zeitlimit von fünf Sekunden. Danach läuft der Start
-weiter; Fehler der eigentlichen Initialisierung oder Migration bleiben Fehler.
+Nach fünf Sekunden wird der Abbruch der Diagnose angefordert. Das Aufräumen
+der Datenbankverbindung kann den anschließenden Start verzögern; Fehler der
+eigentlichen Initialisierung oder Migration bleiben Fehler.
 SQLite führt diese Abfrage überhaupt nicht aus. Eine Wiederherstellung, die
 `init_db()` aufruft, löst keine zusätzliche Kapazitätsdiagnose aus.
