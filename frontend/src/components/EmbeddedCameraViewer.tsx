@@ -49,7 +49,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
-  const { data: printer } = useQuery({
+  const { data: printer, isPending: printerPending } = useQuery({
     queryKey: ['printer', printerId],
     queryFn: () => api.getPrinter(printerId),
     enabled: printerId > 0,
@@ -713,7 +713,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
         >
           <CameraViewPreferenceSelect
             preference={preference}
-            disabled={!preferenceReady || !hasPermission('camera:view')}
+            disabled={printerPending || !preferenceReady || !hasPermission('camera:view')}
             onPreferenceChange={setPreference}
             className="absolute top-2 right-2 z-20 w-36 max-w-full min-w-0 no-drag"
             controlClassName="h-8 px-2 text-xs"

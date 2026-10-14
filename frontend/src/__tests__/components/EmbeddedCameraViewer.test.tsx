@@ -41,6 +41,36 @@ describe('EmbeddedCameraViewer camera defaults', () => {
     await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
   });
 
+  it('disables the content selector until the first printer lookup resolves, then preserves a selectable mode', async () => {
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    let requested = false;
+    server.use(http.get('*/api/v1/printers/1', async () => {
+      requested = true; await pending;
+      return HttpResponse.json({ id: 1, name: 'Workshop', serial_number: 'serial-workshop', model: 'X1C' });
+    }));
+    render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    await waitFor(() => expect(requested).toBe(true));
+    const control = screen.getByRole('combobox', { name: 'Default camera view' });
+    expect(control).toBeDisabled();
+    release();
+    await waitFor(() => expect(control).toBeEnabled());
+    selectComboboxOption(control, 'Stream');
+    expect(control).toHaveAttribute('data-value', 'stream');
+    expect(localStorage.getItem('printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:appliance:printer:serial-workshop')).toBe('{"version":1,"mode":"stream"}');
+  });
+
+  it('keeps transient content selection usable after a successful lookup with no serial', async () => {
+    server.use(http.get('*/api/v1/printers/1', () => HttpResponse.json({ id: 1, name: 'Workshop', serial_number: '', model: 'X1C' })));
+    render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    const control = screen.getByRole('combobox', { name: 'Default camera view' });
+    await waitFor(() => expect(control).toBeEnabled());
+    selectComboboxOption(control, 'Snapshot');
+    await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));
+    expect(control).toHaveAttribute('data-value', 'snapshot');
+    expect(localStorage.setItem).not.toHaveBeenCalledWith(expect.stringContaining('printops:camera-view:'), expect.anything());
+  });
+
   it('honors the saved snapshot in the existing embedded viewer', async () => {
     render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
     await waitFor(() => {

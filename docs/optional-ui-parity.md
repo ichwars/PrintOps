@@ -98,3 +98,12 @@ The global placement setting now supplies the initial launch fallback only.
 Changing it to Window does not dismiss locally opened overlays; use their existing
 close button to dismiss them. This avoids immediately closing an Overlay chosen
 from the new menu while the global fallback is Window.
+
+Embedded viewers and ordinary camera pages wait for the first printer-information
+request to finish before enabling Stream/Snapshot changes. Existing image loading
+continues during that request. If the response has no serial, or the request fails,
+mode changes remain usable for the current view without saving a printer default.
+Public camera-token links remain switchable while metadata loads; later metadata
+or authentication discovery does not discard their current choice. Opening a
+different public link starts its own requested/default view, even on the same
+printer route, without saving the link token or its choices.

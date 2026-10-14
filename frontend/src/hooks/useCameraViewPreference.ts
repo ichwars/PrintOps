@@ -40,7 +40,8 @@ function useCameraPreference<T extends CameraPreference>(serialNumber: string | 
     : !authEnabled ? 'appliance' : preferenceSubject ? `user:${encodeURIComponent(preferenceSubject)}` : null;
   const key = scope && validPrinter ? `printops:${namespace}:${encodeURIComponent(window.location.origin)}:${scope}:printer:${encodeURIComponent(serialNumber)}` : null;
   // No numeric-ID migration: deleted accounts and printers can reuse IDs.
-  const identity = `${key ?? `${loading}:${authStatusVerified}:${authEnabled}:${preferenceSubject ?? ''}:${anonymous}:${serialNumber ?? ''}`}:${initialMode ?? ''}`;
+  // Anonymous state follows its route identity, independently of private auth/metadata resolution.
+  const identity = `${anonymous ? `anonymous:${serialNumber ?? ''}` : key ?? `${loading}:${authStatusVerified}:${authEnabled}:${preferenceSubject ?? ''}:${anonymous}:${serialNumber ?? ''}`}:${initialMode ?? ''}`;
   const [local, setLocal] = useState<{ identity: string; value: T | null | undefined }>(() => ({ identity, value: initialMode }));
   if (local.identity !== identity) {
     setLocal({ identity, value: initialMode });
