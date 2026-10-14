@@ -1,7 +1,7 @@
 import { computePopoverPosition } from '../../utils/popoverPosition';
 import { buildPresetOptions } from '../../utils/temperatureFanPresets';
 import { Checkbox } from '../../components/ui';
-import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Video, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, LogIn, LogOut, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
+import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, LogIn, LogOut, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
 import { PrinterCardScaledContent } from './PrinterCardTextScale';
@@ -32,12 +32,12 @@ import { PrinterCardOverlays } from './PrinterCardOverlays';
 import { AiDetectionBadge } from '../../components/AiDetectionBadge';
 import { useCameraViewPreference } from '../../hooks/useCameraViewPreference';
 import { CameraViewPreferenceSelect } from '../../components/CameraViewPreferenceSelect';
-import { openCameraWindow } from '../../utils/cameraWindow';
+import { CameraLaunchButton } from '../../components/CameraLaunchButton';
 import { useExternalSpoolDisplay } from '../../hooks/useExternalSpoolDisplay';
 import { PrinterFilamentHeader } from './PrinterFilamentHeader';
 
 export function PrinterCard(props: PrinterCardProps) {
-  const cameraPreference = useCameraViewPreference(props.printer.id);
+  const cameraPreference = useCameraViewPreference(props.printer.serial_number);
   const externalDisplay = useExternalSpoolDisplay(props.printer.serial_number);
   const model = usePrinterCardModel(props);
   if (!model) return null;
@@ -2904,23 +2904,10 @@ return (
             <div className="flex items-center justify-between gap-2">
               {printerActionsMenu}
               <div className="flex items-center justify-end gap-2 flex-wrap">
-                {/* Camera Button */}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    if (cameraViewMode === 'embedded' && onOpenEmbeddedCamera) {
-                      onOpenEmbeddedCamera(printer.id, printer.name);
-                    } else {
-                      openCameraWindow(printer.id, cameraPreference.mode);
-                    }
-                  }}
-                  disabled={!status?.connected || !hasPermission('camera:view') || !cameraPreference.ready}
-                  title={!hasPermission('camera:view') ? t('printers.permission.noCamera') : (cameraViewMode === 'embedded' ? t('printers.openCameraOverlay') : t('printers.openCameraWindow'))}
-                  className={footerIconButtonClass}
-                >
-                  <Video className="w-4 h-4" />
-                </Button>
+                <CameraLaunchButton printerId={printer.id} printerName={printer.name} serialNumber={printer.serial_number}
+                  fallback={cameraViewMode} contentMode={cameraPreference.mode} ready={cameraPreference.ready}
+                  connected={!!status?.connected} permitted={hasPermission('camera:view')}
+                  onOpenEmbeddedCamera={onOpenEmbeddedCamera} className={footerIconButtonClass} />
                 <CameraViewPreferenceSelect
                   ariaLabel={`${t('camera.defaultView')} — ${printer.name}`}
                   preference={cameraPreference.preference}

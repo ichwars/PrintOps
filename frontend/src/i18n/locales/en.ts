@@ -5807,6 +5807,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: 'Choose camera placement',
     defaultView: 'Default camera view',
     defaultStream: 'Default (Stream)',
     stream: 'Stream',

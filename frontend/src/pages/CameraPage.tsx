@@ -26,7 +26,12 @@ export function CameraPage() {
   const id = parseInt(printerId || '0', 10);
   const [searchParams] = useSearchParams();
   const launchView = searchParams.get('view');
-  const { mode: streamMode, setPreference: setStreamMode, ready: preferenceReady, identity: preferenceIdentity } = useCameraViewPreference(id, {
+  const { data: printer } = useQuery({
+    queryKey: ['printer', id],
+    queryFn: () => api.getPrinter(id),
+    enabled: id > 0,
+  });
+  const { mode: streamMode, setPreference: setStreamMode, ready: preferenceReady, identity: preferenceIdentity } = useCameraViewPreference(printer?.serial_number, {
     anonymous: searchParams.has('camera_token'),
     initialMode: launchView === 'stream' || launchView === 'snapshot' ? launchView : undefined,
   });
@@ -85,13 +90,6 @@ export function CameraPage() {
     countdownIntervalRef.current = null;
     stallCheckIntervalRef.current = null;
   }, [streamMode, preferenceIdentity]);
-
-  // Fetch printer info for the title
-  const { data: printer } = useQuery({
-    queryKey: ['printer', id],
-    queryFn: () => api.getPrinter(id),
-    enabled: id > 0,
-  });
 
   // MSE (fMP4-over-WebSocket, via go2rtc) is the primary player — see
   // useCameraStream and the matching integration in EmbeddedCameraViewer.tsx

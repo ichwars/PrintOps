@@ -5730,6 +5730,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: 'Choisir l’affichage de la caméra',
     defaultView: 'Vue caméra par défaut',
     defaultStream: 'Par défaut (flux)',
     stream: 'Flux',

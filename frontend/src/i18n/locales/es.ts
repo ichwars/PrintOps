@@ -5750,6 +5750,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: 'Elegir ubicación de la cámara',
     defaultView: 'Vista de cámara predeterminada',
     defaultStream: 'Predeterminado (directo)',
     stream: 'Directo',

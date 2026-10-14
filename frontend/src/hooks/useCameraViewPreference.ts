@@ -2,20 +2,22 @@ import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export type CameraViewPreference = 'stream' | 'snapshot';
+export type CameraPlacement = 'window' | 'embedded';
+type CameraPreference = CameraViewPreference | CameraPlacement;
 
 const CHANGE_EVENT = 'printops:camera-view-change';
 // Keep the selection usable in this tab when browser storage is unavailable.
 // Every entry has the same origin/user/printer scope as its storage key.
-const unsavedPreferences = new Map<string, CameraViewPreference | null>();
+const unsavedPreferences = new Map<string, CameraPreference | null>();
 
-function readPreference(key: string | null): CameraViewPreference | null {
+function readPreference<T extends CameraPreference>(key: string | null, choices: readonly T[]): T | null {
   if (!key) return null;
-  if (unsavedPreferences.has(key)) return unsavedPreferences.get(key) ?? null;
+  if (unsavedPreferences.has(key)) return (unsavedPreferences.get(key) as T | null) ?? null;
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
     if (saved && typeof saved === 'object' && 'version' in saved && saved.version === 1
-      && 'mode' in saved && (saved.mode === 'stream' || saved.mode === 'snapshot')) {
-      return saved.mode;
+      && 'mode' in saved && choices.includes(saved.mode as T)) {
+      return saved.mode as T;
     }
   } catch {
     // Missing storage, invalid JSON and old formats all use the default.
@@ -23,23 +25,23 @@ function readPreference(key: string | null): CameraViewPreference | null {
   return null;
 }
 
-interface CameraViewPreferenceOptions {
+interface CameraPreferenceOptions<T> {
   /** Public camera links never read or change an authenticated user's defaults. */
   anonymous?: boolean;
   /** Nonsecret launch hint, including when the opener cannot persist storage. */
-  initialMode?: CameraViewPreference;
+  initialMode?: T;
 }
 
-export function useCameraViewPreference(printerId: number, { anonymous = false, initialMode }: CameraViewPreferenceOptions = {}) {
-  const { authEnabled, user, loading } = useAuth();
-  const validPrinter = Number.isSafeInteger(printerId) && printerId > 0;
-  const scope = loading || anonymous || !validPrinter
-    ? null
-    : !authEnabled ? 'appliance' : user && Number.isSafeInteger(user.id) && user.id > 0 ? `user:${user.id}` : null;
-  const key = scope ? `printops:camera-view:v1:${encodeURIComponent(window.location.origin)}:${scope}:${printerId}` : null;
-  // Volatile selections are private to this hook and reset with identity too.
-  const identity = `${key ?? `${loading ? 'loading' : authEnabled ? `signed-out:${user?.id ?? ''}` : 'local'}:${anonymous}:${printerId}`}:${initialMode ?? ''}`;
-  const [local, setLocal] = useState<{ identity: string; value: CameraViewPreference | null | undefined }>(() => ({ identity, value: initialMode }));
+function useCameraPreference<T extends CameraPreference>(serialNumber: string | undefined, namespace: string, choices: readonly T[], fallback: T,
+  { anonymous = false, initialMode }: CameraPreferenceOptions<T> = {}) {
+  const { authEnabled, authStatusVerified, preferenceSubject, loading } = useAuth();
+  const validPrinter = typeof serialNumber === 'string' && serialNumber.trim().length > 0;
+  const scope = loading || anonymous || authStatusVerified !== true ? null
+    : !authEnabled ? 'appliance' : preferenceSubject ? `user:${encodeURIComponent(preferenceSubject)}` : null;
+  const key = scope && validPrinter ? `printops:${namespace}:${encodeURIComponent(window.location.origin)}:${scope}:printer:${encodeURIComponent(serialNumber)}` : null;
+  // No numeric-ID migration: deleted accounts and printers can reuse IDs.
+  const identity = `${key ?? `${loading}:${authStatusVerified}:${authEnabled}:${preferenceSubject ?? ''}:${anonymous}:${serialNumber ?? ''}`}:${initialMode ?? ''}`;
+  const [local, setLocal] = useState<{ identity: string; value: T | null | undefined }>(() => ({ identity, value: initialMode }));
   if (local.identity !== identity) {
     setLocal({ identity, value: initialMode });
   }
@@ -70,14 +72,14 @@ export function useCameraViewPreference(printerId: number, { anonymous = false, 
       window.removeEventListener('storage', onStorage);
     };
   }, [identity, key]);
-  const getSnapshot = useCallback(() => readPreference(key), [key]);
+  const getSnapshot = useCallback(() => readPreference(key, choices), [key, choices]);
   const savedPreference = useSyncExternalStore(subscribe, getSnapshot, () => null);
   // Derive the current identity's value during render, before effects run.
   const override = local.identity === identity ? local.value : initialMode;
   const preference = override === undefined ? savedPreference : override;
 
-  const setPreference = useCallback((value: CameraViewPreference | null) => {
-    if (loading || !validPrinter) return;
+  const setPreference = useCallback((value: T | null) => {
+    if (loading && !anonymous) return;
     if (!key) {
       setLocal({ identity, value });
       return;
@@ -91,7 +93,18 @@ export function useCameraViewPreference(printerId: number, { anonymous = false, 
     }
     setLocal({ identity, value: undefined });
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: key }));
-  }, [identity, key, loading, validPrinter]);
+  }, [identity, key, loading, anonymous]);
 
-  return { preference, mode: preference ?? 'stream', setPreference, ready: !loading, identity };
+  return { preference, mode: preference ?? fallback, setPreference, ready: anonymous || !loading, identity };
+}
+
+const CONTENT_CHOICES = ['stream', 'snapshot'] as const;
+const PLACEMENT_CHOICES = ['window', 'embedded'] as const;
+
+export function useCameraViewPreference(serialNumber: string | undefined, options: CameraPreferenceOptions<CameraViewPreference> = {}) {
+  return useCameraPreference(serialNumber, 'camera-view:v2', CONTENT_CHOICES, 'stream', options);
+}
+
+export function useCameraPlacementPreference(serialNumber: string | undefined, fallback: CameraPlacement) {
+  return useCameraPreference(serialNumber, 'camera-placement:v1', PLACEMENT_CHOICES, fallback);
 }

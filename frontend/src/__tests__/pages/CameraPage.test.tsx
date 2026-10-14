@@ -97,7 +97,7 @@ describe('CameraPage', () => {
   });
 
   describe('per-printer camera preference', () => {
-    const preferenceKey = 'printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:appliance:1';
+    const preferenceKey = 'printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:appliance:printer:00M09A350100001';
 
     it('updates the camera window title when the interface language changes', async () => {
       try {
@@ -125,7 +125,7 @@ describe('CameraPage', () => {
     });
 
     it('waits for the signed-in identity before opening its saved snapshot', async () => {
-      localStorage.setItem('printops:camera-view:v1:http%3A%2F%2Flocalhost%3A3000:user:1:1', '{"version":1,"mode":"snapshot"}');
+      localStorage.setItem('printops:camera-view:v2:http%3A%2F%2Flocalhost%3A3000:user:account-1:printer:00M09A350100001', '{"version":1,"mode":"snapshot"}');
       setAuthToken('preference-test-token', 'session');
       let resolveIdentity!: () => void;
       let identityRequested = false;
@@ -135,7 +135,7 @@ describe('CameraPage', () => {
         http.get('*/api/v1/auth/me', async () => {
           identityRequested = true;
           await identity;
-          return HttpResponse.json({ id: 1, username: 'admin', role: 'admin', is_active: true, is_admin: true, groups: [], permissions: [], created_at: '2024-01-01T00:00:00Z' });
+          return HttpResponse.json({ id: 1, sub: 'account-1', username: 'admin', role: 'admin', is_active: true, is_admin: true, groups: [], permissions: [], created_at: '2024-01-01T00:00:00Z' });
         }),
         http.post('*/api/v1/printers/camera/stream-token', () => HttpResponse.json({ token: 'camera-test-token' })),
       );

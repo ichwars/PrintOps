@@ -5741,6 +5741,7 @@ export default {
 
   // Camera page
   camera: {
+    choosePlacement: 'カメラの表示場所を選択',
     defaultView: 'カメラの既定表示',
     defaultStream: '既定（ストリーム）',
     stream: 'ストリーム',
