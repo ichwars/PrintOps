@@ -3,6 +3,8 @@
 import json
 from typing import Any
 
+from backend.app.services.notification_plain_text import send_parts, split_text, utf16_size
+
 
 async def send_telegram(
     self,
@@ -13,6 +15,14 @@ async def send_telegram(
     plain_text: bool = False,
 ) -> tuple[bool, str]:
     """Send notification via Telegram bot."""
+    # App-containing digests include full bodies; keep each plain message within
+    # Telegram's post-parse limit (caption limit for any photo attachment).
+    limit = 1024 if image_data else 4096
+    if plain_text and utf16_size(message) > limit:
+        return await send_parts(
+            lambda part: send_telegram(self, config, part, image_data, outcome_urls, plain_text=True),
+            split_text(message, limit),
+        )
     bot_token = config.get("bot_token", "").strip()
     chat_id = config.get("chat_id", "").strip()
 

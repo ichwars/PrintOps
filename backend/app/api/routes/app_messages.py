@@ -23,6 +23,13 @@ class AppMessage(BaseModel):
     channel_ids: list[int] | None = Field(default=None, min_length=1, max_length=50)
     printer_id: int | None = Field(default=None, gt=0)
 
+    @field_validator("title", mode="before")
+    @classmethod
+    def single_line_title(cls, value):
+        if isinstance(value, str) and any(not c.isprintable() for c in value):
+            raise ValueError("title must be a single printable line")
+        return value
+
     @field_validator("title", "message")
     @classmethod
     def plain_text(cls, value):

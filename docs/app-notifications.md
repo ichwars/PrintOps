@@ -30,7 +30,7 @@ Alternativ wird `Authorization: Bearer <API-Schlüssel>` unterstützt. Die Kanal
 
 | Feld | Bedeutung |
 | --- | --- |
-| `title` | Pflicht, 1–120 Zeichen, nach Bereinigung nicht leer |
+| `title` | Pflicht, 1–120 druckbare Zeichen auf einer Zeile; keine Zeilenumbrüche, Tabulatoren oder Steuerzeichen; nach Bereinigung nicht leer |
 | `message` | Pflicht, 1–2000 Zeichen, nach Bereinigung nicht leer |
 | `url` | Optional, höchstens 500 Zeichen, HTTP(S)-Adresse ohne Zugangsdaten oder Leerzeichen; wird als Text angefügt |
 | `channel_ids` | Optional, 1–50 Kanal-IDs |
@@ -42,12 +42,25 @@ Die erlaubten Drucker ergeben sich aus der Schnittmenge der aktuellen Benutzer- 
 
 Pro API-Schlüssel sind höchstens **20 Nachrichten in einem gleitenden 60-Sekunden-Fenster** möglich, gemeinsam über alle Kanäle, Prozesse und Neustarts. Ein Versandversuch verbraucht eine Nachricht, auch wenn ein Anbieter fehlschlägt oder Ruhezeiten die Zustellung unterdrücken. Ungültige Anfragen lösen keinen Versand aus. HTTP `429` enthält `Retry-After: 60`; `401` bedeutet fehlender/ungültiger Schlüssel, `403` fehlende Freigabe oder unzulässiger Bereich, `422` ungültige Eingabefelder und `400` fehlende geeignete Kanäle oder eine zu große implizite Auswahl.
 
-HTTP `200` mit `{"channels":1}` bestätigt die Verarbeitung für einen Kanal, nicht dessen erfolgreiche externe Zustellung. Der bestehende Versand protokolliert Versuche und aktualisiert den Anbieterstatus. Ruhezeiten gelten weiterhin. Bei aktiviertem Tagesbericht wird eine Nachricht zusätzlich in die Zusammenfassung aufgenommen; der Tagesbericht ersetzt den unmittelbaren Versandversuch nicht. Die globale Zeiteinstellung für Ruhezeiten und Tagesberichte bleibt unverändert.
+HTTP `200` mit `{"channels":1}` bestätigt die Verarbeitung für einen Kanal, nicht dessen erfolgreiche externe Zustellung. Der bestehende Versand protokolliert Versuche und aktualisiert den Anbieterstatus. Ruhezeiten gelten weiterhin. Bei aktiviertem Tagesbericht werden Titel, vollständiger Nachrichtentext und optionale URL zusätzlich in die Zusammenfassung aufgenommen; der Tagesbericht ersetzt den unmittelbaren Versandversuch nicht. Die globale Zeiteinstellung für Ruhezeiten und Tagesberichte bleibt unverändert.
 
-App-Inhalte werden als Text behandelt: Telegram erhält keinen Markdown-Parse-Modus, Discord und Home Assistant erhalten maskierte Auszeichnung, Slack-kompatible Webhooks erhalten Klartextblöcke ohne Erwähnungsauflösung. Andere Provider erhalten ihren bisherigen Texttransport. Tagesberichte mit App-Inhalten verwenden ebenfalls die sichere Darstellung. Benutzerdefinierte nachgelagerte Webhook-Empfänger müssen ihre eigene Darstellung entsprechend absichern.
+App-Inhalte werden als Text behandelt: Telegram erhält keinen Markdown-Parse-Modus, Discord und Home Assistant erhalten maskierte Auszeichnung, Slack erhält Klartextblöcke ohne Erwähnungsauflösung. Der gemeinsame Slack/Mattermost-Fallback maskiert zusätzlich Markdown/HTML und unterbricht `@`-Erwähnungen mit einem unsichtbaren Trennzeichen, da Mattermost die Slack-Parsing-Schalter ignoriert. In Vorschauen können deshalb Maskierungszeichen sichtbar sein. Andere Provider erhalten ihren bisherigen Texttransport. Tagesberichte mit App-Inhalten verwenden ebenfalls die sichere Darstellung. Benutzerdefinierte nachgelagerte Webhook-Empfänger müssen ihre eigene Darstellung entsprechend absichern.
+
+Lange App-Nachrichten und Tagesberichte mit App-Inhalten werden ohne Abschneiden auf mehrere Provider-Nachrichten verteilt. Die Grenzen gelten nach der jeweiligen Textkodierung:
+
+| Provider | Darstellung und Grenze je Teil |
+| --- | --- |
+| Slack / Mattermost | Ein Slack-Klartextblock mit höchstens 3000 UTF-16-Einheiten; maskierter Mattermost-Fallback höchstens 15000 Zeichen |
+| Discord | Höchstens 256 UTF-16-Einheiten im maskierten Titel und 4096 im Text; ein Embed je Nachricht, somit unter 6000 insgesamt. Zu lange maskierte Titel stehen vollständig am Anfang des Texts. |
+| Pushover | Höchstens 1024 Unicode-Zeichen im Nachrichtentext einschließlich angefügter URL; HTML bleibt deaktiviert. |
+| Telegram | Höchstens 4096 UTF-16-Einheiten je Klartextnachricht. |
+
+Die Providergrenzen sind dokumentiert bei [Slack](https://docs.slack.dev/reference/block-kit/blocks/section-block/), [Mattermost](https://docs.mattermost.com/developers/integrate/webhooks/incoming), [Discord](https://docs.discord.com/developers/resources/message#embed-object-embed-limits), [Pushover](https://pushover.net/api) und [Telegram](https://core.telegram.org/bots/api#sendmessage). UTF-16 wird vorsichtig gezählt; zusammengehörige Maskierungssequenzen und Unicode-Codepunkte werden nicht geteilt. Lange Links können über mehrere Nachrichten verteilt werden und sind dann eventuell nicht mehr direkt anklickbar.
+
+Jeder Teil kann ein eigenes Providerkontingent verbrauchen und eine eigene Push-Meldung auslösen; bei Pushover gilt auch eine eingestellte Notfallpriorität für jeden Teil. PrintOps zählt weiterhin eine API-Anfrage für sein 20/60-Sekunden-Kontingent und gibt die Anzahl bearbeiteter Kanäle zurück, nicht die Zahl der Teilnachrichten. Bei einem Fehler stoppt der Versand der weiteren Teile dieses Kanals und protokolliert einen Fehlschlag. Unmittelbare Versandversuche werden nicht automatisch wiederholt. Ein fehlgeschlagener Tagesbericht mit App-Inhalten behält sämtliche Einträge für den nächsten geplanten Versuch; bereits zugestellte Teile können dabei nochmals erscheinen. Erst ein erfolgreicher Tagesbericht leert diese Warteschlange. Die bisherige Behandlung reiner Druckereignis-Berichte und der Ruhezeiten bleibt bestehen.
 
 ## Betrieb und Entwicklung
 
-Die Migration ergänzt `api_keys.can_send_notifications` und `notification_providers.on_app_message` mit `FALSE` sowie die unveränderliche Eigentümerbindung. `app_message_quotas` speichert höchstens 20 Zeitstempel je Schlüssel. SQLite serialisiert die kurze Schreibtransaktion, PostgreSQL die jeweilige Schlüsselzeile. Ein atomarer Upsert sperrt vor dem Lesen der Zeitstempel; der Commit erfolgt vor Provider-Netzwerkaufrufen. Abgelaufene Zeitstempel werden bei der nächsten Anfrage entfernt, beim Widerruf wird die Kontingentzeile gelöscht. Aufträge, Lager und andere bestehende Schlüsselberechtigungen bleiben eigenständig.
+Die Migration ergänzt `api_keys.can_send_notifications` und `notification_providers.on_app_message` mit `FALSE` sowie die unveränderliche Eigentümerbindung. `app_message_quotas` speichert höchstens 20 Zeitstempel je Schlüssel. SQLite serialisiert die kurze Schreibtransaktion, PostgreSQL die jeweilige Schlüsselzeile. Ein atomarer Upsert sperrt vor dem Lesen der Zeitstempel; der Commit erfolgt vor Provider-Netzwerkaufrufen. Abgelaufene Zeitstempel werden bei der nächsten Anfrage entfernt, beim Widerruf und beim Löschen des Eigentümers wird die Kontingentzeile auch ohne SQLite-Fremdschlüsselprüfung gelöscht. Aufträge, Lager und andere bestehende Schlüsselberechtigungen bleiben eigenständig.
 
 Die automatisierten Tests verwenden ausschließlich nachgebildete Providertransporte. SQLite-Dateitests prüfen Parallelität, echte getrennte Prozesse, Neustart und Benutzer-ID-Wiederverwendung. PostgreSQL-Tests benötigen `F01_TEST_POSTGRES_DSN` auf einer isolierten Testdatenbank und erzeugen/löschen dafür eigene Testschemas.

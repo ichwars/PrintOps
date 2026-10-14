@@ -20,7 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.notification import NotificationDigestQueue, NotificationLog, NotificationProvider
 from backend.app.models.notification_template import NotificationTemplate
 from backend.app.services.notification_delivery import NotificationDelivery
-from backend.app.services.notification_plain_text import escape_markdown
+from backend.app.services.notification_discord import send_discord
+from backend.app.services.notification_plain_text import escape_markdown, send_parts, slack_app_payloads, split_text
 from backend.app.services.notification_queue_events import NotificationQueueEvents
 from backend.app.services.notification_telegram import send_telegram
 
@@ -599,45 +600,7 @@ class NotificationService(NotificationQueueEvents):
     async def _send_discord(
         self, config: dict, title: str, message: str, image_data: bytes | None = None, plain_text: bool = False
     ) -> tuple[bool, str]:
-        """Send notification via Discord webhook."""
-        webhook_url = config.get("webhook_url", "").strip()
-
-        if not webhook_url:
-            return False, "Webhook URL is required"
-
-        if not (
-            webhook_url.startswith("https://discord.com/api/webhooks/")
-            or webhook_url.startswith("https://discordapp.com/api/webhooks/")
-        ):
-            return False, "Invalid Discord webhook URL"
-
-        # Discord embed format for nicer messages
-        embed = {
-            "title": title,
-            "description": message,
-            "color": 0x00AE42,  # Bambu green
-        }
-
-        client = await self._get_client()
-
-        if image_data:
-            # Attach image via multipart form-data and reference in embed
-            embed["image"] = {"url": "attachment://photo.jpg"}
-            payload = {"embeds": [embed], **({"allowed_mentions": {"parse": []}} if plain_text else {})}
-            response = await client.post(
-                webhook_url,
-                data={"payload_json": json.dumps(payload)},
-                files={"files[0]": ("photo.jpg", image_data, "image/jpeg")},
-            )
-        else:
-            response = await client.post(
-                webhook_url, json={"embeds": [embed], **({"allowed_mentions": {"parse": []}} if plain_text else {})}
-            )
-
-        if response.status_code in (200, 204):
-            return True, "Message sent successfully"
-        else:
-            return False, f"HTTP {response.status_code}: {response.text[:200]}"
+        return await send_discord(self, config, title, message, image_data, plain_text)
 
     async def _send_webhook(
         self,
@@ -670,9 +633,6 @@ class NotificationService(NotificationQueueEvents):
         if payload_format == "slack":
             # Slack/Mattermost format - just text field
             data = {"text": f"*{title}*\n{message}"}
-            if event_type == "app_message":
-                data = {"text": f"{title}\n{message}", "mrkdwn": False, "parse": "none", "link_names": False}
-                data["blocks"] = [{"type": "section", "text": {"type": "plain_text", "text": f"{title}\n{message}"}}]
         else:
             # Generic format with custom field names
             custom_field_title = config.get("field_title", "title").strip() or "title"
@@ -716,15 +676,19 @@ class NotificationService(NotificationQueueEvents):
                 headers["Authorization"] = f"Bearer {auth_header}"
 
         client = await self._get_client()
-        try:
-            response = await client.post(webhook_url, json=data, headers=headers)
 
-            if response.status_code in (200, 201, 202, 204):
-                return True, "Webhook delivered successfully"
-            else:
+        async def send(payload):
+            try:
+                response = await client.post(webhook_url, json=payload, headers=headers)
+                if response.status_code in (200, 201, 202, 204):
+                    return True, "Webhook delivered successfully"
                 return False, _opaque_http_failure(response, label="webhook endpoint")
-        except Exception as e:
-            return False, f"Webhook error: {str(e)}"
+            except Exception as e:
+                return False, f"Webhook error: {str(e)}"
+
+        if payload_format == "slack" and event_type == "app_message":
+            return await send_parts(send, slack_app_payloads(title, message, image_url))
+        return await send(data)
 
     async def _send_homeassistant(
         self, config: dict, title: str, message: str, db: AsyncSession | None = None, image_url: str | None = None
@@ -856,7 +820,7 @@ class NotificationService(NotificationQueueEvents):
         } or None
 
         plain_text = event_type == "app_message"
-        if plain_text and provider.provider_type in {"discord", "homeassistant"}:
+        if plain_text and provider.provider_type == "homeassistant":
             title, message = escape_markdown(title), escape_markdown(message)
 
         try:
@@ -872,6 +836,11 @@ class NotificationService(NotificationQueueEvents):
                     **({"outcome_urls": outcome_urls} if outcome_urls else {}),
                 )
             elif provider.provider_type == "pushover":
+                if plain_text:
+                    return await send_parts(
+                        lambda part: self._send_pushover(config, title, part, image_data=image_data),
+                        split_text(message, 1024, measure=len),
+                    )
                 return await self._send_pushover(config, title, message, image_data=image_data)
             elif provider.provider_type == "telegram":
                 return await self._send_telegram(
@@ -2003,6 +1972,8 @@ class NotificationService(NotificationQueueEvents):
                     time_str = entry.created_at.strftime("%H:%M")
                     printer_info = f"[{entry.printer_name}] " if entry.printer_name else ""
                     body_parts.append(f"  {time_str} {printer_info}{entry.title}")
+                    if event_type == "app_message":
+                        body_parts.append(entry.message)
                 body_parts.append("")
 
             body = "\n".join(body_parts)
@@ -2024,9 +1995,11 @@ class NotificationService(NotificationQueueEvents):
                 error_message=error if not success else None,
             )
 
-            # Clear the queue
-            for entry in queue_entries:
-                await db.delete(entry)
+            # Retain app-containing digests after partial failure; retries can
+            # repeat earlier chunks, but must not silently discard unsent content.
+            if success or not app_digest:
+                for entry in queue_entries:
+                    await db.delete(entry)
             await db.commit()
 
             if success:
