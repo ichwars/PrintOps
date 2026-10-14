@@ -30,6 +30,7 @@ from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
 from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
 from backend.app.models.printer import Printer
 from backend.app.models.project import Project
+from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.print_queue import (
     PrintBatchCreate,
@@ -301,7 +302,7 @@ def _source_sliced_for(archive: PrintArchive | None, library_file: LibraryFile |
     return None
 
 
-def _enrich_response(item: PrintQueueItem) -> PrintQueueItemResponse:
+def _enrich_response(item: PrintQueueItem, shortest_first: bool | None = None) -> PrintQueueItemResponse:
     """Add nested archive/printer/library_file info to response."""
     # Parse ams_mapping from JSON string BEFORE model_validate
     ams_mapping_parsed = None
@@ -327,10 +328,7 @@ def _enrich_response(item: PrintQueueItem) -> PrintQueueItemResponse:
         except json.JSONDecodeError:
             filament_overrides_parsed = None
 
-    # Parse nozzle_mapping from JSON string (#1780 — H2C rack slicer-pick
-    # preservation). Nullable opaque JSON blob stored verbatim from
-    # BambuStudio's project_file; surface it parsed for the response model
-    # and any future "edit print → nozzle" UI.
+    # Parse the opaque H2C rack slicer-pick JSON retained from project_file (#1780).
     nozzle_mapping_parsed = None
     if item.nozzle_mapping:
         try:
@@ -389,17 +387,17 @@ def _enrich_response(item: PrintQueueItem) -> PrintQueueItemResponse:
         "batch_name": item.batch.name if item.batch else None,
         # SJF scheduling
         "been_jumped": item.been_jumped,
+        "scheduler_print_time_seconds": item.print_time_seconds,
+        "scheduler_shortest_first": shortest_first,
+        "dispatching": item.dispatching_at is not None,
         # Auto-print G-code injection
         "gcode_injection": item.gcode_injection,
         # H2C rack-swap nozzle pick (#1780)
         "nozzle_mapping": nozzle_mapping_parsed,
         "nozzles_info": nozzles_info_parsed,
         "cleanup_library_after_dispatch": item.cleanup_library_after_dispatch,
-        # Cross-model alternatives (#671). Guarded rather than read directly:
-        # every route that reaches here eager-loads the relationship, but a
-        # caller that forgets would trigger a lazy load, and a lazy load on an
-        # async session raises rather than degrading. An empty list is the
-        # correct answer for the ordinary item this would most likely be.
+        # Cross-model alternatives (#671); the helper avoids async lazy loads
+        # if a caller forgets to eagerly load variants.
         "variants": _variant_summaries(item),
     }
     response = PrintQueueItemResponse(**item_dict)
@@ -492,6 +490,8 @@ async def list_queue(
 ):
     """List all queue items, optionally filtered by printer or status."""
     user, can_read_all = auth_result
+    if printer_id is not None and printer_id != -1 and not user_can_access_printer(user, printer_id):
+        raise HTTPException(404, "Printer not found")
     query = (
         select(PrintQueueItem)
         .options(
@@ -518,9 +518,7 @@ async def list_queue(
             # Special value: filter for unassigned items
             query = query.where(PrintQueueItem.printer_id.is_(None))
         else:
-            # Resolve effective model: prefer explicit param, fall back to printer's DB model.
-            # This ensures model-based "Any X" items are returned even when the frontend
-            # doesn't send target_model (e.g. printer.model is NULL on the client side).
+            # Include model jobs even when the client omits the printer model.
             effective_model = target_model
             if not effective_model:
                 printer_row = (
@@ -548,7 +546,9 @@ async def list_queue(
 
     result = await db.execute(query)
     items = result.scalars().all()
-    return [_enrich_response(item) for item in items]
+    # Queue readers need only the effective ordering bit, never the full settings payload.
+    sjf = await db.scalar(select(Settings.value).where(Settings.key == "queue_shortest_first"))
+    return [_enrich_response(item, str(sjf).lower() == "true") for item in items]
 
 
 async def _resolve_queue_variants(

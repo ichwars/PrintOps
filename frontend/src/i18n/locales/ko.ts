@@ -3459,6 +3459,14 @@ export default {
       tooltip: '최단 작업 우선 — 스케줄러가 짧은 인쇄를 우선합니다'
     },
     addedBy: '{{name}}님이 추가함',
+    cardPreview: {
+      candidate: '대기 중인 작업',
+      checks: '프린터 확인 대기 중',
+      manual: '수동 시작 필요',
+      scheduled: '예약됨',
+      blocked: '마지막 확인에서 차단됨',
+      dispatching: '전송 중',
+    },
     nextInQueue: '다음 대기',
     clearPlateSuccess: '플레이트 비워짐 — 다음 인쇄 준비 완료',
     plateNumber: '플레이트 {{index}}',
