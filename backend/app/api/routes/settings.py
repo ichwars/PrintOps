@@ -984,7 +984,7 @@ async def restore_backup(
                 logger.info("Pausing background services for restore...")
                 print_scheduler.stop()
                 smart_plug_manager.stop_scheduler()
-                notification_service.stop_digest_scheduler()
+                await notification_service.stop_background()
                 # In-flight loop iterations need a moment to commit + release
                 # their DB sessions before we dispose() the engine pool.
                 await asyncio.sleep(1.0)

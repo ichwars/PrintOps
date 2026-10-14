@@ -350,11 +350,11 @@ if app_settings.log_to_file:
     # log records that pre-existing pools still emit during their cleanup.
     logging.getLogger("sqlalchemy.pool").addFilter(CancelledPoolNoiseFilter())
 
-# Reduce noise from third-party libraries in production
+# HTTP request URLs can contain bot credentials, even in application debug mode.
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 if not app_settings.debug:
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("paho.mqtt").setLevel(logging.WARNING)
 
 logging.info("PrintOps starting - debug=%s, log_level=%s", app_settings.debug, log_level_str)
