@@ -10,6 +10,8 @@ import { api } from '../../api/client';
 
 // Mock the API client
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getAMSHistory: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),

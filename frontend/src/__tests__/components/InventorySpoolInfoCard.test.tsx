@@ -5,6 +5,8 @@ import { InventorySpoolInfoCard } from '../../components/spoolbuddy/InventorySpo
 import type { InventorySpool } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getSettings: vi.fn().mockResolvedValue({}),
     getAuthStatus: vi.fn().mockResolvedValue({ auth_enabled: false }),

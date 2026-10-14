@@ -2400,6 +2400,11 @@ export default {
 
   // Printers page
   printers: {
+    textScale: {
+      label: "Texto e iconos de tarjetas",
+      description: "Texto e iconos del 90 al 120 %, independientemente del tamaño de las tarjetas. Se guarda en este navegador para tu cuenta.",
+      default: "100 % (predeterminado)",
+    },
     addPreflight: {
       checking: 'Comprobando la conexión...',
       warning: 'Algunas comprobaciones de conexión fallaron. Esta impresora podría aparecer como desconectada. Revisa las comprobaciones de abajo, soluciona lo que puedas o guárdala de todos modos.',

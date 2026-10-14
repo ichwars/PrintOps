@@ -4,6 +4,7 @@ import { Checkbox } from '../../components/ui';
 import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Video, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, LogIn, LogOut, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
+import { PrinterCardScaledContent } from './PrinterCardTextScale';
 import { Button } from '../../components/Button';
 import { filterKnownHMSErrors, isSevereHMSError } from '../../components/HMSErrorModal';
 import { PrinterQueueWidget } from '../../components/PrinterQueueWidget';
@@ -339,7 +340,7 @@ return (
           </div>
         </div>
       )}
-      <CardContent className={`${cardSize >= 3 ? 'p-5' : ''} flex flex-1 flex-col`}>
+      <PrinterCardScaledContent className={`${cardSize >= 3 ? 'p-5' : ''} flex flex-1 flex-col`}>
         {/* Header */}
         <div className={getSpacing()}>
           {/* Top row: Image, Name, Menu */}
@@ -415,7 +416,6 @@ return (
               </div>
             </div>
           </div>
-
           {/* Badges row - only in expanded mode */}
           {viewMode === 'expanded' && (
             <div className="mt-2">
@@ -2968,7 +2968,7 @@ return (
         </div>
           </div>
         )}
-      </CardContent>
+      </PrinterCardScaledContent>
 
       <PrinterCardOverlays model={model} />
     </Card>

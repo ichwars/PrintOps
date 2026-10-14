@@ -15,6 +15,8 @@ import { LinkSpoolModal } from '../../components/LinkSpoolModal';
 
 // Mock the API client
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getUnlinkedSpools: vi.fn(),
     linkSpool: vi.fn(),

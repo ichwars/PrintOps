@@ -2394,6 +2394,11 @@ export default {
 
   // Printers page
   printers: {
+    textScale: {
+      label: "卡片文字和图标",
+      description: "将文字和图标调整为90%至120%，不影响卡片布局大小。按账户保存在此浏览器中。",
+      default: "100%（默认）",
+    },
     addPreflight: {
       checking: '正在检查连接...',
       warning: '部分连接检查未通过。此打印机可能显示为离线。请查看下方的检查项，尽量修复，或仍然保存。',

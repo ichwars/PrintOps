@@ -359,3 +359,28 @@ beiden Objekt-Endpunkte. Die Softwaretests und Browserfixtures verwenden
 ausschließlich simulierte Transportantworten und steuern keinen Drucker.
 
 Diese Prüfung gehört zu [O12 / Issue #214](https://github.com/ichwars/PrintOps/issues/214).
+
+## Kartentext und Symbole (O13a)
+
+Auf der Druckerseite lässt sich unter „Ansicht“ beziehungsweise in der
+Ansichtsleiste „Kartentext und Symbole“ auf 90, 100, 110 oder 120 Prozent
+einstellen. 100 Prozent ist der unveränderte Standard. Die Auswahl verändert
+Text und kleine Symbole im Karteninhalt unabhängig von den Kartengrößen
+S/M/L/XL. Überschriften, Vorschaubilder, Dialoge und Kamerafenster behalten
+ihre eigenen Größen. Die Kamerawand hat keine Kartenskalierung.
+
+Die Auswahl wird nur in diesem Browser für das angemeldete Konto gespeichert.
+Ein anderes oder neu angelegtes Konto übernimmt sie nicht; auch eine
+wiederverwendete numerische Benutzer-ID ändert das nicht. Dafür ergänzt die
+Benutzerantwort ein öffentliches, dauerhaftes `sub` aus der bereits vorhandenen
+Kontoidentität. Ohne Anmeldung bei ausdrücklich deaktivierter Authentifizierung
+gilt die Auswahl für diesen Browser und diese Installation. Während die
+Anmeldung lädt sowie für synthetische API-Key-Benutzer ohne Kontoidentität ist
+die Einstellung gesperrt. Das gilt auch nach einer fehlgeschlagenen Abfrage des
+Authentifizierungsstatus, bis eine erneute Abfrage erfolgreich ist.
+Blockierter Browserspeicher erlaubt die Auswahl
+weiterhin im aktuellen Tab. Die Auswahl von 100 Prozent entfernt die
+gespeicherte Abweichung.
+
+Die Softwareprüfung verwendet simulierte Druckerdaten und steuert keinen
+physischen Drucker. Sie gehört zu [O13a / Issue #216](https://github.com/ichwars/PrintOps/issues/216).

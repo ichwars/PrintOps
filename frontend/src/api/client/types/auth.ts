@@ -122,6 +122,7 @@ export interface LoginResponse {
 
 export interface UserResponse {
   id: number;
+  sub?: string | null; // Nonreused public account identity; absent for synthetic API-key users.
   username: string;
   email?: string;
   role: string;  // Deprecated, kept for backward compatibility

@@ -2431,6 +2431,11 @@ export default {
 
   // Printers page
   printers: {
+    textScale: {
+      label: "Kartentext und Symbole",
+      description: "Text und Symbole von 90 bis 120 %, unabhängig von der Kartengröße. In diesem Browser für dein Konto gespeichert.",
+      default: "100 % (Standard)",
+    },
     addPreflight: {
       checking: 'Verbindung wird geprüft...',
       warning: 'Einige Verbindungsprüfungen sind fehlgeschlagen. Dieser Drucker wird möglicherweise als offline angezeigt. Prüfe die Punkte unten, behebe was möglich ist, oder speichere trotzdem.',

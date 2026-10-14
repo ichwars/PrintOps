@@ -16,6 +16,8 @@ vi.mock('../../contexts/ToastContext', async (importOriginal) => {
 });
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getSettings: vi.fn().mockResolvedValue({}),
     getSpoolCatalog: vi.fn().mockResolvedValue([]),

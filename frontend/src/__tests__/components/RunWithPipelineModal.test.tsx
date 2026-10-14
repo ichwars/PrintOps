@@ -15,6 +15,8 @@ import { SliceJobTrackerProvider } from '../../contexts/SliceJobTrackerContext';
 import { api, type Printer, type SlicerPipeline } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     listSlicerPipelines: vi.fn(),
     getPrinters: vi.fn(),

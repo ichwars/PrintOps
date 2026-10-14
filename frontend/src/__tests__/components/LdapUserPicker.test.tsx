@@ -14,6 +14,8 @@ import { LdapUserPicker } from '../../components/LdapUserPicker';
 import { api } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     searchLDAPDirectory: vi.fn(),
     provisionLDAPUser: vi.fn(),

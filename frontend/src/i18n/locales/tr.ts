@@ -2393,6 +2393,11 @@ export default {
 
   // Yazıcılar sayfası
   printers: {
+    textScale: {
+      label: "Kart metni ve simgeleri",
+      description: "Kart boyutundan bağımsız olarak metin ve simge boyutunu %90–120 arasında ayarlar. Bu tarayıcıda hesabınız için kaydedilir.",
+      default: "%100 (varsayılan)",
+    },
     title: 'Yazıcılar',
     addPrinter: 'Yazıcı Ekle',
     addPreflight: {

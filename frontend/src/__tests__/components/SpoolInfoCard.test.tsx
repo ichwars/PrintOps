@@ -7,6 +7,8 @@ import type { MatchedSpool } from '../../hooks/useSpoolBuddyState';
 const mockUpdateSpoolWeight = vi.fn();
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getSettings: vi.fn().mockResolvedValue({}),
     getAuthStatus: vi.fn().mockResolvedValue({ auth_enabled: false }),

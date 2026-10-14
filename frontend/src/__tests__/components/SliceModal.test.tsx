@@ -19,6 +19,8 @@ import { SliceJobTrackerProvider } from '../../contexts/SliceJobTrackerContext';
 import { api, type UnifiedPresetsResponse } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getSlicerPresets: vi.fn(),
     sliceLibraryFile: vi.fn(),

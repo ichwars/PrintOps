@@ -5,6 +5,8 @@ import { AssignSpoolModal } from '../../components/AssignSpoolModal';
 import { api } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getSpools: vi.fn(),
     getAssignments: vi.fn(),

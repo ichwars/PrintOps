@@ -2394,6 +2394,11 @@ export default {
 
   // Printers page
   printers: {
+    textScale: {
+      label: "Texte et icônes des cartes",
+      description: "Texte et icônes de 90 à 120 %, indépendamment de la taille des cartes. Enregistré dans ce navigateur pour votre compte.",
+      default: "100 % (par défaut)",
+    },
     addPreflight: {
       checking: 'Vérification de la connexion...',
       warning: 'Certaines vérifications de connexion ont échoué. Cette imprimante pourrait apparaître hors ligne. Examinez les vérifications ci-dessous, corrigez ce que vous pouvez, ou enregistrez quand même.',

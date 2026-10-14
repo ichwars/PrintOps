@@ -14,6 +14,8 @@ import { SpoolBuddyQuickMenu } from '../../../components/spoolbuddy/SpoolBuddyQu
 import { api, spoolbuddyApi } from '../../../api/client';
 
 vi.mock('../../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     getPrinters: vi.fn().mockResolvedValue([]),
     getSmartPlugs: vi.fn().mockResolvedValue([]),

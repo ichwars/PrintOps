@@ -5,6 +5,8 @@ import { SpoolCsvImportModal } from '../../components/SpoolCsvImportModal';
 import { api, type CsvImportPreview } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   api: {
     importSpoolsCsvPreview: vi.fn(),
     importSpoolsCsv: vi.fn(),

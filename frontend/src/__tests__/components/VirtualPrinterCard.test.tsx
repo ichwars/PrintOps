@@ -16,6 +16,8 @@ import type { VirtualPrinterConfig } from '../../api/client';
 
 // Mock the API client
 vi.mock('../../api/client', () => ({
+  getAuthSessionId: () => 0,
+  subscribeAuthSession: () => () => {},
   multiVirtualPrinterApi: {
     update: vi.fn().mockResolvedValue({}),
     remove: vi.fn().mockResolvedValue({}),

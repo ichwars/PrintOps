@@ -2388,6 +2388,11 @@ export default {
     "saved": "Saved",
   },
   printers: {
+    textScale: {
+      label: "카드 글자 및 아이콘",
+      description: "카드 크기와 별도로 글자와 아이콘을 90~120%로 조절합니다. 이 브라우저에 계정별로 저장됩니다.",
+      default: "100% (기본값)",
+    },
     title: '프린터',
     addPrinter: '프린터 추가',
     editPrinter: '프린터 편집',
