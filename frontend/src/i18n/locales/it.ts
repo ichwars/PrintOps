@@ -2394,6 +2394,11 @@ export default {
 
   // Printers page
   printers: {
+    textScale: {
+      label: "Testo e icone delle schede",
+      description: "Testo e icone dal 90 al 120%, indipendentemente dalle dimensioni delle schede. Salvato in questo browser per il tuo account.",
+      default: "100% (predefinito)",
+    },
     addPreflight: {
       checking: 'Verifica della connessione...',
       warning: 'Alcuni controlli di connessione non sono riusciti. Questa stampante potrebbe risultare offline. Controlla le verifiche qui sotto, risolvi ciò che puoi oppure salva comunque.',

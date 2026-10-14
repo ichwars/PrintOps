@@ -121,6 +121,39 @@ describe('PrintersPage', () => {
   });
 
   describe('rendering', () => {
+    it('scales card bodies independently of grid size and restores the browser preference', async () => {
+      const user = userEvent.setup();
+      const storage = new Map<string, string>();
+      vi.mocked(localStorage.getItem).mockImplementation(key => storage.get(key) ?? null);
+      vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, value); });
+      vi.mocked(localStorage.removeItem).mockImplementation(key => { storage.delete(key); });
+      const first = render(<PrintersPage />);
+      const control = await screen.findByRole('combobox', { name: 'Card text and icons' });
+      expect(control).toHaveAttribute('data-value', '100');
+      const body = () => document.querySelector('#printer-card-1 [data-card-text-scale]')!;
+      expect(body()).toHaveAttribute('data-card-text-scale', '100');
+      expect(body()).not.toHaveClass('printer-card-scaled');
+      for (const scale of ['90', '110', '120']) {
+        selectComboboxOption(control, `${scale}%`);
+        expect(body()).toHaveAttribute('data-card-text-scale', scale);
+        expect(body()).toHaveClass('printer-card-scaled');
+      }
+      expect(storage.has('printerCardSize')).toBe(false);
+      await user.click(screen.getByRole('button', { name: 'S', exact: true }));
+      expect(storage.get('printerCardSize')).toBe('1');
+      expect(body()).toHaveAttribute('data-card-text-scale', '120');
+      await user.click(screen.getByRole('button', { name: 'XL', exact: true }));
+      expect(body()).toHaveAttribute('data-card-text-scale', '120');
+      expect(within(document.getElementById('printer-card-1')!).getByTitle('Open camera in new window')).toBeEnabled();
+      first.unmount();
+      render(<PrintersPage />);
+      const restored = await screen.findByRole('combobox', { name: 'Card text and icons' });
+      expect(restored).toHaveAttribute('data-value', '120');
+      selectComboboxOption(restored, '100% (default)');
+      expect(body()).not.toHaveClass('printer-card-scaled');
+      expect(storage.get('printerCardSize')).toBe('4');
+    });
+
     it('offers an independent camera default for each printer and resets it to Stream', async () => {
       const user = userEvent.setup();
       const storage = new Map<string, string>();

@@ -81,6 +81,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
+    sub: str | None = None  # Public, nonreused account identity for browser preferences
     username: str
     email: str | None = None
     role: str  # Deprecated, kept for backward compatibility

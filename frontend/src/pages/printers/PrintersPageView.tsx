@@ -19,6 +19,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { Collapsible } from '../../components/Collapsible';
 import type { PrinterMaintenanceInfo, SortOption, ViewMode } from './types';
 import { PrinterCard } from './PrinterCard';
+import { PrinterCardTextScaleControl } from './PrinterCardTextScale';
 import { DRYING_PRESETS } from './printer-card-constants';
 import { STATUS_GROUP_META, STATUS_GROUP_ORDER, classifyPrinterStatus } from './printer-status';
 import { ToolbarDropdown, ToolbarMenu } from './printer-toolbar';
@@ -910,6 +911,7 @@ export function PrintersPage() {
         </button>
       </div>
 
+      <PrinterCardTextScaleControl disabled={pageView === 'camwall'} />
       {/* Card size selector */}
       <div className={`flex h-8 items-center bg-bambu-dark rounded-lg border border-bambu-dark-tertiary ${pageView === 'camwall' ? 'opacity-40 pointer-events-none' : ''} ${inMenu ? 'w-full' : ''}`}>
         {cardSizeLabels.map((label, index) => {

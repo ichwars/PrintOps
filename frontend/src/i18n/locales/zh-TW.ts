@@ -2394,6 +2394,11 @@ export default {
 
   // Printers page
   printers: {
+    textScale: {
+      label: "卡片文字與圖示",
+      description: "將文字與圖示調整為90%至120%，不影響卡片版面大小。依帳戶儲存在此瀏覽器中。",
+      default: "100%（預設）",
+    },
     addPreflight: {
       checking: '正在檢查連線...',
       warning: '部分連線檢查未通過。此印表機可能顯示為離線。請查看下方的檢查項目，盡量修復，或仍然儲存。',

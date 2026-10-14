@@ -81,6 +81,7 @@ def _user_to_response(user: User) -> UserResponse:
     """Convert a User model to UserResponse schema."""
     return UserResponse(
         id=user.id,
+        sub=user.connected_identity,
         username=user.username,
         email=user.email,
         role=user.role,

@@ -1,0 +1,22 @@
+/* Active only for an opted-in scale. No transforms or scaled hit boxes.
+   Keep headings, large artwork, dialogs and portaled popovers at their original sizes. */
+.printer-card-scaled :where(.text-xs:not(h3, .fixed *)) { font-size: calc(.75rem * var(--card-text-scale)); }
+.printer-card-scaled :where(.text-sm:not(h3, .fixed *)) { font-size: calc(.875rem * var(--card-text-scale)); }
+.printer-card-scaled :where(.text-base:not(h3, .fixed *)) { font-size: calc(1rem * var(--card-text-scale)); }
+.printer-card-scaled :where(.text-\[8px\]:not(h3, .fixed *)) { font-size: calc(8px * var(--card-text-scale)); }
+.printer-card-scaled :where(.text-\[9px\]:not(h3, .fixed *)) { font-size: calc(9px * var(--card-text-scale)); }
+.printer-card-scaled :where(.text-\[10px\]:not(h3, .fixed *)) { font-size: calc(10px * var(--card-text-scale)); }
+.printer-card-scaled :where(.text-\[11px\]:not(h3, .fixed *)) { font-size: calc(11px * var(--card-text-scale)); }
+.printer-card-scaled :where(.text-\[12px\]:not(h3, .fixed *)) { font-size: calc(12px * var(--card-text-scale)); }
+
+/* Small inline icons only; progress graphics and spool illustrations retain geometry. */
+.printer-card-scaled svg.w-2\.5:not(.fixed *) { width: calc(.625rem * var(--card-text-scale)); flex-shrink: 0; }
+.printer-card-scaled svg.h-2\.5:not(.fixed *) { height: calc(.625rem * var(--card-text-scale)); }
+.printer-card-scaled svg.w-3:not(.fixed *) { width: calc(.75rem * var(--card-text-scale)); flex-shrink: 0; }
+.printer-card-scaled svg.h-3:not(.fixed *) { height: calc(.75rem * var(--card-text-scale)); }
+.printer-card-scaled svg.w-3\.5:not(.fixed *) { width: calc(.875rem * var(--card-text-scale)); flex-shrink: 0; }
+.printer-card-scaled svg.h-3\.5:not(.fixed *) { height: calc(.875rem * var(--card-text-scale)); }
+.printer-card-scaled svg.w-4:not(.fixed *) { width: calc(1rem * var(--card-text-scale)); flex-shrink: 0; }
+.printer-card-scaled svg.h-4:not(.fixed *) { height: calc(1rem * var(--card-text-scale)); }
+.printer-card-scaled svg.w-5:not(.fixed *) { width: calc(1.25rem * var(--card-text-scale)); flex-shrink: 0; }
+.printer-card-scaled svg.h-5:not(.fixed *) { height: calc(1.25rem * var(--card-text-scale)); }

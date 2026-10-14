@@ -184,10 +184,10 @@ OIDC_EXCHANGE_TTL = timedelta(minutes=2)
 router = APIRouter(prefix="/auth", tags=["2fa", "oidc"])
 
 
-# Helper: user response
 def _user_to_response(user: User) -> UserResponse:
     return UserResponse(
         id=user.id,
+        sub=user.connected_identity,
         username=user.username,
         email=user.email,
         role=user.role,

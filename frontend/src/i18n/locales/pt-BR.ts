@@ -2394,6 +2394,11 @@ export default {
 
   // Printers page
   printers: {
+    textScale: {
+      label: "Texto e ícones dos cartões",
+      description: "Texto e ícones de 90 a 120%, independentemente do tamanho dos cartões. Salvo neste navegador para sua conta.",
+      default: "100% (padrão)",
+    },
     addPreflight: {
       checking: 'Verificando a conexão...',
       warning: 'Algumas verificações de conexão falharam. Esta impressora pode aparecer como offline. Revise as verificações abaixo, corrija o que puder ou salve mesmo assim.',
