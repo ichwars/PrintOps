@@ -7,7 +7,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { ExternalLinkPage } from '../../pages/ExternalLinkPage';
 import { AuthProvider, useAuth } from '../../contexts/AuthContext';
 import { ThemeProvider, useTheme } from '../../contexts/ThemeContext';
-import { setAuthToken, type ExternalLink, type UserResponse } from '../../api/client';
+import { getAuthSessionId, getAuthToken, setAuthToken, subscribeAuthSession, type ExternalLink, type UserResponse } from '../../api/client';
 import { server } from '../mocks/server';
 
 const registered: ExternalLink = {
@@ -140,6 +140,7 @@ describe('registered sidebar app bridge', () => {
     act(() => navigate('/external/2'));
     await waitFor(() => expect(screen.queryByTitle('Local app')).not.toBe(oldFrame));
     const nextFrame = await frame();
+    const nextWindow = nextFrame.contentWindow;
     const post = vi.spyOn(nextFrame.contentWindow!, 'postMessage');
     message(oldWindow, origin, { type: 'printops:theme-request' });
     message(oldWindow, origin, { type: 'printops:navigate', path: '/queue' });
@@ -149,7 +150,10 @@ describe('registered sidebar app bridge', () => {
     await act(async () => { await client.invalidateQueries({ queryKey: ['external-link'] }); });
     await waitFor(() => expect(screen.getByTitle('Local app')).not.toBe(nextFrame));
     const current = await frame();
-    message(nextFrame.contentWindow, origin, { type: 'printops:navigate', path: '/queue' });
+    const currentPost = vi.spyOn(current.contentWindow!, 'postMessage');
+    message(nextWindow, origin, { type: 'printops:theme-request' });
+    message(nextWindow, origin, { type: 'printops:navigate', path: '/queue' });
+    expect(currentPost).not.toHaveBeenCalled();
     expect(screen.getByTestId('location').textContent).toBe('/external/2');
     message(current.contentWindow, 'http://localhost:3000', { type: 'printops:navigate', path: '/queue?x=1#hash' });
     expect(screen.getByTestId('location').textContent).toBe('/queue?x=1#hash');
@@ -209,6 +213,112 @@ describe('registered sidebar app bridge', () => {
     setup();
     await screen.findByText('Link not found');
     expect(screen.queryByTitle('Local app')).toBeNull();
+  });
+
+  async function pendingSilentRenewal() {
+    setup(); await frame();
+    const timers = vi.spyOn(globalThis, 'setTimeout');
+    const token = `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 }))}.old`;
+    const renewed = `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }))}.new`;
+    act(() => auth.loginWithToken(token, account));
+    const iframe = await frame(); const source = iframe.contentWindow!;
+    Object.defineProperty(source, 'unsavedDraft', { value: 'Keep this app state', configurable: true });
+    const post = vi.spyOn(source, 'postMessage');
+    let resolve!: (value: Response) => void;
+    let authorization: string | null = null;
+    server.use(
+      http.post('*/api/v1/auth/refresh', () => HttpResponse.json({ access_token: renewed, token_type: 'bearer' })),
+      http.get('*/api/v1/external-links/:id', ({ request }) => {
+        authorization = request.headers.get('Authorization');
+        return new Promise<Response>(done => { resolve = done; });
+      }),
+    );
+    const previousSession = getAuthSessionId();
+    let boundaryObserved = false;
+    let detached = false;
+    const observer = new MutationObserver(records => {
+      detached ||= records.some(record => [...record.removedNodes].some(node => node === iframe || node.contains(iframe)));
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const unsubscribe = subscribeAuthSession(() => {
+      if (getAuthSessionId() === previousSession) return;
+      boundaryObserved = true;
+      expect(document.contains(iframe)).toBe(true);
+      expect(iframe.contentWindow).toBe(source);
+      window.dispatchEvent(new MessageEvent('message', { source, origin, data: { type: 'printops:theme-request' } }));
+      window.dispatchEvent(new MessageEvent('message', { source, origin, data: { type: 'printops:navigate', path: '/queue' } }));
+      expect(post).not.toHaveBeenCalled();
+    });
+    const refresh = timers.mock.calls.find(([, delay]) => delay === 5000)?.[0];
+    expect(refresh).toBeTypeOf('function');
+    try {
+      await act(async () => { await (refresh as () => Promise<void>)(); });
+      await waitFor(() => expect(resolve).toBeDefined());
+      expect(boundaryObserved).toBe(true);
+      expect(detached).toBe(false);
+      expect(iframe.contentWindow).toBe(source);
+    } finally { unsubscribe(); observer.disconnect(); }
+    expect(getAuthToken()).toBe(renewed);
+    expect(authorization).toBe(`Bearer ${renewed}`);
+    return { iframe, source, post, finish: async (response: Response) => {
+      await act(async () => { resolve(response); });
+    } };
+  }
+
+  it('preserves iframe and app-local state through actual silent JWT renewal while suspending bridge authority', async () => {
+    const { iframe, source, post, finish } = await pendingSilentRenewal();
+    expect(screen.getByTitle('Local app')).toBe(iframe);
+    expect(iframe.contentWindow).toBe(source);
+    expect(Reflect.get(source, 'unsavedDraft')).toBe('Keep this app state');
+    message(source, origin, { type: 'printops:theme-request' });
+    message(source, origin, { type: 'printops:navigate', path: '/queue' });
+    fireEvent.load(iframe);
+    act(() => theme.setMode('light'));
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location').textContent).toBe('/external/1');
+    await finish(HttpResponse.json(registered));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(screen.getByTitle('Local app')).toBe(iframe);
+    expect(iframe.contentWindow).toBe(source);
+    expect(Reflect.get(source, 'unsavedDraft')).toBe('Keep this app state');
+    post.mockClear();
+    message(source, origin, { type: 'printops:theme-request' });
+    expect(post).toHaveBeenCalledExactlyOnceWith({ type: 'printops:theme', mode: 'light', style: 'classic', background: 'neutral', accent: 'green', canNavigate: true }, origin);
+    message(source, origin, { type: 'printops:navigate', path: '/queue?renewed=1#draft' });
+    expect(screen.getByTestId('location').textContent).toBe('/queue?renewed=1#draft');
+  });
+
+  it.each([403, 404, 500])('removes the preserved iframe if renewal revalidation fails with %s', async (status) => {
+    const { iframe, source, post, finish } = await pendingSilentRenewal();
+    expect(screen.getByTitle('Local app')).toBe(iframe);
+    await finish(HttpResponse.json({ detail: 'Unavailable' }, { status }));
+    await waitFor(() => expect(screen.queryByTitle('Local app')).toBeNull());
+    message(source, origin, { type: 'printops:theme-request' });
+    message(source, origin, { type: 'printops:navigate', path: '/queue' });
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location').textContent).toBe('/external/1');
+  });
+
+  it('replaces the preserved document when renewed registration has a different URL', async () => {
+    const { iframe, source, finish } = await pendingSilentRenewal();
+    await finish(HttpResponse.json({ ...registered, url: 'https://app.example.test:8443/changed' }));
+    await waitFor(() => expect(screen.getByTitle('Local app')).not.toBe(iframe));
+    const post = vi.spyOn((await frame()).contentWindow!, 'postMessage');
+    message(source, origin, { type: 'printops:theme-request' });
+    message(source, origin, { type: 'printops:navigate', path: '/queue' });
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location').textContent).toBe('/external/1');
+  });
+
+  it('replaces the frame on explicit same-subject login instead of treating it as silent renewal', async () => {
+    setup(); await frame();
+    act(() => auth.loginWithToken('first-login', account));
+    const iframe = await frame(); const source = iframe.contentWindow;
+    act(() => auth.loginWithToken('explicit-second-login', account));
+    expect(screen.queryByTitle('Local app')).toBeNull();
+    expect(await frame()).not.toBe(iframe);
+    message(source, origin, { type: 'printops:navigate', path: '/queue' });
+    expect(screen.getByTestId('location').textContent).toBe('/external/1');
   });
 
   it('does not grant authority while auth mode is unverified', async () => {

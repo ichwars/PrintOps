@@ -33,7 +33,7 @@ function inAppPath(path: unknown): string | null {
 }
 
 /** A separate keyed lifetime prevents old documents sharing a new link's authority. */
-export function SidebarAppFrame({ link, session }: { link: ExternalLink; session: number }) {
+export function SidebarAppFrame({ link, session }: { link: ExternalLink; session: number | null }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const navigate = useNavigate();
   const { resolvedMode, darkStyle, darkBackground, darkAccent, lightStyle, lightBackground, lightAccent } = useTheme();

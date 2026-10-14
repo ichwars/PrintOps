@@ -16,6 +16,8 @@ interface AuthContextType {
   authStatusVerified: boolean;
   /** Stable public subject verified in the active session, independent of late user responses. */
   preferenceSubject: string | null;
+  /** Login/status-check epoch of the verified subject; preserved only by silent renewal. */
+  authenticationEpoch: number | null;
   requiresSetup: boolean;
   loading: boolean;
   isAdmin: boolean;
@@ -38,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [authEnabled, setAuthEnabled] = useState(false);
   const [verifiedAuthMode, setVerifiedAuthMode] = useState<boolean | null>(null);
-  const [preferenceIdentity, setPreferenceIdentity] = useState<{ session: number; sub: string } | null>(null);
+  const [preferenceIdentity, setPreferenceIdentity] = useState<{ session: number; sub: string; epoch: number } | null>(null);
   const session = useSyncExternalStore(subscribeAuthSession, getAuthSessionId);
   const [requiresSetup, setRequiresSetup] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -168,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(currentUser);
             if (check === authStatusCheckRef.current && requestSession === getAuthSessionId()) {
               setPreferenceIdentity(currentUser.id > 0 && currentUser.sub
-                ? { session: requestSession, sub: currentUser.sub } : null);
+                ? { session: requestSession, sub: currentUser.sub, epoch: check } : null);
             }
             // Persist kiosk token only after the server confirms it is valid.
             if (urlToken && token === urlToken) {
@@ -271,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthEnabled(true);
     setVerifiedAuthMode(true);
     setPreferenceIdentity(userObj.id > 0 && userObj.sub
-      ? { session: getAuthSessionId(), sub: userObj.sub } : null);
+      ? { session: getAuthSessionId(), sub: userObj.sub, epoch: authStatusCheckRef.current } : null);
   };
 
   const logout = () => {
@@ -297,7 +299,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(currentUser);
           if (check === authStatusCheckRef.current && requestSession === getAuthSessionId()) {
             setPreferenceIdentity(currentUser.id > 0 && currentUser.sub
-              ? { session: requestSession, sub: currentUser.sub } : null);
+              ? { session: requestSession, sub: currentUser.sub, epoch: check } : null);
           }
         }
       } catch {
@@ -376,6 +378,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authEnabled,
         authStatusVerified: verifiedAuthMode !== null && verifiedAuthMode === authEnabled,
         preferenceSubject: preferenceIdentity?.session === session ? preferenceIdentity.sub : null,
+        authenticationEpoch: preferenceIdentity?.session === session ? preferenceIdentity.epoch : null,
         requiresSetup,
         loading,
         isAdmin,

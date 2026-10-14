@@ -74,11 +74,18 @@ lookup before displaying the embedded app. A missing, deleted or inaccessible
 link uses the existing link-not-found state; pending lookups use the existing
 loading state. A failed revalidation removes the old frame and its authority.
 
-A change of account, credentials, link ID or registered URL replaces the frame.
-Credential changes include automatic token renewal: the link is fetched again
-and the embedded app reloads, so its unsaved in-memory state can be lost. This
-small registration query has no cache after leaving the page or losing access.
-This prevents cached links or reused numeric account IDs from granting a new
-session authority. The existing iframe sandbox remains unchanged.
+A verified same-account silent token renewal preserves the embedded document
+and its unsaved in-memory state. The message bridge stops immediately when the
+credentials change and resumes only after a fresh authorized registration
+lookup confirms the same URL in the new credential session. Theme updates and
+navigation requests are ignored while that lookup is pending. A denied, deleted
+or failed registration removes the frame; a changed URL replaces it.
+
+A different account, explicit re-login, unknown identity's credential change,
+link ID change or registered URL change replaces the frame. The registration
+query has no cache after leaving the page or losing access. Verified login
+identity and a fresh credential-scoped lookup prevent cached links or reused
+numeric account IDs from granting a new session authority. The existing iframe
+sandbox remains unchanged.
 
 No printer commands or notifications are part of this protocol.
