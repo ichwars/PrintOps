@@ -1,11 +1,15 @@
 # Optionale Upstream-Erweiterungen: Umsetzungsstand 14. Oktober 2026
 
-Dieser Bericht erfasst die 17 ausgewählten Punkte. 16 Punkte sind gemäß dem
-quellengeprüften Controller-Lieferregister gemergt. O18 befindet sich in dieser
-Änderung; seine unabhängigen Reviews und die native ARM64-CI-Abnahme stehen
-zum dokumentierten lokalen Prüfstand noch aus. Ein erfolgreicher AMD64-Test
-belegt keine ARM64-Ausführung. Die nachstehenden Grenzen sind Bestandteil
-des Ergebnisses, keine Hardware- oder Produktionsfreigabe.
+Dieser Bericht erfasst die 17 ausgewählten Punkte mit ihren dokumentierten
+Liefer- und Prüfständen. Die 16 früheren Punkte sind mit tatsächlichem Review-
+und Merge-Commit verzeichnet; O18 wird durch [PR #233](https://github.com/ichwars/PrintOps/pull/233)
+geliefert. Abschließende Reviews, Checks und Merge sind in den verlinkten PRs
+nachvollziehbar. Die datierten lokalen und historischen Nachweise unten ersetzen
+keinen späteren Prüfstand und keine Hardware- oder Produktionsfreigabe.
+
+Die App-Anhänge aller 17 Punkte wurden nachgereicht. Ältere Einschränkungen zur
+Anhangsverfügbarkeit in den einzelnen Liefernachweisen beschreiben den damaligen
+Stand.
 
 Die Begleitrepositories waren nicht verfügbar (404), das GitHub-Wiki war
 deaktiviert. Deshalb liegt die Bedienungsdokumentation in diesem Repository.
@@ -147,10 +151,10 @@ MERGED normally exact independently Task+Whole reviewed head2667, normal parents
 
 ### O18 — [PR #233](https://github.com/ichwars/PrintOps/pull/233): native Orca-HTTP-Variante
 
-Status: geliefert durch diesen aktuellen [PR #233](https://github.com/ichwars/PrintOps/pull/233),
-lokaler AMD64-Nachweis vorhanden. Der PR ist zum dokumentierten Stand offen;
-Merge-SHA und abschließender Status sind noch unbekannt. ARM64-CI und
-unabhängiges Review sind noch nicht als erfolgreich belegt. Issue: [#232](https://github.com/ichwars/PrintOps/issues/232).
+Status: geliefert durch diesen [PR #233](https://github.com/ichwars/PrintOps/pull/233).
+Die abschließenden Reviews, Checks und der Merge-Status stehen im verlinkten PR;
+für diese zum Prüfzeitpunkt laufende Lieferung wird kein zukünftiger Merge-SHA
+vorweggenommen. Issue: [#232](https://github.com/ichwars/PrintOps/issues/232).
 
 Offizieller OrcaSlicer 2.4.2 und der bestehende Wrapper-Commit
 `4c05506e40a0057db33234837db164143cbf3ad3` werden mit SHA256 geprüft.
@@ -189,12 +193,56 @@ Entwicklungsabhängigkeiten werden nach dem Build entfernt; dieser Auditbeleg
 bezieht sich ausdrücklich auf Produktionsabhängigkeiten. Die Build-Umgebung
 meldet weiterhin Entwicklungsabhängigkeitswarnungen.
 
+### Nachprüfung des Container-Benutzers am 14. Oktober 2026
+
+Der frühere Stand `f356b8ac50ce1544632abf170298d20788ac1b20` bestand echte
+[ARM64](https://github.com/ichwars/PrintOps/actions/runs/38596344800/job/115964063193)-
+und [AMD64](https://github.com/ichwars/PrintOps/actions/runs/38596344800/job/115964063392)-
+CI mit Engine 2.4.2 und je zehn HTTP-Tests. Trivy meldete an diesem Stand jedoch
+HIGH DS-0002 (Check 115965244925): Das eigene Dockerfile hatte keinen
+unprivilegierten Standardbenutzer. Diese frühere native CI belegt nicht die
+nachfolgende Benutzer-/Volume-Änderung; deren abschließende native Prüfungen sind
+im PR einsehbar.
+
+Das korrigierte Image startet Wrapper und Engine als UID/GID `10001:10001`.
+Programmdateien bleiben für diesen Benutzer schreibgeschützt. Ein realer
+Zwischentest deckte zusätzlich Orcas Schreibzugriff auf `00000.log` im
+Arbeitsverzeichnis auf; `/home/orca` dient jetzt als beschreibbares
+Arbeitsverzeichnis mit privatem XDG-Verzeichnis.
+
+Die native Compose-Variante verwendet ein eigenes persistentes Volume statt des
+bisherigen Host-Bind-Mounts. Vorhandene Host-Daten bleiben unverändert erhalten;
+sie werden nicht automatisch übernommen. Die [Migrationsanleitung](../slicer-api/README.md#data-persistence-and-switching-an-existing-installation)
+stoppt den bisherigen Schreiber und kopiert dessen Profile/Bundles aus einem
+schreibgeschützten Quell-Mount in ein leeres Ziel. Ein nicht leeres Ziel wird
+abgewiesen. Nur diese einmalige Kopieroperation läuft als root; der Dienst bleibt
+unprivilegiert. Rollback verwendet das ursprüngliche Host-Verzeichnis, während
+neue native Daten im separaten Volume verbleiben.
+
+Der lokale Test verwendet die tatsächlichen Compose-Dateien in einem eigenen
+Testprojekt: Image-Standardbenutzer, tatsächliche UID/GID, schreibgeschützten
+Programmcode, Migration, Ablehnung eines nicht leeren Ziels, unveränderte Quelle,
+Erhalt nach Container-Neuerstellung, HTTP-Lesen des migrierten Profils und die
+zehn echten Slice-/Upload-Fälle. Trivy 0.74.0 prüfte das finale Dockerfile mit den
+Repository-Schweregraden/Ignore-Regeln: keine HIGH/CRITICAL/MEDIUM-Konfigurations-
+Befunde. Dieser lokale Befund ersetzt nicht die abschließenden PR-Prüfungen.
+
+Die Produktions-Audit-Aussage gilt für die tatsächlich ausgeführte Dependency-
+Build-Schicht. Docker kann deren früheres Audit-Ergebnis aus dem Cache verwenden;
+`--pull` allein erzwingt keine erneute Abfrage. Die Anleitung nennt dafür
+`build --no-cache --pull`. 17 Build-Toolchain-Audit-Einträge bleiben außerhalb des
+akzeptierten Produktions-Lock-Umfangs. Die fünf Warnungen des vollständigen
+Backend-Laufs waren vier doppelte OpenAPI-Operations-IDs und eine ignorierte
+Scheduler-Coroutine (`PytestUnraisableExceptionWarning`, `KeyError: '__import__'`);
+der Lauf war erfolgreich, jedoch nicht warnungsfrei.
+
 ## Chronologische Entscheidungen und Kosten
 
-Die folgenden 79 Einträge übernehmen die quellengeprüfte Reihenfolge des
-Controller-Protokolls bis O17. Eine spätere Korrektur ersetzt die jeweilige
-frühere Entscheidung ausdrücklich; historische Entscheidungen bleiben sichtbar.
-Die internen Quellverweise nennen lokale, nicht mitgelieferte Ausführungsprotokolle.
+Die folgenden 86 Einträge übernehmen die quellengeprüfte Reihenfolge des
+Controller-Protokolls einschließlich der ursprünglichen O18-Entscheidungen.
+Die nachfolgenden Korrekturen ergänzen diese Historie einmalig. Eine spätere
+Korrektur ersetzt die jeweilige frühere Entscheidung ausdrücklich. Interne
+Quellverweise nennen lokale, nicht mitgelieferte Ausführungsprotokolle.
 
 | Nr. | Punkt | Entscheidung | Kosten bei Fehlentscheidung / akzeptierte Kosten |
 |---|---|---|---|
@@ -277,6 +325,15 @@ Die internen Quellverweise nennen lokale, nicht mitgelieferte Ausführungsprotok
 | 77 | O17 | Unberührte Telegram-Formulare aus aktuellen Serverdaten anzeigen; ausdrücklich bearbeitete Entwürfe erhalten und vorhandene UI-Komponenten verwenden. | Ein bewusst gespeicherter eigener Entwurf kann Änderungen eines anderen Administrators überschreiben; es gibt keine allgemeine Versionskonfliktprüfung für solche Entwürfe. |
 | 78 | O17 | Dem bestehenden DDL-Test eine echte isolierte SQLite-Verbindung für die Index-Introspektion geben und seine PostgreSQL-DDL-Prüfungen erhalten. | Der Test benötigt nun eine kurzlebige Datenbankverbindung. Er prüft weiterhin generierte PostgreSQL-Anweisungen; tatsächliche PostgreSQL-Migrationen werden separat geprüft. |
 | 79 | O17 | Die Sperrreihenfolge nach Datenbank wählen: bei SQLite erst die vollständigen vorhandenen Archiv- und Batch-Sperren, bei PostgreSQL weiter zuerst die Konfigurationszeile. | Ein ausdrücklicher Dialektzweig und ein kleiner Helfer sind nötig. Die Serialisierung bleibt erhalten; eine falsche Reihenfolge würde Browser-Bestätigungen erneut blockieren. |
+| 80 | O18 | Den gepinnten HTTP-Wrapper mit seiner Profilauflösung und bestehenden Upload-Grenzen wiederverwenden. | Ein Upstream-Fehler benötigt weiterhin Analyse und eine gezielte Korrektur. |
+| 81 | O18 | Die native Orca-Variante als ausdrücklich gewählte lokale Compose-Ergänzung anbieten. | Betreiber tragen den lokalen Build-Aufwand; die vorhandene GHCR- und Bambu-Nutzung bleibt erhalten. |
+| 82 | O18 | Offizielle Assets sowie AppImage und extrahierte Engine vor ihrer Nutzung auf Hash und ELF-Architektur prüfen. | Geänderte Download-Bytes blockieren den Build bis zur erneuten Quellenprüfung. |
+| 83 | O18 | Echte ARM64- und AMD64-CI-Slices auf nativen Hosts als Lieferbedingung verlangen. | Runner- oder Download-Ausfälle blockieren die Abnahme; reine Architekturprüfung genügt nicht. |
+| 84 | O18 | Bei gepinnten Basis-Images die signierten aktuellen OS-Paketquellen verwenden. | Sicherheitsupdates bleiben möglich, wiederholte Builds sind aber nicht byte-identisch. |
+| 85 | O18 | Die durch echte Build- und Slicer-Fehler widerlegten Pfad-, Profilnamen- und STL-Fixture-Annahmen korrigieren. | Frühere fehlgeschlagene Versuche bleiben als zusätzlicher Dokumentationsaufwand erhalten. |
+| 86 | O18 | Auf die exakt geprüfte Wrapperquelle ein getracktes Abhängigkeits-Lock anwenden; Anwendung, package.json und Orca-Version erhalten. | Das zusätzliche Lock muss bei einem Quellwechsel gepflegt werden; transitive Aktualisierungen können Laufzeitverhalten ändern. Deshalb reproduzierbare Installation, Produktionsaudit und echte Upload-/Limit-/Profil-/G-Code-/3MF-Prüfungen auf beiden Architekturen. |
+| 87 | O18, Container-Korrektur | Wrapper und Engine standardmäßig als UID/GID 10001 starten; eigenes beschreibbares Arbeits-/XDG-Verzeichnis verwenden, Programmcode schreibgeschützt halten. | Weitere bisher unbekannte Engine-Schreibzugriffe können gezielte Verzeichnisfreigaben benötigen; der reale Slice-Test muss solche Fehler erkennen. |
+| 88 | O18, Datenmigration | Native Daten in eigenem Volume mit passender Eigentümerschaft halten; bestehende Host-Daten nur explizit, schreibgeschützt und in ein leeres Ziel kopieren. | Bestehende Betreiber benötigen einen Migrationsschritt; beim Rollback müssen neue native Änderungen separat gesichert/übernommen werden. |
 
 ### Quellen der Entscheidungshistorie
 
@@ -359,14 +416,11 @@ Die internen Quellverweise nennen lokale, nicht mitgelieferte Ausführungsprotok
 - 77: `.worktrees/optional-o17-telegram-quality/.superpowers/sdd/2026-10-13-o17-telegram-quality/task-1-report.md:205`
 - 78: `.worktrees/optional-o17-telegram-quality/.superpowers/sdd/2026-10-13-o17-telegram-quality/task-1-report.md:206`
 - 79: `.worktrees/optional-o17-telegram-quality/.superpowers/sdd/2026-10-13-o17-telegram-quality/task-1-report.md:273`
-
-### O18-Entscheidungen
-
-- Ruling: Den gepinnten HTTP-Wrapper wiederverwenden — er enthält Profilauflösung und Upload-Grenzen — bei einem Upstream-Fehler bleibt dessen Analyse und eine gezielte Korrektur nötig.
-- Ruling: Native lokale Compose-Variante ergänzen — vorhandene GHCR- und Bambu-Nutzung bleibt kompatibel — Betreiber tragen lokalen Build-Aufwand.
-- Ruling: Offizielle Assets und beide ausführbaren ELF-Dateien vor Nutzung prüfen — Herkunft und Architektur werden überprüfbar — geänderte Download-Bytes blockieren bis zur erneuten Quellenprüfung.
-- Ruling: Echte ARM64- und AMD64-CI-Slices verlangen — Architekturprüfung allein beweist keinen HTTP-/Profilbetrieb — Runner-/Download-Ausfall blockiert die Abnahme.
-- Ruling: Live signierte OS-Paketquellen bei gepinnten Basis-Images behalten — Sicherheitsupdates bleiben möglich — wiederholte Builds sind nicht byte-identisch.
-- Ruling: Die vom realen Build und Slicer widerlegten Pfad-/Fixture-Annahmen korrigieren — die Prüfungen sollen die tatsächlich veröffentlichte Version testen — vorherige Fehlschläge bleiben zusätzliche Dokumentationslast.
-
-- Ruling: apply the narrow tracked lock-only overlay against the exact hash-verified wrapper source — Multer is directly on every multipart path and seven affected production packages with multiple GHSA advisories (including high/critical) make shipping the unpatched lock unacceptable; wrapper source/package.json/Orca version stay unchanged, npm ci ignores scripts and production audit must be zero — wrapper lock needs renewal when the pinned source changes and transitive updates may subtly alter runtime; dedicated real HTTP regressions mitigate this.
+- 80: `.worktrees/optional-o18-native-arm64-slicer/.superpowers/sdd/2026-10-13-o18-native-arm64-slicer/progress.md:3`
+- 81: `.worktrees/optional-o18-native-arm64-slicer/.superpowers/sdd/2026-10-13-o18-native-arm64-slicer/progress.md:4`
+- 82: `.worktrees/optional-o18-native-arm64-slicer/.superpowers/sdd/2026-10-13-o18-native-arm64-slicer/progress.md:5`
+- 83: `.worktrees/optional-o18-native-arm64-slicer/.superpowers/sdd/2026-10-13-o18-native-arm64-slicer/progress.md:6`
+- 84: `.worktrees/optional-o18-native-arm64-slicer/.superpowers/sdd/2026-10-13-o18-native-arm64-slicer/progress.md:7`
+- 85: `.worktrees/optional-o18-native-arm64-slicer/.superpowers/sdd/2026-10-13-o18-native-arm64-slicer/progress.md:8`
+- 86: `.superpowers/sdd/2026-10-13-optional-upstream/progress.md:438`
+- 87–88: O18-Feature-Protokoll und `task-1-report.md`, Abschnitt „Non-root correction after Trivy DS-0002“; reale Docker-/Compose-/Trivy-Logs.

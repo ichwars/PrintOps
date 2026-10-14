@@ -69,22 +69,13 @@ jobs:
           docker cp orca-engine-check:/app/squashfs-root/bin/orca-slicer evidence/orca-slicer.elf
           python3 slicer-api/native_build.py verify-elf evidence/orca-slicer.elf --arch '${{ matrix.arch }}' | tee evidence/elf.txt
           rm evidence/orca-slicer.elf
-      - name: Real multipart profile and slicing contract
+      - name: Unprivileged Compose persistence and real HTTP contract
         env:
-          SIDECAR_URL: http://127.0.0.1:3003
           SMOKE_EVIDENCE_DIR: evidence
-        run: |
-          docker run -d --name orca-native-smoke -p 127.0.0.1:3003:3000 printops-orca-native:2.4.2
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3003/health > evidence/health.json; then break; fi
-            sleep 2
-          done
-          python3 slicer-api/tests/smoke_native.py 2>&1 | tee evidence/http-smoke.log
-      - name: Retain diagnostics
+        run: bash slicer-api/tests/nonroot_native.sh
+      - name: Clean engine check container
         if: always()
-        run: |
-          docker logs orca-native-smoke > evidence/container.log 2>&1 || true
-          docker rm -f orca-engine-check orca-native-smoke || true
+        run: docker rm -f orca-engine-check || true
       - uses: actions/upload-artifact@v6
         if: always()
         with:

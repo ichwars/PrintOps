@@ -28,11 +28,15 @@ COPY --from=build /build/wrapper/package.json /app/package.json
 COPY --from=build /build/wrapper/src /app/wrapper-source/src
 COPY --from=build /build/wrapper/LICENSE /build/wrapper/package*.json /build/wrapper/tsconfig.json /app/wrapper-source/
 COPY --from=build /build/squashfs-root /app/squashfs-root
-RUN mkdir -p /app/data
-WORKDIR /app
+RUN groupadd --gid 10001 orca \
+    && useradd --uid 10001 --gid 10001 --create-home --home-dir /home/orca orca \
+    && install -d -o 10001 -g 10001 /app/data \
+    && install -d -m 0700 -o 10001 -g 10001 /home/orca/.runtime
+WORKDIR /home/orca
 ENV PORT=3000 NODE_ENV=production SLICER_FLAVOR=orca \
-    ORCASLICER_PATH=/app/squashfs-root/AppRun DATA_PATH=/app/data
+    ORCASLICER_PATH=/app/squashfs-root/AppRun DATA_PATH=/app/data HOME=/home/orca XDG_RUNTIME_DIR=/home/orca/.runtime
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
+USER 10001:10001
 CMD ["node", "/app/dist/index.js"]
