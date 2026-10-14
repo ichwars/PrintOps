@@ -32,6 +32,8 @@ class NotificationProviderBase(BaseModel):
 
     attach_photo: bool = True
 
+    on_app_message: bool = False
+
     # Event triggers - print lifecycle
     on_print_start: bool = Field(default=False, description="Notify on print start")
     on_print_confirm_request: bool = True
@@ -163,6 +165,7 @@ class NotificationProviderUpdate(BaseModel):
     on_ams_ht_temperature_high: bool | None = None
 
     # Event triggers - Home Assistant sensors (#1148)
+    on_app_message: bool | None = None
     on_ha_sensor_alert: bool | None = None
     on_storage_sensor_alert: bool | None = None
 
@@ -195,6 +198,13 @@ class NotificationProviderUpdate(BaseModel):
 
     # Printer filter
     printer_id: int | None = None
+
+    @field_validator("on_app_message")
+    @classmethod
+    def app_message_opt_in_is_boolean(cls, value: bool | None) -> bool:
+        if value is None:
+            raise ValueError("on_app_message must be true or false")
+        return value
 
 
 class NotificationProviderResponse(NotificationProviderBase):

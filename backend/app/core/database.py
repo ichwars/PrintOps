@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 
 from backend.app.core.active_print_migrations import migrate_active_print_spoolman
+from backend.app.core.app_message_migration import migrate_notification_options
 from backend.app.core.archive_metadata_migration import repair_archive_plate_metadata
 from backend.app.core.commerce_schema_migrations import (
     migrate_commercial_settings,
@@ -790,7 +791,7 @@ async def run_migrations(conn):
     await migrate_document_layout_schema(conn)
     await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
     await _migrate_document_payments(conn)
-    await _migrate_notification_photo_options(conn)
+    await migrate_notification_options(conn, _safe_execute)
     await _safe_execute(
         conn,
         "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
@@ -3605,13 +3606,6 @@ async def _migrate_document_payments(conn) -> None:
 
 async def _migrate_slot_preset_identity(conn) -> None:
     await _safe_execute(conn, "ALTER TABLE slot_preset_mappings ADD COLUMN tray_info_idx VARCHAR(32)")
-
-
-async def _migrate_notification_photo_options(conn) -> None:
-    # TRUE works for both dialects and preserves existing provider attachments.
-    await _safe_execute(
-        conn, "ALTER TABLE notification_providers ADD COLUMN attach_photo BOOLEAN NOT NULL DEFAULT TRUE"
-    )
 
 
 async def _migrate_production_quality(conn) -> None:

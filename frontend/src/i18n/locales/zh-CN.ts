@@ -1,4 +1,9 @@
 export default {
+  appNotifications: {
+    "label": "应用消息",
+    "channelDescription": "允许持有已授权 API 密钥的外部应用向此频道发送消息。",
+    "keyDescription": "向已启用的频道发送应用消息。需要绑定用户的 API 密钥；每分钟最多 20 条消息。"
+},
   connectedApps: {
     "title": "已连接的应用",
     "description": "注册允许用户使用 PrintOps 身份登录的外部应用。",

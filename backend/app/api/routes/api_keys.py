@@ -1,13 +1,13 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequireAdminIfAuthEnabled, RequirePermissionIfAuthEnabled, generate_api_key
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
-from backend.app.models.api_key import APIKey
+from backend.app.models.api_key import APIKey, AppMessageQuota
 from backend.app.models.user import User
 from backend.app.schemas.api_key import (
     APIKeyCreate,
@@ -53,6 +53,9 @@ async def create_api_key(
             detail="can_access_cloud requires authentication to be enabled (per-user cloud tokens)",
         )
 
+    if data.can_send_notifications and (current_user is None or not current_user.connected_identity):
+        raise HTTPException(400, "can_send_notifications requires an authenticated owner")
+
     # Generate the key
     full_key, key_hash, key_prefix = generate_api_key()
 
@@ -71,6 +74,8 @@ async def create_api_key(
         can_manage_projects=data.can_manage_projects,
         can_render_documents=data.can_render_documents,
         can_access_cloud=data.can_access_cloud,
+        can_send_notifications=data.can_send_notifications,
+        notification_owner_identity=current_user.connected_identity if current_user else None,
         can_update_energy_cost=data.can_update_energy_cost,
         printer_ids=data.printer_ids,
         expires_at=data.expires_at,
@@ -96,6 +101,7 @@ async def create_api_key(
         can_manage_projects=api_key.can_manage_projects,
         can_render_documents=api_key.can_render_documents,
         can_access_cloud=api_key.can_access_cloud,
+        can_send_notifications=api_key.can_send_notifications,
         can_update_energy_cost=api_key.can_update_energy_cost,
         printer_ids=api_key.printer_ids,
         enabled=api_key.enabled,
@@ -157,6 +163,12 @@ async def update_api_key(
         api_key.can_manage_projects = data.can_manage_projects
     if data.can_render_documents is not None:
         api_key.can_render_documents = data.can_render_documents
+    if data.can_send_notifications is not None:
+        from backend.app.services.app_messages import validate_notification_owner
+
+        if data.can_send_notifications:
+            await validate_notification_owner(db, api_key)
+        api_key.can_send_notifications = data.can_send_notifications
     if data.can_access_cloud is not None:
         # Same constraint as create — flipping cloud access on a legacy key
         # without an owner would be silently broken; reject at the route layer.
@@ -194,6 +206,7 @@ async def delete_api_key(
     if not api_key:
         raise HTTPException(status_code=404, detail="API key not found")
 
+    await db.execute(delete(AppMessageQuota).where(AppMessageQuota.key_hash == api_key.key_hash))
     await db.delete(api_key)
 
     return {"message": "API key deleted"}

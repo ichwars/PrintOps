@@ -8,6 +8,7 @@ Screenshots gehören nicht in das Repository.
 
 | Thema | Dokument | Inhalt |
 | --- | --- | --- |
+| Integration | [App-Nachrichten](app-notifications.md) | Eigene API-Schlüssel, freigegebene Kanäle, Druckerbereiche und Zustellgrenzen |
 | Authentifizierung | [Azure Entra ID](authentication/entra-id.md) | Einrichtung der OIDC-Anmeldung mit Microsoft Entra ID |
 | Bambu Lab | [Preset Sync API](bambu_lab_preset_sync_api.md) | Referenz der beobachteten Cloud-Endpunkte für Preset-Synchronisation |
 | Betrieb | [Docker-Laufzeitsicherheit](docker-runtime-security.md) | Root-Init, PUID/PGID, Capabilities und Volume-Rechte |

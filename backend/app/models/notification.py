@@ -61,6 +61,8 @@ class NotificationProvider(Base):
     # Provider-specific configuration stored as JSON string
     config = Column(Text, nullable=False)
 
+    on_app_message = Column(Boolean, nullable=False, default=False, server_default="false")
+
     # Event triggers - print lifecycle
     on_print_start = Column(Boolean, default=False)
     on_print_complete = Column(Boolean, default=True)

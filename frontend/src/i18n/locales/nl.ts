@@ -1,6 +1,11 @@
 // Dutch translations adapted from maziggy/bambuddy (nl.ts blob f6b6c638913a21cbc3aa98dde755ffda6e64aa7b).
 // PrintOps-specific text and source changes translated for PrintOps.
 export default {
+  appNotifications: {
+    "label": "App-berichten",
+    "channelDescription": "Sta externe toepassingen met een bevoegde API-sleutel toe berichten naar dit kanaal te sturen.",
+    "keyDescription": "Stuur app-berichten naar toegestane kanalen. Vereist een API-sleutel met eigenaar; maximaal 20 berichten per minuut."
+},
   connectedApps: {
     "title": "Gekoppelde toepassingen",
     "description": "Registreer externe toepassingen waarin gebruikers met hun PrintOps-identiteit kunnen inloggen.",

@@ -9,6 +9,7 @@ from fastapi.responses import Response
 from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.routes.app_messages import router as app_messages_router
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
@@ -28,6 +29,7 @@ from backend.app.services.notification_service import notification_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+router.include_router(app_messages_router)
 
 
 def _provider_to_dict(provider: NotificationProvider) -> dict:
@@ -57,6 +59,7 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
         "on_stock_break_alert": provider.on_stock_break_alert,
         "on_storage_sensor_alert": provider.on_storage_sensor_alert,
         "on_ha_sensor_alert": provider.on_ha_sensor_alert,
+        "on_app_message": provider.on_app_message,
         # AMS environmental alarms (regular AMS)
         "on_ams_humidity_high": provider.on_ams_humidity_high,
         "on_ams_temperature_high": provider.on_ams_temperature_high,
@@ -162,6 +165,7 @@ async def create_notification_provider(
         on_stock_break_alert=provider_data.on_stock_break_alert,
         on_storage_sensor_alert=provider_data.on_storage_sensor_alert,
         on_ha_sensor_alert=provider_data.on_ha_sensor_alert,
+        on_app_message=provider_data.on_app_message,
         # AMS environmental alarms (regular AMS)
         on_ams_humidity_high=provider_data.on_ams_humidity_high,
         on_ams_temperature_high=provider_data.on_ams_temperature_high,
