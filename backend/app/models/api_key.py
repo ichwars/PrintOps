@@ -55,6 +55,9 @@ class APIKey(Base):
     # could rewrite SMTP/LDAP/MQTT credentials).
     can_update_energy_cost: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    can_send_notifications: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    notification_owner_identity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     # Optional scope limits
     printer_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)  # null = all printers
 
@@ -62,3 +65,13 @@ class APIKey(Base):
     last_used: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # Optional expiry
+
+
+class AppMessageQuota(Base):
+    """Bounded sliding-window usage, serialized by a per-key database row."""
+
+    __tablename__ = "app_message_quotas"
+
+    key_hash: Mapped[str] = mapped_column(String(255), primary_key=True)
+    key_id: Mapped[int] = mapped_column(ForeignKey("api_keys.id", ondelete="CASCADE"), index=True)
+    timestamps: Mapped[list] = mapped_column(JSON, default=list)

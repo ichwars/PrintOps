@@ -23,7 +23,7 @@ from backend.app.core.auth import (
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
 from backend.app.core.user_printer_scope import prepare_printer_scope_write, validate_printer_grants
-from backend.app.models.api_key import APIKey
+from backend.app.models.api_key import APIKey, AppMessageQuota
 from backend.app.models.archive import PrintArchive
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, TokenType
 from backend.app.models.group import Group
@@ -459,6 +459,9 @@ async def delete_user(
     # silently degrading the keys to anonymous (and locking them out of
     # /cloud/* — but the rest of the API would still accept them, which is
     # exactly the orphan-key state the CASCADE was meant to prevent).
+    await db.execute(
+        delete(AppMessageQuota).where(AppMessageQuota.key_id.in_(select(APIKey.id).where(APIKey.user_id == user_id)))
+    )
     await db.execute(delete(APIKey).where(APIKey.user_id == user_id))
 
     # Drop OIDC links, MFA state, and long-lived camera-stream tokens

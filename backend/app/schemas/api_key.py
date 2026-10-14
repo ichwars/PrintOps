@@ -18,6 +18,7 @@ class APIKeyCreate(BaseModel):
     can_manage_archives: bool = True  # Create/update/delete print archives — not purge (#1888)
     can_manage_projects: bool = True  # Create/update/delete projects + membership (add archives) (#1893)
     can_render_documents: bool = False  # Layouts, immutable PDF rendering/export and render audit
+    can_send_notifications: bool = False
     can_access_cloud: bool = False  # Read /cloud/* on the creator's behalf — default off (#1182)
     can_update_energy_cost: bool = False  # POST /settings/electricity-price only (#1356)
     printer_ids: list[int] | None = None  # null = all printers
@@ -37,6 +38,7 @@ class APIKeyUpdate(BaseModel):
     can_manage_archives: bool | None = None
     can_manage_projects: bool | None = None
     can_render_documents: bool | None = None
+    can_send_notifications: bool | None = None
     can_access_cloud: bool | None = None
     can_update_energy_cost: bool | None = None
     printer_ids: list[int] | None = None
@@ -60,6 +62,7 @@ class APIKeyResponse(BaseModel):
     can_manage_archives: bool
     can_manage_projects: bool
     can_render_documents: bool
+    can_send_notifications: bool
     can_access_cloud: bool
     can_update_energy_cost: bool
     printer_ids: list[int] | None

@@ -49,6 +49,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
   const [onStockBreakAlert, setOnStockBreakAlert] = useState(provider?.on_stock_break_alert ?? false);
   const [onBedCooled, setOnBedCooled] = useState(provider?.on_bed_cooled ?? false);
   const [onStorageSensorAlert, setOnStorageSensorAlert] = useState(provider?.on_storage_sensor_alert ?? false);
+  const [onAppMessage, setOnAppMessage] = useState(provider?.on_app_message ?? false);
   const [onHaSensorAlert, setOnHaSensorAlert] = useState(provider?.on_ha_sensor_alert ?? false);
   const [onFirstLayerComplete, setOnFirstLayerComplete] = useState(provider?.on_first_layer_complete ?? false);
 
@@ -190,6 +191,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       on_stock_break_alert: onStockBreakAlert,
       on_bed_cooled: onBedCooled,
       on_ha_sensor_alert: onHaSensorAlert,
+      on_app_message: onAppMessage,
       on_storage_sensor_alert: onStorageSensorAlert,
       on_first_layer_complete: onFirstLayerComplete,
     };
@@ -669,6 +671,11 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
               </div>
             </div>
 
+            <div className="flex items-center justify-between gap-3">
+              <div><span className="text-sm text-white">{t('appNotifications.label')}</span><p className="text-xs text-bambu-gray">{t('appNotifications.channelDescription')}</p></div>
+              <Toggle ariaLabel={t('appNotifications.label')} checked={onAppMessage} onChange={setOnAppMessage} />
+            </div>
+
             {/* Per-event ntfy priority (#990) */}
             {providerType === 'ntfy' && (() => {
               const enabledEvents: Array<{ key: string; label: string }> = [];
@@ -683,6 +690,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
               if (onPrinterOffline) enabledEvents.push({ key: 'on_printer_offline', label: t('notifications.offline') });
               if (onPrinterError) enabledEvents.push({ key: 'on_printer_error', label: t('notifications.error') });
               if (onStorageSensorAlert) enabledEvents.push({ key: 'on_storage_sensor_alert', label: t('storageSensors.notifications') });
+              if (onAppMessage) enabledEvents.push({ key: 'on_app_message', label: t('appNotifications.label') });
               if (onHaSensorAlert) enabledEvents.push({ key: 'on_ha_sensor_alert', label: t('notifications.haSensorAlert') });
               if (onAiFailureDetection) enabledEvents.push({ key: 'on_ai_failure_detection', label: t('notifications.aiFailureDetection') });
               if (onFilamentLow) enabledEvents.push({ key: 'on_filament_low', label: t('notifications.lowFilament') });

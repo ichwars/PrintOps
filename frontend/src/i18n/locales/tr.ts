@@ -1,4 +1,9 @@
 export default {
+  appNotifications: {
+    "label": "Uygulama mesajları",
+    "channelDescription": "Yetkili bir API anahtarına sahip harici uygulamaların bu kanala mesaj göndermesine izin verin.",
+    "keyDescription": "İzin verilen kanallara uygulama mesajları gönderin. Bir kullanıcıya ait API anahtarı gerektirir; dakikada en fazla 20 mesaj."
+},
   connectedApps: {
     "title": "Bağlı uygulamalar",
     "description": "Kullanıcıların PrintOps kimlikleriyle oturum açabileceği harici uygulamaları kaydedin.",

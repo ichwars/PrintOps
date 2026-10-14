@@ -1,4 +1,9 @@
 export default {
+  appNotifications: {
+    "label": "應用程式訊息",
+    "channelDescription": "允許持有已授權 API 金鑰的外部應用程式向此頻道傳送訊息。",
+    "keyDescription": "向已啟用的頻道傳送應用程式訊息。需要綁定使用者的 API 金鑰；每分鐘最多 20 則訊息。"
+},
   connectedApps: {
     "title": "已連結的應用程式",
     "description": "註冊允許使用者透過 PrintOps 身分登入的外部應用程式。",

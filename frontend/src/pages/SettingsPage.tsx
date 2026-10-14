@@ -1,3 +1,5 @@
+import { AppNotificationKeyToggle } from '../components/AppNotificationKeyToggle';
+import { APIKeyScopeControl } from '../components/APIKeyScopeControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Cog, QrCode, Workflow, Info, UploadCloud } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -474,6 +476,7 @@ export function SettingsPage() {
     can_manage_projects: true,
     can_render_documents: false,
     can_access_cloud: false,
+    can_send_notifications: false,
     can_update_energy_cost: false,
   });
   const [createdAPIKey, setCreatedAPIKey] = useState<string | null>(null);
@@ -635,7 +638,7 @@ export function SettingsPage() {
   });
 
   const createAPIKeyMutation = useMutation({
-    mutationFn: (data: { name: string; can_queue: boolean; can_control_printer: boolean; can_read_status: boolean; can_manage_library: boolean; can_manage_inventory: boolean; can_manage_maintenance: boolean; can_manage_archives: boolean; can_manage_projects: boolean; can_render_documents: boolean; can_access_cloud: boolean }) =>
+    mutationFn: (data: { name: string; can_queue: boolean; can_control_printer: boolean; can_read_status: boolean; can_manage_library: boolean; can_manage_inventory: boolean; can_manage_maintenance: boolean; can_manage_archives: boolean; can_manage_projects: boolean; can_render_documents: boolean; can_access_cloud: boolean; can_send_notifications: boolean }) =>
       api.createAPIKey(data),
     onSuccess: (data) => {
       setCreatedAPIKey(data.key || null);
@@ -4620,16 +4623,8 @@ export function SettingsPage() {
                           <p className="text-xs text-bambu-gray">{t('settings.renderDocumentsDescription', 'Read layouts and immutable evidence, render PDFs, export artifacts and inspect the render audit.')}</p>
                         </div>
                       </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_access_cloud}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_access_cloud: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.cloudAccess', 'Allow cloud access')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.cloudAccessDescription', 'Read Bambu Cloud presets and filaments on your behalf. Requires you to be signed into Bambu Cloud.')}</p>
-                        </div>
-                      </label>
+                      <APIKeyScopeControl checked={newAPIKeyPermissions.can_access_cloud} onChange={(checked) => setNewAPIKeyPermissions(prev => ({ ...prev, can_access_cloud: checked }))} title={t('settings.cloudAccess')} description={t('settings.cloudAccessDescription')} />
+                      <APIKeyScopeControl checked={newAPIKeyPermissions.can_send_notifications} onChange={(checked) => setNewAPIKeyPermissions(prev => ({ ...prev, can_send_notifications: checked }))} title={t('appNotifications.label')} description={t('appNotifications.keyDescription')} />
                       <label className="flex items-center gap-3 cursor-pointer">
                         <Checkbox
                           checked={newAPIKeyPermissions.can_update_energy_cost}
@@ -4738,7 +4733,7 @@ export function SettingsPage() {
                             <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                           </Button>
                         </div>
-                      </div>
+                      </div><AppNotificationKeyToggle apiKey={key} />
                     </CardContent>
                   </Card>
                 ))}

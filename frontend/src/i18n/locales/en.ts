@@ -1,4 +1,9 @@
 export default {
+  appNotifications: {
+    "label": "App messages",
+    "channelDescription": "Allow external applications with an authorized API key to send messages to this channel.",
+    "keyDescription": "Send app messages to opted-in channels. Requires an owned API key; limited to 20 messages per minute."
+},
   connectedApps: {
     "title": "Connected applications",
     "description": "Register external applications that let users sign in with their PrintOps identity.",

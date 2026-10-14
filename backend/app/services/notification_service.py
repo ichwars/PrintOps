@@ -20,7 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.notification import NotificationDigestQueue, NotificationLog, NotificationProvider
 from backend.app.models.notification_template import NotificationTemplate
 from backend.app.services.notification_delivery import NotificationDelivery
+from backend.app.services.notification_discord import send_discord
+from backend.app.services.notification_plain_text import escape_markdown, send_parts, slack_app_payloads, split_text
 from backend.app.services.notification_queue_events import NotificationQueueEvents
+from backend.app.services.notification_telegram import send_telegram
 
 logger = logging.getLogger(__name__)
 
@@ -428,77 +431,9 @@ class NotificationService(NotificationQueueEvents):
         message: str,
         image_data: bytes | None = None,
         outcome_urls: dict[str, str] | None = None,
+        plain_text: bool = False,
     ) -> tuple[bool, str]:
-        """Send notification via Telegram bot."""
-        bot_token = config.get("bot_token", "").strip()
-        chat_id = config.get("chat_id", "").strip()
-
-        if not bot_token or not chat_id:
-            return False, "Bot token and chat ID are required"
-
-        keyboard = None
-        if outcome_urls:
-            keyboard = {
-                "inline_keyboard": [
-                    [
-                        {"text": "Good parts", "url": outcome_urls["good"] + "?tap=1"},
-                        {"text": "Reject parts", "url": outcome_urls["reject"] + "?tap=1"},
-                    ]
-                ]
-            }
-
-        thread_id_raw = str(config.get("message_thread_id") or "").strip()
-        message_thread_id: int | None = None
-        if thread_id_raw:
-            try:
-                message_thread_id = int(thread_id_raw)
-            except ValueError:
-                return False, f"Invalid message thread ID: {thread_id_raw!r} is not a number"
-
-        # Escape underscores in the message body so Telegram Markdown
-        # parsing doesn't break on job names like "A1_plate_8" or error
-        # codes like "0300_0001".  The title is already wrapped in *bold*
-        # markers, so only escape after the first newline.
-        if "\n" in message:
-            title_part, body_part = message.split("\n", 1)
-            body_part = body_part.replace("_", "\\_")
-            message = f"{title_part}\n{body_part}"
-
-        client = await self._get_client()
-
-        if image_data:
-            # Use sendPhoto to attach the thumbnail with the caption
-            url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
-            form: dict[str, Any] = {"chat_id": chat_id, "caption": message, "parse_mode": "Markdown"}
-            if keyboard:
-                form["reply_markup"] = json.dumps(keyboard)
-            if message_thread_id is not None:
-                form["message_thread_id"] = message_thread_id
-            response = await client.post(
-                url,
-                data=form,
-                files={"photo": ("photo.jpg", image_data, "image/jpeg")},
-            )
-        else:
-            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            data: dict[str, Any] = {
-                "chat_id": chat_id,
-                "text": message,
-                "parse_mode": "Markdown",
-                **({"reply_markup": keyboard} if keyboard else {}),
-            }
-            if message_thread_id is not None:
-                data["message_thread_id"] = message_thread_id
-            response = await client.post(url, json=data)
-
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("ok"):
-                return True, "Message sent successfully"
-            else:
-                return False, f"Telegram error: {result.get('description', 'Unknown error')}"
-        else:
-            return False, f"HTTP {response.status_code}: {response.text[:200]}"
+        return await send_telegram(self, config, message, image_data, outcome_urls, plain_text)
 
     async def _send_bark(
         self, config: dict, title: str, message: str, image_url: str | None = None
@@ -663,45 +598,9 @@ class NotificationService(NotificationQueueEvents):
             return False, f"Email error: {str(e)}"
 
     async def _send_discord(
-        self, config: dict, title: str, message: str, image_data: bytes | None = None
+        self, config: dict, title: str, message: str, image_data: bytes | None = None, plain_text: bool = False
     ) -> tuple[bool, str]:
-        """Send notification via Discord webhook."""
-        webhook_url = config.get("webhook_url", "").strip()
-
-        if not webhook_url:
-            return False, "Webhook URL is required"
-
-        if not (
-            webhook_url.startswith("https://discord.com/api/webhooks/")
-            or webhook_url.startswith("https://discordapp.com/api/webhooks/")
-        ):
-            return False, "Invalid Discord webhook URL"
-
-        # Discord embed format for nicer messages
-        embed = {
-            "title": title,
-            "description": message,
-            "color": 0x00AE42,  # Bambu green
-        }
-
-        client = await self._get_client()
-
-        if image_data:
-            # Attach image via multipart form-data and reference in embed
-            embed["image"] = {"url": "attachment://photo.jpg"}
-            payload = {"embeds": [embed]}
-            response = await client.post(
-                webhook_url,
-                data={"payload_json": json.dumps(payload)},
-                files={"files[0]": ("photo.jpg", image_data, "image/jpeg")},
-            )
-        else:
-            response = await client.post(webhook_url, json={"embeds": [embed]})
-
-        if response.status_code in (200, 204):
-            return True, "Message sent successfully"
-        else:
-            return False, f"HTTP {response.status_code}: {response.text[:200]}"
+        return await send_discord(self, config, title, message, image_data, plain_text)
 
     async def _send_webhook(
         self,
@@ -777,15 +676,19 @@ class NotificationService(NotificationQueueEvents):
                 headers["Authorization"] = f"Bearer {auth_header}"
 
         client = await self._get_client()
-        try:
-            response = await client.post(webhook_url, json=data, headers=headers)
 
-            if response.status_code in (200, 201, 202, 204):
-                return True, "Webhook delivered successfully"
-            else:
+        async def send(payload):
+            try:
+                response = await client.post(webhook_url, json=payload, headers=headers)
+                if response.status_code in (200, 201, 202, 204):
+                    return True, "Webhook delivered successfully"
                 return False, _opaque_http_failure(response, label="webhook endpoint")
-        except Exception as e:
-            return False, f"Webhook error: {str(e)}"
+            except Exception as e:
+                return False, f"Webhook error: {str(e)}"
+
+        if payload_format == "slack" and event_type == "app_message":
+            return await send_parts(send, slack_app_payloads(title, message, image_url))
+        return await send(data)
 
     async def _send_homeassistant(
         self, config: dict, title: str, message: str, db: AsyncSession | None = None, image_url: str | None = None
@@ -916,6 +819,10 @@ class NotificationService(NotificationQueueEvents):
             if key not in {"_outcome_urls", "_notification_photo_url"}
         } or None
 
+        plain_text = event_type == "app_message"
+        if plain_text and provider.provider_type == "homeassistant":
+            title, message = escape_markdown(title), escape_markdown(message)
+
         try:
             if provider.provider_type == "callmebot":
                 return await self._send_callmebot(config, f"{title}\n{message}")
@@ -929,13 +836,19 @@ class NotificationService(NotificationQueueEvents):
                     **({"outcome_urls": outcome_urls} if outcome_urls else {}),
                 )
             elif provider.provider_type == "pushover":
+                if plain_text:
+                    return await send_parts(
+                        lambda part: self._send_pushover(config, title, part, image_data=image_data),
+                        split_text(message, 1024, measure=len),
+                    )
                 return await self._send_pushover(config, title, message, image_data=image_data)
             elif provider.provider_type == "telegram":
                 return await self._send_telegram(
                     config,
-                    f"*{title}*\n{message}",
+                    f"{title}\n{message}" if plain_text else f"*{title}*\n{message}",
                     image_data=image_data,
                     **({"outcome_urls": outcome_urls} if outcome_urls else {}),
+                    **({"plain_text": True} if plain_text else {}),
                 )
             elif provider.provider_type == "bark":
                 return await self._send_bark(config, title, message, **({"image_url": image_url} if image_url else {}))
@@ -948,7 +861,9 @@ class NotificationService(NotificationQueueEvents):
                     config, title, message, image_data=image_data, finish_photo_url=finish_photo_url
                 )
             elif provider.provider_type == "discord":
-                return await self._send_discord(config, title, message, image_data=image_data)
+                return await self._send_discord(
+                    config, title, message, image_data=image_data, **({"plain_text": True} if plain_text else {})
+                )
             elif provider.provider_type == "webhook":
                 return await self._send_webhook(
                     config,
@@ -2057,12 +1972,17 @@ class NotificationService(NotificationQueueEvents):
                     time_str = entry.created_at.strftime("%H:%M")
                     printer_info = f"[{entry.printer_name}] " if entry.printer_name else ""
                     body_parts.append(f"  {time_str} {printer_info}{entry.title}")
+                    if event_type == "app_message":
+                        body_parts.append(entry.message)
                 body_parts.append("")
 
             body = "\n".join(body_parts)
 
             # Send the digest
-            success, error = await self._send_to_provider(provider, title, body, db)
+            app_digest = any(entry.event_type == "app_message" for entry in queue_entries)
+            success, error = await self._send_to_provider(
+                provider, title, body, db, **({"event_type": "app_message"} if app_digest else {})
+            )
 
             # Log the digest
             await self._log_notification(
@@ -2075,9 +1995,11 @@ class NotificationService(NotificationQueueEvents):
                 error_message=error if not success else None,
             )
 
-            # Clear the queue
-            for entry in queue_entries:
-                await db.delete(entry)
+            # Retain app-containing digests after partial failure; retries can
+            # repeat earlier chunks, but must not silently discard unsent content.
+            if success or not app_digest:
+                for entry in queue_entries:
+                    await db.delete(entry)
             await db.commit()
 
             if success:

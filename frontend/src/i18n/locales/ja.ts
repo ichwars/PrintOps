@@ -1,4 +1,9 @@
 export default {
+  appNotifications: {
+    "label": "アプリのメッセージ",
+    "channelDescription": "許可されたAPIキーを持つ外部アプリケーションが、このチャンネルにメッセージを送信できるようにします。",
+    "keyDescription": "有効化されたチャンネルにアプリのメッセージを送信します。ユーザーに紐づくAPIキーが必要です。1分間に最大20件です。"
+},
   connectedApps: {
     "title": "連携アプリケーション",
     "description": "PrintOpsのユーザー情報でログインできる外部アプリケーションを登録します。",

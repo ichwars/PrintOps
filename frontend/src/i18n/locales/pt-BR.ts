@@ -1,4 +1,9 @@
 export default {
+  appNotifications: {
+    "label": "Mensagens de aplicativos",
+    "channelDescription": "Permitir que aplicativos externos com uma chave de API autorizada enviem mensagens a este canal.",
+    "keyDescription": "Enviar mensagens aos canais habilitados. Exige uma chave de API vinculada a um usuário; limite de 20 mensagens por minuto."
+},
   connectedApps: {
     "title": "Aplicativos conectados",
     "description": "Cadastre aplicativos externos que permitem entrar com a identidade do PrintOps.",
