@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Reações de qualidade no Telegram",
+    "enable": "Ativar reações de qualidade",
+    "actors": "Usuários confiáveis",
+    "save": "Salvar ajustes de reações",
+    "adminOnly": "Administradores autenticados podem configurar usuários confiáveis.",
+    "format": "Um ID do Telegram=ID de usuário PrintOps por linha. Remova a linha para revogar o acesso.",
+    "instructions": "Use um bot exclusivo como administrador do chat, sem outra consulta ou webhook. Polegar para cima (👍) aprova todas as peças; Polegar para baixo (👎) rejeita todas. Vale a primeira resposta válida em 48 horas. Use o link PrintOps para quantidades mistas. As permissões e acessos atuais se aplicam.",
+    "error": "Não foi possível carregar ou salvar. Verifique usuários ativos, ID numérico do chat e uso exclusivo do bot.",
+    "status": {
+        "disabled": "Desativado",
+        "idle": "Aguardando consulta",
+        "polling": "Consulta ativa",
+        "webhook_conflict": "Webhook ativo: consulta pausada",
+        "transport_error": "Telegram indisponível ou conflito; nova tentativa mais tarde"
+    }
+},
   appNotifications: {
     "label": "Mensagens de aplicativos",
     "channelDescription": "Permitir que aplicativos externos com uma chave de API autorizada enviem mensagens a este canal.",

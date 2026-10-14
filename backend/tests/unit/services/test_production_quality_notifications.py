@@ -73,3 +73,20 @@ async def test_other_notification_provider_does_not_receive_action_capabilities(
         variables={"confirm_url": "/archives?confirm=1", "_outcome_urls": {"good": "secret"}},
     )
     assert send.call_args.kwargs["variables"] == {"confirm_url": "/archives?confirm=1"}
+
+
+async def test_telegram_send_captures_only_concrete_delivery(monkeypatch):
+    from backend.app.services.notification_telegram import send_telegram
+
+    sent = {}
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, json={"ok": True, "result": {"message_id": 81, "chat": {"id": -100}}})
+        )
+    ) as client:
+        service = NotificationService()
+        monkeypatch.setattr(service, "_get_client", AsyncMock(return_value=client))
+        assert (
+            await send_telegram(service, {"bot_token": "123:fake", "chat_id": "-100"}, "quality", sent_message=sent)
+        )[0]
+    assert sent == {"message_id": 81, "chat_id": -100}

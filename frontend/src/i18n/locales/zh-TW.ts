@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Telegram 品質回饋",
+    "enable": "啟用品質回饋",
+    "actors": "信任的使用者",
+    "save": "儲存回饋設定",
+    "adminOnly": "已登入的管理員可以設定信任的使用者。",
+    "format": "每行輸入 Telegram ID=PrintOps 使用者 ID。刪除該行即可撤銷存取權限。",
+    "instructions": "使用已設為聊天管理員的專用機器人，不要同時使用其他輪詢程式或 Webhook。讚 (👍) 確認全部零件合格；倒讚 (👎) 確認全部不合格。48 小時內第一個有效回覆生效。混合數量請使用 PrintOps 連結。目前使用者權限和印表機存取範圍始終適用。",
+    "error": "無法載入或儲存設定。請檢查有效使用者 ID、數字聊天 ID，以及機器人是否專用。",
+    "status": {
+        "disabled": "已停用",
+        "idle": "等待輪詢",
+        "polling": "輪詢中",
+        "webhook_conflict": "Webhook 已啟用：輪詢暫停",
+        "transport_error": "Telegram 無法使用或輪詢衝突；稍後重試"
+    }
+},
   appNotifications: {
     "label": "應用程式訊息",
     "channelDescription": "允許持有已授權 API 金鑰的外部應用程式向此頻道傳送訊息。",

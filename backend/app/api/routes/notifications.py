@@ -10,6 +10,7 @@ from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.routes.app_messages import router as app_messages_router
+from backend.app.api.routes.telegram_quality import router as telegram_quality_router
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 router.include_router(app_messages_router)
+router.include_router(telegram_quality_router)
 
 
 def _provider_to_dict(provider: NotificationProvider) -> dict:
@@ -436,6 +438,10 @@ async def update_notification_provider(
 
     # Update only provided fields
     update_dict = update_data.model_dump(exclude_unset=True)
+    if {"config", "enabled", "provider_type", "printer_id", "on_print_confirm_request"} & update_dict.keys():
+        from backend.app.services.telegram_quality import invalidate_provider
+
+        await invalidate_provider(db, provider_id)
 
     for key, value in update_dict.items():
         if key == "config" and value is not None:
@@ -466,6 +472,11 @@ async def delete_notification_provider(
     if not provider:
         raise HTTPException(status_code=404, detail="Notification provider not found")
 
+    from backend.app.models.telegram_quality import TelegramQualityConfig
+    from backend.app.services.telegram_quality import invalidate_provider
+
+    await invalidate_provider(db, provider_id)
+    await db.execute(delete(TelegramQualityConfig).where(TelegramQualityConfig.provider_id == provider_id))
     name = provider.name
     await db.delete(provider)
     await db.commit()

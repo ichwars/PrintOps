@@ -22,6 +22,7 @@ from backend.app.models.notification_template import NotificationTemplate
 from backend.app.services.notification_delivery import NotificationDelivery
 from backend.app.services.notification_discord import send_discord
 from backend.app.services.notification_plain_text import escape_markdown, send_parts, slack_app_payloads, split_text
+from backend.app.services.notification_quality import NotificationQualityEvents
 from backend.app.services.notification_queue_events import NotificationQueueEvents
 from backend.app.services.notification_telegram import send_telegram
 
@@ -91,7 +92,7 @@ def _opaque_http_failure(response: httpx.Response, *, label: str) -> str:
     return f"HTTP {response.status_code} from the configured {label} (see server logs at debug level for details)"
 
 
-class NotificationService(NotificationQueueEvents):
+class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
     """Service for sending notifications through various providers."""
 
     def __init__(self):
@@ -425,15 +426,7 @@ class NotificationService(NotificationQueueEvents):
             except Exception:
                 return False, f"HTTP {response.status_code}: {response.text[:200]}"
 
-    async def _send_telegram(
-        self,
-        config: dict,
-        message: str,
-        image_data: bytes | None = None,
-        outcome_urls: dict[str, str] | None = None,
-        plain_text: bool = False,
-    ) -> tuple[bool, str]:
-        return await send_telegram(self, config, message, image_data, outcome_urls, plain_text)
+    _send_telegram = send_telegram
 
     async def _send_bark(
         self, config: dict, title: str, message: str, image_url: str | None = None
@@ -809,6 +802,7 @@ class NotificationService(NotificationQueueEvents):
         title, message, variables = self._provider_photo_payload(provider, title, message, variables)
         config = json.loads(provider.config) if isinstance(provider.config, str) else provider.config
         outcome_urls = (variables or {}).get("_outcome_urls")
+        quality_context = (variables or {}).get("_telegram_quality_context")
         image_url = (variables or {}).get("_notification_photo_url")
         if getattr(provider, "attach_photo", True) is False:
             image_data, image_url = None, None
@@ -816,7 +810,7 @@ class NotificationService(NotificationQueueEvents):
         variables = {
             key: value
             for key, value in (variables or {}).items()
-            if key not in {"_outcome_urls", "_notification_photo_url"}
+            if key not in {"_outcome_urls", "_notification_photo_url", "_telegram_quality_context"}
         } or None
 
         plain_text = event_type == "app_message"
@@ -843,6 +837,12 @@ class NotificationService(NotificationQueueEvents):
                     )
                 return await self._send_pushover(config, title, message, image_data=image_data)
             elif provider.provider_type == "telegram":
+                if quality_context and db is not None and event_type == "print_confirm_request":
+                    from backend.app.services.telegram_quality import send_quality_prompt
+
+                    return await send_quality_prompt(
+                        self, db, provider, config, f"*{title}*\n{message}", image_data, outcome_urls, quality_context
+                    )
                 return await self._send_telegram(
                     config,
                     f"{title}\n{message}" if plain_text else f"*{title}*\n{message}",
@@ -881,6 +881,8 @@ class NotificationService(NotificationQueueEvents):
             else:
                 return False, f"Unknown provider type: {provider.provider_type}"
         except Exception as e:
+            if provider.provider_type == "telegram":
+                return False, "Telegram transport failed"
             logger.exception("Error sending notification via %s", provider.provider_type)
             return False, str(e)
 
@@ -1250,30 +1252,6 @@ class NotificationService(NotificationQueueEvents):
             printer_name,
             image_data=image_data,
             variables=variables,
-        )
-
-    async def on_print_confirm_request(
-        self,
-        printer_id: int,
-        printer_name: str,
-        db: AsyncSession,
-        *,
-        print_name: str,
-        confirm_url: str,
-        outcome_urls: dict[str, str],
-    ):
-        providers = await self._get_providers_for_event(db, "on_print_confirm_request", printer_id)
-        title = "Confirm production quality"
-        message = f"{printer_name}: {print_name}\nInspect good and rejected quantities: {confirm_url}"
-        await self._send_to_providers(
-            providers,
-            title,
-            message,
-            db,
-            event_type="print_confirm_request",
-            printer_id=printer_id,
-            printer_name=printer_name,
-            variables={"confirm_url": confirm_url, "_outcome_urls": outcome_urls},
         )
 
     async def on_print_progress(

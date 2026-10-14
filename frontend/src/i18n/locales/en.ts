@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Telegram quality reactions",
+    "enable": "Enable quality reactions",
+    "actors": "Trusted actors",
+    "save": "Save reaction settings",
+    "adminOnly": "Authenticated administrators can configure trusted actors.",
+    "format": "Use one Telegram ID=PrintOps user ID per line. Remove a line to revoke access.",
+    "instructions": "Use a dedicated bot, made administrator in the chat, without another poller or webhook. Thumbs up (👍) confirms all parts good; Thumbs down (👎) rejects all parts. The first valid answer wins within 48 hours. Use the PrintOps link for mixed quantities. Current user permissions and printer access apply.",
+    "error": "Could not save or load settings. Check the active user IDs, numeric chat ID and exclusive bot ownership.",
+    "status": {
+        "disabled": "Disabled",
+        "idle": "Waiting for polling",
+        "polling": "Polling active",
+        "webhook_conflict": "Webhook active: polling paused",
+        "transport_error": "Telegram unavailable or polling conflict; retrying later"
+    }
+},
   appNotifications: {
     "label": "App messages",
     "channelDescription": "Allow external applications with an authorized API key to send messages to this channel.",

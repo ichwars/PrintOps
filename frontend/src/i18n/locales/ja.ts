@@ -1,4 +1,21 @@
 export default {
+  telegramQuality: {
+    "title": "Telegram品質リアクション",
+    "enable": "品質リアクションを有効にする",
+    "actors": "信頼するユーザー",
+    "save": "リアクション設定を保存",
+    "adminOnly": "認証済みの管理者が信頼するユーザーを設定できます。",
+    "format": "1行に Telegram ID=PrintOpsユーザーID を入力します。行を削除するとアクセスを取り消せます。",
+    "instructions": "チャット管理者に設定した専用Botを使用し、他のポーリングやWebhookを使用しないでください。親指を上に (👍)は全部品を良品、親指を下に (👎)は全部品を不良品として確定します。48時間以内の最初の有効な回答が優先されます。混在する数量にはPrintOpsリンクを使用してください。現在の権限とプリンターアクセスが適用されます。",
+    "error": "設定を読み込みまたは保存できません。有効なユーザーID、数値のチャットID、Botの専用使用を確認してください。",
+    "status": {
+        "disabled": "無効",
+        "idle": "ポーリング待機中",
+        "polling": "ポーリング中",
+        "webhook_conflict": "Webhookが有効：ポーリング停止中",
+        "transport_error": "Telegramに接続できないか競合しています。後で再試行します"
+    }
+},
   appNotifications: {
     "label": "アプリのメッセージ",
     "channelDescription": "許可されたAPIキーを持つ外部アプリケーションが、このチャンネルにメッセージを送信できるようにします。",

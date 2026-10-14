@@ -9,6 +9,7 @@ import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 import { Toggle } from './Toggle';
+import { TelegramQualitySettings } from './TelegramQualitySettings';
 
 interface NotificationProviderCardProps {
   provider: NotificationProvider;
@@ -250,6 +251,7 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
           {/* Expanded Settings */}
           {isExpanded && (
             <div className="pt-3 border-t border-bambu-dark-tertiary space-y-4">
+              {provider.provider_type === 'telegram' && <TelegramQualitySettings providerId={provider.id} />}
               {/* Enabled Toggle */}
               <div className="flex items-center justify-between">
                 <div>

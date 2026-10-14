@@ -108,12 +108,17 @@ class PrintArchive(Base):
     # User tracking (who uploaded/created this archive)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
+    created_by_identity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     # Relationships
     printer: Mapped["Printer | None"] = relationship(back_populates="archives")
     project: Mapped["Project | None"] = relationship(back_populates="archives")
     created_by: Mapped["User | None"] = relationship()
 
 
+from backend.app.core.archive_owner_identity import register_archive_owner_identity  # noqa: E402
 from backend.app.models.printer import Printer  # noqa: E402, F811
 from backend.app.models.project import Project  # noqa: E402, F811
 from backend.app.models.user import User  # noqa: E402, F811
+
+register_archive_owner_identity(PrintArchive)

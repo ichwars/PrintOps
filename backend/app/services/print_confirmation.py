@@ -385,5 +385,7 @@ async def dispatch_outcome_confirmation(
         print_name=payload["print_name"],
         confirm_url=f"{base}/archives?confirm={archive_id}&confirm_run={payload['run_id']}",
         outcome_urls=urls,
+        archive_id=archive_id,
+        run_id=payload["run_id"],
     )
     return True

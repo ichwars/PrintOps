@@ -97,6 +97,7 @@ from backend.app.models.orca_base_cache import OrcaBaseProfile
 from backend.app.models.pending_upload import PendingUpload
 from backend.app.models.pipeline_run import PipelineJob, PipelineRun
 from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
+from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.printer import Printer
 from backend.app.models.printer_ha_sensor import PrinterHAInterlockAudit, PrinterHASensor
 from backend.app.models.printer_sensor_history import PrinterSensorHistory
@@ -123,6 +124,7 @@ from backend.app.models.stock_reservation import (
     StockResourceLock,
 )
 from backend.app.models.storage_ha_sensor import StorageHASensor
+from backend.app.models.telegram_quality import TelegramPollState, TelegramQualityConfig, TelegramQualityMessage
 from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
 from backend.app.models.user_otp_code import UserOTPCode
@@ -131,6 +133,7 @@ from backend.app.models.warehouse_article import WarehouseArticle, WarehouseArti
 
 __all__ = [
     "Printer",
+    "PrintLogEntry",
     "PrintArchive",
     "Filament",
     "FilamentSkuSettings",
