@@ -8,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.api.routes.cloud import build_authenticated_cloud, resolve_api_key_cloud_owner
 from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
+    check_printer_access,
     is_auth_enabled,
+    resolve_optional_api_key,
+    user_can_access_printer,
 )
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
@@ -713,11 +716,25 @@ async def clear_hms_errors(
     return {"success": True, "message": "HMS errors cleared"}
 
 
+def _require_object_printer_access(permission: Permission):
+    async def check_access(
+        printer_id: int,
+        user=RequirePermissionIfAuthEnabled(permission),
+        api_key=Depends(resolve_optional_api_key),
+    ):
+        if not user_can_access_printer(user, printer_id):
+            raise HTTPException(403, "Printer access denied")
+        if api_key is not None:
+            check_printer_access(api_key, printer_id)
+
+    return Depends(check_access)
+
+
 @router.get("/{printer_id}/print/objects")
 async def get_printable_objects(
     printer_id: int,
     reload: bool = False,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
+    _object_access=_require_object_printer_access(Permission.PRINTERS_READ),
     db: AsyncSession = Depends(get_db),
 ):
     """Get the list of printable objects for the current print.
@@ -832,7 +849,7 @@ async def get_printable_objects(
 async def skip_objects(
     printer_id: int,
     object_ids: list[int],
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
+    _object_access=_require_object_printer_access(Permission.PRINTERS_CONTROL),
     db: AsyncSession = Depends(get_db),
     _drying_guard=Depends(printer_operation_guard),
 ):

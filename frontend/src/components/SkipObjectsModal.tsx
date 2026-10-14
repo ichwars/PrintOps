@@ -76,9 +76,16 @@ export function SkipObjectsModal({ printerId, isOpen, onClose }: SkipObjectsModa
   );
   const allSelected = activeObjects.length > 0 && selectedObjects.length === activeObjects.length;
   const skippingAllRemaining = allSelected && selectedIds.size > 0;
-  const canSubmit = selectedIds.size > 0
+  const canSubmit = selectedObjects.length > 0
     && (status?.layer_num ?? 0) > 1
     && hasPermission('printers:control');
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const next = new Set(activeObjects.filter((object) => current.has(object.id)).map((object) => object.id));
+      return next.size === current.size ? current : next;
+    });
+  }, [activeObjects]);
 
   const skipObjectsMutation = useMutation({
     mutationFn: (objectIds: number[]) => api.skipObjects(printerId, objectIds),
@@ -355,7 +362,10 @@ export function SkipObjectsModal({ printerId, isOpen, onClose }: SkipObjectsModa
               : t('printers.skipObjects.confirmMultipleMessage', { count: selectedObjects.length })}
           confirmText={t('printers.skipObjects.skipSelected')}
           isLoading={skipObjectsMutation.isPending}
-          onConfirm={() => skipObjectsMutation.mutate([...selectedIds])}
+          confirmDisabled={!canSubmit}
+          onConfirm={() => {
+            if (canSubmit) skipObjectsMutation.mutate(selectedObjects.map((object) => object.id));
+          }}
           onCancel={() => setConfirming(false)}
         />
       )}
