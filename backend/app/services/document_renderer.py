@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Callable, Mapping
@@ -456,6 +457,12 @@ class DocumentRenderer:
         environment = os.environ.copy()
         environment["PYTHONHASHSEED"] = "0"
         environment["SOURCE_DATE_EPOCH"] = "0"
+        inherited_command = None
+        if sys.platform == "linux":
+            try:
+                inherited_command = psutil.Process().cmdline() or None
+            except psutil.Error:
+                pass
         process = subprocess.Popen(
             command,
             cwd=workspace,
@@ -468,11 +475,24 @@ class DocumentRenderer:
         deadline = time.monotonic() + self._limits.timeout_seconds
         try:
             monitored = psutil.Process(process.pid)
+            awaiting_exec = inherited_command is not None
             while process.poll() is None:
                 if time.monotonic() >= deadline:
                     self._terminate_process_tree(process, monitored)
                     raise TimeoutError
+                if awaiting_exec:
+                    # Linux can briefly expose the forked parent image after spawn.
+                    # Keep the startup wait inside the same timeout, then account
+                    # for the engine and its descendants without reopening this gate.
+                    try:
+                        child_command = monitored.cmdline()
+                        awaiting_exec = not child_command or child_command == inherited_command
+                    except psutil.Error:
+                        awaiting_exec = False
                 try:
+                    if awaiting_exec:
+                        time.sleep(0.02)
+                        continue
                     memory = monitored.memory_info().rss
                     memory += sum(child.memory_info().rss for child in monitored.children(recursive=True))
                     if memory > self._limits.max_memory_bytes:
