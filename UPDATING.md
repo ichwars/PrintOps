@@ -54,15 +54,18 @@ An authenticated installation may need its authorized backup API key configured.
 Linux:
 
 ```bash
-sudo env BACKUP_MODE=require /opt/printops/install/update.sh
+sudo env BACKUP_MODE=require INSTALL_DIR=/opt/printops \
+  bash /opt/printops/install/update.sh
 ```
 
-macOS, using the actual installation path and the same user as its LaunchAgent:
+macOS, using the same user as its LaunchAgent (the default path is `$HOME/printops`):
 
 ```bash
-env BACKUP_MODE=require /path/to/printops/install/update_macos.sh
+env BACKUP_MODE=require INSTALL_DIR="$HOME/printops" \
+  bash "$HOME/printops/install/update_macos.sh"
 ```
 
+For a custom path, change both `INSTALL_DIR` and the script path in the command.
 Review any prompt about local changes and preserve those changes before proceeding.
 Do not use a force flag to discard customizations without inspecting them.
 
@@ -73,7 +76,7 @@ stopping the service; if the following checks fail, preserve local changes or
 resolve the divergence before updating:
 
 ```bash
-cd /opt/printops
+cd /opt/printops &&
 sudo -u printops git fetch origin &&
 sudo -u printops sh -c 'test -z "$(git status --porcelain)"' &&
 sudo -u printops git merge-base --is-ancestor HEAD origin/main
@@ -82,7 +85,7 @@ sudo -u printops git merge-base --is-ancestor HEAD origin/main
 With those checks successful, update under the installation's service user:
 
 ```bash
-sudo systemctl stop printops
+sudo systemctl stop printops &&
 sudo -u printops bash -eu <<'UPDATE' && sudo systemctl start printops
 cd /opt/printops
 git merge --ff-only origin/main
