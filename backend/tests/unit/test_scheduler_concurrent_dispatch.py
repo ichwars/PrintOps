@@ -87,17 +87,25 @@ async def farm(tmp_path):
 
 
 class _UploadRecorder:
-    def __init__(self, *, fail_for_ip: str | None = None):
+    def __init__(self, *, fail_for_ip: str | None = None, overlap_target: int | None = None):
         self.in_flight = 0
         self.peak = 0
         self.order: list[str] = []
         self.fail_for_ip = fail_for_ip
+        self.overlap_target = overlap_target
+        self.overlap_ready = asyncio.Event()
 
     async def __call__(self, ip_address, access_code, local_path, remote_path, **kwargs):
         self.in_flight += 1
         self.peak = max(self.peak, self.in_flight)
         self.order.append(ip_address)
         try:
+            if self.overlap_target is not None:
+                # Hold the first uploads until the whole expected wave arrives.
+                # DB preparation can exceed the fake transfer's 50 ms lifetime.
+                if self.in_flight >= self.overlap_target:
+                    self.overlap_ready.set()
+                await asyncio.wait_for(self.overlap_ready.wait(), timeout=5)
             await asyncio.sleep(UPLOAD_SECONDS)
             if self.fail_for_ip is not None and ip_address == self.fail_for_ip:
                 raise OSError(f"simulated FTP failure for {ip_address}")
@@ -183,7 +191,7 @@ async def _run_to_completion(ctx, upload, *, max_ticks: int = 20):
 @pytest.mark.asyncio
 async def test_uploads_to_different_printers_overlap(farm):
     ctx = await farm(4, max_concurrent=4)
-    upload = _UploadRecorder()
+    upload = _UploadRecorder(overlap_target=4)
 
     await _run_to_completion(ctx, upload)
 
@@ -194,7 +202,7 @@ async def test_uploads_to_different_printers_overlap(farm):
 @pytest.mark.asyncio
 async def test_pool_cap_holds_across_refills(farm):
     ctx = await farm(7, max_concurrent=3)
-    upload = _UploadRecorder()
+    upload = _UploadRecorder(overlap_target=3)
 
     ticks = await _run_to_completion(ctx, upload)
 
