@@ -172,17 +172,26 @@ already members or collaborators with review authority.
 
 ## Release Process
 
-1. Update version in `pyproject.toml`
-2. Update `CHANGELOG.md`
-3. Create a PR with these changes
-4. After merge, create a signed annotated tag:
+1. Align the source fallback in `backend/app/core/config.py`, the package version
+   in `pyproject.toml`, and the default `APP_VERSION` build argument in `Dockerfile`.
+2. Update `CHANGELOG.md` and the release notes under `docs/releases/`. Rebuild
+   the intentional native delivery bundle with `cd frontend && npm ci && npm run build`.
+   See [repository layout](../docs/repository-layout.md) before removing generated files.
+3. Create a PR with these changes and review its completed checks. After merge,
+   also verify the complete CI run on the actual main commit.
+4. Publish only after the release decision. For signed-tag native update trust,
+   create and verify a signed annotated tag before pushing it:
    ```bash
-   git tag -s v0.1.x -m "PrintOps v0.1.x"
-   git verify-tag v0.1.x
-   git push origin v0.1.x
+   git tag -s v1.2.8.0 -m "PrintOps v1.2.8.0"
+   git verify-tag v1.2.8.0
+   git push origin v1.2.8.0
    ```
-5. The protected GitHub Actions release workflows publish the signed Windows
-   installer and the attested multi-architecture container image.
+   Signed-tag trust is optional as described in the release-integrity guide.
+   Pushing a supported release tag starts publication; preparing a version PR
+   alone does not publish a release.
+5. The protected GitHub Actions release workflows publish the explicitly unsigned
+   Windows installer with checksums and the attested multi-architecture container
+   image. Verify their actual artifacts and workflow results.
 
 The complete one-time setup, trust-anchor rotation, required GitHub
 environment variables, and verification commands are documented in

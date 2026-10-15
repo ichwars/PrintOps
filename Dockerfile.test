@@ -85,7 +85,11 @@ RUN npm ci
 
 # Copy frontend source
 COPY frontend/ ./
-COPY backend/app/resources/filaments/generic_ids.json /app/backend/app/resources/filaments/generic_ids.json
+# Frontend checks inspect backend terminology carriers and filament resources.
+COPY backend/app/ /app/backend/app/
+
+# Asset regression tests inspect the production output alongside source files.
+RUN npm run build
 
 # Default command runs tests
 CMD ["npm", "test", "--", "--run"]

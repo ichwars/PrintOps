@@ -5,8 +5,18 @@ from __future__ import annotations
 
 import importlib
 import logging
+from unittest.mock import patch
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def restore_config_module():
+    """Reload checks must preserve the settings singleton used by other modules."""
+    import backend.app.core.config as cfg_mod
+
+    with patch.dict(cfg_mod.__dict__):
+        yield
 
 
 @pytest.mark.unit

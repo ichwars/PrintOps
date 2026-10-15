@@ -7,10 +7,13 @@ WORKDIR /build
 COPY native_build.py /build/native_build.py
 RUN python3 native_build.py wrapper /build
 WORKDIR /build/wrapper
-# Security-only lock overlay; wrapper source and package.json remain pinned.
-COPY package-lock.json /build/wrapper/package-lock.json
-RUN echo "edfcdb21e7bfe039641c01d4f9254b67a24c3e950cb9c9c0527084bac272478e  package-lock.json" | sha256sum -c -
-RUN npm ci --ignore-scripts && npm run build && npm prune --omit=dev --ignore-scripts && npm audit --omit=dev
+# Security-only metadata overlays; wrapper application source remains pinned.
+COPY package.json package-lock.json /build/wrapper/
+RUN echo "126db1833c1478d9f4dd774c9b1f64f6aa555461e3bf6a2f76244b9c7f4b65ea  package.json" | sha256sum -c - \
+    && echo "64bee63257162109e67d7820ef4af4f6a10b474819f275cad3990d8b816f31da  package-lock.json" | sha256sum -c -
+RUN npm ci --ignore-scripts && npm audit && npm run build \
+    && npx --no-install vitest run tests/unit --maxWorkers=2 \
+    && npm prune --omit=dev --ignore-scripts && npm audit --omit=dev
 WORKDIR /build
 RUN python3 native_build.py engine /build --arch "$TARGETARCH"
 
