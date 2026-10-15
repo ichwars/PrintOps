@@ -87,5 +87,8 @@ RUN npm ci
 COPY frontend/ ./
 COPY backend/app/resources/filaments/generic_ids.json /app/backend/app/resources/filaments/generic_ids.json
 
+# Asset regression tests inspect the production output alongside source files.
+RUN npm run build
+
 # Default command runs tests
 CMD ["npm", "test", "--", "--run"]
