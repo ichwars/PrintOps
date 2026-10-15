@@ -38,8 +38,9 @@ describe('calculation project-file controls', () => {
     vi.restoreAllMocks();
   });
 
-  const renderProjectFileSection = () => {
+  const renderProjectFileSection = async () => {
     const projectPlate = { ...plate(1), detected_grams: '14.070000', detected_hours: '0.8780555555555555555555555556' };
+    vi.spyOn(calculationsApi, 'sliceProjectFile').mockResolvedValue([]);
     vi.spyOn(calculationsApi, 'projectFiles').mockResolvedValue([{
       id: 7,
       calculation_id: 42,
@@ -74,6 +75,7 @@ describe('calculation project-file controls', () => {
       onEnsureCalculation={vi.fn()}
       onChange={vi.fn()}
     />);
+    await screen.findByText('Slicer-Auswertung abgeschlossen.');
   };
 
   it('separates active variant editing from preferred variant selection', () => {
@@ -110,14 +112,14 @@ describe('calculation project-file controls', () => {
   });
 
   it('shows plate quantities with step-matched precision', async () => {
-    renderProjectFileSection();
+    await renderProjectFileSection();
 
     expect(await screen.findByRole('spinbutton', { name: 'g je Druck' })).toHaveValue(14.1);
     expect(screen.getByRole('spinbutton', { name: 'h je Druck' })).toHaveValue(0.88);
   });
 
   it('uses a three-column detail layout at standard desktop widths', async () => {
-    renderProjectFileSection();
+    await renderProjectFileSection();
 
     const details = await screen.findByRole('group', { name: 'Details für Platte 1' });
     await waitFor(() => expect(details).toHaveClass('lg:grid-cols-3'));
