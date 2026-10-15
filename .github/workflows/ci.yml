@@ -123,9 +123,9 @@ jobs:
           pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run tests (shard ${{ matrix.shard }}/4)
-        # The 8,500+ test suite can exceed ten minutes on the slowest shard.
+        # The complete suite can exceed fifteen minutes on the slowest shard.
         # Keep the per-test 60s timeout below; allow the complete shard to finish.
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: |
           cd backend
           # -v dropped: 5300+ "PASSED foo::bar" lines per worker eat 30-60s
@@ -384,8 +384,9 @@ jobs:
     name: Docker Backend Tests (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     # Real WeasyPrint/veraPDF compatibility tests run in this image too.
-    # Allow the slowest shard plus image setup to finish on 2-vCPU runners.
-    timeout-minutes: 25
+    # Budget image setup and the slowest shard on shared 2-vCPU runners.
+    # Twenty-five-minute jobs have been cut off near the end of the suite.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -427,8 +428,9 @@ jobs:
   docker-test:
     name: Docker Build
     runs-on: ubuntu-latest
-    # Include image builds and the full 3,100+ integration/PDF test suite.
-    timeout-minutes: 35
+    # Include image builds, the full integration/PDF test suite, and cleanup.
+    # Thirty-minute test runs need headroom for container setup as well.
+    timeout-minutes: 50
     needs: [backend-tests, frontend-build]
     steps:
       - uses: actions/checkout@v6
