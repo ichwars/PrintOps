@@ -157,21 +157,35 @@ The fork preserves inherited profile flattening, user/clone normalization,
 sentinel removal, companion templates, library profiles, renamed printer
 compatibility and existing upload limits. Its locked npm dependencies are
 installed with `npm ci --ignore-scripts`, compiled and pruned for production.
-A reviewed `package-lock.json` security overlay (SHA256
-`edfcdb21e7bfe039641c01d4f9254b67a24c3e950cb9c9c0527084bac272478e`) replaces the upstream lock while keeping
-its source and `package.json` unchanged. It updates production dependencies
-within the upstream ranges, including Multer 2.4.0, body-parser 2.3.0,
-brace-expansion 2.1.7, lodash 4.18.1, path-to-regexp 8.4.2, proxy-addr 2.0.8
-and qs 6.16.0. These fixed seven production audit entries found in the original
-lock. When the dependency build layer executes, it runs `npm audit --omit=dev`
-and fails on a reported vulnerability or audit-service failure. Docker may reuse
-a previously successful cached layer, including its old audit result. Use
+A reviewed manifest/lock overlay keeps the pinned application source, engine
+and production dependency artifacts unchanged from the previous security overlay:
+
+| File | SHA256 |
+|---|---|
+| `package.json` | `126db1833c1478d9f4dd774c9b1f64f6aa555461e3bf6a2f76244b9c7f4b65ea` |
+| `package-lock.json` | `64bee63257162109e67d7820ef4af4f6a10b474819f275cad3990d8b816f31da` |
+
+The manifest changes only the development build helper: exact
+`fix-esm-import-path` 1.10.3 replaces `tsc-esm-fix` and its unpatched
+glob/parser dependency chain. The build still compiles the upstream TypeScript
+and fixes its relative ESM imports. Other development tools are updated within
+their existing ranges, retaining Vite 7. Production dependencies retain the
+previous fixes, including Multer 2.4.0, body-parser 2.3.0, brace-expansion 2.1.7,
+lodash 4.18.1, path-to-regexp 8.4.2, proxy-addr 2.0.8 and qs 6.16.0.
+
+When the dependency build layer executes, it runs a full `npm audit` before
+compilation, the existing wrapper unit tests, and `npm audit --omit=dev` after
+pruning. Any reported vulnerability or audit-service failure fails that build.
+Docker may reuse a previously successful cached layer, including its old audit result. Use
 `docker compose -f docker-compose.yml -f compose.native.yml build --no-cache --pull`
 when you need a fresh advisory check; `--pull` alone does not invalidate that
-layer. This production-only audit does not cover the pruned development toolchain
-(which still has known advisory/deprecation warnings) or OS packages. For a source update, start from that source's clean
-lock, run `npm audit fix --package-lock-only --ignore-scripts --omit=dev`, review
-the dependency diff, and update the tracked lock and its Dockerfile checksum.
+layer. The npm audits do not cover OS packages or the independently maintained
+prebuilt images used by the default services. For dependency updates, extract
+the pinned wrapper and apply both tracked metadata overlays before running
+`npm audit fix --package-lock-only --ignore-scripts`. Review the complete diff,
+verify a clean install, build, unit tests and native HTTP smoke on both
+architectures, then update both metadata files and their Dockerfile checksums.
+For a wrapper-source update, also reconcile the overlay with its new manifest.
 Do not refresh dependencies silently during a build.
 
 The image includes the AGPL license and corresponding wrapper source under
