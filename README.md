@@ -221,6 +221,11 @@ The frontend development server runs on `http://localhost:5173` and proxies API
 requests to the backend. The production frontend build is written to `static/`,
 where the backend serves it.
 
+The checked-in `static/` bundle also supports native updates without `npm`.
+Release preparation rebuilds it from current sources and removes obsolete output.
+See [repository files and generated output](docs/repository-layout.md) for what
+belongs in Git and what stays local.
+
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites, issue and pull-request
 workflow, code style, internationalization, permissions, tests, and required
 documentation updates.

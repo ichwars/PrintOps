@@ -17,10 +17,21 @@ venv/
 .venv/
 env/
 .env
+# Local environment variants may contain credentials; keep shareable templates.
+.env.*
+!.env.example
+!.env.*.example
 docker-compose.override.yml
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+htmlcov/
+coverage.xml
+.coverage.*
 
 # Node
 frontend/node_modules/
@@ -32,6 +43,14 @@ npm-debug.log*
 *.db-journal
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 
 # Archive files (user data)
 archive/
@@ -60,6 +79,13 @@ firmware/
 /.codex-audit/
 /SESSION_2026-07-27.md
 /SESSION_SUMMARY_LOCAL.md
+/.codex/
+
+# Editor recovery and patch artifacts
+*.bak
+*.orig
+*.rej
+*.tmp
 
 # Logs
 *.log
@@ -122,3 +148,7 @@ design-qa.md
 
 # Local Git worktrees used for isolated Codex implementation branches
 .worktrees/
+
+# static/ intentionally contains the delivery bundle for native updates that
+# cannot rebuild with npm. Rebuild with cd frontend && npm run build for releases;
+# keep source assets in frontend/public/ and remove obsolete output chunks.
