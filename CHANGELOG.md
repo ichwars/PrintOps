@@ -4,7 +4,7 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
-## [1.2.8.0] - Unreleased
+## [1.2.8.0] - 2026-10-15
 
 ### Added
 - **Production quality and Telegram confirmation** — Record good and rejected parts for each print run, request a permission-checked quality confirmation, and confirm supported runs through Telegram. Existing batch targets and reprint workflows remain authoritative; confirmation does not automatically post inventory or deliveries.
