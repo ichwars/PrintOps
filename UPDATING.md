@@ -58,11 +58,15 @@ sudo env BACKUP_MODE=require INSTALL_DIR=/opt/printops \
   bash /opt/printops/install/update.sh
 ```
 
-macOS, using the same user as its LaunchAgent (the default path is `$HOME/printops`):
+macOS, using the same user as its LaunchAgent (the default path is `$HOME/printops`).
+The existing updater uses `mapfile`, so it requires Bash 4 or newer; Apple's
+preinstalled Bash 3.2 is insufficient. Native macOS installs use Homebrew; install
+or reuse its Bash and select it explicitly:
 
 ```bash
+brew install bash
 env BACKUP_MODE=require INSTALL_DIR="$HOME/printops" \
-  bash "$HOME/printops/install/update_macos.sh"
+  "$(brew --prefix)/bin/bash" "$HOME/printops/install/update_macos.sh"
 ```
 
 For a custom path, change both `INSTALL_DIR` and the script path in the command.
