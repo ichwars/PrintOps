@@ -6,6 +6,7 @@ All notable changes to PrintOps will be documented in this file.
 
 ### Security
 - Update aiohttp to 3.14.5 to resolve Dependabot alerts #112–#117 for resource exhaustion, missing initial request timeouts and Secure shared-cookie leakage. Refresh the affected Python and frontend security dependencies, and align the runtime metadata with the documented Python 3.11 minimum required by Pillow 13.
+- Update the optional native slicer wrapper's Vitest toolchain to 4.1.12 to resolve Dependabot alerts #118–#119 for manual mock registration and Windows redirect traversal. Refresh the verified metadata overlay checksums while preserving Vite 7 and all production dependency artifacts.
 
 ## [1.2.8.0] - 2026-10-15
 

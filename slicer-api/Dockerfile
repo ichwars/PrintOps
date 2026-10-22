@@ -9,8 +9,8 @@ RUN python3 native_build.py wrapper /build
 WORKDIR /build/wrapper
 # Security-only metadata overlays; wrapper application source remains pinned.
 COPY package.json package-lock.json /build/wrapper/
-RUN echo "126db1833c1478d9f4dd774c9b1f64f6aa555461e3bf6a2f76244b9c7f4b65ea  package.json" | sha256sum -c - \
-    && echo "64bee63257162109e67d7820ef4af4f6a10b474819f275cad3990d8b816f31da  package-lock.json" | sha256sum -c -
+RUN echo "129702617cc09053039e8ed01e5dccafe73415d83b41eff5d7fb5d5b068ca031  package.json" | sha256sum -c - \
+    && echo "cd52e04cd0dde9ffa4b8174fdd9513d401b234d30537dd77a1000df020cd48be  package-lock.json" | sha256sum -c -
 RUN npm ci --ignore-scripts && npm audit && npm run build \
     && npx --no-install vitest run tests/unit --maxWorkers=2 \
     && npm prune --omit=dev --ignore-scripts && npm audit --omit=dev

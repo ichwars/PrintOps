@@ -32,12 +32,13 @@
     "@types/swagger-ui-express": "^4.1.8",
     "@types/unzipper": "^0.10.11",
     "eslint": "^9.26.0",
+    "fix-esm-import-path": "1.10.3",
     "globals": "^16.1.0",
     "supertest": "^7.1.4",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.0",
-    "vitest": "^4.0.16",
-    "fix-esm-import-path": "1.10.3"
+    "vite": "^7.3.7",
+    "vitest": "^4.1.12"
   }
 }
