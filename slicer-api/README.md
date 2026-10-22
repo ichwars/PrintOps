@@ -162,14 +162,15 @@ and production dependency artifacts unchanged from the previous security overlay
 
 | File | SHA256 |
 |---|---|
-| `package.json` | `126db1833c1478d9f4dd774c9b1f64f6aa555461e3bf6a2f76244b9c7f4b65ea` |
-| `package-lock.json` | `64bee63257162109e67d7820ef4af4f6a10b474819f275cad3990d8b816f31da` |
+| `package.json` | `129702617cc09053039e8ed01e5dccafe73415d83b41eff5d7fb5d5b068ca031` |
+| `package-lock.json` | `cd52e04cd0dde9ffa4b8174fdd9513d401b234d30537dd77a1000df020cd48be` |
 
-The manifest changes only the development build helper: exact
-`fix-esm-import-path` 1.10.3 replaces `tsc-esm-fix` and its unpatched
-glob/parser dependency chain. The build still compiles the upstream TypeScript
-and fixes its relative ESM imports. Other development tools are updated within
-their existing ranges, retaining Vite 7. Production dependencies retain the
+The development overlay uses exact `fix-esm-import-path` 1.10.3 in place of
+`tsc-esm-fix` and its unpatched glob/parser dependency chain. Vitest 4.1.12
+fixes the manual mock registration and Windows redirect traversal advisories;
+the explicit Vite 7 dependency retains the existing test toolchain. The build
+compiles the upstream TypeScript and fixes its relative ESM imports.
+Production dependencies retain the
 previous fixes, including Multer 2.4.0, body-parser 2.3.0, brace-expansion 2.1.7,
 lodash 4.18.1, path-to-regexp 8.4.2, proxy-addr 2.0.8 and qs 6.16.0.
 
