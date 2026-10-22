@@ -14,12 +14,17 @@ httpx>=0.27.0
 # Keep local lint/format behavior aligned with CI.
 ruff==0.16.0
 # Hash-locked Python dependency generation.
-pip-tools==7.6.0
+# 7.6.2 supports the security-updated pip 26.2.x APIs.
+pip-tools==7.6.2
+# pip vendors its own certifi bundle; upgrading standalone certifi does not
+# remove compromised emSign roots from the installer. 26.2.2 refreshes it.
+pip>=26.2.2
 unicodedata2==15.1.0
 pre-commit>=4.0
-# pre-commit creates environments through virtualenv. 21.7.13 fixes prompt
-# config injection and unsafe activation-script quoting (PYSEC-2026-4011–4014).
-virtualenv>=21.7.13
+# pre-commit creates environments through virtualenv. 21.14.9 fixes the
+# October 2026 activation/config injection advisories; 21.14.12 includes
+# the subsequent compatibility fixes.
+virtualenv>=21.14.12
 
 # Required by pyftpdlib TLS_FTPHandler for mock FTP server tests
 pyOpenSSL>=26.4.0
