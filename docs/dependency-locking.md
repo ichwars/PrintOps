@@ -31,3 +31,14 @@ and that both locks contain all direct requirements from their source files.
 The current lockfiles were generated with Python 3.12. Keep CI on a supported
 Python version and regenerate locks deliberately when changing the resolver
 Python, because environment markers can affect the resolved set.
+
+The supported runtime requires Python 3.11 or newer, matching the prerequisites
+in `CONTRIBUTING.md` and the project metadata. Pillow 13, required for the
+October 2026 image-codec security fixes, no longer supports Python 3.10.
+
+For a security-only update, raise the affected minimum version in the input
+file and use pip-compile's `--upgrade-package PACKAGE` option to limit resolver
+changes. Review required transitive updates in both locks. Preserve existing
+platform-specific entries and markers, including Windows-only `tzdata`:
+compiling on Linux can omit those entries. Run the boundary check and verify
+the hash-locked install after reconciling the generated files.

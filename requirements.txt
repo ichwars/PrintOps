@@ -75,7 +75,8 @@ unicodedata2==15.1.0; python_version < "3.13"
 qrcode[pil]>=7.4.0
 # Keep the image codec floor explicit because Pillow is imported directly by
 # thumbnail, QR, report, and document-rendering paths.
-pillow>=12.2.0
+# 13.0.0 fixes the October 2026 image-codec security advisories.
+pillow>=13.0.0
 
 # PDF generation (spool label printing — #809)
 reportlab>=4.0.0
@@ -141,7 +142,8 @@ httpx>=0.26.0
 # imports it directly to pin S3 presigned downloads to the same trust store
 # httpx uses. Declare it directly so a future httpx release cannot silently
 # break that import.
-certifi>=2024.2.2
+# 2026.10.19 removes compromised emSign roots (PYSEC-2026-4320).
+certifi>=2026.10.19
 
 # HTTP client with browser TLS-fingerprint impersonation. Used only for
 # the bambulab.com firmware-download page in services/firmware_check.py:
@@ -165,14 +167,13 @@ urllib3>=2.8.0
 # resolver from picking them.
 starlette>=1.3.1
 
-# Transitive of pywebpush (unpinned `aiohttp` requirement). aiohttp 3.13.5
-# has CVE-2026-34993 and CVE-2026-47265, both fixed in 3.14.0. aiohttp
-# versions below 3.14.3 are additionally affected by PYSEC-2026-3545,
-# PYSEC-2026-3546 and PYSEC-2026-3547. pywebpush doesn't declare an upper
-# bound either way, so without this pin the resolver keeps installing a
-# vulnerable line. Our direct usage in services/external_camera.py
-# (ClientSession, ClientTimeout, ClientError, iter_chunked) is unaffected.
-aiohttp>=3.14.3
+# Transitive of pywebpush and imported directly by external_camera.py.
+# 3.14.4 fixes resource exhaustion (GHSA-2g87-pp6c-29x5), the missing
+# initial request/header timeout (GHSA-5wr8-gcqf-gqf3), and Secure shared
+# cookies leaking over HTTP (GHSA-494j-54xm-rwp3). 3.14.5 also fixes a
+# WebSocket regression from that release. Keep the floor explicit so
+# regenerating either lock cannot reintroduce the vulnerable versions.
+aiohttp>=3.14.5
 # aiohttp/yarl header and query mappings use multidict. 6.9.1 fixes leaked
 # references during items-view union/subtraction (CVE-2026-104874).
 multidict>=6.9.1

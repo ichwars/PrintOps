@@ -4,6 +4,9 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+### Security
+- Update aiohttp to 3.14.5 to resolve Dependabot alerts #112–#117 for resource exhaustion, missing initial request timeouts and Secure shared-cookie leakage. Refresh the affected Python and frontend security dependencies, and align the runtime metadata with the documented Python 3.11 minimum required by Pillow 13.
+
 ## [1.2.8.0] - 2026-10-15
 
 ### Added

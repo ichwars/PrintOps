@@ -9,15 +9,41 @@ import io
 import sys
 from collections import OrderedDict
 from http.client import HTTPResponse as StdlibResponse
+from http.cookies import SimpleCookie
 
 import jwt
 import pytest
+from aiohttp import CookieJar
 from multidict import CIMultiDict
 from urllib3.exceptions import ProtocolError
 from urllib3.response import HTTPResponse
 from virtualenv.create.pyenv_cfg import PyEnvCfg
+from yarl import URL
 
 SECRET = "dependency-regression-key-" + "x" * 64
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("secure", "url", "expected"),
+    [
+        (True, "http://camera.example/", False),
+        (True, "https://camera.example/", True),
+        (False, "http://camera.example/", True),
+    ],
+)
+async def test_shared_cookie_respects_secure_transport(secure, url, expected):
+    """GHSA-494j-54xm-rwp3: shared cookies must retain their Secure flag."""
+    cookies = SimpleCookie()
+    cookies["session"] = "camera-session"
+    cookies["session"]["secure"] = secure
+    jar = CookieJar()
+    jar.update_cookies(cookies)
+
+    filtered = jar.filter_cookies(URL(url))
+    assert ("session" in filtered) is expected
+    if expected:
+        assert filtered["session"].value == "camera-session"
 
 
 def _signed_payload(payload: bytes) -> str:
