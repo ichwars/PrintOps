@@ -1,6 +1,6 @@
 [project]
 name = "printops"
-version = "1.2.8.0"
+version = "1.2.8.1"
 description = "Operate and manage local 3D printing workflows"
 requires-python = ">=3.11"
 

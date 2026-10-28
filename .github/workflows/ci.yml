@@ -40,12 +40,12 @@ jobs:
         run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run ruff check
-        run: ruff check backend/ installers/windows/build.py installers/windows/tests/ tools/compare_upstream.py tools/run_upstream_comparison.py tools/upstream_telegram.py tools/listen_upstream_selections.py tools/tests/
+        run: ruff check backend/ installers/windows/ tools/compare_upstream.py tools/run_upstream_comparison.py tools/upstream_telegram.py tools/listen_upstream_selections.py tools/run_security_maintenance.py tools/check_security_audit.py tools/check_release_readiness.py tools/tests/
 
       - name: Run ruff format check
-        run: ruff format --check backend/ installers/windows/build.py installers/windows/tests/ tools/compare_upstream.py tools/run_upstream_comparison.py tools/upstream_telegram.py tools/listen_upstream_selections.py tools/tests/
+        run: ruff format --check backend/ installers/windows/ tools/compare_upstream.py tools/run_upstream_comparison.py tools/upstream_telegram.py tools/listen_upstream_selections.py tools/run_security_maintenance.py tools/check_security_audit.py tools/check_release_readiness.py tools/tests/
 
-      - name: Test upstream comparison with isolated Git histories
+      - name: Test upstream comparison and security maintenance safeguards
         run: python -m unittest discover -s tools/tests -v
 
       - name: Test Windows PDF runtime packaging
@@ -57,10 +57,22 @@ jobs:
       - name: Check dependency boundaries
         run: python tools/check_dependency_boundaries.py
 
+  windows-pdf-security:
+    name: Windows PDF Runtime Security
+    runs-on: windows-latest
+    needs: backend-lint
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Verify patched native decoder and standalone WOFF2 rendering
+        run: python installers/windows/verify_pdf_runtime.py
+
   backend-security:
     name: Backend Security
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
 
@@ -243,7 +255,6 @@ jobs:
   frontend-security:
     name: Frontend Security
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
 
@@ -265,27 +276,7 @@ jobs:
           # npm 10.x audit/ls reports vulns in its own bundled deps (npm, tar, minimatch)
           # so we parse package-lock.json directly to get the real prod dep list.
           npm audit --omit=dev --json > /tmp/audit.json 2>/dev/null || true
-          node -e "
-            const fs = require('fs');
-            const data = JSON.parse(fs.readFileSync('/tmp/audit.json', 'utf8'));
-            const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
-            const prod = new Set();
-            for (const [path, info] of Object.entries(lock.packages || {})) {
-              if (path && !info.dev && !info.devOptional) prod.add(path.split('node_modules/').pop());
-            }
-            const vulns = data.vulnerabilities || {};
-            const production = Object.entries(vulns).filter(([name]) => prod.has(name));
-            const blocking = production.filter(([, info]) =>
-              ['high', 'critical'].includes(info.severity) && info.fixAvailable
-            );
-            if (blocking.length) {
-              for (const [name, info] of blocking) console.log('FIXABLE ' + info.severity.toUpperCase() + ': ' + name);
-              process.exit(1);
-            }
-            const highCritical = production.filter(([, info]) => ['high', 'critical'].includes(info.severity)).length;
-            const skipped = Object.keys(vulns).length - production.length;
-            console.log('npm audit: ' + highCritical + ' high/critical (0 fixable), ' + Object.keys(vulns).length + ' total (' + skipped + ' npm-internal filtered)');
-          "
+          python3 ../tools/check_security_audit.py npm /tmp/audit.json --lock package-lock.json
 
   frontend-typecheck:
     name: Frontend Type Check

@@ -28,6 +28,20 @@ class NoRedirect(HTTPRedirectHandler):
         return None  # Never forward bot or GitHub credentials to a redirect target.
 
 
+class RateLimited(ValueError):
+    def __init__(self, retry_after: int):
+        super().__init__("Telegram-Ratelimit erreicht")
+        self.retry_after = retry_after
+
+
+def retry_delay(payload) -> int | None:
+    if not isinstance(payload, dict) or payload.get("ok") is not False or payload.get("error_code") != 429:
+        return None
+    parameters = payload.get("parameters")
+    delay = parameters.get("retry_after") if isinstance(parameters, dict) else None
+    return delay if type(delay) is int and 1 <= delay <= 3600 else None
+
+
 def request_json(url: str, *, data=None, headers=None, timeout=30):
     request = Request(
         url,
@@ -42,9 +56,19 @@ def request_json(url: str, *, data=None, headers=None, timeout=30):
         return json.loads(raw)
     except HTTPError as error:
         code = error.code
+        delay = None
+        if code == 429:
+            try:
+                raw = error.read(65_537)
+                if len(raw) <= 65_536:
+                    delay = retry_delay(json.loads(raw))
+            except (ValueError, OSError, UnicodeError, RecursionError):
+                pass
         error.close()
+        if delay is not None:
+            raise RateLimited(delay) from None
         raise ValueError(f"API-Aufruf fehlgeschlagen (HTTP {code})") from None
-    except (URLError, OSError, TimeoutError, UnicodeError, json.JSONDecodeError):
+    except (URLError, OSError, TimeoutError, UnicodeError, json.JSONDecodeError, RecursionError):
         raise ValueError("API-Aufruf fehlgeschlagen; Verbindung oder Antwort ungültig") from None
 
 
@@ -197,13 +221,25 @@ class Telegram:
         self.last_sent = 0.0
 
     def call(self, method: str, data=None, *, timeout=30):
-        payload = request_json(f"{TELEGRAM_API}/bot{self.token}/{method}", data=data or {}, timeout=timeout)
-        if not isinstance(payload, dict) or payload.get("ok") is not True:
-            raise ValueError("Telegram-Aufruf abgelehnt; Zugang, Chat oder gleichzeitigen Bot-Empfang prüfen")
-        return payload.get("result")
+        for attempt in range(4):
+            try:
+                payload = request_json(f"{TELEGRAM_API}/bot{self.token}/{method}", data=data or {}, timeout=timeout)
+                if isinstance(payload, dict) and payload.get("ok") is True:
+                    return payload.get("result")
+                delay = retry_delay(payload)
+                if delay is None:
+                    raise ValueError("Telegram-Aufruf abgelehnt; Zugang, Chat oder gleichzeitigen Bot-Empfang prüfen")
+            except RateLimited as error:
+                delay = error.retry_after
+            if attempt == 3:
+                raise ValueError("Telegram-Ratelimit bleibt bestehen; Versand später erneut starten") from None
+            # Only an explicit rejected flood-control response is safe to retry.
+            # Network errors and GitHub issue creation retain their existing semantics.
+            time.sleep(delay)
 
     def send(self, text: str, *, reply_to: int | None = None):
-        time.sleep(max(0, self.last_sent + 1.1 - time.monotonic()))
+        interval = 1.1 if self.chat.isascii() and self.chat.isdecimal() else 3.1
+        time.sleep(max(0, self.last_sent + interval - time.monotonic()))
         data = {"chat_id": self.chat, "text": text, "link_preview_options": {"is_disabled": True}}
         if self.thread is not None:
             data["message_thread_id"] = self.thread

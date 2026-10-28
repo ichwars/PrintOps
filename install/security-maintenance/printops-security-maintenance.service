@@ -1,0 +1,13 @@
+[Unit]
+Description=PrintOps weekly security fixes and verified security releases
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=%h/PrintOps
+ExecStart=/usr/bin/python3 tools/run_security_maintenance.py
+UMask=0077
+TimeoutStartSec=4h
+# Uses the current user's existing gh and Codex login; no credentials in this unit.

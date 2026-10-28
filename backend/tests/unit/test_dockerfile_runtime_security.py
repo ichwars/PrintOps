@@ -12,7 +12,7 @@ def test_runtime_image_removes_python_package_manager_tooling() -> None:
 
     dockerfile = dockerfile_path.read_text(encoding="utf-8")
 
-    assert "'setuptools>=83.0.0'" in dockerfile
+    assert "'setuptools>=84.1.0'" in dockerfile
     assert "python -m pip uninstall -y pip setuptools wheel" in dockerfile
     assert "/usr/local/lib/python*/site-packages/pip*" in dockerfile
     assert "/usr/local/lib/python*/site-packages/setuptools*" in dockerfile

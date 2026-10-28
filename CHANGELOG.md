@@ -4,9 +4,16 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.8.1] - 2026-10-28
+
 ### Security
+- Update DOMPurify to 3.4.17, runtime Brotli to 1.2.1, and development filelock, setuptools, msgpack and Zod to corrected versions. Preserve commercial-document renderer pins and platform-specific dependency markers. Fix issues #245 and #246 and the container Brotli alert #649.
+- Replace the separate Python and native Brotli decoders bundled with the Windows PDF runtime using verified artifacts. Test native decoder version and WOFF2-to-PDF rendering on Windows before release.
 - Update aiohttp to 3.14.5 to resolve Dependabot alerts #112–#117 for resource exhaustion, missing initial request timeouts and Secure shared-cookie leakage. Refresh the affected Python and frontend security dependencies, and align the runtime metadata with the documented Python 3.11 minimum required by Pillow 13.
 - Update the optional native slicer wrapper's Vitest toolchain to 4.1.12 to resolve Dependabot alerts #118–#119 for manual mock registration and Windows redirect traversal. Refresh the verified metadata overlay checksums while preserving Vite 7 and all production dependency artifacts.
+
+### Maintenance
+- Add a local weekly security-maintenance service with an isolated Codex worktree, explicit approval review, green PR checks and automatic verified security patch releases when shipped software is affected. Keep unfinished work and existing issues instead of creating duplicates. Make CI dependency-audit failures block the overall CI result.
 
 ## [1.2.8.0] - 2026-10-15
 

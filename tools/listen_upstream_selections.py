@@ -15,6 +15,7 @@ from run_upstream_comparison import telegram_settings
 from upstream_telegram import Catalog, GitHub, Telegram, parse_allowed_users, process_update
 
 ROOT = Path(__file__).resolve().parents[1]
+CURSOR_MAX_AGE = 5 * 24 * 60 * 60
 
 
 def allowed_users() -> set[int]:
@@ -56,12 +57,27 @@ def main(argv: list[str] | None = None) -> int:
             if catalog.get("accept_since") is None:
                 catalog.put("accept_since", int(time.time()))
             while True:
-                offset = catalog.get("offset") or 0
+                cursor = catalog.get("cursor")
+                offset = 0
+                if cursor is not None:
+                    if (
+                        not isinstance(cursor, dict)
+                        or type(cursor.get("offset")) is not int
+                        or cursor["offset"] < 0
+                        or type(cursor.get("received_at")) is not int
+                    ):
+                        raise ValueError("Ungültiger gespeicherter Telegram-Cursor")
+                    # IDs can restart after a week, and updates may have waited 24h.
+                    # Reset before that boundary; unknown legacy checkpoints also use
+                    # Telegram's earliest unconfirmed update, without discarding it.
+                    if 0 <= time.time() - cursor["received_at"] < CURSOR_MAX_AGE:
+                        offset = cursor["offset"]
                 updates = telegram.call(
                     "getUpdates", {"offset": offset, "timeout": 20, "allowed_updates": ["message"]}, timeout=30
                 )
                 if not isinstance(updates, list):
                     raise ValueError("Telegram hat keine gültige Update-Liste geliefert")
+                received_at = int(time.time())
                 for update in updates:
                     if not isinstance(update, dict) or type(update.get("update_id")) is not int:
                         raise ValueError("Telegram-Update ohne gültige ID")
@@ -69,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                         continue
                     process_update(update, catalog, telegram, github, users)
                     offset = update["update_id"] + 1
-                    catalog.put("offset", offset)
+                    catalog.put("cursor", {"offset": offset, "received_at": received_at})
                 if args.once:
                     return 0
     except (ValueError, OSError) as error:
