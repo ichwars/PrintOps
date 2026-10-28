@@ -25,6 +25,8 @@ def test_windows_onedir_runtime_is_staged_with_native_libraries(tmp_path, monkey
         build, "download_verified", lambda url, *_: weasy if url == build.WEASYPRINT_RUNTIME_URL else jre
     )
     commands = []
+    patches = []
+    monkeypatch.setattr(build, "stage_brotli_runtime", lambda *args, **kwargs: patches.append((args, kwargs)))
     monkeypatch.setattr(build.subprocess, "run", lambda command, **_: commands.append(command))
 
     if not include_executable:
@@ -40,4 +42,5 @@ def test_windows_onedir_runtime_is_staged_with_native_libraries(tmp_path, monkey
     assert not (runtime / "weasyprint/onedir").exists()
     assert (runtime / "java/bin/java.exe").read_bytes() == b"java fixture"
     assert len(commands) == 1
+    assert patches[0][0][0] == runtime / "weasyprint/dist/_internal"
     assert commands[0][1] == str(build.REPO_ROOT / "scripts/vendor_pdf_runtime.py")

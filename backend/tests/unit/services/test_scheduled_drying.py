@@ -20,6 +20,18 @@ from backend.app.services.scheduled_drying import ScheduledDryingService, schedu
 NOW = datetime(2026, 11, 1, 5, 30, tzinfo=timezone.utc)
 
 
+@pytest.fixture(autouse=True)
+def deterministic_scheduler_clock(monkeypatch):
+    """Synthetic telemetry must not expire when the real calendar advances."""
+
+    class SchedulerDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW.astimezone(tz) if tz else NOW.replace(tzinfo=None)
+
+    monkeypatch.setattr("backend.app.services.scheduled_drying.datetime", SchedulerDateTime)
+
+
 def fresh_state(now=NOW, kind="n3f", remaining=0):
     state = PrinterState(connected=True, state="IDLE", firmware_version="01.03.00.00")
     state.drying_telemetry.firmware_observed_at = now.timestamp()
@@ -348,9 +360,11 @@ async def test_dst_gap_creates_explained_skip_and_repeated_hour_never_replays(sc
     plan.local_time = "02:30"
     await db_session.commit()
     spring = datetime(2026, 3, 29, 1, 30, tzinfo=timezone.utc)
+    service.clock = lambda: spring
     await service.tick(spring)
     assert (await runs(db_session))[0].reason == "dst_gap"
     first = datetime(2026, 10, 25, 0, 30, tzinfo=timezone.utc)
+    service.clock = lambda: first
     state.drying_telemetry = fresh_state(first).drying_telemetry
     await service.tick(first)
     await service.tick(first + timedelta(hours=1))
