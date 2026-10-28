@@ -19,6 +19,7 @@ Screenshots gehören nicht in das Repository.
 | Lager | [Lagerorte](storage-locations.md) | Datenmodell und Verhalten strukturierter Lagerorte |
 | NFC und Filament | [Mobiler NFC-Ablauf für Fremdspulen](mobile-nfc-spool-workflow.md) | Produktvorschlag für Scan-Link, Smartphone-Tag und AMS-Zuweisung |
 | Netzwerk | [Proxy-Modus](images/proxy-mode-diagram.png) | Architekturdiagramm des Proxy-Modus |
+| Sicherheit und Release | [Release-Integrität und wöchentliche Wartung](release-security.md) | Security-Prüfungen, automatische Patch-Releases und Artefaktnachweise |
 | Sicherheit | [Alert-Triage 2026-07-23](security-alert-triage-2026-07-23.md) | Befund und Disposition der bereinigten GitHub-Sicherheitswarnungen |
 | Upstream | [Gesamtabgleich 2026-10-11](upstream-comparison-2026-10-11.md) | Historische Funktions- und Korrekturmatrix mit fünf Kategorien, Prioritäten und vollständiger Commit-Liste |
 | Upstream | [Umsetzung 2026-10-11](upstream-implementation-2026-10-11.md) | Umsetzung der 36 wichtigen und fehlenden Punkte auf eigenem main, erhaltene PrintOps-Funktionen und Prüfergebnisse |
@@ -33,6 +34,7 @@ Screenshots gehören nicht in das Repository.
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 | Entwicklung | [Python-Abhängigkeiten](dependency-locking.md) | Hashgesicherte Runtime-/Entwicklungs-Locks, Python-Mindestversion und gezielte Sicherheitsupdates |
 | Entwicklung | [Dateien und Auslieferungsbuild](repository-layout.md) | Repository-Hygiene, lokale Artefakte und das benötigte native Frontend-Bundle |
+| Release | [Version 1.2.8.1](releases/1.2.8.1.md) | Security-Patch für Frontend, Python, Container und Windows-PDF-Renderer |
 | Release | [Version 1.2.8.0](releases/1.2.8.0.md) | Neuerungen seit 1.2.7.9, Upgrade-Hinweise, Grenzen und Veröffentlichungsschritte |
 | Browser | [Browser-Kompatibilität](browser-compatibility.md) | Safari-16-Syntaxbaseline, README-Markdown und Grenzen der PDF-Vorschau |
 | Bedienung | [Touch und Tastatur](touch-and-keyboard-controls.md) | Sichtbare Karten-/Zeilenaktionen, Ordnermenüs und Fokusnavigation |
