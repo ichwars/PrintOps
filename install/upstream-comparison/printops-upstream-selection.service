@@ -1,0 +1,17 @@
+[Unit]
+Description=Receive authorized Telegram selections and create PrintOps upstream issues
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/dev/repos/PrintOps
+EnvironmentFile=/srv/dev/repos/PrintOps/.cache/upstream-comparison/telegram.env
+ExecStart=/usr/bin/python3 /srv/dev/repos/PrintOps/tools/listen_upstream_selections.py
+UMask=0077
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

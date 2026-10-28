@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly local Bambuddy comparison
+
+[Timer]
+OnCalendar=Mon *-*-* 08:23:00 Europe/Berlin
+Persistent=true
+Unit=printops-upstream-comparison.service
+
+[Install]
+WantedBy=timers.target
