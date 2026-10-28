@@ -1,0 +1,12 @@
+[Unit]
+Description=Compare PrintOps with Bambuddy and send the report to Telegram
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/dev/repos/PrintOps
+EnvironmentFile=/srv/dev/repos/PrintOps/.cache/upstream-comparison/telegram.env
+ExecStart=/usr/bin/python3 /srv/dev/repos/PrintOps/tools/run_upstream_comparison.py --numbered
+UMask=0077
+TimeoutStartSec=30min

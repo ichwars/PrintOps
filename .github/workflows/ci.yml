@@ -40,10 +40,13 @@ jobs:
         run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run ruff check
-        run: ruff check backend/ installers/windows/build.py installers/windows/tests/
+        run: ruff check backend/ installers/windows/build.py installers/windows/tests/ tools/compare_upstream.py tools/run_upstream_comparison.py tools/upstream_telegram.py tools/listen_upstream_selections.py tools/tests/
 
       - name: Run ruff format check
-        run: ruff format --check backend/ installers/windows/build.py installers/windows/tests/
+        run: ruff format --check backend/ installers/windows/build.py installers/windows/tests/ tools/compare_upstream.py tools/run_upstream_comparison.py tools/upstream_telegram.py tools/listen_upstream_selections.py tools/tests/
+
+      - name: Test upstream comparison with isolated Git histories
+        run: python -m unittest discover -s tools/tests -v
 
       - name: Test Windows PDF runtime packaging
         run: python -m pytest installers/windows/tests/ --no-cov -q
