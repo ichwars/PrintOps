@@ -47,8 +47,9 @@ The remaining release safeguards are:
 
 The Windows workflow builds the installer on `windows-latest`, renames every
 installer executable with an `-unsigned` suffix, writes `SIGNING_STATUS.txt`,
-computes SHA-256 checksums, and uploads all files as release assets for `v*`
-tags.
+computes SHA-256 checksums, and uploads all files to a draft release for `v*`
+tags. The upload action explicitly keeps the release as a draft; publication is
+a separate step after every required build, scan and attestation is verified.
 
 Users should expect Windows SmartScreen to show an unknown-publisher warning.
 Before installing, compare the downloaded installer against `SHA256SUMS.txt`

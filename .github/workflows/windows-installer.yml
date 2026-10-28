@@ -167,5 +167,8 @@ jobs:
       - name: Attach Windows installers to release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          # The pinned action otherwise finalizes even an existing draft.
+          # Publish only after all builds, scans and attestations are verified.
+          draft: true
           files: release/*
           fail_on_unmatched_files: true
