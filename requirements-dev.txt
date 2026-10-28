@@ -25,6 +25,9 @@ pre-commit>=4.0
 # October 2026 activation/config injection advisories; 21.14.12 includes
 # the subsequent compatibility fixes.
 virtualenv>=21.14.12
+# Fix the shared-directory lock and wheel-installation advisories in build tools.
+filelock>=4.2.1
+setuptools>=84.1.0
 
 # Required by pyftpdlib TLS_FTPHandler for mock FTP server tests
 pyOpenSSL>=26.4.0
@@ -32,9 +35,9 @@ pyOpenSSL>=26.4.0
 # Security scanning
 bandit[sarif]>=1.7.0
 pip-audit>=2.7.0
-# Transitive of pip-audit→CacheControl. 1.2.1 patches GHSA-6v7p-g79w-8964
-# (Unpacker SEGV/DoS on reuse after caught error). Not a runtime dep of
-# PrintOps — pinned here so the audit stays clean.
-msgpack>=1.2.1
+# Transitive of pip-audit→CacheControl. 1.2.3 also fixes CVE-2026-114613
+# (malformed map input leaks memory and stale streaming parser references).
+# This is audit tooling, not a PrintOps runtime dependency.
+msgpack>=1.2.3
 # Secrets scan: gitleaks (Go binary, not a Python package).
 # Install: go install github.com/zricethezav/gitleaks/v8@latest

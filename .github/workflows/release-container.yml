@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -14,6 +16,7 @@ concurrency:
 
 jobs:
   publish:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: release
@@ -55,8 +58,6 @@ jobs:
             tags+=("ghcr.io/ichwars/printops:rc")
           elif [[ "${GITHUB_REF_NAME}" =~ -daily\.[0-9]{8}$ ]]; then
             tags+=("ghcr.io/ichwars/printops:daily")
-          else
-            tags+=("ghcr.io/ichwars/printops:latest")
           fi
           {
             echo "value<<EOF"
@@ -101,3 +102,41 @@ jobs:
           subject-name: ghcr.io/ichwars/printops
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+
+  promote-latest:
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify published release and all exact-commit builds
+        id: readiness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: python3 tools/check_release_readiness.py "$RELEASE_TAG" --github-output "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote the verified multi-platform image
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          SOURCE_SHA: ${{ steps.readiness.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify "oci://ghcr.io/ichwars/printops:${RELEASE_TAG#v}" \
+            --repo ichwars/PrintOps --source-digest "$SOURCE_SHA" \
+            --signer-workflow ichwars/PrintOps/.github/workflows/release-container.yml
+          docker buildx imagetools create \
+            --tag ghcr.io/ichwars/printops:latest \
+            "ghcr.io/ichwars/printops:${RELEASE_TAG#v}"

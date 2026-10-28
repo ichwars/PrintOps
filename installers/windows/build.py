@@ -35,6 +35,11 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+if __package__:
+    from .brotli_runtime import stage_brotli_runtime
+else:
+    from brotli_runtime import stage_brotli_runtime
+
 # Repo root: installers/windows/build.py -> ../../
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INSTALLER_DIR = Path(__file__).resolve().parent
@@ -177,7 +182,7 @@ def stage_embedded_python() -> Path:
             "pip",
             "install",
             "--no-warn-script-location",
-            "setuptools",
+            "setuptools>=84.1.0",
             "wheel",
         ],
         check=True,
@@ -358,6 +363,9 @@ def stage_document_runtimes(python_dir: Path, *, verify_only: bool = False) -> N
         TEMURIN_JRE_SHA256,
     )
     if verify_only:
+        stage_brotli_runtime(
+            runtime / "weasyprint" / "dist" / "_internal", DOWNLOADS, download_verified, verify_only=True
+        )
         log("verified WeasyPrint/Pango and Temurin JRE archives")
         return
 
@@ -372,6 +380,7 @@ def stage_document_runtimes(python_dir: Path, *, verify_only: bool = False) -> N
     weasy_exe = weasy_target / "dist" / "weasyprint.exe"
     if not weasy_exe.exists():
         raise RuntimeError(f"official WeasyPrint executable missing at {weasy_exe}")
+    stage_brotli_runtime(weasy_target / "dist" / "_internal", DOWNLOADS, download_verified)
 
     jre_extract = DOWNLOADS / "temurin-jre-extracted"
     if jre_extract.exists():

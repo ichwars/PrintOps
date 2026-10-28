@@ -89,6 +89,9 @@ pypdfium2==5.14.0
 weasyprint==70.0
 pikepdf==10.10.0
 fonttools==4.63.0
+# FontTools/HTTP clients decode untrusted Brotli data. Fix CVE-2026-111497
+# without changing the pinned commercial-document renderer versions.
+brotli>=1.2.1
 jinja2==3.1.6
 cairosvg==2.9.1
 
