@@ -4,6 +4,15 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.8.2] - 2026-10-29
+
+### Security
+- Fix Dependabot alerts 123–126 (#250): update the optional native Slicer API to body-parser 2.4.0, Multer 2.5.0 and qs 6.17.1, including required decoder dependencies and verified metadata-overlay hashes. Keep the wrapper source, OrcaSlicer engine and existing upload/profile behavior pinned. These local-build fixes do not update third-party sidecar images.
+- Update development-only virtualenv to 21.14.13 to prevent Bash prompt metadata from executing commands after shell options change. Preserve unrelated Python locks and Windows markers. Add malicious and legitimate regression cases for all four dependency boundaries.
+
+### Maintenance
+- Include the previously merged numbered Telegram upstream comparison and issue selection from #244/#248, including rate-limit handling, durable issue mappings and safe recovery after long polling interruptions.
+
 ## [1.2.8.1] - 2026-10-28
 
 ### Security

@@ -20,4 +20,5 @@ backend/app/resources/pdf/verapdf-signing-key.asc text eol=lf
 *.otf binary
 
 # The native sidecar lock overlay is SHA256-verified during its Docker build.
+slicer-api/package.json text eol=lf
 slicer-api/package-lock.json text eol=lf

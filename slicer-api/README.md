@@ -157,22 +157,26 @@ The fork preserves inherited profile flattening, user/clone normalization,
 sentinel removal, companion templates, library profiles, renamed printer
 compatibility and existing upload limits. Its locked npm dependencies are
 installed with `npm ci --ignore-scripts`, compiled and pruned for production.
-A reviewed manifest/lock overlay keeps the pinned application source, engine
-and production dependency artifacts unchanged from the previous security overlay:
+A reviewed manifest/lock overlay updates affected dependencies while keeping
+the pinned application source and engine unchanged:
 
 | File | SHA256 |
 |---|---|
-| `package.json` | `129702617cc09053039e8ed01e5dccafe73415d83b41eff5d7fb5d5b068ca031` |
-| `package-lock.json` | `cd52e04cd0dde9ffa4b8174fdd9513d401b234d30537dd77a1000df020cd48be` |
+| `package.json` | `6c472adc721b40835444d1fd1ada08b7b0f1ef913d71208cf8109befbcb05775` |
+| `package-lock.json` | `9c4ebf729f6592b7dc800b425a563fba76a88147eb37d6d40699068ac962d296` |
 
 The development overlay uses exact `fix-esm-import-path` 1.10.3 in place of
 `tsc-esm-fix` and its unpatched glob/parser dependency chain. Vitest 4.1.12
 fixes the manual mock registration and Windows redirect traversal advisories;
 the explicit Vite 7 dependency retains the existing test toolchain. The build
 compiles the upstream TypeScript and fixes its relative ESM imports.
-Production dependencies retain the
-previous fixes, including Multer 2.4.0, body-parser 2.3.0, brace-expansion 2.1.7,
-lodash 4.18.1, path-to-regexp 8.4.2, proxy-addr 2.0.8 and qs 6.16.0.
+Production dependencies use Multer 2.5.0, body-parser 2.4.0 and qs 6.17.1,
+including their required decoder updates. They retain the previous fixes in
+brace-expansion 2.1.7, lodash 4.18.1, path-to-regexp 8.4.2 and proxy-addr 2.0.8.
+Build-time dependency regressions exercise compressed HTTP bodies, late multipart
+callbacks and hostile comma serialization before and after production pruning.
+These fixes apply to this local native build; separately maintained third-party
+images require their own updates.
 
 When the dependency build layer executes, it runs a full `npm audit` before
 compilation, the existing wrapper unit tests, and `npm audit --omit=dev` after

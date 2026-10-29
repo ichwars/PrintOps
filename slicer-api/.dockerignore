@@ -3,3 +3,5 @@
 !native_build.py
 !package.json
 !package-lock.json
+!tests/
+!tests/dependency-security.cjs

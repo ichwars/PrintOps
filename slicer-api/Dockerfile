@@ -9,11 +9,14 @@ RUN python3 native_build.py wrapper /build
 WORKDIR /build/wrapper
 # Security-only metadata overlays; wrapper application source remains pinned.
 COPY package.json package-lock.json /build/wrapper/
-RUN echo "129702617cc09053039e8ed01e5dccafe73415d83b41eff5d7fb5d5b068ca031  package.json" | sha256sum -c - \
-    && echo "cd52e04cd0dde9ffa4b8174fdd9513d401b234d30537dd77a1000df020cd48be  package-lock.json" | sha256sum -c -
-RUN npm ci --ignore-scripts && npm audit && npm run build \
+RUN echo "6c472adc721b40835444d1fd1ada08b7b0f1ef913d71208cf8109befbcb05775  package.json" | sha256sum -c - \
+    && echo "9c4ebf729f6592b7dc800b425a563fba76a88147eb37d6d40699068ac962d296  package-lock.json" | sha256sum -c -
+COPY tests/dependency-security.cjs /build/dependency-security.cjs
+RUN npm ci --ignore-scripts && npm audit \
+    && node /build/dependency-security.cjs /build/wrapper && npm run build \
     && npx --no-install vitest run tests/unit --maxWorkers=2 \
-    && npm prune --omit=dev --ignore-scripts && npm audit --omit=dev
+    && npm prune --omit=dev --ignore-scripts && npm audit --omit=dev \
+    && node /build/dependency-security.cjs /build/wrapper
 WORKDIR /build
 RUN python3 native_build.py engine /build --arch "$TARGETARCH"
 
