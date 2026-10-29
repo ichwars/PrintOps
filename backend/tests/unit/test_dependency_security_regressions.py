@@ -6,6 +6,9 @@ import base64
 import hashlib
 import hmac
 import io
+import os
+import shutil
+import subprocess
 import sys
 from collections import OrderedDict
 from http.client import HTTPResponse as StdlibResponse
@@ -117,6 +120,69 @@ def test_virtualenv_normal_prompt_preserves_spaces(tmp_path):
     path = tmp_path / "pyvenv.cfg"
     PyEnvCfg(OrderedDict(home="/trusted/python", prompt="PrintOps development"), path).write()
     assert 'prompt = "PrintOps development"' in path.read_text()
+
+
+@pytest.mark.skipif(sys.platform == "win32" or shutil.which("bash") is None, reason="Requires POSIX Bash activation")
+@pytest.mark.parametrize("mode", ["promptvars", "posix", "child"])
+@pytest.mark.parametrize("syntax", ["dollar", "backtick", "literal"])
+def test_virtualenv_bash_prompt_remains_data_after_shell_state_changes(tmp_path, mode, syntax):
+    """GHSA-cx6f-vjhg-g3cc: delayed prompt expansion must not execute metadata."""
+    probe = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", 'PS1=probe; printf "%s" "${PS1@P}"'],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if probe.returncode:
+        pytest.skip("Prompt-transform test driver requires Bash 4.4 or newer")
+    marker = tmp_path / "injected"
+    command = 'printf injected > "$PRINTOPS_PROMPT_MARKER"'
+    prompt = {
+        "dollar": "build $(" + command + ")",
+        "backtick": "build `" + command + "`",
+        "literal": "PrintOps development",
+    }[syntax]
+    environment = tmp_path / "environment"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "virtualenv",
+            "--no-seed",
+            "--no-periodic-update",
+            "--activators",
+            "bash",
+            "--prompt",
+            prompt,
+            str(environment),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    shell = r"""
+        shopt -u promptvars
+        source "$1"
+        case "$2" in
+            promptvars) shopt -s promptvars ;;
+            posix) set -o posix ;;
+            child) export PS1; exec bash --noprofile --norc -ic 'printf "%s\n" "${PS1@P}"' ;;
+        esac
+        printf '%s\n' "${PS1@P}"
+    """
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-c", shell, "activation-test", str(environment / "bin/activate"), mode],
+        env={**os.environ, "PRINTOPS_PROMPT_MARKER": str(marker), "PS1": "", "VIRTUAL_ENV_DISABLE_PROMPT": ""},
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert not marker.exists(), result.stdout
+    if syntax == "literal":
+        assert prompt in result.stdout
+    else:
+        assert "printf injected" in result.stdout
 
 
 @pytest.mark.parametrize("operation", ["reflected_union", "subtraction"])

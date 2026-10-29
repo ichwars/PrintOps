@@ -21,10 +21,9 @@ pip-tools==7.6.2
 pip>=26.2.2
 unicodedata2==15.1.0
 pre-commit>=4.0
-# pre-commit creates environments through virtualenv. 21.14.9 fixes the
-# October 2026 activation/config injection advisories; 21.14.12 includes
-# the subsequent compatibility fixes.
-virtualenv>=21.14.12
+# pre-commit creates environments through virtualenv. 21.14.13 also keeps
+# Bash prompts inert when prompt expansion is enabled after activation.
+virtualenv>=21.14.13
 # Fix the shared-directory lock and wheel-installation advisories in build tools.
 filelock>=4.2.1
 setuptools>=84.1.0
