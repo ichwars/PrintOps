@@ -77,6 +77,8 @@ async def crossflow(tmp_path, test_engine, monkeypatch):
     )
     head = SimpleNamespace(id=999, printer_id=printer.id)
     service = ScheduledDryingService(factory, manager)
+    # Admission rechecks must use the same clock as the synthetic telemetry.
+    service.clock = lambda: NOW
     monkeypatch.setattr(drying_module, "preheat_ownership", owner)
     monkeypatch.setattr("backend.app.services.automatic_drying_state.preheat_ownership", owner)
     monkeypatch.setattr("backend.app.services.smart_plug_manager.preheat_ownership", owner)
