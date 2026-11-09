@@ -2530,10 +2530,12 @@ py-vapid==1.9.4 \
     --hash=sha256:a004023560cbc54e34fc06380a0580f04ffcc788e84fb6d19e9339eeb6551a28 \
     --hash=sha256:f165a5bf90dcf966b226114f01f178f137579a09784c7f0628fa2f0a299741b6
     # via pywebpush
-pyasn1==0.6.4 \
-    --hash=sha256:9c447d8431c947fe4c8febc4ed9e760bc29011a5b01e5c74b67025bd9fb8ce81 \
-    --hash=sha256:deda9277cfd454080ec40b207fb6df82206a3a2688735233cdcd8d3d565f088b
-    # via ldap3
+pyasn1==0.6.5 \
+    --hash=sha256:4017b0fce125096b8573b39c989fdb1a4b19cf761e683398184550fea0e66587 \
+    --hash=sha256:6b11616a6bcf3a40e635f082bb232fa57b5e0dd7f517bd7ddd69ec3794508a47
+    # via
+    #   -r requirements.txt
+    #   ldap3
 pyasynchat==1.0.5 \
     --hash=sha256:35b7859515693e479e8d95ebe9f32cbf4d6312ab7599ced39fc24699e51de46f \
     --hash=sha256:36665473ae730dac51e6d7dad70f8295962120c830ab692f0a31efba32687e24

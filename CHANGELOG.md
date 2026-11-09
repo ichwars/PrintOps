@@ -4,6 +4,10 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+### Security
+- Update runtime/development pyasn1 to 0.6.5 for CVE-2026-119194 through CVE-2026-119197, preserving renderer pins and Windows dependency markers. Bound hostile ASN.1 decoder work and verify legitimate LDAP responses.
+- Update affected frontend-development and native-slicer minimatch copies to 11.0.1 and native-slicer glob to 14.0.2 for CVE-2026-118764 and CVE-2026-118773. Verify cancellation, pattern matching and recursive profile ZIP contents before and after production pruning; keep the native wrapper and OrcaSlicer source pins unchanged. Third-party sidecar images are unaffected.
+
 ## [1.2.8.2] - 2026-10-29
 
 ### Security
