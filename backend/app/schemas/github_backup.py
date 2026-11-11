@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
 from backend.app.core.compat import StrEnum
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
 
 
 class ScheduleType(StrEnum):
@@ -69,8 +70,10 @@ class GitHubBackupConfigCreate(BaseModel):
         )
 
 
-class GitHubBackupConfigUpdate(BaseModel):
+class GitHubBackupConfigUpdate(IgnoresNullForRequiredColumns):
     """Schema for updating GitHub backup config (all fields optional)."""
+
+    __orm_table__ = "github_backup_config"
 
     repository_url: str | None = Field(default=None, max_length=500)
     access_token: str | None = Field(default=None)

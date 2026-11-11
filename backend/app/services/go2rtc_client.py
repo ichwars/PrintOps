@@ -14,6 +14,7 @@ something in PrintOps is actually using it — mirrors the lifecycle
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import httpx
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 # network request. If it doesn't answer quickly something is wrong with the
 # sidecar itself and callers should fail fast rather than hang a viewer.
 _TIMEOUT = httpx.Timeout(5.0)
+_SNAPSHOT_LIMIT_BYTES = 10 * 1024 * 1024
 
 
 def stream_name(printer_id: int) -> str:
@@ -113,6 +115,29 @@ async def get_stream_details(name: str) -> dict | None:
     except httpx.HTTPError as e:
         logger.debug("go2rtc: failed to fetch stream details for %s: %s", name, e)
         return None
+
+
+async def get_snapshot(printer_id: int) -> bytes | None:
+    """Read one JPEG from the registered stream that the video viewer shares."""
+    try:
+        async with (
+            asyncio.timeout(5),
+            httpx.AsyncClient(timeout=_TIMEOUT) as client,
+            client.stream(
+                "GET", f"{settings.go2rtc_api_url}/api/frame.jpeg", params={"src": stream_name(printer_id)}
+            ) as response,
+        ):
+            response.raise_for_status()
+            frame = bytearray()
+            async for chunk in response.aiter_bytes(65536):
+                if len(frame) + len(chunk) > _SNAPSHOT_LIMIT_BYTES:
+                    return None
+                frame.extend(chunk)
+            if frame.startswith(b"\xff\xd8") and frame.endswith(b"\xff\xd9"):
+                return bytes(frame)
+    except (TimeoutError, httpx.HTTPError) as error:
+        logger.debug("go2rtc: snapshot unavailable for printer %s: %s", printer_id, type(error).__name__)
+    return None
 
 
 def mjpeg_url(name: str) -> str:

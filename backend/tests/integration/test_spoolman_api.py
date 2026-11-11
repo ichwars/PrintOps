@@ -491,6 +491,8 @@ class TestSpoolmanAPI:
         mock_spoolman_client.merge_spool_extra = AsyncMock(
             return_value={"id": 5, "extra": {"tag": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"'}}
         )
+        # A link onto a slot checks the spool is not archived first.
+        mock_spoolman_client.get_spool = AsyncMock(return_value={"id": 5, "archived": False, "extra": {}})
         printer = await printer_factory()
 
         response = await async_client.post(
@@ -616,6 +618,8 @@ class TestSpoolmanAPI:
         mock_spoolman_client.merge_spool_extra = AsyncMock(
             return_value={"id": 7, "extra": {"tag": '"A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"'}}
         )
+        # A link onto a slot checks the spool is not archived first.
+        mock_spoolman_client.get_spool = AsyncMock(return_value={"id": 7, "archived": False, "extra": {}})
         printer = await printer_factory()
 
         # First link to create the slot assignment

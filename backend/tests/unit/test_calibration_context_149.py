@@ -246,3 +246,12 @@ def test_reconnect_cannot_resolve_legacy_profile_from_stale_nozzle(monkeypatch):
     mqtt._request_topic_supported = False
     mqtt._on_connect(MagicMock(), None, None, 0)
     assert resolve_spool_calibration([stored], mqtt.state, "P2S", 1, 0, 0)[1] is None
+
+
+@pytest.mark.parametrize("model,expected", [("P2S", {"extruder": 0, "diameter": "0.4", "flow": "HS"}), ("H2D", None)])
+def test_slot_status_exposes_only_the_existing_authoritative_calibration_context(model, expected):
+    reported = state(flow="HS01")
+    reported.raw_data["vt_tray"] = {"id": 254, "tray_type": "PLA"}
+    payload = printer_state_to_dict(reported, model=model)
+    assert payload["ams"][0]["tray"][0]["calibration_context"] == expected
+    assert payload["vt_tray"][0]["calibration_context"] == expected

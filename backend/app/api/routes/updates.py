@@ -11,20 +11,24 @@ import time
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import APP_VERSION, GITHUB_REPO, settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
+from backend.app.services.subprocess_deadline import StepDeadlineExceeded, run_step
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/updates", tags=["updates"])
+
+GIT_STEP_TIMEOUT = 300.0
+INSTALL_STEP_TIMEOUT = 900.0
 
 # Global state for update progress
 _update_status = {
@@ -293,18 +297,17 @@ async def _origin_points_at_repo(git_path: str, git_config: list[str], app_dir, 
     dir — see #1715 for the separate-mount layout that proved why this
     must NOT be ``base_dir``."""
     try:
-        process = await asyncio.create_subprocess_exec(
+        process, stdout, _ = await run_step(
             git_path,
             *git_config,
             "remote",
             "get-url",
             "origin",
             cwd=str(app_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            step="git remote get-url",
+            timeout=GIT_STEP_TIMEOUT,
         )
-        stdout, _ = await process.communicate()
-    except (OSError, asyncio.CancelledError):
+    except OSError:
         # Fail closed: let the caller go through the rewrite branch if we
         # can't even invoke git. The unconditional set-url is the safer
         # fallback, only mildly destructive.
@@ -434,7 +437,7 @@ async def get_version():
 
 @router.get("/check")
 async def check_for_updates(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SYSTEM_READ),
 ):
     """Check GitHub for available updates."""
@@ -675,7 +678,7 @@ async def _finish_native_update(app_dir: Path) -> None:
     }
     # Runtime pins change with the verified release. Refresh the managed
     # runtime as part of the update; never download at application startup.
-    process = await asyncio.create_subprocess_exec(
+    process, _, stderr = await run_step(
         sys.executable,
         str(app_dir / "scripts" / "vendor_pdf_runtime.py"),
         "--destination",
@@ -683,10 +686,9 @@ async def _finish_native_update(app_dir: Path) -> None:
         "--cache-dir",
         str(app_dir / ".cache" / "pdf-runtime"),
         cwd=str(app_dir),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        step="PDF validator install",
+        timeout=INSTALL_STEP_TIMEOUT,
     )
-    _, stderr = await process.communicate()
     if process.returncode != 0:
         _update_status = {
             "status": "error",
@@ -704,6 +706,50 @@ async def _finish_native_update(app_dir: Path) -> None:
     }
 
     logger.info("Update completed successfully")
+
+
+async def _build_native_frontend(app_dir: Path) -> None:
+    """Optionally build the frontend shipped alongside the signed release."""
+    global _update_status
+
+    # Try to build frontend if npm is available (optional - static files are pre-built)
+    npm_path = _find_executable("npm")
+    frontend_dir = app_dir / "frontend"
+
+    if npm_path and frontend_dir.exists():
+        _update_status = {
+            "status": "installing",
+            "progress": 70,
+            "message": "Building frontend...",
+            "error": None,
+        }
+
+        try:
+            # npm install
+            await run_step(
+                npm_path,
+                "install",
+                cwd=str(frontend_dir),
+                step="npm install",
+                timeout=INSTALL_STEP_TIMEOUT,
+            )
+
+            # npm run build
+            process, stdout, stderr = await run_step(
+                npm_path,
+                "run",
+                "build",
+                cwd=str(frontend_dir),
+                step="npm run build",
+                timeout=INSTALL_STEP_TIMEOUT,
+            )
+
+            if process.returncode != 0:
+                logger.warning("Frontend build warning: %s", stderr.decode() if stderr else "unknown")
+        except StepDeadlineExceeded as exc:
+            logger.warning("%s; using pre-built static files", exc)
+    else:
+        logger.info("npm not found or frontend dir missing - using pre-built static files")
 
 
 async def _perform_update(target_ref: str):
@@ -764,7 +810,7 @@ async def _perform_update(target_ref: str):
         # origins get reset to HTTPS.
         https_url = f"https://github.com/{GITHUB_REPO}.git"
         if not await _origin_points_at_repo(git_path, git_config, app_dir, GITHUB_REPO):
-            process = await asyncio.create_subprocess_exec(
+            await run_step(
                 git_path,
                 *git_config,
                 "remote",
@@ -772,10 +818,9 @@ async def _perform_update(target_ref: str):
                 "origin",
                 https_url,
                 cwd=str(app_dir),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                step="git remote set-url",
+                timeout=GIT_STEP_TIMEOUT,
             )
-            await process.communicate()
 
         _update_status = {
             "status": "downloading",
@@ -788,7 +833,7 @@ async def _perform_update(target_ref: str):
         # Fetch only the selected release tag. A leading '+' permits an
         # upstream correction, but the replacement is still rejected unless
         # its annotated tag object carries a trusted signature.
-        process = await asyncio.create_subprocess_exec(
+        process, stdout, stderr = await run_step(
             git_path,
             *git_config,
             "fetch",
@@ -796,10 +841,9 @@ async def _perform_update(target_ref: str):
             "origin",
             f"+{tag_ref}:{tag_ref}",
             cwd=str(app_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            step="git fetch",
+            timeout=GIT_STEP_TIMEOUT,
         )
-        stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
             error_msg = stderr.decode() if stderr else "Git fetch failed"
@@ -814,17 +858,16 @@ async def _perform_update(target_ref: str):
 
         # Lightweight tags are mutable commit aliases and cannot carry an
         # annotated-tag signature. Reject them before signature verification.
-        process = await asyncio.create_subprocess_exec(
+        process, stdout, stderr = await run_step(
             git_path,
             *git_config,
             "cat-file",
             "-t",
             tag_ref,
             cwd=str(app_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            step="git cat-file",
+            timeout=GIT_STEP_TIMEOUT,
         )
-        stdout, stderr = await process.communicate()
         if process.returncode != 0 or stdout.decode().strip() != "tag":
             error_msg = stderr.decode().strip() if stderr else "release tag is not annotated"
             logger.error("Release tag type validation failed: %s", error_msg)
@@ -843,17 +886,16 @@ async def _perform_update(target_ref: str):
             "-c",
             f"gpg.ssh.allowedSignersFile={signers_file}",
         ]
-        process = await asyncio.create_subprocess_exec(
+        process, _, stderr = await run_step(
             git_path,
             *verification_config,
             "verify-tag",
             "--raw",
             tag_ref,
             cwd=str(app_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            step="git verify-tag",
+            timeout=GIT_STEP_TIMEOUT,
         )
-        _, stderr = await process.communicate()
         if process.returncode != 0:
             logger.error("Release tag signature verification failed: %s", stderr.decode(errors="replace"))
             _update_status = {
@@ -866,16 +908,15 @@ async def _perform_update(target_ref: str):
 
         # Resolve the verified tag once and reset to the immutable commit ID,
         # eliminating any ref race between verification and installation.
-        process = await asyncio.create_subprocess_exec(
+        process, stdout, stderr = await run_step(
             git_path,
             *git_config,
             "rev-parse",
             f"{tag_ref}^{{commit}}",
             cwd=str(app_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            step="git rev-parse",
+            timeout=GIT_STEP_TIMEOUT,
         )
-        stdout, stderr = await process.communicate()
         target_commit = stdout.decode().strip()
         if process.returncode != 0 or not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", target_commit):
             logger.error("Could not resolve verified release tag: %s", stderr.decode(errors="replace"))
@@ -895,17 +936,16 @@ async def _perform_update(target_ref: str):
         }
 
         # Hard reset to the commit resolved from the verified tag.
-        process = await asyncio.create_subprocess_exec(
+        process, stdout, stderr = await run_step(
             git_path,
             *git_config,
             "reset",
             "--hard",
             target_commit,
             cwd=str(app_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            step="git reset",
+            timeout=GIT_STEP_TIMEOUT,
         )
-        stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
             error_msg = stderr.decode() if stderr else "Git reset failed"
@@ -929,7 +969,7 @@ async def _perform_update(target_ref: str):
         # (where requirements.txt lives). app_dir is already resolved at the top
         # of this function; see the comment there for why every step uses it
         # instead of base_dir.
-        process = await asyncio.create_subprocess_exec(
+        process, stdout, stderr = await run_step(
             sys.executable,
             "-m",
             "pip",
@@ -938,54 +978,38 @@ async def _perform_update(target_ref: str):
             "requirements.txt",
             "-q",
             cwd=str(app_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            step="pip install",
+            timeout=INSTALL_STEP_TIMEOUT,
         )
-        stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
             logger.warning("pip install warning: %s", stderr.decode() if stderr else "unknown")
 
-        # Try to build frontend if npm is available (optional - static files are pre-built)
-        npm_path = _find_executable("npm")
-        frontend_dir = app_dir / "frontend"
-
-        if npm_path and frontend_dir.exists():
-            _update_status = {
-                "status": "installing",
-                "progress": 70,
-                "message": "Building frontend...",
-                "error": None,
-            }
-
-            # npm install
-            process = await asyncio.create_subprocess_exec(
-                npm_path,
-                "install",
-                cwd=str(frontend_dir),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await process.communicate()
-
-            # npm run build
-            process = await asyncio.create_subprocess_exec(
-                npm_path,
-                "run",
-                "build",
-                cwd=str(frontend_dir),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                logger.warning("Frontend build warning: %s", stderr.decode() if stderr else "unknown")
-        else:
-            logger.info("npm not found or frontend dir missing - using pre-built static files")
-
+        await _build_native_frontend(app_dir)
         await _finish_native_update(app_dir)
 
+    except StepDeadlineExceeded as exc:
+        logger.error("Update failed: %s", exc)
+        if exc.step == "git reset":
+            advice = "The release files may be incomplete. Retry the update before restarting."
+        elif exc.step in {"pip install", "PDF validator install"}:
+            advice = "The new release is in place. Retry the installation before restarting."
+        else:
+            advice = "Retry the update."
+        _update_status = {
+            "status": "error",
+            "progress": _update_status["progress"],
+            "message": f"Update failed: {exc.step} took too long",
+            "error": f"{exc}. {advice}",
+        }
+    except asyncio.CancelledError:
+        _update_status = {
+            "status": "error",
+            "progress": 0,
+            "message": "Update interrupted",
+            "error": "Retry the update.",
+        }
+        raise
     except ValueError as e:
         logger.error("Update security validation failed: %s", e)
         _update_status = {
@@ -1007,7 +1031,7 @@ async def _perform_update(target_ref: str):
 @router.post("/apply")
 async def apply_update(
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Apply available update (git pull + rebuild)."""

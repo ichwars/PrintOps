@@ -15,6 +15,7 @@ export interface NotificationProvider {
   on_print_failed: boolean;
   on_print_stopped: boolean;
   on_print_progress: boolean;
+  on_print_pause_upcoming?: boolean;
   on_print_missing_spool_assignment: boolean;
   // Printer status events
   on_printer_offline: boolean;
@@ -79,6 +80,7 @@ export interface NotificationProviderCreate {
   on_print_failed?: boolean;
   on_print_stopped?: boolean;
   on_print_progress?: boolean;
+  on_print_pause_upcoming?: boolean;
   on_print_missing_spool_assignment?: boolean;
   // Printer status events
   on_printer_offline?: boolean;
@@ -136,6 +138,7 @@ export interface NotificationProviderUpdate {
   on_print_failed?: boolean;
   on_print_stopped?: boolean;
   on_print_progress?: boolean;
+  on_print_pause_upcoming?: boolean;
   on_print_missing_spool_assignment?: boolean;
   // Printer status events
   on_printer_offline?: boolean;
@@ -358,7 +361,7 @@ export interface ObicoStatus {
   is_running: boolean;
   last_error: string | null;
   per_printer: Record<string, ObicoPrinterDetection>;
-  thresholds: { low: number; high: number };
+  thresholds: { low: number; high: number; pause?: number };
   history: ObicoDetectionEvent[];
   enabled: boolean;
   ml_url: string;
@@ -402,6 +405,7 @@ export interface GitHubBackupTriggerResponse {
 }
 
 export interface NotificationTestRequest {
+  provider_id?: number;
   provider_type: ProviderType;
   config: Record<string, unknown>;
 }

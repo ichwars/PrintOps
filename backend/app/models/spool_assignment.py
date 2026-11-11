@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
+from backend.app.utils.local_time import utcnow_naive
 
 
 class SpoolAssignment(Base):
@@ -18,7 +19,7 @@ class SpoolAssignment(Base):
     tray_id: Mapped[int] = mapped_column(Integer)  # 0-3
     fingerprint_color: Mapped[str | None] = mapped_column(String(8))  # tray_color snapshot
     fingerprint_type: Mapped[str | None] = mapped_column(String(50))  # tray_type snapshot
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, server_default=func.now())
 
     spool: Mapped["Spool"] = relationship(back_populates="assignments")
     printer: Mapped["Printer"] = relationship()

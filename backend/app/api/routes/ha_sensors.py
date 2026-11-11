@@ -7,9 +7,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.auth import OwnershipAccess, require_permission_with_key
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import resolve_printer_visibility
 from backend.app.models.printer import Printer
 from backend.app.models.printer_ha_sensor import PrinterHAInterlockAudit, PrinterHASensor
 from backend.app.models.user import User
@@ -33,11 +34,11 @@ router = APIRouter(prefix="/ha-sensors", tags=["ha-sensors"])
 # Both surfaces are "the Home Assistant integration", and a brand-new
 # permission would be missing from every existing custom role — users who can
 # manage plugs today would silently lose access to the sensors next to them.
-_READ = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_READ)
-_CREATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_CREATE)
-_UPDATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_UPDATE)
-_DELETE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_DELETE)
-_OVERRIDE = RequirePermissionIfAuthEnabled(Permission.QUEUE_UPDATE_ALL)
+_READ = Depends(require_permission_with_key(Permission.SMART_PLUGS_READ))
+_CREATE = Depends(require_permission_with_key(Permission.SMART_PLUGS_CREATE))
+_UPDATE = Depends(require_permission_with_key(Permission.SMART_PLUGS_UPDATE))
+_DELETE = Depends(require_permission_with_key(Permission.SMART_PLUGS_DELETE))
+_OVERRIDE = Depends(require_permission_with_key(Permission.QUEUE_UPDATE_ALL))
 
 
 class InterlockOverrideRequest(BaseModel):
@@ -94,14 +95,28 @@ async def _stage_override_revocation(
     return True
 
 
+def _ensure_printer_visible(access: OwnershipAccess, printer_id: int) -> None:
+    if not access.allows_printer(printer_id):
+        raise HTTPException(404, "Printer not found")
+
+
+async def _load_sensor(db: AsyncSession, sensor_id: int, access: OwnershipAccess) -> PrinterHASensor:
+    sensor = await db.get(PrinterHASensor, sensor_id)
+    if sensor is None or not access.allows_printer(sensor.printer_id):
+        raise HTTPException(404, "Sensor not found")
+    return sensor
+
+
 @router.get("/", response_model=list[PrinterHASensorResponse])
 async def list_ha_sensors(
     printer_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = _READ,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _READ,
 ):
     """List configured sensors, grouped by printer and in display order."""
     query = select(PrinterHASensor)
+    if (printer_scope := access.printer_ids) is not None:
+        query = query.where(PrinterHASensor.printer_id.in_(printer_scope))
     if printer_id is not None:
         query = query.where(PrinterHASensor.printer_id == printer_id)
     result = await db.execute(query.order_by(PrinterHASensor.printer_id, PrinterHASensor.sort_order))
@@ -112,8 +127,8 @@ async def list_ha_sensors(
 @router.get("/entities", response_model=list[HADisplayEntity])
 async def list_bindable_entities(
     search: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = _READ,
+    db: AsyncSession = DB_SESSION,
+    _: OwnershipAccess = _READ,
 ):
     """List the Home Assistant entities that can be bound to a printer."""
     from backend.app.api.routes.settings import get_homeassistant_settings
@@ -135,9 +150,10 @@ async def list_bindable_entities(
 )
 async def get_printer_interlock_override(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = _READ,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _READ,
 ):
+    _ensure_printer_visible(access, printer_id)
     if await db.get(Printer, printer_id) is None:
         raise HTTPException(404, "Printer not found")
     return await _override_status(printer_id, db)
@@ -149,9 +165,10 @@ async def get_printer_interlock_override(
 )
 async def get_printer_interlock_audit(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = _OVERRIDE,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _OVERRIDE,
 ):
+    _ensure_printer_visible(access, printer_id)
     result = await db.execute(
         select(PrinterHAInterlockAudit)
         .where(PrinterHAInterlockAudit.printer_id == printer_id)
@@ -167,16 +184,17 @@ async def get_printer_interlock_audit(
 async def override_printer_interlock(
     printer_id: int,
     data: InterlockOverrideRequest,
-    db: AsyncSession = Depends(get_db),
-    user: User | None = _OVERRIDE,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _OVERRIDE,
 ):
+    _ensure_printer_visible(access, printer_id)
     printer = await db.get(Printer, printer_id)
     if printer is None:
         raise HTTPException(404, "Printer not found")
     overrideable = await ha_sensor_manager.overrideable_sensor_names(db, printer_id)
     if not overrideable:
         raise HTTPException(409, "No unavailable fail-closed interlock can be overridden")
-    username = user.username if user else "anonymous"
+    username = access.user.username if access.user else "anonymous"
     db.add(
         PrinterHAInterlockAudit(
             printer_id=printer_id,
@@ -203,9 +221,10 @@ async def override_printer_interlock(
 )
 async def clear_printer_interlock_override(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
-    user: User | None = _OVERRIDE,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _OVERRIDE,
 ):
+    _ensure_printer_visible(access, printer_id)
     printer = await db.get(Printer, printer_id)
     if printer is None:
         raise HTTPException(404, "Printer not found")
@@ -215,7 +234,7 @@ async def clear_printer_interlock_override(
             PrinterHAInterlockAudit(
                 printer_id=printer_id,
                 printer_name=printer.name,
-                username=user.username if user else "anonymous",
+                username=access.user.username if access.user else "anonymous",
                 action="cleared",
                 reason=current.reason,
             )
@@ -224,7 +243,7 @@ async def clear_printer_interlock_override(
         ha_sensor_manager.clear_interlock_override(printer_id)
     logger.warning(
         "HA_INTERLOCK_OVERRIDE_CLEARED user=%s printer_id=%s",
-        user.username if user else "anonymous",
+        access.user.username if access.user else "anonymous",
         printer_id,
     )
     return await _override_status(printer_id, db)
@@ -233,8 +252,8 @@ async def clear_printer_interlock_override(
 @router.get("/by-printer/{printer_id}/readings", response_model=list[PrinterHASensorReading])
 async def get_printer_sensor_readings(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = _READ,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _READ,
 ):
     """Live state of a printer's card-visible sensors.
 
@@ -243,45 +262,47 @@ async def get_printer_sensor_readings(
     to its last persisted state, marked unreachable, rather than vanishing
     from the card on every restart.
     """
-    result = await db.execute(
-        select(PrinterHASensor)
-        .where(
-            PrinterHASensor.printer_id == printer_id,
-            PrinterHASensor.show_on_printer_card.is_(True),
+    await resolve_printer_visibility(db, access, Permission.SMART_PLUGS_READ, printer_id)
+    return [serialize_sensor_reading(sensor) for sensor in await card_sensors(db, [printer_id])]
+
+
+async def card_sensors(db: AsyncSession, printer_ids: list[int]) -> list[PrinterHASensor]:
+    return list(
+        await db.scalars(
+            select(PrinterHASensor)
+            .where(PrinterHASensor.printer_id.in_(printer_ids), PrinterHASensor.show_on_printer_card.is_(True))
+            .order_by(PrinterHASensor.sort_order, PrinterHASensor.id)
         )
-        .order_by(PrinterHASensor.sort_order, PrinterHASensor.id)
     )
 
-    readings = []
-    for sensor in result.scalars().all():
-        cached = ha_sensor_manager.get_reading(sensor.id)
-        readings.append(
-            PrinterHASensorReading(
-                id=sensor.id,
-                name=sensor.name,
-                entity_id=sensor.entity_id,
-                kind=sensor.kind,
-                device_class=sensor.device_class,
-                unit=sensor.unit,
-                state=cached.state if cached else sensor.last_state,
-                value=cached.value if cached else None,
-                alerting=cached.alerting if cached else False,
-                block_print=sensor.block_print,
-                failure_strategy=sensor.failure_strategy,
-                reachable=cached.reachable if cached else False,
-                last_changed=sensor.last_changed,
-            )
-        )
-    return readings
+
+def serialize_sensor_reading(sensor: PrinterHASensor) -> PrinterHASensorReading:
+    cached = ha_sensor_manager.get_reading(sensor.id)
+    return PrinterHASensorReading(
+        id=sensor.id,
+        name=sensor.name,
+        entity_id=sensor.entity_id,
+        kind=sensor.kind,
+        device_class=sensor.device_class,
+        unit=sensor.unit,
+        state=cached.state if cached else sensor.last_state,
+        value=cached.value if cached else None,
+        alerting=cached.alerting if cached else False,
+        block_print=sensor.block_print,
+        failure_strategy=sensor.failure_strategy,
+        reachable=cached.reachable if cached else False,
+        last_changed=sensor.last_changed,
+    )
 
 
 @router.post("/", response_model=PrinterHASensorResponse)
 async def create_ha_sensor(
     data: PrinterHASensorCreate,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = _CREATE,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _CREATE,
 ):
     """Bind a Home Assistant entity to a printer."""
+    _ensure_printer_visible(access, data.printer_id)
     printer = await db.get(Printer, data.printer_id)
     if not printer:
         raise HTTPException(404, "Printer not found")
@@ -312,12 +333,10 @@ async def create_ha_sensor(
 @router.get("/{sensor_id}", response_model=PrinterHASensorResponse)
 async def get_ha_sensor(
     sensor_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = _READ,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _READ,
 ):
-    sensor = await db.get(PrinterHASensor, sensor_id)
-    if not sensor:
-        raise HTTPException(404, "Sensor not found")
+    sensor = await _load_sensor(db, sensor_id, access)
     return sensor
 
 
@@ -325,12 +344,10 @@ async def get_ha_sensor(
 async def update_ha_sensor(
     sensor_id: int,
     data: PrinterHASensorUpdate,
-    db: AsyncSession = Depends(get_db),
-    user: User | None = _UPDATE,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _UPDATE,
 ):
-    sensor = await db.get(PrinterHASensor, sensor_id)
-    if not sensor:
-        raise HTTPException(404, "Sensor not found")
+    sensor = await _load_sensor(db, sensor_id, access)
 
     updates = data.model_dump(exclude_unset=True)
 
@@ -361,7 +378,7 @@ async def update_ha_sensor(
     override_revoked = await _stage_override_revocation(
         db,
         printer_id=sensor.printer_id,
-        user=user,
+        user=access.user,
         change="sensor updated",
     )
     for field, value in updates.items():
@@ -379,19 +396,17 @@ async def update_ha_sensor(
 @router.delete("/{sensor_id}")
 async def delete_ha_sensor(
     sensor_id: int,
-    db: AsyncSession = Depends(get_db),
-    user: User | None = _DELETE,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = _DELETE,
 ):
-    sensor = await db.get(PrinterHASensor, sensor_id)
-    if not sensor:
-        raise HTTPException(404, "Sensor not found")
+    sensor = await _load_sensor(db, sensor_id, access)
 
     name = sensor.name
     printer_id = sensor.printer_id
     override_revoked = await _stage_override_revocation(
         db,
         printer_id=printer_id,
-        user=user,
+        user=access.user,
         change="sensor deleted",
     )
     await db.delete(sensor)

@@ -745,7 +745,7 @@ class TestPipelineRoutesAcceptApiKeys:
         self, async_client: AsyncClient, db_session, auth_on
     ):
         allowed = await self._printer(db_session, name="class-allowed")
-        denied = await self._printer(db_session, name="class-denied")
+        await self._printer(db_session, name="class-denied")
         pipeline = await self._pipeline(db_session, target_model_class="X1C")
         key = await self._key(
             db_session,
@@ -761,7 +761,7 @@ class TestPipelineRoutesAcceptApiKeys:
         )
 
         assert response.status_code == 403
-        assert f"printer {denied.id}" in response.json()["detail"]
+        assert response.json()["detail"] == "This API key must target a specific printer"
 
     @pytest.mark.asyncio
     @pytest.mark.integration

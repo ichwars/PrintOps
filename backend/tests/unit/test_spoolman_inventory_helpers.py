@@ -192,6 +192,18 @@ class TestMapSpoolmanSpool:
         result = _map_spoolman_spool(spool)
         assert result["cost_per_kg"] == pytest.approx(20.0)
 
+    @pytest.mark.parametrize(("own", "rate"), [(None, 24), (0, 24), (9, 36)])
+    def test_display_rate_matches_spoolman_charge_without_replacing_own_price(self, own, rate):
+        spool = {
+            **MINIMAL_SPOOL,
+            "price": own,
+            "initial_weight": 250,
+            "filament": {**MINIMAL_SPOOL["filament"], "weight": 500.0, "price": 12.0},
+        }
+        result = _map_spoolman_spool(spool)
+        assert result["cost_per_kg"] == (None if own is None else own * 4)
+        assert result["effective_cost_per_kg"] == pytest.approx(rate)
+
     def test_none_price_stays_none(self):
         spool = {**MINIMAL_SPOOL, "price": None}
         result = _map_spoolman_spool(spool)

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_media_token_permission
 from backend.app.core.config import settings as app_settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.external_link import ExternalLink
 from backend.app.models.user import User
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/external-links", tags=["external-links"])
 
 @router.get("/", response_model=list[ExternalLinkResponse])
 async def list_external_links(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_READ),
 ):
     """List all external links ordered by sort_order."""
@@ -46,7 +46,7 @@ async def list_external_links(
 @router.post("/", response_model=ExternalLinkResponse)
 async def create_external_link(
     link_data: ExternalLinkCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_CREATE),
 ):
     """Create a new external link."""
@@ -74,7 +74,7 @@ async def create_external_link(
 @router.get("/{link_id}", response_model=ExternalLinkResponse)
 async def get_external_link(
     link_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_READ),
 ):
     """Get a specific external link."""
@@ -91,7 +91,7 @@ async def get_external_link(
 async def update_external_link(
     link_id: int,
     update_data: ExternalLinkUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_UPDATE),
 ):
     """Update an external link."""
@@ -117,7 +117,7 @@ async def update_external_link(
 @router.delete("/{link_id}")
 async def delete_external_link(
     link_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_DELETE),
 ):
     """Delete an external link."""
@@ -139,7 +139,7 @@ async def delete_external_link(
 @router.put("/reorder", response_model=list[ExternalLinkResponse])
 async def reorder_external_links(
     reorder_data: ExternalLinkReorder,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_UPDATE),
 ):
     """Update the sort order of external links."""
@@ -165,7 +165,7 @@ async def reorder_external_links(
 async def upload_icon(
     link_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_UPDATE),
 ):
     """Upload a custom icon for an external link."""
@@ -214,7 +214,7 @@ async def upload_icon(
 @router.delete("/{link_id}/icon", response_model=ExternalLinkResponse)
 async def delete_icon(
     link_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.EXTERNAL_LINKS_UPDATE),
 ):
     """Delete the custom icon for an external link."""
@@ -239,7 +239,7 @@ async def delete_icon(
 @router.get("/{link_id}/icon")
 async def get_icon(
     link_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_media_token_permission(Permission.EXTERNAL_LINKS_READ)),
 ):
     """Get the custom icon for an external link.

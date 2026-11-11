@@ -8,6 +8,7 @@ vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     getArchiveRuns: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
     getAuthStatus: vi.fn().mockResolvedValue({ auth_enabled: false }),

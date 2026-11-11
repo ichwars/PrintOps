@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,7 @@ from backend.app.core.auth import (
     require_permission_if_auth_enabled,
     security,
 )
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
 from backend.app.models.warehouse_article import WarehouseArticle, WarehouseArticleLedgerEntry
@@ -69,7 +69,7 @@ async def list_articles(
     low_stock: bool = False,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     statement = select(WarehouseArticle).order_by(WarehouseArticle.name, WarehouseArticle.id)
@@ -108,7 +108,7 @@ async def list_articles(
 @router.post("", response_model=WarehouseArticleRead, status_code=201)
 async def create_article(
     data: WarehouseArticleCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ):
     async with _errors(db):
@@ -121,7 +121,7 @@ async def create_article(
 @router.get("/{article_id}", response_model=WarehouseArticleRead)
 async def get_article(
     article_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     async with _errors(db):
@@ -133,7 +133,7 @@ async def update_article(
     article_id: int,
     data: WarehouseArticleUpdate,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     if data.is_active is False:
@@ -151,7 +151,7 @@ async def update_article(
 async def archive_article(
     article_id: int,
     version: int = Query(..., gt=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE),
 ):
     # Never physically remove a referenced article or its journal.
@@ -167,7 +167,7 @@ async def list_ledger(
     article_id: int,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     async with _errors(db):
@@ -186,7 +186,7 @@ async def list_ledger(
 @router.get("/{article_id}/reservations", response_model=list[WarehouseReservationRead])
 async def list_reservations(
     article_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     async with _errors(db):
@@ -198,7 +198,7 @@ async def list_reservations(
 async def add_movement(
     article_id: int,
     data: WarehouseMovementCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     async with _errors(db):

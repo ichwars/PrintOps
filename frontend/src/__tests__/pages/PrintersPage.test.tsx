@@ -9,6 +9,7 @@ import { render, selectComboboxOption } from '../utils';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
+import { batchesSettled } from '../../api/batch';
 
 const mockPrinters = [
   {
@@ -71,6 +72,52 @@ const selectToolbarDropdownOption = async (triggerName: RegExp, optionName: RegE
 };
 
 describe('PrintersPage', () => {
+  it.each([
+    [4, 'Pause in 4m at layer 42'],
+    [null, 'Pause at layer 42'],
+  ])('shows the next scheduled pause with %s minutes available', async (minutes, label) => {
+    server.use(
+      http.get('/api/v1/printers/', () => HttpResponse.json([mockPrinters[0]])),
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...mockPrinterStatus,
+        state: 'RUNNING',
+        subtask_name: 'Scheduled print',
+        layer_num: 31,
+        total_layers: 120,
+        remaining_time: 14,
+        next_pause: { layer: 42, minutes },
+      })),
+    );
+    render(<PrintersPage />);
+    expect(await screen.findByText(label)).toBeInTheDocument();
+  });
+
+  it('handles Escape as soon as the plate check result is rendered', async () => {
+    server.use(
+      http.get('/api/v1/printers/', () => HttpResponse.json([mockPrinters[0]])),
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({ ...mockPrinterStatus, chamber_light: true })),
+      http.get('/api/v1/printers/:id/camera/check-plate', () => HttpResponse.json({
+        is_empty: true, confidence: 1, difference_percent: 0, needs_calibration: false,
+      })),
+      http.get('/api/v1/printers/:id/camera/plate-detection/references', () => HttpResponse.json({ references: [] })),
+    );
+    let pressed = false;
+    const observer = new MutationObserver(() => {
+      if (pressed || !screen.queryByText('Build Plate Check')) return;
+      pressed = true;
+      fireEvent.keyDown(window, { key: 'Escape' });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    try {
+      render(<PrintersPage />);
+      await userEvent.click(await screen.findByTitle('Manage plate detection calibration'));
+      await waitFor(() => expect(pressed).toBe(true));
+      await waitFor(() => expect(screen.queryByText('Build Plate Check')).not.toBeInTheDocument());
+    } finally {
+      observer.disconnect();
+    }
+  });
+
   afterEach(() => {
     vi.mocked(localStorage.getItem).mockReset();
     vi.mocked(localStorage.setItem).mockReset();
@@ -121,6 +168,46 @@ describe('PrintersPage', () => {
   });
 
   describe('rendering', () => {
+    it('loads status for multiple printer cards in one request', async () => {
+      const singleStatus = vi.fn(() => HttpResponse.json(mockPrinterStatus));
+      const bulkStatus = vi.fn(({ request }: { request: Request }) => {
+        expect(new URL(request.url).searchParams.get('ids')?.split(',').sort()).toEqual(['1', '2']);
+        return HttpResponse.json([
+          { ...mockPrinterStatus, id: 1, state: 'RUNNING', subtask_name: 'Fleet batch probe' },
+          { ...mockPrinterStatus, id: 2 },
+        ]);
+      });
+      server.use(
+        http.get('/api/v1/printers/', () => HttpResponse.json(mockPrinters.map((printer) => ({ ...printer, enabled: true })))),
+        http.get('/api/v1/printers/:id/status', singleStatus),
+        http.get('/api/v1/bulk/printer-statuses', bulkStatus),
+      );
+      render(<PrintersPage />);
+
+      await screen.findByText('P1S Backup');
+      await waitFor(() => expect(bulkStatus).toHaveBeenCalledOnce());
+      await batchesSettled();
+      expect(singleStatus).not.toHaveBeenCalled();
+    });
+
+    it('loads one latest-print response and shows the result on the matching printer card', async () => {
+      const recentPrints = vi.fn(() => HttpResponse.json([
+        { printer_id: 1, archive_id: 11, run_id: 12, filename: 'first.3mf', print_name: 'First completed job', completed_at: '2026-11-09T12:00:00Z' },
+        { printer_id: 2, archive_id: 21, run_id: 22, filename: 'second.3mf', print_name: 'Second completed job', completed_at: '2026-11-09T13:00:00Z' },
+      ]));
+      server.use(
+        http.get('/api/v1/printers/', () => HttpResponse.json(mockPrinters.map((printer) => ({ ...printer, enabled: true })))),
+        http.get('/api/v1/archives/last-per-printer', recentPrints),
+      );
+      render(<PrintersPage />);
+
+      const first = await screen.findByTitle('First completed job');
+      const second = await screen.findByTitle('Second completed job');
+      expect(first.closest('#printer-card-1')).toBeInTheDocument();
+      expect(second.closest('#printer-card-2')).toBeInTheDocument();
+      expect(recentPrints).toHaveBeenCalledTimes(1);
+    });
+
     it('scales card bodies independently of grid size and restores the browser preference', async () => {
       const user = userEvent.setup();
       const storage = new Map<string, string>();
@@ -541,7 +628,7 @@ describe('PrintersPage', () => {
         expect(screen.queryByText('Mark plate as cleared')).not.toBeInTheDocument();
       });
 
-      const clearButton = screen.getByRole('button', { name: 'Mark plate as cleared' });
+      const clearButton = await screen.findByRole('button', { name: 'Mark plate as cleared' });
 
       fireEvent.click(clearButton);
 

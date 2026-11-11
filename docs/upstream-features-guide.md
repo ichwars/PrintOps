@@ -29,6 +29,16 @@ Platz. Bereits zum Druckstart übernommene Aufträge lassen sich dabei nicht
 mehr verschieben. Druckerrechte und die eigenen Batch-Zuordnungen bleiben
 wirksam.
 
+## Warteschlangenverlauf durchsuchen und leeren
+
+Öffne in der Warteschlange den Reiter **Verlauf**. Drucker, Standort und Status
+grenzen die Ergebnisse ein. **Mehr laden** ruft weitere Einträge ab.
+Zusammengehörige Einträge eines Auftrags erscheinen in derselben Gruppe.
+
+**Verlauf leeren** übernimmt die aktuellen Filter. PrintOps löscht nur passende
+Einträge, für die dein Konto Lese- und Löschrechte hat. Ein Eintrag, den PrintOps
+als Quelle zum erneuten Anlegen einer Auftragsgruppe braucht, bleibt erhalten.
+
 ## Materialnummern und Bestandswarnungen
 
 In der Filamentübersicht lassen sich Spulen nach Materialidentität gruppieren.
@@ -120,6 +130,36 @@ Fortschrittsmeldungen beginnen erst mit der ersten tatsächlichen Druckschicht.
 Vorheizen und vorbereitende Schritte zählen nicht als Druckfortschritt.
 ntfy-Ereignisse verwenden die konfigurierte Ereignispriorität.
 
+## Restzeit und geplante Druckpausen
+
+Wähle in den Anzeigeeinstellungen für den Browser-Tab zwischen
+Druckfortschritt und verbleibender Druckzeit. Sobald eine Restzeit vorliegt,
+zeigt der Browser-Tab sie bei laufendem Druck an.
+
+Die Druckerkarte zeigt die nächste geplante Pause aus der aktiven 3MF-Platte.
+Bei Standardgeschwindigkeit berechnet PrintOps die ungefähre Zeit bis zur
+Pause aus der Restzeit des Druckers und den Zeitmarken des Slicers. Bei
+abweichender Geschwindigkeit oder fehlender Zeitangabe zeigt die Karte die
+Schicht. Die Vorschau setzt voraus, dass PrintOps die 3MF-Platte dem aktiven
+Drucklauf zuordnen kann.
+
+Unter **Einstellungen → Integrationen → Benachrichtigungen** lässt sich die
+Vorwarnung je Anbieter einschalten. Der Vorlauf ist zwischen einer und
+120 Minuten einstellbar, standardmäßig sind es fünf Minuten. PrintOps
+speichert pro Drucklauf die zuletzt gemeldete Schicht. Eine nach Neustart
+weiterlaufende Platte löst dafür keine zweite Vorwarnung aus.
+
+## Wartung pro Drucker
+
+Für Wartungsaufgaben gilt das eingestellte Intervall je Drucker, auch
+direkt nach dem Eintrag im Verlauf. Ein erkannter Verbindungsabbruch
+unterbricht die Erfassung der Druckstunden. Nach dem erneuten Verbinden
+beginnt die Erfassung mit einem neuen Zeitbezug.
+
+Die Aktion zum Entfernen einer Zuweisung betrifft einen Drucker. Das Löschen
+einer benutzerdefinierten Wartungsaufgabe entfernt deren Zuweisungen und Verlauf
+auf allen Druckern.
+
 ## AMS, RFID und Druckeralarme
 
 Ein abgelehnter RFID-Refresh wird sichtbar gemeldet. Der zusätzliche
@@ -135,6 +175,30 @@ HMS-Alarme zeigen den Herstellertext und die tatsächliche Alarmstufe.
 Unbekannte Fehler bleiben mit ihrem vollständigen Code einsehbar. Eigene
 Aktionsdaten und die Zuordnung zum Druckauftrag bleiben erhalten. Die zwölf
 bisherigen Oberflächensprachen werden weiterhin unterstützt.
+
+## Git-Sicherung wiederherstellen
+
+Die Git-Sicherung des nativen Spulenbestands enthält den letzten Druckeinsatz
+und den gespeicherten Verbrauchswert vom letzten Zurücksetzen der Anzeige. Ältere Sicherungen ohne diese Werte behalten
+die lokalen Angaben beim Überschreiben. Ist ein Druck in der Sicherung noch
+aktiv, übernimmt PrintOps ihn auf einer neuen Instanz als abgebrochen. Hat
+dieselbe Instanz den Druck bereits abgeschlossen, bleibt das lokale Ergebnis
+beim Überschreiben erhalten.
+
+## Diagnosebericht prüfen und senden
+
+Stoppe die Aufzeichnung nach dem Reproduzieren des Fehlers. PrintOps zeigt
+deine Beschreibung, etwaige Anhänge und die aufgenommenen Debug-Protokolle
+zur Prüfung an. **Senden** übermittelt den Bericht mit den Systemdiagnosen.
+Mit **Verwerfen** löschst du den Entwurf.
+
+## Zwei-Faktor-Authentifizierung eines Benutzers zurücksetzen
+
+Administratoren mit Benutzerbearbeitungsrecht öffnen den betroffenen Benutzer
+unter **Benutzer und Sicherheit** und wählen **Zwei-Faktor-Authentifizierung
+zurücksetzen**. Falls PrintOps dein lokales Admin-Passwort verlangt, bestätige
+damit den Vorgang. Authenticator, E-Mail-Codes und Wiederherstellungscodes
+des Benutzers werden entfernt und seine Sitzungen beendet.
 
 ## Nach dem Upgrade
 
@@ -178,8 +242,8 @@ Bei einer Orca-Vorlage ohne Filament-ID verwenden die Slot-Konfiguration und die
 ## Bei verbundenen Anwendungen mit PrintOps anmelden
 
 Aktiviere zunächst die PrintOps-Authentifizierung. Unter **Einstellungen →
-Integrationen → API & Metriken → Verbundene Anwendungen** können Nutzer mit
-`settings:update` eine Anwendung samt exakter Rückruf-URL registrieren. Speichere
+Integrationen → API & Metriken → Verbundene Anwendungen** können Administratoren
+mit `settings:update` eine Anwendung samt exakter Rückruf-URL registrieren. Speichere
 Client-ID und Client-Geheimnis auf dem Server der externen Anwendung. Das Geheimnis
 wird nur beim Erstellen und Erneuern angezeigt; kopiere es direkt und schließe
 danach die Anzeige.

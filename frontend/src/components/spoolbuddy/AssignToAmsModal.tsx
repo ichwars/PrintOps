@@ -114,8 +114,8 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.getSettings(),
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: () => api.getUiFlags(),
     enabled: isOpen,
     staleTime: 5 * 60 * 1000,
   });
@@ -141,7 +141,7 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
   // Build fill-level override map from inventory assignments
   const fillOverrides = useMemo(() => {
     const map: Record<string, number> = {};
-    if (!assignments) return map;
+    if (!assignments || spoolmanMode) return map;
     for (const a of assignments) {
       const sp = a.spool;
       if (sp && sp.label_weight > 0 && sp.weight_used != null) {
@@ -150,7 +150,7 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
       }
     }
     return map;
-  }, [assignments]);
+  }, [assignments, spoolmanMode]);
 
   const amsThresholds: AmsThresholds | undefined = settings ? {
     humidityGood: Number(settings.ams_humidity_good) || 40,
@@ -226,7 +226,7 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
       }
       queryClient.invalidateQueries({ queryKey: ['slotPresets'] });
       queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments-all'] });
+      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments', 'all'] });
       setTimeout(() => onClose(), pendingConfig ? 2500 : 1500);
     },
     onError: (err) => {

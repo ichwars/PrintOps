@@ -135,6 +135,7 @@ export interface ColorSectionProps extends SectionProps {
 
 // Additional section props
 export interface AdditionalSectionProps extends SectionProps {
+  drying?: { value: string; onChange: (value: string) => void; details: string };
   spoolCatalog: { id: number; name: string; weight: number }[];
   currencySymbol: string;
   // Categories already used on other spools — drives the category autocomplete

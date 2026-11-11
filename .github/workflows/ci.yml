@@ -57,6 +57,24 @@ jobs:
       - name: Check dependency boundaries
         run: python tools/check_dependency_boundaries.py
 
+  backend-typecheck:
+    name: Backend Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install locked analysis environment
+        run: |
+          pip install --require-hashes -r requirements-dev.lock.txt
+          npm ci --prefix tools/backend-typecheck --ignore-scripts --no-audit --no-fund
+      - name: Check backend types
+        run: node tools/backend-typecheck/node_modules/basedpyright/index.js --pythonpath "$(command -v python)" --baselinemode=lock
+
   windows-pdf-security:
     name: Windows PDF Runtime Security
     runs-on: windows-latest
@@ -205,6 +223,21 @@ jobs:
           psql -U printops -d printops
           -c "ALTER DATABASE printops SET timezone TO 'Europe/Istanbul'"
 
+      - name: Fetch PostgreSQL upgrade baselines
+        run: >-
+          git fetch --no-tags --depth=1 origin
+          refs/tags/v1.2.8.1:refs/tags/v1.2.8.1
+          refs/tags/v1.2.8.2:refs/tags/v1.2.8.2
+
+      - name: Compare fresh and upgraded PostgreSQL schemas
+        run: python -m tools.check_postgres_upgrade
+
+      - name: Verify PostgreSQL legacy defaults, types and print-log references
+        run: >-
+          python -m pytest -q
+          backend/tests/postgres/test_column_defaults_live.py
+          backend/tests/postgres/test_print_log_relations_live.py
+
       - name: Run live PostgreSQL migration tests
         run: python -m pytest backend/tests/postgres/test_issue_142_postgres_runtime.py -q
 
@@ -223,6 +256,11 @@ jobs:
         env:
           F01_TEST_POSTGRES_DSN: ${{ env.PRINTOPS_POSTGRES_TEST_URL }}
         run: python -m pytest backend/tests/integration/test_telegram_owner_provenance.py backend/tests/integration/test_telegram_revocation_postgres.py -q
+
+      - name: Verify PostgreSQL fixture isolation
+        env:
+          TEST_POSTGRES_URL: ${{ env.PRINTOPS_POSTGRES_TEST_URL }}
+        run: python -m pytest backend/tests/postgres/test_fixture_schema_reset.py -q
 
       - name: Connected-app deletion/exchange lock ordering
         run: python -m pytest backend/tests/integration/test_connected_apps.py -q -k 'deletion_and_exchange'
@@ -408,7 +446,9 @@ jobs:
 
       - name: Run backend tests in Docker (shard ${{ matrix.shard }}/4)
         run: |
-          docker run --rm \
+          docker run --rm --init \
+            -v "$PWD/frontend/src:/app/frontend/src:ro" \
+            -v "$PWD/scripts:/app/scripts:ro" \
             -e TESTING=1 \
             -e PYTHONUNBUFFERED=1 \
             printops-backend-test:latest \

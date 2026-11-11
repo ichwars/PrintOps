@@ -2,13 +2,13 @@
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.auth import RequirePrinterPermissionIfAuthEnabled
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.printer_sensor_history import PrinterSensorHistory
 from backend.app.models.user import User
@@ -45,8 +45,8 @@ async def get_printer_sensor_history(
         default=None,
         description="Comma-separated list of sensor kinds (nozzle, nozzle_2, bed, chamber). All by default.",
     ),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTER_SENSOR_HISTORY_READ),
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePrinterPermissionIfAuthEnabled(Permission.PRINTER_SENSOR_HISTORY_READ),
 ):
     """Return per-sensor heater history for a printer."""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -111,8 +111,8 @@ async def get_printer_sensor_history(
 async def delete_old_history(
     printer_id: int,
     days: int = Query(default=30, ge=1, le=365, description="Delete data older than X days"),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTER_SENSOR_HISTORY_READ),
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePrinterPermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
 ):
     """Delete old printer sensor history for a printer."""
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)

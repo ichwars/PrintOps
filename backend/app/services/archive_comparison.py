@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from backend.app.models.archive import PrintArchive
 
@@ -181,6 +182,8 @@ class ArchiveComparisonService:
         self,
         archive_id: int,
         limit: int = 10,
+        *,
+        visible: tuple[ColumnElement[bool], ...] = (),
     ) -> list[dict]:
         """Find archives with similar settings for comparison.
 
@@ -192,7 +195,9 @@ class ArchiveComparisonService:
             List of similar archives with match reasons
         """
         # Get the reference archive
-        result = await self.db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
+        result = await self.db.execute(
+            select(PrintArchive).where(PrintArchive.id == archive_id, PrintArchive.deleted_at.is_(None), *visible)
+        )
         reference = result.scalar_one_or_none()
 
         if not reference:
@@ -210,6 +215,7 @@ class ArchiveComparisonService:
                     PrintArchive.id != archive_id,
                     PrintArchive.print_name == reference.print_name,
                     PrintArchive.deleted_at.is_(None),
+                    *visible,
                 )
                 .order_by(PrintArchive.created_at.desc())
                 .limit(limit)
@@ -236,6 +242,7 @@ class ArchiveComparisonService:
                     PrintArchive.id != archive_id,
                     PrintArchive.content_hash == reference.content_hash,
                     PrintArchive.deleted_at.is_(None),
+                    *visible,
                 )
                 .order_by(PrintArchive.created_at.desc())
                 .limit(limit - len(similar))
@@ -262,6 +269,8 @@ class ArchiveComparisonService:
                 .where(
                     PrintArchive.id != archive_id,
                     PrintArchive.filament_type == reference.filament_type,
+                    PrintArchive.deleted_at.is_(None),
+                    *visible,
                 )
                 .order_by(PrintArchive.created_at.desc())
                 .limit(limit - len(similar))

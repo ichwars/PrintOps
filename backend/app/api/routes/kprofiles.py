@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.kprofile_note import KProfileNote as KProfileNoteModel
 from backend.app.models.printer import Printer
@@ -21,6 +21,7 @@ from backend.app.schemas.kprofile import (
     KProfileNoteResponse,
     KProfilesResponse,
 )
+from backend.app.services.bambu_kprofiles import CALI_ACK_UNCONFIRMED, KProfileReadError
 from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_manager import printer_manager
 
@@ -33,7 +34,7 @@ router = APIRouter(prefix="/printers/{printer_id}/kprofiles", tags=["kprofiles"]
 async def get_kprofiles(
     printer_id: int,
     nozzle_diameter: str = "0.4",
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_READ),
 ):
     """Get K-profiles from a printer.
@@ -54,7 +55,10 @@ async def get_kprofiles(
         raise HTTPException(400, "Printer not connected")
 
     # Request K-profiles from printer
-    profiles = await client.get_kprofiles(nozzle_diameter=nozzle_diameter)
+    try:
+        profiles = await client.get_kprofiles(nozzle_diameter=nozzle_diameter)
+    except KProfileReadError as exc:
+        raise HTTPException(504, "The printer did not answer the K-profile request") from exc
 
     # Convert from MQTT dataclass to Pydantic schema
     return KProfilesResponse(
@@ -82,9 +86,9 @@ async def get_kprofiles(
 async def set_kprofile(
     printer_id: int,
     profile: KProfileCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_UPDATE),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Create or update a K-profile on the printer.
 
@@ -122,6 +126,7 @@ async def set_kprofile(
     from backend.app.utils.printer_models import is_dual_nozzle_model
 
     is_dual_nozzle = client._is_dual_nozzle or is_dual_nozzle_model(printer.model)
+    delete_confirmed = True
 
     if is_edit and is_dual_nozzle:
         # Dual-nozzle in-place edit: use cali_idx with slot_id=0 and empty setting_id
@@ -153,6 +158,7 @@ async def set_kprofile(
         ok, detail = await client.await_cali_ack(delete_success)
         if not ok:
             raise HTTPException(500, f"Printer rejected the K-profile edit: {detail}")
+        delete_confirmed = detail != CALI_ACK_UNCONFIRMED
 
         # Wait for printer to process the delete before adding
         await asyncio.sleep(0.5)
@@ -187,17 +193,53 @@ async def set_kprofile(
     if not ok:
         raise HTTPException(500, f"Printer rejected the K-profile: {detail}")
 
-    message = "K-profile updated successfully" if is_edit else "K-profile added successfully"
-    return {"success": True, "message": message}
+    confirmed = detail != CALI_ACK_UNCONFIRMED
+    if is_edit and not is_dual_nozzle:
+        await asyncio.sleep(0.5)
+        try:
+            table = await client.get_kprofiles(nozzle_diameter=profile.nozzle_diameter)
+        except KProfileReadError as exc:
+            logger.warning("Could not read the edited K-profile back: %s", exc)
+            table = None
+        if table is not None:
+            if not any(_is_saved_profile(stored, profile) for stored in table):
+                raise HTTPException(
+                    502, "The edited K-profile is not in the printer's table. Check the list before adding it again."
+                )
+            confirmed = delete_confirmed
+    message = (
+        ("K-profile updated successfully" if is_edit else "K-profile added successfully")
+        if confirmed
+        else "K-profile sent; the printer did not confirm it"
+    )
+    return {"success": True, "confirmed": confirmed, "message": message}
+
+
+def _is_saved_profile(stored, profile: KProfileCreate) -> bool:
+    """Readback must match the requested diameter, hotend and flow context too."""
+    from backend.app.utils.calibration_values import diameter, flow_type
+
+    try:
+        same_k = abs(float(stored.k_value) - float(profile.k_value)) < 1e-6
+    except (TypeError, ValueError):
+        return False
+    return (
+        same_k
+        and stored.name == profile.name
+        and stored.filament_id == profile.filament_id
+        and stored.extruder_id == profile.extruder_id
+        and diameter(stored.nozzle_diameter) == diameter(profile.nozzle_diameter)
+        and flow_type(stored.nozzle_id) == flow_type(profile.nozzle_id)
+    )
 
 
 @router.post("/batch", response_model=dict)
 async def set_kprofiles_batch(
     printer_id: int,
     profiles: list[KProfileCreate],
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_UPDATE),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Create multiple K-profiles in a single command (for dual-nozzle).
 
@@ -251,16 +293,20 @@ async def set_kprofiles_batch(
     if not ok:
         raise HTTPException(500, f"Printer rejected the K-profiles: {detail}")
 
-    return {"success": True, "message": f"Added {len(profiles)} K-profiles"}
+    return {
+        "success": True,
+        "confirmed": detail != CALI_ACK_UNCONFIRMED,
+        "message": f"Added {len(profiles)} K-profiles",
+    }
 
 
 @router.delete("/", response_model=dict)
 async def delete_kprofile(
     printer_id: int,
     profile: KProfileDelete,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_DELETE),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Delete a K-profile from the printer.
 
@@ -302,13 +348,13 @@ async def delete_kprofile(
     # Wait for printer to process the delete before frontend refetches
     await asyncio.sleep(0.5)
 
-    return {"success": True, "message": "K-profile deleted successfully"}
+    return {"success": True, "confirmed": detail != CALI_ACK_UNCONFIRMED, "message": "K-profile deleted successfully"}
 
 
 @router.get("/notes", response_model=KProfileNoteResponse)
 async def get_kprofile_notes(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_READ),
 ):
     """Get all K-profile notes for a printer.
@@ -336,7 +382,7 @@ async def get_kprofile_notes(
 async def set_kprofile_note(
     printer_id: int,
     note_data: KProfileNote,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_UPDATE),
 ):
     """Set or update a note for a K-profile.
@@ -385,7 +431,7 @@ async def set_kprofile_note(
 async def delete_kprofile_note(
     printer_id: int,
     setting_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.KPROFILES_DELETE),
 ):
     """Delete a note for a K-profile.

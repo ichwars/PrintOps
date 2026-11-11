@@ -1055,16 +1055,14 @@ class TestProjectExportImport:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_import_project_zip_classifies_plain_named_sliced_3mf(self, db_session):
+    async def test_import_project_zip_classifies_plain_named_sliced_3mf(self, async_client, db_session):
         """Restored project files use the same content classifier as uploads (#132)."""
         import io
         import json
         import zipfile
 
         from sqlalchemy import select
-        from starlette.datastructures import UploadFile
 
-        from backend.app.api.routes.projects import import_project_file
         from backend.app.models.library import LibraryFile
 
         sliced = io.BytesIO()
@@ -1085,11 +1083,11 @@ class TestProjectExportImport:
             )
             zf.writestr("files/Models/Labyrinth.3mf", sliced.getvalue())
 
-        await import_project_file(
-            file=UploadFile(io.BytesIO(project_zip.getvalue()), filename="project.zip"),
-            db=db_session,
-            _=None,
+        response = await async_client.post(
+            "/api/v1/projects/import/file",
+            files={"file": ("project.zip", project_zip.getvalue(), "application/zip")},
         )
+        assert response.status_code == 200, response.text
 
         imported = (
             await db_session.execute(select(LibraryFile).where(LibraryFile.filename == "Labyrinth.3mf"))

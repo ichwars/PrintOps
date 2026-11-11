@@ -4,19 +4,21 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.auth import OwnershipAccess
+from backend.app.core.row_visibility import library_read_criteria, resolve_row_visibility
 from backend.app.models.library import LibraryFile, LibraryFolder
-from backend.app.models.user import User
 from backend.app.schemas.library import CombineFilesRequest, FileUploadResponse
 from backend.app.utils.filename import InvalidFilenameError
 
 
-async def combine_files(
-    request: CombineFilesRequest, db: AsyncSession, current_user: User | None, read_auth: tuple[User | None, bool]
-):
+async def combine_files(request: CombineFilesRequest, db: AsyncSession, read_access: OwnershipAccess):
     """Create one bounded source 3MF with shared meshes and positioned copies."""
     from backend.app.api.routes import library
+    from backend.app.core.account_retirement import capture_account, require_current_account
     from backend.app.services.mesh_combine import CombinePart, MeshCombineError, combine_parts_to_3mf
 
+    visibility = await resolve_row_visibility(db, read_access.user, read_access.api_key)
+    account = capture_account(visibility.user)
     filename = request.filename.strip()
     if not filename:
         raise HTTPException(400, "Filename cannot be empty")
@@ -38,10 +40,11 @@ async def combine_files(
     copies: dict[int, int] = {}
     for item in request.items:
         copies[item.file_id] = copies.get(item.file_id, 0) + item.copies
-    rows = (await db.execute(LibraryFile.active().where(LibraryFile.id.in_(copies)))).scalars().all()
+    rows = await db.scalars(LibraryFile.active().where(LibraryFile.id.in_(copies), *library_read_criteria(visibility)))
     by_id = {row.id: row for row in rows}
-    user, can_read_all = read_auth
-    sources = [library._ensure_library_file_visible(by_id.get(file_id), user, can_read_all) for file_id in copies]
+    if copies.keys() != by_id.keys():
+        raise HTTPException(404, "Library file not found")
+    sources = [by_id[file_id] for file_id in copies]
     parts = []
     for source in sources:
         if not source.filename.lower().endswith(".stl"):
@@ -54,13 +57,14 @@ async def combine_files(
         content = await library.asyncio.to_thread(combine_parts_to_3mf, parts)
     except MeshCombineError as exc:
         raise HTTPException(400, str(exc)) from exc
+    owner_id = await require_current_account(db, account)
     row, _existing = await library.save_3mf_bytes_to_library(
         db,
         file_bytes=content,
         filename=filename,
         folder_id=request.folder_id,
         source_type="combined",
-        owner_id=current_user.id if current_user else None,
+        owner_id=owner_id,
     )
     row.file_metadata = {**(row.file_metadata or {}), "object_count": sum(copies.values())}
     await db.commit()

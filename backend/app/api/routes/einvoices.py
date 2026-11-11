@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import BinaryIO, NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.paths import resolve_data_dir
 from backend.app.core.permissions import Permission
 from backend.app.models.commercial_document import DocumentArtifact
@@ -208,7 +208,7 @@ def _stream(handle: BinaryIO):
 async def get_einvoice(
     artifact_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> EInvoiceArtifactRead:
     return _metadata(await _load_artifact(db, artifact_id, request))
@@ -218,7 +218,7 @@ async def get_einvoice(
 async def get_einvoice_validation(
     artifact_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> dict:
     artifact = await _load_artifact(db, artifact_id, request)
@@ -234,7 +234,7 @@ async def get_einvoice_validation(
 async def get_einvoice_manifest(
     artifact_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> dict:
     artifact = await _load_artifact(db, artifact_id, request)
@@ -248,7 +248,7 @@ async def get_einvoice_manifest(
 async def download_einvoice(
     artifact_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_EXPORT),
 ) -> StreamingResponse:
     artifact = await _load_artifact(db, artifact_id, request)

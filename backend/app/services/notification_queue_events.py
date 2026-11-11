@@ -91,9 +91,10 @@ class NotificationQueueEvents:
         target_model: str,
         waiting_reason: str,
         db: AsyncSession,
+        printer_id: int | None = None,
     ):
-        """Handle job waiting for filament event."""
-        providers = await self._get_providers_for_event(db, "on_queue_job_waiting", None)
+        """Notify only the assigned printer's channels and fleet channels."""
+        providers = await self._get_providers_for_event(db, "on_queue_job_waiting", printer_id)
         if not providers:
             return
 
@@ -104,7 +105,9 @@ class NotificationQueueEvents:
         }
 
         title, message = await self._build_message_from_template(db, "queue_job_waiting", variables)
-        await self._send_to_providers(providers, title, message, db, "queue_job_waiting", variables=variables)
+        await self._send_to_providers(
+            providers, title, message, db, "queue_job_waiting", printer_id=printer_id, variables=variables
+        )
 
     async def on_queue_job_skipped(
         self,
@@ -160,7 +163,7 @@ class NotificationQueueEvents:
         db: AsyncSession,
     ):
         """Handle all queue jobs completed event."""
-        providers = await self._get_providers_for_event(db, "on_queue_completed", None)
+        providers = await self._get_providers_for_event(db, "on_queue_completed", fleet_wide=True)
         if not providers:
             return
 
@@ -186,7 +189,7 @@ class NotificationQueueEvents:
         skip_digest_provider_ids: set[int] | None = None,
     ) -> dict[int, NotificationDelivery]:
         """Fire when an inventory SKU reaches its reorder point."""
-        providers = await self._get_providers_for_event(db, "on_stock_reorder_alert", None)
+        providers = await self._get_providers_for_event(db, "on_stock_reorder_alert", fleet_wide=True)
         if skip_break_subscribers:
             providers = [provider for provider in providers if not provider.on_stock_break_alert]
         if provider_ids is not None:
@@ -226,7 +229,7 @@ class NotificationQueueEvents:
         skip_digest_provider_ids: set[int] | None = None,
     ) -> dict[int, NotificationDelivery]:
         """Fire when a stock break is detected (stock runs out before lead time)."""
-        providers = await self._get_providers_for_event(db, "on_stock_break_alert", None)
+        providers = await self._get_providers_for_event(db, "on_stock_break_alert", fleet_wide=True)
         if provider_ids is not None:
             providers = [provider for provider in providers if provider.id in provider_ids]
         if not providers:

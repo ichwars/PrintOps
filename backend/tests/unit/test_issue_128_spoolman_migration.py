@@ -163,6 +163,8 @@ async def test_postgres_upgrade_is_idempotent_by_sql_construction():
     connection.begin_nested = lambda: _AsyncContext()
     connection.dialect.name = "postgresql"
     connection.run_sync = AsyncMock(return_value={"allowed_printer_ids"})
+    connection.exec_driver_sql = AsyncMock()
+    connection.scalar = AsyncMock(return_value=None)
     connection.execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
 
     with (
@@ -171,6 +173,7 @@ async def test_postgres_upgrade_is_idempotent_by_sql_construction():
         patch("backend.app.core.database._migrate_update_auto_link_constraint", AsyncMock()),
         patch("backend.app.core.database._migrate_widen_spoolman_slot_ams_id_range", AsyncMock()),
         patch("backend.app.core.database.migrate_spool_k_profile_contexts", AsyncMock()),
+        patch("backend.app.core.print_log_legacy_migration.has_legacy_print_log", AsyncMock(return_value=False)),
     ):
         await database_module.run_migrations(connection)
 
@@ -178,7 +181,8 @@ async def test_postgres_upgrade_is_idempotent_by_sql_construction():
     assert len(alters) == 1
     assert "IF NOT EXISTS" in alters[0]
     session_alters = [statement for statement in statements if "active_print_sessions" in statement]
-    assert len(session_alters) == 2
+    assert len(session_alters) == 3
     assert all("IF NOT EXISTS" in statement for statement in session_alters)
     assert any("subtask_id" in statement for statement in session_alters)
     assert any("spoolman_owns_usage" in statement for statement in session_alters)
+    assert any("spool_change_log" in statement for statement in session_alters)

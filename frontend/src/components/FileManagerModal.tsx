@@ -621,7 +621,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-bambu-dark-tertiary flex-shrink-0">
             <div className="flex items-center gap-3">
               <HardDrive className="w-5 h-5 text-bambu-green" />
               <div>
@@ -703,6 +703,7 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
           <Button
             variant="secondary"
             size="sm"
+            aria-label={t('common.refresh')}
             onClick={() => refetch()}
             disabled={isLoading}
           >
@@ -732,6 +733,10 @@ export function FileManagerModal({ printerId, printerName, onClose }: FileManage
               </div>
             ) : isError ? (
               <div role="alert" className="text-center py-12 text-red-400">{t('printerFiles.failedToLoad')}</div>
+            ) : data?.warnings?.includes('listing_timed_out') ? (
+              <div role="status" className="text-center py-12 text-amber-600 dark:text-amber-400">{t('printerFiles.listingTimedOut')}</div>
+            ) : data?.warnings?.includes('printer_unavailable') ? (
+              <div role="status" className="text-center py-12 text-amber-600 dark:text-amber-400">{t('printerFiles.printerUnavailable')}</div>
             ) : !data?.files?.length ? (
               <div className="text-center py-12 text-bambu-gray">
                 {translateInterface("orders.runtimeInterface.noFilesInThisDirectory")}

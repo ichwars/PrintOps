@@ -264,6 +264,16 @@ export const handlers = [
 
   // Settings
 
+  http.get('/api/v1/settings/ui-flags', () => HttpResponse.json({
+    default_filament_cost: 25.0,
+    currency: 'USD',
+    ams_humidity_good: 40,
+    ams_humidity_fair: 60,
+    ams_temp_good: 30,
+    ams_temp_fair: 35,
+    has_gcode_snippets: false,
+  })),
+
   http.get('/api/v1/settings/', () => {
     return HttpResponse.json({
       auto_archive: true,
@@ -434,6 +444,7 @@ export const handlers = [
 
   // Lists → empty arrays
   http.get('/api/v1/archives/', () => HttpResponse.json([])),
+  http.get('/api/v1/archives/merge-count', () => HttpResponse.json({ groups: 0 })),
   http.get('/api/v1/auth/oidc/providers', () => HttpResponse.json([])),
   http.get('/api/v1/auth/oidc/providers/all', () => HttpResponse.json([])),
   // OIDC icon proxy (#1333). Default returns a tiny PNG; individual tests

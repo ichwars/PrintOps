@@ -123,5 +123,34 @@ describe('ColorCatalogProvider', () => {
     // A hex that isn't in the (limited) catalog must fall through to HSL so
     // unknown colors still get *some* name rather than the raw hex code.
     expect(getColorName('123456')).toBe('Blue');
+  });  it('carries the Bambu colours through for nearest naming (#3279)', async () => {
+    server.use(
+      http.get('/api/v1/inventory/colors/map', () =>
+        HttpResponse.json({
+          colors: {},
+          by_material: {},
+          bambu: [
+            { hex: '5b6579', name: 'Blue Grey', material: 'PLA Basic' },
+            { hex: 'ff9016', name: 'Pumpkin Orange', material: 'PLA Basic' },
+            { hex: 'ff911a', name: 'Translucent Orange', material: 'PETG Translucent' },
+          ],
+          preset_materials: { GFG01: 'PETG Translucent' },
+        })
+      )
+    );
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <div data-testid="child">ok</div>
+      </Wrapper>
+    );
+
+    await waitFor(() => {
+      expect(getColorName('5A657BFF')).toBe('Blue Grey');
+    });
+    expect(getColorName('FF9017', '', 'GFG01')).toBe('Translucent Orange');
   });
+
+
 });

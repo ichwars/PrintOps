@@ -302,3 +302,29 @@ class TestBulkArchiveRestore:
 
         await db_session.refresh(archived)
         assert archived.archived_at is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.parametrize("bulk", [False, True])
+async def test_hard_delete_retains_spool_usage(async_client, spool_factory, db_session, test_engine, bulk):
+    from backend.app.core.spool_usage_migration import migrate_spool_usage_history
+
+    async with test_engine.begin() as connection:
+        await migrate_spool_usage_history(connection)
+
+    spool_id = (await spool_factory()).id
+    db_session.add(SpoolUsageHistory(spool_id=spool_id, print_name="Print", weight_used=7, cost=0.35))
+    await db_session.commit()
+
+    if bulk:
+        response = await async_client.post("/api/v1/inventory/spools/bulk-delete", json={"ids": [spool_id]})
+    else:
+        response = await async_client.delete(f"/api/v1/inventory/spools/{spool_id}")
+    assert response.status_code == 200, response.text
+
+    assert (await spool_factory()).id > spool_id
+    usage = await async_client.get("/api/v1/inventory/usage")
+    assert usage.status_code == 200, usage.text
+    (row,) = usage.json()
+    assert row["spool_id"] is None and row["weight_used"] == 7 and row["cost"] == 0.35

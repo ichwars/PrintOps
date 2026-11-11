@@ -902,8 +902,10 @@ function SettingsSection({
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
+                    aria-label={t('maintenance.deleteTypeConfirm', { name: type.name })}
                     onClick={() => {
-                      if (confirm(t('maintenance.deleteTypeConfirm', { name: type.name }))) {
+                      const title = t('maintenance.deleteTypeConfirm', { name: type.name });
+                      if (confirm(`${title}\n\n${t('maintenance.deleteTypeAllPrinters')}`)) {
                         onDeleteType(type.id);
                       }
                     }}

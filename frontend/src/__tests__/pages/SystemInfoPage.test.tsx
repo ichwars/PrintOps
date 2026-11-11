@@ -6,13 +6,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { SystemInfoPage } from '../../pages/SystemInfoPage';
-import { api, bugReportApi } from '../../api/client';
+import { api, bugReportApi, supportApi } from '../../api/client';
+
+const permissions = vi.hoisted(() => ({ canManageSupport: true }));
+
+vi.mock('../../contexts/AuthContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../contexts/AuthContext')>();
+  return {
+    ...actual,
+    useAuth: () => ({
+      ...actual.useAuth(),
+      hasPermission: (permission: string) => permission !== 'settings:update' || permissions.canManageSupport,
+    }),
+  };
+});
 
 // Mock the API client
 vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     getSystemInfo: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
     getLibraryStats: vi.fn().mockResolvedValue({ total_size_bytes: 0, total_files: 0, total_folders: 0 }),
@@ -113,11 +127,24 @@ const mockSystemInfo = {
 describe('SystemInfoPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    permissions.canManageSupport = true;
     (bugReportApi.getStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
       repository: 'ichwars/PrintOps',
       relay_configured: false,
       issue_url: 'https://github.com/ichwars/PrintOps/issues/new/choose',
     });
+  });
+
+  it('leaves support data and actions inaccessible to system-only viewers', async () => {
+    permissions.canManageSupport = false;
+    vi.mocked(api.getSystemInfo).mockResolvedValue(mockSystemInfo);
+
+    render(<SystemInfoPage />);
+
+    expect(await screen.findByText('printops-server')).toBeInTheDocument();
+    expect(screen.queryByText(/Support & Troubleshooting/i)).not.toBeInTheDocument();
+    expect(supportApi.getDebugLoggingState).not.toHaveBeenCalled();
+    expect(bugReportApi.getStatus).not.toHaveBeenCalled();
   });
 
   it('renders loading state initially', async () => {

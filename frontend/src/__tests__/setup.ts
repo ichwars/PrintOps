@@ -7,11 +7,13 @@ import '@testing-library/jest-dom';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { server } from './mocks/server';
+import { batchesSettled } from '../api/batch';
 
 // Initialize i18n for tests (suppresses react-i18next warnings)
-import i18n from '../i18n';
+import i18n, { i18nReady } from '../i18n';
 // Existing commerce fixtures render a German locale prop synchronously while
 // the global test language stays English. Preload its lazy catalog first.
+await i18nReady;
 await i18n.loadLanguages('de');
 
 // Setup MSW server
@@ -22,8 +24,11 @@ beforeAll(() =>
     onUnhandledRequest: 'bypass',
   })
 );
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  if (!vi.isFakeTimers()) {
+    await Promise.race([batchesSettled(), new Promise((resolve) => setTimeout(resolve, 200))]);
+  }
   server.resetHandlers();
 });
 afterAll(() => server.close());

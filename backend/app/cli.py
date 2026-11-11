@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from backend.app.core.auth import generate_api_key
+from backend.app.core.auth_sessions import delete_api_key_and_tokens
 from backend.app.core.database import async_session as default_session_maker, init_db
 from backend.app.core.db_dialect import upsert_setting
 from backend.app.models.api_key import APIKey
@@ -53,10 +54,6 @@ async def kiosk_bootstrap(
                 f"API key {name!r} already exists (prefix={existing.key_prefix}). Re-run with --force to rotate."
             )
 
-        if existing:
-            await db.delete(existing)
-            await db.flush()
-
         full_key, key_hash, key_prefix = generate_api_key()
         row = APIKey(
             name=name,
@@ -85,6 +82,11 @@ async def kiosk_bootstrap(
             expires_at=None,
         )
         db.add(row)
+        if existing:
+            # Allocate the replacement before deleting the old key, including on
+            # older SQLite schemas encountered by one-off bootstrap callers.
+            await db.flush()
+            await delete_api_key_and_tokens(db, existing)
 
         # Mark first-run setup as completed so the kiosk URL loads directly
         # instead of being force-redirected to /setup by AuthContext. Without

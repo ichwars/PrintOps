@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -40,7 +40,7 @@ import { FilamentTrends } from '../components/FilamentTrends';
 import { Dashboard, type DashboardWidget } from '../components/Dashboard';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatWeight } from '../utils/weight';
-import { parseUTCDate, formatDuration } from '../utils/date';
+import { parseUTCDate, formatDuration, localDateKey } from '../utils/date';
 import { MetricToggle, type Metric } from '../components/MetricToggle';
 import { LegacyDatePicker } from '../components/ui';
 import { MeasuredResponsiveContainer } from '../components/charts/MeasuredResponsiveContainer';
@@ -56,28 +56,27 @@ interface TimeframeState {
 
 function computeDateRange(preset: TimeframePreset): { dateFrom?: string; dateTo?: string } {
   const now = new Date();
-  const y = now.getUTCFullYear(), m = now.getUTCMonth(), d = now.getUTCDate();
-  const fmt = (dt: Date) => dt.toISOString().split('T')[0];
-  const todayStr = fmt(now);
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  const todayStr = localDateKey(now);
 
   switch (preset) {
     case 'today':
       return { dateFrom: todayStr, dateTo: todayStr };
     case 'this-week': {
-      const day = now.getUTCDay();
-      const start = new Date(Date.UTC(y, m, d - (day === 0 ? 6 : day - 1)));
-      return { dateFrom: fmt(start), dateTo: todayStr };
+      const day = now.getDay();
+      const start = new Date(y, m, d - (day === 0 ? 6 : day - 1));
+      return { dateFrom: localDateKey(start), dateTo: todayStr };
     }
     case 'this-month':
-      return { dateFrom: fmt(new Date(Date.UTC(y, m, 1))), dateTo: todayStr };
+      return { dateFrom: localDateKey(new Date(y, m, 1)), dateTo: todayStr };
     case 'last-7':
-      return { dateFrom: fmt(new Date(Date.UTC(y, m, d - 6))), dateTo: todayStr };
+      return { dateFrom: localDateKey(new Date(y, m, d - 6)), dateTo: todayStr };
     case 'last-30':
-      return { dateFrom: fmt(new Date(Date.UTC(y, m, d - 29))), dateTo: todayStr };
+      return { dateFrom: localDateKey(new Date(y, m, d - 29)), dateTo: todayStr };
     case 'last-90':
-      return { dateFrom: fmt(new Date(Date.UTC(y, m, d - 89))), dateTo: todayStr };
+      return { dateFrom: localDateKey(new Date(y, m, d - 89)), dateTo: todayStr };
     case 'this-year':
-      return { dateFrom: fmt(new Date(Date.UTC(y, 0, 1))), dateTo: todayStr };
+      return { dateFrom: localDateKey(new Date(y, 0, 1)), dateTo: todayStr };
     case 'all-time':
       return { dateFrom: undefined, dateTo: undefined };
     case 'custom':
@@ -987,6 +986,7 @@ function RecordsWidget({ archives, currency }: { archives: ArchiveSlim[]; curren
 }
 
 export function StatsPage() {
+  const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { showToast } = useToast();
   const { hasPermission, authEnabled } = useAuth();
@@ -1069,8 +1069,8 @@ export function StatsPage() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const { data: users } = useQuery({
@@ -1109,7 +1109,13 @@ export function StatsPage() {
     try {
       const result = await api.recalculateCosts();
       await Promise.all([refetchStats(), refetchArchives()]);
-      showToast(t('stats.recalculatedCosts', { count: result.updated }));
+      for (const key of ['archives', 'printLog', 'archive-runs', 'spool-usage', 'all-usage-history-forecast']) {
+        void queryClient.invalidateQueries({ queryKey: [key] });
+      }
+      const details = [t('stats.recalculatedCosts', { count: result.updated })];
+      if (result.usage_repriced) details.push(t('stats.repricedUsage', { count: result.usage_repriced }));
+      if (result.spoolman_unreachable) details.push(t('stats.repricingSpoolmanUnavailable', { count: result.spoolman_unreachable }));
+      showToast(details.join('. '), result.spoolman_unreachable ? 'warning' : 'success');
     } catch {
       showToast(t('stats.recalculateFailed'), 'error');
     } finally {
@@ -1384,7 +1390,7 @@ export function StatsPage() {
                         <label className="text-xs text-bambu-gray block mb-1">{t('stats.timeframe.from')}</label>
                         <LegacyDatePicker
                           value={timeframe.dateFrom || ''}
-                          max={timeframe.dateTo || new Date().toISOString().split('T')[0]}
+                          max={timeframe.dateTo || localDateKey(new Date())}
                           onChange={(e) => setTimeframe(prev => ({ ...prev, dateFrom: e.target.value || undefined }))}
                           className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-md px-3 py-1.5 text-sm text-white [color-scheme:dark]"
                         />
@@ -1394,7 +1400,7 @@ export function StatsPage() {
                         <LegacyDatePicker
                           value={timeframe.dateTo || ''}
                           min={timeframe.dateFrom}
-                          max={new Date().toISOString().split('T')[0]}
+                          max={localDateKey(new Date())}
                           onChange={(e) => setTimeframe(prev => ({ ...prev, dateTo: e.target.value || undefined }))}
                           className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-md px-3 py-1.5 text-sm text-white [color-scheme:dark]"
                         />

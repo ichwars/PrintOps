@@ -47,8 +47,8 @@ class TestURLValidation:
     def test_loopback_allowed_for_local_bridges(self, service):
         assert service._validate_url("http://127.0.0.1/api") is True
 
-    def test_link_local_non_metadata_allowed_for_lan_bridges(self, service):
-        assert service._validate_url("http://169.254.1.1/api") is True
+    def test_ipv4_link_local_is_blocked(self, service):
+        assert service._validate_url("http://169.254.1.1/api") is False
 
     def test_cloud_metadata_blocked(self, service):
         assert service._validate_url("http://169.254.169.254/latest/meta-data") is False

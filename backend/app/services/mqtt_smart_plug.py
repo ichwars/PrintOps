@@ -6,6 +6,7 @@ This service enables integration with Shelly, Zigbee2MQTT, and other MQTT-based 
 import asyncio
 import json
 import logging
+import math
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -26,7 +27,9 @@ class SmartPlugMQTTData:
     power: float | None = None  # Current power in watts
     energy: float | None = None  # Energy in kWh (today)
     state: str | None = None  # "ON" or "OFF"
-    last_seen: datetime = field(default_factory=datetime.utcnow)
+    last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    power_at: datetime | None = None
+    energy_at: datetime | None = None
 
 
 @dataclass
@@ -269,14 +272,22 @@ class MQTTSmartPlugService:
                 # Process based on data type
                 if data_type == "power":
                     try:
-                        data.power = float(raw_value) * config.multiplier
+                        power = float(raw_value) * config.multiplier
+                        if not math.isfinite(power):
+                            continue
+                        data.power = power
+                        data.power_at = data.last_seen
                         logger.debug("MQTT smart plug %s: power=%s", plug_id, data.power)
                     except (ValueError, TypeError):
                         pass  # Ignore unparseable power reading from MQTT
 
                 elif data_type == "energy":
                     try:
-                        data.energy = float(raw_value) * config.multiplier
+                        energy = float(raw_value) * config.multiplier
+                        if not math.isfinite(energy):
+                            continue
+                        data.energy = energy
+                        data.energy_at = data.last_seen
                         logger.debug("MQTT smart plug %s: energy=%s", plug_id, data.energy)
                     except (ValueError, TypeError):
                         pass  # Ignore unparseable energy reading from MQTT

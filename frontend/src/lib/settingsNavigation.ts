@@ -15,6 +15,7 @@ export type LegacySettingsTab =
   | 'filament'
   | 'network'
   | 'apikeys'
+  | 'camera'
   | 'virtual-printer'
   | 'spoolbuddy'
   | 'failure-detection'
@@ -26,7 +27,7 @@ export type SettingsTab = CanonicalSettingsTab | LegacySettingsTab;
 
 export type UsersSubTab = 'users' | 'email' | 'ldap' | 'oidc' | 'twofa' | 'security';
 
-export type PrinterProductionSubTab = 'devices' | 'print-process' | 'pipelines' | 'failure-detection';
+export type PrinterProductionSubTab = 'devices' | 'cameras' | 'print-process' | 'pipelines' | 'failure-detection';
 
 export type ProjectManagementSubTab = 'files';
 
@@ -100,6 +101,7 @@ const LEGACY_TAB_ALIASES: Record<LegacySettingsTab, CanonicalSettingsTab> = {
   filament: 'warehouse-material',
   network: 'integrations',
   apikeys: 'integrations',
+  camera: 'printers-production',
   'virtual-printer': 'printers-production',
   spoolbuddy: 'warehouse-material',
   'failure-detection': 'printers-production',
@@ -128,6 +130,7 @@ const LEGACY_TAB_DEFAULT_SUBTABS: Partial<Record<LegacySettingsTab, {
   network: { integrationSubTab: 'smart-home' },
   plugs: { integrationSubTab: 'smart-plugs' },
   apikeys: { integrationSubTab: 'api-metrics' },
+  camera: { printerProductionSubTab: 'cameras' },
   backup: { operationSubTab: 'backups' },
 };
 
@@ -135,6 +138,7 @@ const LEGACY_TAB_DEFAULT_ANCHORS: Partial<Record<LegacySettingsTab, string>> = {
   users: 'card-users',
   email: 'card-smtp',
   apikeys: 'card-createapi',
+  camera: 'card-camera',
   queue: 'card-print-options',
   'virtual-printer': 'card-vp',
   'failure-detection': 'card-fd-ml',

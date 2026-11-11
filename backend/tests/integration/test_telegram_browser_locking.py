@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend.app.api.routes.archives_runs import confirm_production_outcome
+from backend.app.core.auth import OwnershipAccess
 from backend.app.core.database import Base
 from backend.app.schemas.archive import OutcomeConfirmation
 from backend.app.services import print_confirmation, telegram_quality
@@ -62,8 +63,7 @@ async def test_browser_reaction_lock_order_preserves_mixed_inspection(context, m
                 OutcomeConfirmation(run_id=run.id, good_quantity=5, reject_quantity=2),
                 None,
                 session,
-                None,
-                (user, True),
+                OwnershipAccess(user, True),
             )
 
     async def telegram():

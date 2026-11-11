@@ -1,5 +1,6 @@
 """Passive ambient streaks use real scheduler dispatch and never own manual dries."""
 
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -162,7 +163,9 @@ async def test_missing_reading_is_not_low_but_cannot_start(rig):
 async def test_queue_and_print_only_are_exempt(rig, mode):
     if mode == "queue":
         rig.settings.update(queue_drying_enabled="true", ambient_drying_enabled="true")
-        scheduled = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+        scheduled = SimpleNamespace(
+            printer_id=1, scheduled_time=datetime.now(timezone.utc) + timedelta(hours=1), manual_start=False
+        )
         await tick(rig, queue=[scheduled])
         rig.manager.send_drying_command.assert_called_once_with(1, 0, 45, 12, mode=1, filament="PLA")
     else:
@@ -332,7 +335,9 @@ async def test_disabled_queue_mode_keeps_ambient_wait_for_scheduled_printer(rig,
         ambient_drying_sustained_minutes="15",
         print_drying_enabled="true" if midprint else "false",
     )
-    scheduled = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    scheduled = SimpleNamespace(
+        printer_id=1, scheduled_time=datetime.now(timezone.utc) + timedelta(hours=1), manual_start=False
+    )
     busy = [1] if midprint else []
     await tick(rig, queue=[scheduled], busy=busy)
     rig.manager.send_drying_command.assert_not_called()
@@ -349,7 +354,9 @@ async def test_disabled_queue_mode_keeps_ambient_wait_for_scheduled_printer(rig,
 async def test_print_only_mode_does_not_dry_idle_printer_with_scheduled_item(rig):
     """O07-R2: print-only opt-in cannot start idle queue drying."""
     rig.settings.update(queue_drying_enabled="false", ambient_drying_enabled="false", print_drying_enabled="true")
-    scheduled = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    scheduled = SimpleNamespace(
+        printer_id=1, scheduled_time=datetime.now(timezone.utc) + timedelta(hours=1), manual_start=False
+    )
     await tick(rig, queue=[scheduled])
     rig.manager.send_drying_command.assert_not_called()
     assert rig.scheduler._drying_in_progress == {}
@@ -791,7 +798,9 @@ async def test_mqtt_queue_manual_protection_uses_existing_idle_gate(mqtt_rig, pr
 
     rig = mqtt_rig
     rig.settings.update(ambient_drying_enabled="false", queue_drying_enabled="true", queue_drying_block="false")
-    future = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    future = SimpleNamespace(
+        printer_id=1, scheduled_time=datetime.now(timezone.utc) + timedelta(hours=1), manual_start=False
+    )
     await tick(rig, queue=[future])
     rig.client._process_message({"print": {"gcode_state": printer_state, "ams": {"ams": [{"id": 0, "dry_time": 90}]}}})
     assert QueueKeepWarm.drying_reserved(rig.scheduler, rig.manager, 1)
@@ -823,6 +832,8 @@ async def test_mqtt_queue_manual_protection_uses_existing_idle_gate(mqtt_rig, pr
         patch.object(scheduler, "_schedule_inventory_alerts"),
         patch.object(scheduler, "_pending_queue_items", AsyncMock(return_value=([item], False))),
         patch.object(scheduler, "_busy_printers_for_pass", AsyncMock(return_value=set())),
+        patch("backend.app.services.print_scheduler.edited_since_loaded", AsyncMock(return_value=False)),
+        patch.object(scheduler, "_block_on_unmatched_filament", AsyncMock(return_value=False)),
         patch.object(scheduler, "_ensure_ams_mapping", AsyncMock()),
         patch.object(scheduler, "_block_on_filament_deficit", AsyncMock(return_value=False)),
         patch.object(scheduler, "_refresh_keep_warm", AsyncMock()),
@@ -874,7 +885,9 @@ async def test_scheduler_stop_discards_pending_without_live_stop_command(mqtt_ri
 async def test_mqtt_unconfirmed_cycle_exit_never_sends_stop(mqtt_rig, exit_mode, remaining):
     rig = mqtt_rig
     rig.settings.update(ambient_drying_enabled="false", queue_drying_enabled="true")
-    future = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    future = SimpleNamespace(
+        printer_id=1, scheduled_time=datetime.now(timezone.utc) + timedelta(hours=1), manual_start=False
+    )
     await tick(rig, queue=[future])
     rig.client._handle_ams_data({"ams": [{"id": 0, "dry_time": remaining}]})
     if exit_mode == "disabled":
@@ -968,7 +981,9 @@ async def test_mqtt_pending_expiry_cannot_credit_unconsumed_pre_expiry_sample(mq
     rig = mqtt_rig
     rig.settings["ambient_drying_sustained_minutes"] = "1"
     rig.settings["queue_drying_enabled"] = "true"
-    future = SimpleNamespace(printer_id=1, scheduled_time=object(), manual_start=False)
+    future = SimpleNamespace(
+        printer_id=1, scheduled_time=datetime.now(timezone.utc) + timedelta(hours=1), manual_start=False
+    )
     await tick(rig, queue=[future])  # Enabled queue starts without the ambient wait.
     rig.settings["queue_drying_enabled"] = "false"
     rig.now[0] += 119

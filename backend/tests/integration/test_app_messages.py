@@ -210,7 +210,7 @@ async def test_owner_id_reuse_cannot_inherit_old_notification_scope(async_client
     owner_id = row.user_id
     await db_session.execute(delete(User).where(User.id == owner_id))
     await db_session.commit()
-    replacement = User(username="replacement", is_active=True)
+    replacement = User(id=owner_id, username="replacement", is_active=True)
     db_session.add(replacement)
     await db_session.commit()
     assert replacement.id == owner_id
@@ -258,15 +258,16 @@ async def test_flags_roundtrip_and_auth_disabled_does_not_bypass_key(async_clien
 async def test_printer_provider_filters_and_explicit_selection(async_client, db_session, transport):
     from backend.app.models.printer import Printer
 
-    admin, key, provider = await setup(async_client, printer_ids=[1, 2])
-    owner = await db_session.get(User, key["user_id"])
-    owner.allowed_printer_ids = [1, 3]
     db_session.add_all(
         [
             Printer(id=i, name=f"Printer {i}", serial_number=f"S{i}", ip_address="127.0.0.1", access_code="fake")
             for i in (1, 2, 3)
         ]
     )
+    await db_session.commit()
+    admin, key, provider = await setup(async_client, printer_ids=[1, 2])
+    owner = await db_session.get(User, key["user_id"])
+    owner.allowed_printer_ids = [1, 3]
     for i in (1, 2, 3):
         db_session.add(
             NotificationProvider(
@@ -280,8 +281,15 @@ async def test_printer_provider_filters_and_explicit_selection(async_client, db_
     await db_session.commit()
     headers = {"X-API-Key": key["key"]}
     channels = await async_client.get("/api/v1/notifications/app-message/channels?printer_id=1", headers=headers)
-    assert [p["name"] for p in channels.json()] == ["App channel", "P1"]
-    for payload in ({}, {"printer_id": 2}, {"printer_id": 3}, {"printer_id": 1, "channel_ids": [999]}):
+    assert [p["name"] for p in channels.json()] == ["P1"]
+    scoped_provider_id = channels.json()[0]["id"]
+    for payload in (
+        {},
+        {"printer_id": 2},
+        {"printer_id": 3},
+        {"printer_id": 1, "channel_ids": [999]},
+        {"printer_id": 1, "channel_ids": [provider["id"]]},
+    ):
         response = await async_client.post(
             "/api/v1/notifications/app-message", headers=headers, json={"title": "a", "message": "b", **payload}
         )
@@ -289,15 +297,17 @@ async def test_printer_provider_filters_and_explicit_selection(async_client, db_
     response = await async_client.post(
         "/api/v1/notifications/app-message",
         headers=headers,
-        json={"title": "a", "message": "b", "printer_id": 1, "channel_ids": [provider["id"]]},
+        json={"title": "a", "message": "b", "printer_id": 1, "channel_ids": [scoped_provider_id]},
     )
     assert response.status_code == 200
     assert len(transport) == 1
-    await async_client.patch(f"/api/v1/notifications/{provider['id']}", headers=admin, json={"on_app_message": False})
+    await async_client.patch(
+        f"/api/v1/notifications/{scoped_provider_id}", headers=admin, json={"on_app_message": False}
+    )
     response = await async_client.post(
         "/api/v1/notifications/app-message",
         headers=headers,
-        json={"title": "a", "message": "b", "printer_id": 1, "channel_ids": [provider["id"]]},
+        json={"title": "a", "message": "b", "printer_id": 1, "channel_ids": [scoped_provider_id]},
     )
     assert response.status_code == 403
 

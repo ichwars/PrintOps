@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import secrets
@@ -13,12 +14,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.app.api.routes.cloud import resolve_api_key_cloud_owner
 from backend.app.api.routes.settings import get_external_login_url
 from backend.app.core.auth import (
     ALGORITHM,
     SECRET_KEY,
     Permission,
+    RequireAdminIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
     _is_token_fresh,
     _validate_api_key,
@@ -34,13 +35,18 @@ from backend.app.core.auth import (
     invalidate_auth_enabled_cache,
     is_jti_revoked,
     require_auth_if_enabled,
+    resolve_optional_api_key,
     resolve_session_max_minutes,
     revoke_jti,
     security,
 )
-from backend.app.core.database import async_session, get_db
+from backend.app.core.auth_issuers import bind_login_step, load_login_step_user
+from backend.app.core.auth_sessions import drop_anonymous_live_tokens, drop_pending_user_tokens
+from backend.app.core.database import DB_SESSION, async_session
 from backend.app.core.oidc_env import env_bool
 from backend.app.core.permissions import ALL_PERMISSIONS
+from backend.app.core.websocket import ws_manager
+from backend.app.models.api_key import APIKey
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, AuthRateLimitEvent, EventType, TokenType
 from backend.app.models.group import Group
 from backend.app.models.settings import Settings
@@ -54,6 +60,7 @@ from backend.app.schemas.auth import (
     GroupBrief,
     LDAPProvisionRequest,
     LDAPSearchResultResponse,
+    LDAPTestRequest,
     LoginRequest,
     LoginResponse,
     MediaTokenResponse,
@@ -72,7 +79,9 @@ from backend.app.services.email_service import (
     get_smtp_settings,
     save_smtp_settings,
     send_email,
+    smtp_settings_for_test,
 )
+from backend.app.services.secret_fields import SETTINGS_SECRETS, SecretConfigError, merge_secret_update
 
 _logger = logging.getLogger(__name__)
 
@@ -217,7 +226,7 @@ async def set_setup_completed(db: AsyncSession, completed: bool) -> None:
 
 
 @router.post("/setup", response_model=SetupResponse)
-async def setup_auth(request: SetupRequest, db: AsyncSession = Depends(get_db)):
+async def setup_auth(request: SetupRequest, db: AsyncSession = DB_SESSION):
     """First-time setup: enable/disable authentication and create admin user."""
     import logging
 
@@ -302,6 +311,7 @@ async def setup_auth(request: SetupRequest, db: AsyncSession = Depends(get_db)):
                     )
 
             from backend.app.api.routes.cloud import (
+                forget_all_cloud_presets,
                 get_stored_token,
                 migrate_global_cloud_token_to_user,
             )
@@ -328,7 +338,12 @@ async def setup_auth(request: SetupRequest, db: AsyncSession = Depends(get_db)):
         # Set auth enabled and mark setup as completed
         await set_auth_enabled(db, request.auth_enabled)
         await set_setup_completed(db, True)
+        if request.auth_enabled:
+            await drop_anonymous_live_tokens(db)
         await db.commit()
+        if request.auth_enabled:
+            forget_all_cloud_presets()
+            await ws_manager.close_anonymous()
 
         if admin_created:
             await db.refresh(admin_user)
@@ -348,7 +363,7 @@ async def setup_auth(request: SetupRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/status")
-async def get_auth_status(db: AsyncSession = Depends(get_db)):
+async def get_auth_status(db: AsyncSession = DB_SESSION):
     """Get authentication status (public endpoint)."""
     auth_enabled = await is_auth_enabled(db)
     setup_completed = await is_setup_completed(db)
@@ -360,7 +375,7 @@ async def get_auth_status(db: AsyncSession = Depends(get_db)):
 @router.post("/disable", response_model=dict)
 async def disable_auth(
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Disable authentication (admin only)."""
     import logging
@@ -379,13 +394,14 @@ async def disable_auth(
         )
 
     try:
-        from backend.app.api.routes.cloud import migrate_user_cloud_token_to_global
+        from backend.app.api.routes.cloud import forget_all_cloud_presets, migrate_user_cloud_token_to_global
 
         if await migrate_user_cloud_token_to_global(db, user):
             logger.info("Migrated Bambu Cloud credentials from admin '%s' to global storage", user.username)
 
         await set_auth_enabled(db, False)
         await db.commit()
+        forget_all_cloud_presets()
         logger.info("Authentication disabled by admin user: %s", user.username)
         return {"message": "Authentication disabled successfully", "auth_enabled": False}
     except Exception as e:  # SEC-AUTH-EXC: rollback + raise 500 (fail-closed); auth_enabled stays at its prior value
@@ -398,7 +414,7 @@ async def disable_auth(
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(raw_request: Request, request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+async def login(raw_request: Request, request: LoginRequest, response: Response, db: AsyncSession = DB_SESSION):
     """Login and get access token.
 
     Supports username or email-based login. Username lookup is case-insensitive.
@@ -545,7 +561,7 @@ async def login(raw_request: Request, request: LoginRequest, response: Response,
         # Bind the pre_auth_token to an HttpOnly cookie so XSS cannot steal the
         # token from JS memory and complete 2FA from a different client.
         challenge_id = secrets.token_urlsafe(32)
-        pre_auth_token = await create_pre_auth_token(db, user.username, challenge_id=challenge_id)
+        pre_auth_token = await create_pre_auth_token(db, user, challenge_id=challenge_id)
         response.set_cookie(
             key="2fa_challenge",
             value=challenge_id,
@@ -587,35 +603,19 @@ async def login(raw_request: Request, request: LoginRequest, response: Response,
 
 @router.post("/ws-token")
 async def mint_websocket_token(
+    request: Request,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.WEBSOCKET_CONNECT),
-    api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
-    """Mint a short-lived token for ``/api/v1/ws`` connections (GHSA-r2qv follow-up).
-
-    The WebSocket endpoint cannot read ``Authorization`` headers from
-    browsers (the WebSocket handshake does not let JS attach custom
-    headers), so we use the same opaque-token-in-query-param pattern
-    as ``/camera/stream`` — the token is minted here behind the standard
-    permission gate, then appended as ``?token=<value>`` on the
-    ``ws://...`` URL. The WebSocket endpoint validates it *before*
-    calling ``websocket.accept()``.
-
-    Returns ``{"token": <opaque string>}``. The token is valid for 60
-    minutes; the SPA refreshes it on reconnect if expired. API keys can
-    mint tokens too — their scope flags decide whether ``WEBSOCKET_CONNECT``
-    passes via the standard allowlist (``can_read_status`` covers it). A
-    cloud-enabled key records its owner as the principal so owner-targeted
-    pipeline events reach that key's WebSocket; other keys stay anonymous.
-    """
-    principal = current_user or api_key_cloud_owner
-    username = principal.username if principal is not None else None
-    return {"token": await create_websocket_token(username)}
+    """Issue an opaque WebSocket query credential for the current JWT or API key."""
+    return {"token": await create_websocket_token(request, current_user, api_key)}
 
 
 @router.post("/media-token", response_model=MediaTokenResponse)
 async def mint_media_token(
+    request: Request,
     current_user: User | None = Depends(require_auth_if_enabled),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Mint URL credentials; each media route checks current permissions and ownership.
 
@@ -624,14 +624,14 @@ async def mint_media_token(
     """
     if current_user is None and await is_auth_enabled(db):
         raise HTTPException(403, "Media tokens require a user session; API keys must use request headers")
-    return MediaTokenResponse(token=await create_media_token(current_user.username if current_user else None))
+    return MediaTokenResponse(token=await create_media_token(request, current_user))
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get current user information.
 
@@ -717,7 +717,7 @@ async def get_current_user_info(
 @router.post("/refresh", response_model=LoginResponse)
 async def refresh_token(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Silently renew a still-valid JWT before it expires.
 
@@ -808,6 +808,7 @@ async def logout(
                 expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
                 try:
                     await revoke_jti(jti, expires_at, username)
+                    await ws_manager.close_session(jti)
                 except Exception as exc:  # SEC-AUTH-EXC: JTI-revoke failure on logout is logged only; logout removes access, never grants it (token stays valid until natural expiry — degraded but never escalation)
                     _logger.error("Failed to revoke JTI on logout for user %s: %s", username, exc)
         except PyJWTError:
@@ -829,21 +830,19 @@ async def logout(
 @router.post("/smtp/test", response_model=TestSMTPResponse)
 async def test_smtp_connection(
     test_request: TestSMTPRequest,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
-    """Test SMTP connection using saved settings (admin only when auth enabled)."""
-    import logging
-
-    logger = logging.getLogger(__name__)
-
+    """Test SMTP form values or, when omitted, the saved configuration."""
     try:
-        smtp_settings = await get_smtp_settings(db)
+        smtp_settings = await smtp_settings_for_test(db, test_request.smtp)
         if not smtp_settings:
             return TestSMTPResponse(success=False, message="SMTP settings not configured. Save SMTP settings first.")
 
-        # Send test email
-        send_email(
+        await db.close()
+        await asyncio.to_thread(
+            send_email,
             smtp_settings=smtp_settings,
             to_email=test_request.test_recipient,
             subject="PrintOps SMTP Test",
@@ -851,17 +850,18 @@ async def test_smtp_connection(
             body_html="<p>This is a test email from <strong>PrintOps</strong>.</p><p>If you received this, your SMTP settings are working correctly!</p>",
         )
 
-        logger.info(f"Test email sent successfully to {test_request.test_recipient}")
         return TestSMTPResponse(success=True, message="Test email sent successfully")
-    except Exception as e:  # SEC-AUTH-EXC: SMTP test diagnostic returns success=False; no auth-relevant outcome (route is admin-gated by SETTINGS_UPDATE upstream)
-        logger.error("Failed to send test email: %s", e)
+    except SecretConfigError as exc:
+        return TestSMTPResponse(success=False, message=str(exc))
+    except Exception as e:  # SEC-AUTH-EXC: SMTP diagnostics report failure behind the admin and settings guards.
+        _logger.error("Failed to send test email: %s", e)
         return TestSMTPResponse(success=False, message="Failed to send test email")
 
 
 @router.get("/smtp", response_model=SMTPSettings | None)
 async def get_smtp_config(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get SMTP settings (admin only when auth enabled). Password is not returned."""
     smtp_settings = await get_smtp_settings(db)
@@ -874,19 +874,24 @@ async def get_smtp_config(
 @router.post("/smtp", response_model=dict)
 async def save_smtp_config(
     smtp_settings: SMTPSettings,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Save SMTP settings (admin only when auth enabled)."""
     import logging
 
-    logger = logging.getLogger(__name__)
+    from backend.app.services.secret_fields import SecretConfigError
 
+    logger = logging.getLogger(__name__)
     try:
         await save_smtp_settings(db, smtp_settings)
         await db.commit()
         logger.info(f"SMTP settings updated by admin user: {current_user.username if current_user else 'anonymous'}")
         return {"message": "SMTP settings saved successfully"}
+    except SecretConfigError as exc:
+        await db.rollback()
+        raise HTTPException(400, str(exc)) from None
     except Exception as e:  # SEC-AUTH-EXC: rollback + raise 500 (fail-closed); SMTP settings unchanged on error
         await db.rollback()
         logger.error("Failed to save SMTP settings: %s", e)
@@ -899,7 +904,7 @@ async def save_smtp_config(
 @router.post("/advanced-auth/enable", response_model=dict)
 async def enable_advanced_auth(
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Enable advanced authentication (admin only).
 
@@ -944,7 +949,7 @@ async def enable_advanced_auth(
 @router.post("/advanced-auth/disable", response_model=dict)
 async def disable_advanced_auth(
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Disable advanced authentication (admin only)."""
     import logging
@@ -976,7 +981,7 @@ async def disable_advanced_auth(
 
 
 @router.get("/advanced-auth/status")
-async def get_advanced_auth_status(db: AsyncSession = Depends(get_db)):
+async def get_advanced_auth_status(db: AsyncSession = DB_SESSION):
     """Get advanced authentication status.
 
     Surfaces ``local_login_enabled`` and ``autologin_provider_id`` (#1589)
@@ -1067,7 +1072,7 @@ async def forgot_password(
     request: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,
     raw_request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Request password reset via email (advanced auth only).
 
@@ -1166,14 +1171,11 @@ async def forgot_password(
                 )
             )
             reset_token = secrets.token_urlsafe(32)
-            db.add(
-                AuthEphemeralToken(
-                    token=reset_token,
-                    token_type=TokenType.PASSWORD_RESET,
-                    username=user.username,
-                    expires_at=now + _RESET_TOKEN_TTL,
-                )
+            issued = AuthEphemeralToken(
+                token=reset_token, token_type=TokenType.PASSWORD_RESET, expires_at=now + _RESET_TOKEN_TTL
             )
+            bind_login_step(issued, user)
+            db.add(issued)
             await db.commit()
 
             login_url = await get_external_login_url(db)
@@ -1208,7 +1210,7 @@ async def forgot_password(
 
 
 @router.post("/forgot-password/confirm", response_model=ForgotPasswordResponse)
-async def forgot_password_confirm(request: ForgotPasswordConfirmRequest, db: AsyncSession = Depends(get_db)):
+async def forgot_password_confirm(request: ForgotPasswordConfirmRequest, db: AsyncSession = DB_SESSION):
     """Complete a password reset by supplying the token from the reset email.
 
     H-6: Atomically consumes the single-use token (DELETE…RETURNING) and sets
@@ -1216,35 +1218,33 @@ async def forgot_password_confirm(request: ForgotPasswordConfirmRequest, db: Asy
     the same response to prevent oracle attacks.
     """
     now = datetime.now(timezone.utc)
-    result = await db.execute(
-        delete(AuthEphemeralToken)
-        .where(
-            AuthEphemeralToken.token == request.token,
-            AuthEphemeralToken.token_type == TokenType.PASSWORD_RESET,
+    row = (
+        await db.execute(
+            delete(AuthEphemeralToken)
+            .where(
+                AuthEphemeralToken.token == request.token,
+                AuthEphemeralToken.token_type == TokenType.PASSWORD_RESET,
+            )
+            .returning(AuthEphemeralToken)
         )
-        .returning(AuthEphemeralToken.username, AuthEphemeralToken.expires_at)
-    )
-    row = result.one_or_none()
-    await db.commit()
+    ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired password reset token")
 
-    username, expires_at = row
-    # SQLite returns naive datetimes; treat them as UTC.
+    expires_at = row.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if now > expires_at:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired password reset token")
-
-    user = await get_user_by_username(db, username)
-    # M-1: block LDAP/OIDC users — they authenticate via their provider, not local password.
-    if not user or not user.is_active or user.auth_source in ("ldap", "oidc"):
+    user = await load_login_step_user(db, row, for_update=True) if now <= expires_at else None
+    if user is None or user.auth_source in ("ldap", "oidc"):
+        await db.commit()  # Spend a recognized token even when the account has changed.
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired password reset token")
 
     user.password_hash = get_password_hash(request.new_password)
-    user.password_changed_at = now  # M-R7-B: invalidate all prior JWTs
+    user.password_changed_at = now
+    await drop_pending_user_tokens(db, user.username)
     await db.commit()
-    _logger.info("Password reset completed for user '%s'", username)
+    await ws_manager.close_user_sessions(user.id)
+    _logger.info("Password reset completed for user '%s'", user.username)
 
     return ForgotPasswordResponse(message="Password has been reset successfully.")
 
@@ -1254,7 +1254,7 @@ async def reset_user_password(
     request: ResetPasswordRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Reset a user's password and send them an email (admin only, advanced auth only)."""
     # Reload user with groups for proper is_admin check
@@ -1316,14 +1316,11 @@ async def reset_user_password(
             )
         )
         reset_token = secrets.token_urlsafe(32)
-        db.add(
-            AuthEphemeralToken(
-                token=reset_token,
-                token_type=TokenType.PASSWORD_RESET,
-                username=user.username,
-                expires_at=now + _RESET_TOKEN_TTL,
-            )
+        issued = AuthEphemeralToken(
+            token=reset_token, token_type=TokenType.PASSWORD_RESET, expires_at=now + _RESET_TOKEN_TTL
         )
+        bind_login_step(issued, user)
+        db.add(issued)
         await db.commit()
 
         login_url = await get_external_login_url(db)
@@ -1357,8 +1354,8 @@ async def reset_user_password(
 # LDAP Authentication Helpers
 
 
-async def _get_ldap_settings(db: AsyncSession) -> dict[str, str] | None:
-    """Get LDAP settings from the database. Returns None if LDAP is not enabled."""
+async def _get_ldap_settings(db: AsyncSession, *, include_disabled: bool = False) -> dict[str, str] | None:
+    """Read the LDAP configuration, including inactive values for diagnostics."""
     ldap_keys = [
         "ldap_enabled",
         "ldap_server_url",
@@ -1374,7 +1371,7 @@ async def _get_ldap_settings(db: AsyncSession) -> dict[str, str] | None:
     ]
     result = await db.execute(select(Settings).where(Settings.key.in_(ldap_keys)))
     settings = {s.key: s.value for s in result.scalars().all()}
-    if settings.get("ldap_enabled", "false").lower() != "true":
+    if not include_disabled and settings.get("ldap_enabled", "false").lower() != "true":
         return None
     return settings
 
@@ -1480,49 +1477,39 @@ async def _sync_ldap_user(db: AsyncSession, user: User, ldap_user, ldap_config) 
 
 @router.post("/ldap/test")
 async def test_ldap(
+    body: LDAPTestRequest | None = None,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
-    """Test LDAP connection using saved settings (admin only when auth enabled)."""
-    import logging
-
+    """Test LDAP form values without enabling or changing the saved configuration."""
     from backend.app.services.ldap_service import parse_ldap_config, test_ldap_connection
 
-    logger = logging.getLogger(__name__)
+    stored = await _get_ldap_settings(db, include_disabled=True) or {}
+    stored["ldap_security"] = stored.get("ldap_security") or "starttls"
+    form = body.model_dump(exclude_none=True) if body else {}
+    if not form.get("ldap_bind_password"):
+        form.pop("ldap_bind_password", None)
+    try:
+        form = merge_secret_update(stored, form, {"ldap_bind_password": SETTINGS_SECRETS["ldap_bind_password"]})
+    except SecretConfigError as exc:
+        return {"success": False, "message": str(exc)}
 
-    ldap_settings = await _get_ldap_settings(db)
-    if not ldap_settings:
-        # LDAP might not be enabled yet but settings might still exist — read all keys
-        ldap_keys = [
-            "ldap_enabled",
-            "ldap_server_url",
-            "ldap_bind_dn",
-            "ldap_bind_password",
-            "ldap_search_base",
-            "ldap_user_filter",
-            "ldap_security",
-            "ldap_group_mapping",
-            "ldap_auto_provision",
-        ]
-        result = await db.execute(select(Settings).where(Settings.key.in_(ldap_keys)))
-        ldap_settings = {s.key: s.value for s in result.scalars().all()}
-        # Force enabled for test
-        ldap_settings["ldap_enabled"] = "true"
-
-    config = parse_ldap_config(ldap_settings)
+    config = parse_ldap_config({**stored, **form, "ldap_enabled": "true"})
     if not config:
         return {"success": False, "message": "LDAP server URL is not configured"}
+    if config.security not in {"starttls", "ldaps"}:
+        return {"success": False, "message": "Choose StartTLS or LDAPS"}
 
-    success, message = test_ldap_connection(config)
-    if success:
-        logger.info("LDAP connection test successful")
-    else:
-        logger.warning("LDAP connection test failed: %s", message)
+    await db.close()
+    success, message = await asyncio.to_thread(test_ldap_connection, config)
+    if not success:
+        _logger.warning("LDAP connection test failed: %s", message)
     return {"success": success, "message": message}
 
 
 @router.get("/ldap/status")
-async def get_ldap_status(db: AsyncSession = Depends(get_db)):
+async def get_ldap_status(db: AsyncSession = DB_SESSION):
     """Get LDAP authentication status."""
     # Only fetch the minimum keys needed — never load secrets
     ldap_keys = ["ldap_enabled", "ldap_server_url"]
@@ -1543,8 +1530,9 @@ async def get_ldap_status(db: AsyncSession = Depends(get_db)):
 @router.get("/ldap/search", response_model=list[LDAPSearchResultResponse])
 async def search_ldap_directory(
     q: str,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_CREATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Search the LDAP directory for users matching `q`.
 
@@ -1554,7 +1542,7 @@ async def search_ldap_directory(
     with `already_provisioned` so the UI can grey out usernames that already
     exist as PrintOps users.
 
-    Requires USERS_CREATE permission. Minimum query length is 2 characters.
+    Requires an administrator with USERS_CREATE. Minimum query length is 2 characters.
     """
     from sqlalchemy import func as sa_func
 
@@ -1616,8 +1604,9 @@ async def search_ldap_directory(
 @router.post("/ldap/provision", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def provision_ldap_user(
     payload: LDAPProvisionRequest,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_CREATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Provision a PrintOps user from an existing LDAP directory entry.
 
@@ -1627,7 +1616,7 @@ async def provision_ldap_user(
     login path (`_provision_ldap_user`), so behavior stays identical regardless
     of whether the user was created here or on first login.
 
-    Requires USERS_CREATE.
+    Requires an administrator with USERS_CREATE.
     """
     from sqlalchemy import func as sa_func
 
@@ -1724,7 +1713,7 @@ def _long_lived_token_to_response(record, *, plaintext: str | None = None) -> di
 async def create_long_lived_camera_token(
     payload: dict,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.CAMERA_VIEW),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Mint a long-lived camera-stream token (#1108).
 
@@ -1788,7 +1777,7 @@ async def create_long_lived_camera_token(
 async def list_long_lived_tokens(
     user_id: int | None = None,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.CAMERA_VIEW),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """List long-lived tokens.
 
@@ -1826,7 +1815,7 @@ async def list_long_lived_tokens(
 @router.get("/tokens/all", response_model=list[dict])
 async def list_all_long_lived_tokens(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.CAMERA_VIEW),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Admin-only: every active long-lived token in the system, newest first.
     Used by the leak-triage view in admin settings.
@@ -1851,7 +1840,7 @@ async def list_all_long_lived_tokens(
 async def revoke_long_lived_token(
     token_id: int,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.CAMERA_VIEW),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Revoke a long-lived token. Owners can revoke their own; admins any."""
     from backend.app.models.long_lived_token import LongLivedToken
@@ -1890,7 +1879,7 @@ async def revoke_long_lived_token(
 @router.get("/encryption-status", response_model=EncryptionStatusResponse)
 async def get_encryption_status(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ) -> EncryptionStatusResponse:
     """Report at-rest encryption status for OIDC + TOTP secrets.
 

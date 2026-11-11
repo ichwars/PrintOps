@@ -8,6 +8,13 @@ Alte JARs dürfen nicht neben der neuen Version auf dem Klassenpfad verbleiben.
 Bei einem fehlgeschlagenen Dienststart stellen die Shell-Updater die vorherige
 Runtime zusammen mit dem vorherigen Code wieder her.
 
+Der interne Updater setzt Git-Schritten eine Grenze von fünf Minuten und
+Installationsschritten eine Grenze von 15 Minuten. Bei einem Zeitlimit zeigt
+der Updater den betroffenen Schritt an und erlaubt einen erneuten Versuch.
+Nach einer unterbrochenen Installation den Update-Vorgang vor einem Neustart
+erneut ausführen. Wenn nur der optionale Frontend-Build ausläuft, verwendet
+PrintOps die mitgelieferten Dateien.
+
 Updates, die noch mit einem älteren Updater gestartet wurden, müssen diesen
 Schritt nach dem Codeupdate einmal manuell ausführen, bevor die Anwendung neu
 gestartet wird. Im Installationsverzeichnis:

@@ -2,6 +2,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+from backend.app.utils.local_time import to_naive_utc
+
 # Visual variant applied to a spool's swatch — purely cosmetic, does not
 # affect MQTT/firmware. Kept independent of `subtype` so users can override
 # the rendering hint without touching Bambu's categorical filament label.
@@ -129,7 +132,7 @@ class SpoolBase(BaseModel):
 
 
 class SpoolCreate(SpoolBase):
-    pass
+    weight_used: float = Field(default=0, ge=0)
 
 
 class SpoolBulkCreate(BaseModel):
@@ -137,7 +140,16 @@ class SpoolBulkCreate(BaseModel):
     quantity: int = Field(default=1, ge=1, le=100)
 
 
-class SpoolUpdate(BaseModel):
+class SpoolUpdate(IgnoresNullForRequiredColumns):
+    last_dried_at: datetime | None = None
+
+    @field_validator("last_dried_at")
+    @classmethod
+    def _validate_last_dried_at(cls, value: datetime | None) -> datetime | None:
+        return to_naive_utc(value)
+
+    __orm_table__ = "spool"
+
     material: str | None = None
     subtype: str | None = None
     color_name: str | None = None
@@ -159,7 +171,7 @@ class SpoolUpdate(BaseModel):
     label_weight: int | None = None
     core_weight: int | None = None
     core_weight_catalog_id: int | None = None
-    weight_used: float | None = None
+    weight_used: float | None = Field(default=None, ge=0)
     slicer_filament: str | None = None
     slicer_filament_name: str | None = None
     nozzle_temp_min: int | None = None
@@ -208,6 +220,9 @@ class SpoolResponse(SpoolBase):
     rgba: str | None = None
     added_full: bool | None = None
     last_used: datetime | None = None
+    last_dried_at: datetime | None = None
+    last_dried_temp: int | None = None
+    last_dried_hours: float | None = None
     encode_time: datetime | None = None
     tag_uid: str | None = None
     tray_uuid: str | None = None
@@ -227,6 +242,7 @@ class SpoolAssignmentCreate(BaseModel):
     printer_id: int
     ams_id: int
     tray_id: int
+    move: bool = False
 
 
 class SpoolAssignmentResponse(BaseModel):

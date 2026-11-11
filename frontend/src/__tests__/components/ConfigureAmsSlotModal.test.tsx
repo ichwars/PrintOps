@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { render } from '../utils';
 import { ConfigureAmsSlotModal } from '../../components/ConfigureAmsSlotModal';
 import { api } from '../../api/client';
@@ -13,6 +13,7 @@ vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     orcaCloudListProfiles: vi.fn(),
     orcaCloudGetProfile: vi.fn(),
     getCloudSettings: vi.fn(),
@@ -90,6 +91,26 @@ describe('ConfigureAmsSlotModal', () => {
     (api.searchColors as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (api.getColorCatalog as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (api.resetAmsSlot as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, message: 'ok' });
+  });
+
+  it('resets the selected slot only after confirmation', async () => {
+    const slotInfo = { ...defaultProps.slotInfo, amsId: 128, trayId: 1 };
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={slotInfo} printerState="IDLE" />);
+    const reset = await screen.findByRole('button', { name: 'Reset Slot' });
+    fireEvent.click(reset);
+    expect(api.resetAmsSlot).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+    fireEvent.click(reset);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset Slot' }));
+    await waitFor(() => expect(api.resetAmsSlot).toHaveBeenCalledWith(defaultProps.printerId, 128, 1));
+  });
+
+  it('disables reset while the printer is paused', async () => {
+    render(<ConfigureAmsSlotModal {...defaultProps} printerState="PAUSE" />);
+    expect(await screen.findByRole('button', { name: 'Reset Slot' })).toBeDisabled();
+    expect(api.resetAmsSlot).not.toHaveBeenCalled();
   });
 
   it('renders nothing visible when closed', () => {
@@ -276,6 +297,97 @@ describe('ConfigureAmsSlotModal', () => {
     expect(payload.setting_id).toBe('GFSL05_09');
     expect(api.getCloudSettingDetail).not.toHaveBeenCalled();
   });
+
+  it.each([
+    // Bambu's list carries the preset's own id; a new preset needs no rule.
+    ['from Bambu\'s list', 'GFSX01_02', 'New Filament @BBL A1', 'GFX07', 'GFX07'],
+    // An older backend sends no filament_id; the rule knows SUNLU's shape and
+    // the presets that carry another filament's id.
+    ['without one in the list', 'GFSNLS03_04', 'SUNLU PLA+ @BBL A1', null, 'GFSNL03'],
+    ['without one in the list', 'GFSA05_10', 'Bambu PLA Matte @BBL P1P', undefined, 'GFA01'],
+  ])('sends a GFS* preset\'s own filament_id %s (#3387)', async (_how, settingId, name, listed, expected) => {
+    (api.getCloudSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      filament: [{ setting_id: settingId, name, filament_id: listed }],
+    });
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={{ ...defaultProps.slotInfo, savedPresetId: settingId }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Configure Slot/i }));
+    await waitFor(() => {
+      expect(api.configureAmsSlot).toHaveBeenCalled();
+    });
+
+    const payload = (api.configureAmsSlot as ReturnType<typeof vi.fn>).mock.calls[0][3];
+    expect(payload.tray_info_idx).toBe(expected);
+    expect(payload.setting_id).toBe(settingId);
+  });
+
+  // "GFSR99" is Generic TPU (GFU99) in Bambu's list, and the id PrintOps
+  // itself saves for a Generic EVA (GFR99) slot; "GFSA05" likewise is Bambu
+  // PLA Matte @BBL X1 (GFA01) and PrintOps's id for Bambu PLA Silk (GFA05).
+  const BARE = [
+    { setting_id: 'GFSR99', name: 'Generic TPU', filament_id: 'GFU99' },
+    { setting_id: 'GFSA05', name: 'Bambu PLA Matte @BBL X1', filament_id: 'GFA01' },
+  ];
+
+  it('sends the list\'s filament_id for a bare preset picked from the list (#3387)', async () => {
+    (api.getCloudSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ filament: BARE });
+    render(<ConfigureAmsSlotModal {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Generic TPU')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('Generic TPU'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Configure Slot/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Configure Slot/i }));
+    await waitFor(() => {
+      expect(api.configureAmsSlot).toHaveBeenCalled();
+    });
+    expect((api.configureAmsSlot as ReturnType<typeof vi.fn>).mock.calls[0][3].tray_info_idx).toBe('GFU99');
+  });
+
+  it.each([
+    ['a Silk slot PrintOps saved', 'GFSA05', 'GFA05', 'GFA05'],
+    ['a Generic TPU slot picked from the list', 'GFSR99', 'GFU99', 'GFU99'],
+    ['a slot reporting neither', 'GFSR99', undefined, 'GFR99'],
+  ])('keeps the filament of %s when it is saved again (#3387)', async (_what, saved, tray, expected) => {
+    (api.getCloudSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ filament: BARE });
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={{ ...defaultProps.slotInfo, savedPresetId: saved, trayInfoIdx: tray }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(BARE.find(p => p.setting_id === saved)!.name)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Configure Slot/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Configure Slot/i }));
+    await waitFor(() => {
+      expect(api.configureAmsSlot).toHaveBeenCalled();
+    });
+    expect((api.configureAmsSlot as ReturnType<typeof vi.fn>).mock.calls[0][3].tray_info_idx).toBe(expected);
+  });
+
+  it('pre-selects a SUNLU preset from the id the slot reports (#3387)', async () => {
+    (api.getCloudSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      filament: [{ setting_id: 'GFSNLS03_04', name: 'SUNLU PLA+ @BBL A1', filament_id: 'GFSNL03' }],
+    });
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={{ ...defaultProps.slotInfo, trayInfoIdx: 'GFSNL03' }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('SUNLU PLA+ @BBL A1')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Configure Slot/i })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Configure Slot/i }));
+    await waitFor(() => {
+      expect(api.configureAmsSlot).toHaveBeenCalled();
+    });
+    expect((api.configureAmsSlot as ReturnType<typeof vi.fn>).mock.calls[0][3].setting_id).toBe('GFSNLS03_04');
+  });
+
 
   it('keeps default PFUS tray_info_idx when cloud detail fetch fails', async () => {
     // Network/5xx from /cloud/settings/{id} must not abort the configure flow
@@ -705,7 +817,48 @@ describe('ConfigureAmsSlotModal', () => {
     expect(payload.kprofile_filament_id).toBe('P285e239');
     expect(payload.cali_idx).toBe(9);
   });
+  it.each([false, true])('keeps flow variants distinct and applies the reported context (known=%s)', async known => {
+    (api.getCloudSettings as ReturnType<typeof vi.fn>).mockResolvedValue({filament: [{setting_id: 'GFSA00', name: 'Bambu PLA Basic @BBL X1C', filament_id: 'GFA00'}]});
+    (api.getKProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({profiles: [
+      {slot_id: 5, extruder_id: 0, nozzle_id: 'HS00-0.4', nozzle_diameter: '0.4',
+        name: 'Bambu PLA Basic', filament_id: 'GFA00', k_value: '0.025'},
+      {slot_id: 7, extruder_id: 0, nozzle_id: 'HH00-0.4', nozzle_diameter: '0.4',
+        name: 'Bambu PLA Basic', filament_id: 'GFA00', k_value: '0.025'},
+    ]});
+    (api.configureAmsSlot as ReturnType<typeof vi.fn>).mockResolvedValue({success: true});
+    render(<ConfigureAmsSlotModal {...defaultProps}
+      calibrationContext={known ? {extruder: 0, diameter: '0.4', flow: 'HS'} : null}
+      slotInfo={{...defaultProps.slotInfo, savedPresetId: 'GFSA00'}} />);
+    const picker = await screen.findByRole('combobox', {name: 'K Profile (Pressure Advance)'});
+    if (!known) expect(picker).toHaveAttribute('data-value', '');
+    fireEvent.click(picker);
+    const standard = await screen.findByRole('option', {name: '[S] Bambu PLA Basic (K=0.025)'});
+    if (known) {
+      expect(screen.queryByRole('option', {name: /\[HF\]/})).not.toBeInTheDocument();
+      fireEvent.click(standard);
+    } else {
+      fireEvent.click(screen.getByRole('option', {name: '[HF] Bambu PLA Basic (K=0.025)'}));
+    }
+    fireEvent.click(screen.getByRole('button', {name: /Configure Slot/i}));
+    await waitFor(() => expect(api.configureAmsSlot).toHaveBeenCalled());
+    expect((api.configureAmsSlot as ReturnType<typeof vi.fn>).mock.calls[0][3].cali_idx).toBe(known ? 5 : 7);
+  });
 
+
+
+  it('identifies identical profile names by their reported hotend', async () => {
+    (api.getCloudSettings as ReturnType<typeof vi.fn>).mockResolvedValue({filament: [{setting_id: 'GFSA00', name: 'Bambu PLA Basic @BBL X1C', filament_id: 'GFA00'}]});
+    (api.getKProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({profiles: [0, 1].map(extruder_id => ({
+      slot_id: 5, extruder_id, nozzle_id: 'HS00-0.4', nozzle_diameter: '0.4',
+      name: 'Bambu PLA Basic', filament_id: 'GFA00', k_value: '0.025',
+    }))});
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={{...defaultProps.slotInfo, savedPresetId: 'GFSA00'}} />);
+    const picker = await screen.findByRole('combobox', {name: 'K Profile (Pressure Advance)'});
+    expect(picker).toHaveAttribute('data-value', '');
+    fireEvent.click(picker);
+    expect(await screen.findByRole('option', {name: /Right Extruder/})).toBeInTheDocument();
+    expect(screen.getByRole('option', {name: /Left Extruder/})).toBeInTheDocument();
+  });
 
 });
 
@@ -739,4 +892,30 @@ describe('Orca safe generic reporting', () => {
     expect(api.saveSlotPreset).not.toHaveBeenCalled();
     expect(screen.queryByText('Slot Configured!')).not.toBeInTheDocument();
   });
+  it('warns when a manual K value could not be sent (FW-C5)', async () => {
+    // The route used to report the slot configured either way.
+    const ORCA_ID = '3f2a9c1e-4b7d-4a02-9f61-8c5e2d1a7b30';
+    (api.orcaCloudListProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({
+      filament: [{ setting_id: ORCA_ID, name: 'Homebrew PLA @Orca', type: 'filament', is_custom: true }],
+      printer: [],
+      process: [],
+    });
+    (api.configureAmsSlot as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true, tray_info_idx: 'P56e1be0', orca_fallback_reason: '', k_value_unsent: true,
+    });
+
+    const slotInfo = { ...defaultProps.slotInfo, savedPresetId: ORCA_ID };
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={slotInfo} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Homebrew PLA @Orca')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Configure Slot/i }));
+
+    expect(
+      await screen.findByText('The filament was set, but the K value could not be sent to the printer.'),
+    ).toBeInTheDocument();
+  });
+
 });

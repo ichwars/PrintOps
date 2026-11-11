@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { render } from '../utils';
 import { server } from '../mocks/server';
@@ -15,7 +15,7 @@ beforeEach(() => {
   setAuthToken('fixture-token');
   server.use(
     http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
-    http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 102, username: 'manager', role: 'user', is_admin: false,
+    http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 102, username: 'manager', role: 'admin', is_admin: true,
       is_active: true, groups: [], permissions: ['settings:read', 'settings:update'], created_at: '2026-01-01T00:00:00Z' })),
     http.get('/api/v1/connect/apps', () => HttpResponse.json(apps)),
     http.post('/api/v1/connect/apps', async ({ request }) => {
@@ -83,4 +83,25 @@ it('discards edited name and callback on Cancel without saving', async () => {
   expect(screen.getByLabelText('Callback URL')).toHaveValue('');
   expect(apps).toEqual([original]);
   expect(screen.getByText('Workshop')).toBeInTheDocument();
+});
+
+
+it('keeps the registration tools and list request behind the administrator role', async () => {
+  const fetchApps = vi.fn();
+  const identityLoaded = vi.fn();
+  server.use(
+    http.get('/api/v1/auth/me', () => {
+      identityLoaded();
+      return HttpResponse.json({ id: 102, username: 'editor', is_admin: false, permissions: ['settings:update'] });
+    }),
+    http.get('/api/v1/connect/apps', () => {
+      fetchApps();
+      return HttpResponse.json([]);
+    }),
+  );
+  render(<ConnectedAppsSettings />);
+  await waitFor(() => expect(identityLoaded).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByText('Connected Apps')).not.toBeInTheDocument());
+  expect(screen.queryByRole('button', { name: 'Register application' })).not.toBeInTheDocument();
+  expect(fetchApps).not.toHaveBeenCalled();
 });

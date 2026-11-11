@@ -49,8 +49,8 @@ export function RunWithPipelineModal({ source, onClose }: RunWithPipelineModalPr
   // Cap from settings (PR C). Falls back to 50 when the fetch is in-flight or
   // missing — same default the backend writes.
   const { data: settings } = useQuery({
-    queryKey: ['app-settings'],
-    queryFn: () => api.getSettings(),
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: () => api.getUiFlags(),
   });
   const maxCopies = settings?.pipeline_max_copies ?? 50;
 
@@ -104,8 +104,9 @@ export function RunWithPipelineModal({ source, onClose }: RunWithPipelineModalPr
       if (result.ok) {
         runMutation.mutate({ pipelineId: pipeline.id, force: false });
       }
-    } catch {
-      // Network error — keep the user on step 1 so they can retry.
+    } catch (error) {
+      const message = error instanceof Error && error.message;
+      showToast(message || t('library.runWithPipeline.toast.failed', 'Could not start run'), 'error');
       setPicked(null);
     }
   };

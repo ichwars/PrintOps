@@ -36,6 +36,38 @@ def update_fan_fields(self, data, logger) -> None:
     if "heatbreak_fan_speed" in data:
         self.state.heatbreak_fan_speed = parse_fan_speed(data["heatbreak_fan_speed"])
 
+    _update_airduct_fans(self, data)
+
+
+def _update_airduct_fans(client, data):
+    """Part ids and state are packed; trust absence only in a complete inventory."""
+    device = data.get("device")
+    duct = device.get("airduct") if isinstance(device, dict) else None
+    parts = duct.get("parts") if isinstance(duct, dict) else None
+    if not isinstance(parts, list):
+        return
+    speeds = {}
+    for part in parts:
+        if not isinstance(part, dict):
+            continue
+        try:
+            if isinstance(part.get("id"), bool) or isinstance(part.get("state"), bool):
+                continue
+            part_id = (int(part["id"]) >> 4) & 0xFF
+            speed = int(part["state"]) & 0xFF
+        except (KeyError, ValueError, TypeError, OverflowError):
+            continue
+        speeds[part_id] = min(100, speed)
+    full_inventory = 1 in speeds and 2 in speeds
+    if 10 in speeds:
+        client.state.left_aux_fan_speed = speeds[10]
+    elif full_inventory:
+        client.state.left_aux_fan_speed = None
+    if 3 in speeds:
+        client.state.exhaust_fan_present = True
+    elif full_inventory:
+        client.state.exhaust_fan_present = False
+
 
 def update_hardware_fields(self, data, logger, FilaSwitchState) -> None:
     # Log vir_slot data (once) - this may contain per-extruder slot mapping for H2D
@@ -77,23 +109,13 @@ def update_hardware_fields(self, data, logger, FilaSwitchState) -> None:
                     sorted(device.keys()),
                 )
             self._device_id_logged = True
-        if "extruder" in device and "state" in device["extruder"]:
-            state_val = device["extruder"]["state"]
-            # Extract bit 8 for extruder position
-            new_extruder = (state_val >> 8) & 0x1
-            if new_extruder != self.state.active_extruder:
-                logger.debug(
-                    f"[{self.serial_number}] ACTIVE EXTRUDER CHANGED (state bit 8): {self.state.active_extruder} -> {new_extruder} (0=right, 1=left) [state={state_val}]"
-                )
-                self.state.active_extruder = new_extruder
-
     # Log device.extruder structure for active extruder
     if "device" in data and isinstance(data.get("device"), dict):
         device = data["device"]
-        if "extruder" in device:
+        if isinstance(device.get("extruder"), dict):
             ext_data = device["extruder"]
             # Log 'state' field - OrcaSlicer uses bits 12-14 for switch state
-            if "state" in ext_data:
+            if type(ext_data.get("state")) is int:
                 state_val = ext_data["state"]
                 # Extract bits 12-14 (3 bits) for switch state
                 switch_state = (state_val >> 12) & 0x7

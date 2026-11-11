@@ -27,6 +27,9 @@ async def test_legacy_sqlite_upgrade_is_repeatable_and_guards_part_counts(monkey
                 await conn.execute(text(statement))
             await database._migrate_production_quality(conn)
             await database._migrate_production_quality(conn)
+            assert (
+                await conn.execute(text("SELECT duration_unmeasured FROM print_log_entries WHERE id=1"))
+            ).scalar_one() is None
             row = (
                 await conn.execute(
                     text(
@@ -83,6 +86,7 @@ async def test_postgresql_migration_uses_boolean_timestamp_and_check_constraint(
     finally:
         await engine.dispose()
     assert any("confirm_requested BOOLEAN DEFAULT FALSE" in statement for statement in statements)
+    assert "ALTER TABLE print_log_entries ADD COLUMN duration_unmeasured BOOLEAN" in statements
     assert any("confirm_token_expires_at TIMESTAMP" in statement for statement in statements)
     assert any("confirm_prompted_at TIMESTAMP" in statement for statement in statements)
     assert any("ADD CONSTRAINT ck_print_log_quality_quantities CHECK" in statement for statement in statements)

@@ -241,3 +241,44 @@ class TestCombineFiles:
         )
         assert resp.status_code == 400
         assert "stub.stl" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_key_upload_and_combination_use_local_ownership_without_cloud_access(async_client, db_session):
+    from backend.app.core.auth import generate_api_key
+    from backend.app.models.api_key import APIKey
+    from backend.tests.integration.test_media_tokens import _admin_token, _make_user
+
+    foreign_id = await _upload(async_client, "foreign.stl", _stl(trimesh.creation.box((4, 4, 4))))
+    admin = await _admin_token(async_client, "library-key")
+    _, owner_id = await _make_user(
+        async_client, admin, username="local-library-key", permissions=["library:read_own", "library:upload"]
+    )
+    token, key_hash, prefix = generate_api_key()
+    db_session.add(
+        APIKey(name="Local library", key_hash=key_hash, key_prefix=prefix, user_id=owner_id, can_access_cloud=False)
+    )
+    await db_session.commit()
+    headers = {"X-API-Key": "invalid", "Authorization": f"Bearer {token}"}
+
+    upload = await async_client.post(
+        "/api/v1/library/files",
+        headers=headers,
+        params={"generate_stl_thumbnails": "false"},
+        files={"file": ("owned.stl", _stl(trimesh.creation.box((6, 6, 6))), "application/octet-stream")},
+    )
+    assert upload.status_code == 200, upload.text
+    uploaded = await db_session.get(LibraryFile, upload.json()["id"])
+    assert uploaded.created_by_id == owner_id
+
+    endpoint = "/api/v1/library/files/combine"
+    denied = await async_client.post(
+        endpoint, headers=headers, json={"items": [{"file_id": foreign_id}], "filename": "Foreign"}
+    )
+    assert denied.status_code == 404
+    combined = await async_client.post(
+        endpoint, headers=headers, json={"items": [{"file_id": uploaded.id}], "filename": "Owned"}
+    )
+    assert combined.status_code == 200, combined.text
+    assert (await db_session.get(LibraryFile, combined.json()["id"])).created_by_id == owner_id

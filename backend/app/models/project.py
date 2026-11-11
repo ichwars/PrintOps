@@ -5,17 +5,31 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
 
+PROJECT_PRIORITIES = ("low", "normal", "high", "urgent")
+PROJECT_STATUSES = ("active", "completed", "archived")
+DEFAULT_PROJECT_PRIORITY = "normal"
+DEFAULT_PROJECT_STATUS = "active"
+
+
+def normalize_project_priority(value: object) -> str:
+    return value if isinstance(value, str) and value in PROJECT_PRIORITIES else DEFAULT_PROJECT_PRIORITY
+
+
+def normalize_project_status(value: object) -> str:
+    return value if isinstance(value, str) and value in PROJECT_STATUSES else DEFAULT_PROJECT_STATUS
+
 
 class Project(Base):
     """Project to group related prints (e.g., 'Voron Build' with multiple parts)."""
 
     __tablename__ = "projects"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     color: Mapped[str | None] = mapped_column(String(20), nullable=True)  # Hex color for UI
-    status: Mapped[str] = mapped_column(String(20), default="active")  # active, completed, archived
+    status: Mapped[str] = mapped_column(String(20), default=DEFAULT_PROJECT_STATUS)
 
     # External link rendered as a clickable icon next to the project name (#1155).
     url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
@@ -43,7 +57,7 @@ class Project(Base):
 
     # Phase 5: Due dates and priority
     due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    priority: Mapped[str] = mapped_column(String(20), default="normal")  # low, normal, high, urgent
+    priority: Mapped[str] = mapped_column(String(20), default=DEFAULT_PROJECT_PRIORITY)
 
     # Phase 6: Budget tracking
     budget: Mapped[float | None] = mapped_column(Float, nullable=True)

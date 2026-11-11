@@ -566,3 +566,68 @@ class TestGitHubBackupTriggerAPI:
         response = await async_client.post("/api/v1/github-backup/run")
         assert response.status_code == 400
         assert "disabled" in response.json()["detail"].lower()
+
+
+class TestGitConnectionTargets:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.parametrize("url", ["http://git.home.test:3000/team/backup", "git@git.home.test:team/backup.git"])
+    async def test_lan_and_ssh_style_repository_urls_reach_the_provider(
+        self, async_client, _mock_private_repo_check, url
+    ):
+        response = await async_client.post(
+            "/api/v1/github-backup/test", json={"repo_url": url, "token": "connection-fixture", "provider": "gitea"}
+        )
+        assert response.status_code == 200, response.text
+        _mock_private_repo_check.assert_awaited_once_with(url, "connection-fixture", provider="gitea")
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "file:///etc/passwd",
+            "http://169.254.169.254/team/backup",
+            "git@100.100.100.200:team/backup.git",
+            "https://0x7f000001/team/backup",
+            "https://user@github.com/team/backup",
+        ],
+    )
+    async def test_invalid_target_is_refused_before_testing_credentials(
+        self, async_client, _mock_private_repo_check, url
+    ):
+        response = await async_client.post(
+            "/api/v1/github-backup/test", json={"repo_url": url, "token": "connection-fixture"}
+        )
+        assert response.status_code == 422
+        _mock_private_repo_check.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_config_and_stored_connection_reject_the_same_metadata_target(
+        self, async_client, db_session, _mock_private_repo_check
+    ):
+        from backend.app.models.github_backup import GitHubBackupConfig
+
+        url = "http://169.254.169.254/team/backup"
+        response = await async_client.post(
+            "/api/v1/github-backup/config",
+            json={"repository_url": url, "access_token": "connection-fixture", "allow_insecure_http": True},
+        )
+        assert response.status_code == 422
+        db_session.add(GitHubBackupConfig(repository_url=url, access_token="connection-fixture"))
+        await db_session.commit()
+
+        response = await async_client.post("/api/v1/github-backup/test-stored")
+        assert response.status_code == 422
+        _mock_private_repo_check.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_connection_refuses_legacy_query_credentials(self, async_client, _mock_private_repo_check):
+        response = await async_client.post(
+            "/api/v1/github-backup/test",
+            params={"repo_url": "https://github.com/team/backup", "token": "query-fixture"},
+        )
+        assert response.status_code == 422
+        _mock_private_repo_check.assert_not_awaited()

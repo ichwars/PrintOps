@@ -12,14 +12,18 @@ let login: ReturnType<typeof useAuth>['loginWithToken'];
 function LoginProbe() {
   const auth = useAuth();
   useEffect(() => { login = auth.loginWithToken; }, [auth]);
-  return <output data-testid="auth-ready">{String(!auth.loading)}</output>;
+  return <>
+    <output data-testid="auth-ready">{String(!auth.loading)}</output>
+    {auth.user && <PrintersPage />}
+  </>;
 }
 const account = (sub: string, permissions = ['queue:read_own', 'printers:read']) => ({
   id: 17, sub, username: sub, is_admin: false, permissions,
 }) as UserResponse;
 afterEach(() => setAuthToken(null));
 
-it.each([['printers:read'], ['printers:read', 'queue:read_own']])('isolates prior owner name/count on same-ID account replacement (%j)', async (...permissions) => {
+it.each([{ permissions: ['printers:read'] }, { permissions: ['printers:read', 'queue:read_own'] }])(
+  'isolates prior owner name/count on same-ID account replacement ($permissions)', async ({ permissions }) => {
   let rows = [{ id: 1, position: 1, printer_id: 1, status: 'pending', archive_name: 'Owner A private job' }];
   let denied = false;
   server.use(
@@ -31,7 +35,7 @@ it.each([['printers:read'], ['printers:read', 'queue:read_own']])('isolates prio
       return denied ? new HttpResponse(null, { status: 403 }) : HttpResponse.json(rows);
     }),
   );
-  render(<><LoginProbe /><PrintersPage /></>);
+  render(<LoginProbe />);
   await waitFor(() => expect(screen.getByTestId('auth-ready')).toHaveTextContent('true'));
   act(() => login('session-A', account('owner-A')));
   await screen.findByText('Owner A private job');

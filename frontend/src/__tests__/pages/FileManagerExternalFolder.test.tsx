@@ -96,7 +96,7 @@ describe('FileManagerPage - External Folders', () => {
       http.get('/api/v1/library/stats', () => {
         return HttpResponse.json(mockStats);
       }),
-      http.get('/api/v1/settings/', () => {
+      http.get('/api/v1/settings/ui-flags', () => {
         return HttpResponse.json({
           check_updates: false,
           check_printer_firmware: false,

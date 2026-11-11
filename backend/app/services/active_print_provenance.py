@@ -54,7 +54,9 @@ async def restore_for_running_print(printer_id: int, state, db, logger) -> None:
         from backend.app.api.routes.settings import get_setting
         from backend.app.services.usage_tracker import (
             clear_persisted_session,
+            get_persisted_ams_mapping,
             get_persisted_print_identity,
+            get_persisted_spool_change_log,
             restore_session,
         )
 
@@ -83,6 +85,14 @@ async def restore_for_running_print(printer_id: int, state, db, logger) -> None:
                 printer_id,
                 register_active=not (bool(spoolman_enabled) and spoolman_enabled.lower() == "true"),
             )
+
+        if not stale_session:
+            if getattr(state, "print_ams_mapping", None) is None:
+                state.print_ams_mapping = await get_persisted_ams_mapping(db, printer_id)
+            swaps = await get_persisted_spool_change_log(db, printer_id)
+            if swaps:
+                current = getattr(state, "spool_change_log", None) or []
+                state.spool_change_log = swaps + [item for item in current if item not in swaps]
 
         current_log = list(getattr(state, "tray_change_log", None) or [])
         if persisted_log:

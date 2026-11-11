@@ -14,7 +14,7 @@ from sqlalchemy.orm import selectinload
 from backend.app.api.routes.settings import get_setting
 from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_media_token_permission
 from backend.app.core.config import settings as app_settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.calculation import Calculation
 from backend.app.models.calculation_project import CalculationProjectFile, CalculationProjectPlate
@@ -82,7 +82,7 @@ def _file_read(project_file: CalculationProjectFile) -> CalculationProjectFileRe
 async def upload_project_file(
     calculation_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ) -> CalculationProjectFileRead:
     calculation = await db.get(Calculation, calculation_id)
@@ -184,7 +184,7 @@ async def _load_file(db: AsyncSession, file_id: int) -> CalculationProjectFile:
 @router.get("/{calculation_id}/project-files", response_model=list[CalculationProjectFileRead])
 async def list_project_files(
     calculation_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> list[CalculationProjectFileRead]:
     files = list(
@@ -202,7 +202,7 @@ async def list_project_files(
 async def get_project_plate_thumbnail(
     file_id: int,
     plate_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_media_token_permission(Permission.CALCULATIONS_READ)),
 ):
     plate = await db.scalar(
@@ -224,7 +224,7 @@ async def get_project_plate_thumbnail(
 async def slice_project_plates(
     file_id: int,
     request: CalculationSliceRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ):
     project_file = await _load_file(db, file_id)

@@ -5,6 +5,15 @@ import logging
 from sqlalchemy import select
 
 
+async def _announce_failed_plate_check(ws_manager, logger, printer_id, printer_name, reason):
+    try:
+        await ws_manager.broadcast(
+            {"type": "plate_check_failed", "printer_id": printer_id, "printer_name": printer_name, "reason": reason}
+        )
+    except Exception as exc:
+        logger.warning("[PLATE CHECK] Could not publish check failure for printer %s: %s", printer_id, exc)
+
+
 async def check_print_start_plate(
     printer_id,
     printer,
@@ -15,7 +24,6 @@ async def check_print_start_plate(
     ws_manager,
     notification_service,
     _capture_snapshot_for_notification,
-    asyncio,
 ):
     # Plate detection check - pause if objects detected on build plate
     logger.info(
@@ -24,6 +32,7 @@ async def check_print_start_plate(
     if printer and printer.plate_detection_enabled:
         logger.info("[PLATE CHECK] ENTERING plate detection code for printer %s", printer_id)
         try:
+            from backend.app.services.camera_light import hold_camera_light
             from backend.app.services.plate_detection import check_plate_empty
 
             # Build ROI tuple from printer settings if available
@@ -43,19 +52,9 @@ async def check_print_start_plate(
                     printer.plate_detection_roi_h,
                 )
 
-            # Auto-turn on chamber light if it's off for better detection
-            light_was_off = False
             client = printer_manager.get_client(printer_id)
             plate_image_data = None
-            try:
-                if client and client.state:
-                    light_was_off = not client.state.chamber_light
-                    if light_was_off:
-                        logger.info("[PLATE CHECK] Turning on chamber light for printer %s", printer_id)
-                        client.set_chamber_light(True)
-                        # Wait for light to physically turn on and camera to adjust exposure
-                        await asyncio.sleep(2.5)
-
+            async with hold_camera_light(printer_id, illuminate_with=client):
                 logger.info("[PLATE CHECK] Running plate detection for printer %s", printer_id)
                 plate_result = await check_plate_empty(
                     printer_id=printer_id,
@@ -70,17 +69,16 @@ async def check_print_start_plate(
                     external_camera_snapshot_url=printer.external_camera_snapshot_url,
                 )
 
-                if not plate_result.needs_calibration and not plate_result.is_empty:
+                failure = getattr(plate_result, "failure_reason", None)
+                if not failure and plate_result.needs_calibration:
+                    failure = "not_calibrated"
+                objects_detected = not failure and not plate_result.is_empty
+                if objects_detected:
                     if client:
                         client.pause_print()
                         logger.info("[PLATE CHECK] Print paused for printer %s", printer_id)
                     plate_image_data = await _capture_snapshot_for_notification(printer_id, printer, logger)
-            finally:
-                if light_was_off and client:
-                    logger.info("[PLATE CHECK] Restoring chamber light to off for printer %s", printer_id)
-                    client.set_chamber_light(False)
-
-            if not plate_result.needs_calibration and not plate_result.is_empty:
+            if objects_detected:
                 # Objects detected - pause the print!
                 logger.warning(
                     f"[PLATE CHECK] Objects detected on plate for printer {printer_id}! "
@@ -107,11 +105,16 @@ async def check_print_start_plate(
                     )
                 except Exception as notif_err:
                     logger.warning("[PLATE CHECK] Failed to send notification: %s", notif_err)
+            elif failure:
+                logger.warning(
+                    "[PLATE CHECK] Could not check printer %s (%s); proceeding with print", printer_id, failure
+                )
+                await _announce_failed_plate_check(ws_manager, logger, printer_id, printer.name, failure)
             else:
                 logger.info("[PLATE CHECK] Plate is empty for printer %s, proceeding with print", printer_id)
         except Exception as plate_err:
-            # Don't block print on plate detection errors
-            logger.warning("[PLATE CHECK] Plate detection failed for printer %s: %s", printer_id, plate_err)
+            logger.warning("[PLATE CHECK] Could not check printer %s: %s; proceeding with print", printer_id, plate_err)
+            await _announce_failed_plate_check(ws_manager, logger, printer_id, printer.name, "error")
 
 
 async def calculate_print_energy(
@@ -122,20 +125,24 @@ async def calculate_print_energy(
     async_session,
     read_printer_energy,
     _get_plug_energy,
+    run_id,
 ):
-    """Calculate energy from the persisted start reading without blocking."""
-    try:
-        logger.info("[ENERGY-BG] Starting energy calculation for archive %s", archive_id)
-        async with async_session() as db:
-            from backend.app.models.archive import PrintArchive
+    """Measure and update the exact run that wrote its start reading."""
+    from sqlalchemy import func, update
 
-            archive = await db.get(PrintArchive, archive_id)
-            if archive is None:
-                logger.warning("[ENERGY-BG] Archive %s no longer exists", archive_id)
+    from backend.app.api.routes.settings import get_setting
+    from backend.app.models.archive import PrintArchive
+    from backend.app.models.print_log import PrintLogEntry
+
+    if run_id is None:
+        return
+    try:
+        async with async_session() as db:
+            run = await db.get(PrintLogEntry, run_id)
+            if run is None or run.archive_id != archive_id or run.printer_id != printer_id:
                 return
-            starting_kwh, starting_plug_id = archive.energy_start_kwh, archive.energy_start_plug_id
-            if starting_kwh is None or not isinstance(starting_plug_id, int):
-                logger.info("[ENERGY-BG] No start energy source recorded for archive %s", archive_id)
+            starting_kwh, starting_plug_id = run.energy_start_kwh, run.energy_start_plug_id
+            if starting_kwh is None or starting_plug_id is None:
                 return
 
             selected = await read_printer_energy(
@@ -143,63 +150,35 @@ async def calculate_print_energy(
                 printer_id,
                 _get_plug_energy,
                 log_prefix="ENERGY-BG",
-                context=f"archive {archive_id}",
+                context=f"run {run_id}",
                 plug_id=starting_plug_id,
             )
             if selected is None:
                 return
-            plug, energy = selected
-            logger.info("[ENERGY-BG] Energy response from plug '%s': %s", plug.name, energy)
-
+            _, energy = selected
             energy_used = round(energy["total"] - starting_kwh, 4)
-            logger.info("[ENERGY-BG] Per-print energy: %s kWh", energy_used)
             if energy_used < 0:
-                logger.warning(
-                    "[ENERGY-BG] Negative energy delta for archive %s (start=%s, end=%s) — counter reset?",
-                    archive_id,
-                    starting_kwh,
-                    energy["total"],
-                )
+                logger.warning("[ENERGY-BG] Counter decreased during run %s", run_id)
                 return
-
-            from backend.app.api.routes.settings import get_setting
 
             energy_cost_per_kwh = await get_setting(db, "energy_cost_per_kwh")
             cost_per_kwh = float(energy_cost_per_kwh) if energy_cost_per_kwh else 0.15
-            energy_cost_value = round(energy_used * cost_per_kwh, 3)
+            run.energy_kwh, run.energy_cost = energy_used, round(energy_used * cost_per_kwh, 3)
 
-            # Do not let reprints clobber source-archive energy (#1378).
-            from sqlalchemy import func
-
-            from backend.app.models.print_log import PrintLogEntry
-
-            existing_runs = await db.scalar(
-                select(func.count(PrintLogEntry.id)).where(PrintLogEntry.archive_id == archive_id)
-            )
-            if (existing_runs or 0) <= 1:
-                # 0 = legacy archive that pre-dates per-run logging; 1 = the row
-                # we just wrote for THIS print. Either way it's the first run.
-                archive.energy_kwh = energy_used
-                archive.energy_cost = energy_cost_value
-
-            # Backfill the latest PrintLogEntry for this archive with energy
-            # (write_log_entry above ran before this background task completed,
-            # so energy fields are still NULL on that row).
-            latest_run = await db.execute(
-                select(PrintLogEntry)
-                .where(PrintLogEntry.archive_id == archive_id)
-                .order_by(PrintLogEntry.id.desc())
-                .limit(1)
-            )
-            run_row = latest_run.scalar_one_or_none()
-            if run_row is not None:
-                run_row.energy_kwh = energy_used
-                run_row.energy_cost = energy_cost_value
-
+            runs = await db.scalar(select(func.count(PrintLogEntry.id)).where(PrintLogEntry.archive_id == archive_id))
+            if runs == 1:
+                await db.execute(
+                    update(PrintArchive)
+                    .where(
+                        PrintArchive.id == archive_id,
+                        PrintArchive.printer_id == printer_id,
+                        PrintArchive.started_at == run.started_at,
+                    )
+                    .values(energy_kwh=run.energy_kwh, energy_cost=run.energy_cost)
+                )
             await db.commit()
-            logger.info("[ENERGY-BG] Saved: %s kWh, cost=%s", energy_used, energy_cost_value)
-    except Exception as e:
-        logger.warning("[ENERGY-BG] Failed: %s", e)
+    except Exception:
+        logger.warning("[ENERGY-BG] Failed for run %s", run_id, exc_info=True)
 
 
 async def check_print_maintenance(
@@ -228,28 +207,31 @@ async def check_print_maintenance(
             await ensure_default_types(db)
             overview = await _get_printer_maintenance_internal(printer_id, db, commit=True)
 
+            attention = [
+                item for item in overview.maintenance_items if item.enabled and (item.is_due or item.is_warning)
+            ]
             items_needing_attention = [
                 {"name": item.maintenance_type_name, "is_due": item.is_due, "is_warning": item.is_warning}
-                for item in overview.maintenance_items
-                if item.enabled and (item.is_due or item.is_warning)
+                for item in attention
             ]
 
             if items_needing_attention:
-                await notification_service.on_maintenance_due(printer_id, printer_name, items_needing_attention, db)
-                logger.info("[MAINT-BG] Sent notification: %s items need attention", len(items_needing_attention))
-
-                # MQTT relay - publish maintenance alerts
-                for item in items_needing_attention:
+                for item in attention:
                     try:
                         await mqtt_relay.on_maintenance_alert(
                             printer_id=printer_id,
                             printer_name=printer_name,
-                            maintenance_type=item["name"],
-                            current_value=0,  # Not easily available here
-                            threshold=0,  # Not easily available here
+                            maintenance_type=item.maintenance_type_name,
+                            current_value=item.days_since_maintenance
+                            if item.interval_type == "days"
+                            else item.hours_since_maintenance,
+                            threshold=item.interval_hours,
+                            unit=item.interval_type,
                         )
                     except Exception:
-                        pass  # Don't fail if MQTT fails
+                        logger.debug("Could not relay maintenance event", exc_info=True)
+                await notification_service.on_maintenance_due(printer_id, printer_name, items_needing_attention, db)
+                logger.info("[MAINT-BG] Sent notification: %s items need attention", len(items_needing_attention))
             else:
                 logger.info("[MAINT-BG] Completed (no items need attention)")
     except Exception as e:
@@ -265,37 +247,48 @@ async def complete_layer_timelapse(
     async_session,
     ArchiveService,
     asyncio,
+    expected_session=None,
+    plate_id=None,
+    run_id=None,
 ):
     """Stitch layer timelapse and attach to archive."""
     from backend.app.services.layer_timelapse import cancel_session, on_print_complete as tl_complete
 
+    session_guard = {"expected_session": expected_session} if expected_session is not None else {}
+    timelapse_path = None
     try:
         if print_status == "completed":
             logger.info("[LAYER-TL] Stitching layer timelapse for printer %s", printer_id)
-            timelapse_path = await tl_complete(printer_id)
-            if timelapse_path and archive_id:
-                logger.info("[LAYER-TL] Attaching timelapse %s to archive %s", timelapse_path, archive_id)
+            async with async_session() as db:
+                previous = await ArchiveService(db).get_archive(archive_id) if archive_id else None
+                source = previous
+                if run_id is not None and previous is not None:
+                    from backend.app.services.print_run_media import run_of
+
+                    source = await run_of(db, archive_id, run_id, printer_id=printer_id)
+                run_started_at = source.started_at if source is not None else None
+            timelapse_path = await tl_complete(printer_id, **session_guard)
+            if timelapse_path and source is not None:
+                timelapse_data = await asyncio.to_thread(timelapse_path.read_bytes)
                 async with async_session() as db:
-                    service = ArchiveService(db)
-                    timelapse_data = await asyncio.to_thread(timelapse_path.read_bytes)
-                    await service.attach_timelapse(archive_id, timelapse_data, "layer_timelapse.mp4")
-                    # Clean up the temp file
-                    await asyncio.to_thread(timelapse_path.unlink, missing_ok=True)
-                    logger.info("[LAYER-TL] Layer timelapse attached successfully")
-            elif timelapse_path:
-                # Timelapse created but no archive - just clean up
-                await asyncio.to_thread(timelapse_path.unlink, missing_ok=True)
+                    await ArchiveService(db).attach_timelapse(
+                        archive_id,
+                        timelapse_data,
+                        "layer_timelapse.mp4",
+                        expected_started_at=run_started_at,
+                        **({"plate_id": plate_id} if plate_id is not None else {}),
+                        **({"run_id": run_id, "printer_id": printer_id} if run_id is not None else {}),
+                    )
         else:
             # Print failed or cancelled - cancel timelapse session
-            cancel_session(printer_id)
+            cancel_session(printer_id, **session_guard)
             logger.info("[LAYER-TL] Cancelled layer timelapse for printer %s (status: %s)", printer_id, print_status)
     except Exception as e:
         logger.warning("[LAYER-TL] Failed: %s", e)
-        # Try to cancel session on error
-        try:
-            cancel_session(printer_id)
-        except Exception:
-            pass  # Best-effort timelapse session cancellation on error
+
+    finally:
+        if timelapse_path:
+            await asyncio.to_thread(timelapse_path.unlink, missing_ok=True)
 
 
 def check_kprofile_status(printer_id, state, spawn_background_task, logger) -> None:

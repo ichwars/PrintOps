@@ -259,3 +259,34 @@ async def test_no_external_fetch_without_active_subscribed_assignments(
         assert deliveries == []
     finally:
         await client.close()
+
+
+async def test_low_crossing_reaches_the_mqtt_relay_without_a_notification_provider(
+    db_session, printer_factory, low_scheduler, monkeypatch
+):
+    from unittest.mock import AsyncMock
+
+    from backend.app.services.mqtt_relay import mqtt_relay
+
+    printer = await printer_factory(name="Relay printer")
+    spool, _, provider = await seed_low(db_session, printer, ams_id=128, tray_id=0)
+    provider.enabled = False
+    await db_session.commit()
+    monkeypatch.setattr(mqtt_relay, "enabled", True)
+    monkeypatch.setattr(mqtt_relay, "connected", True)
+    emit = AsyncMock(return_value=True)
+    monkeypatch.setattr(mqtt_relay, "on_printer_filament_low", emit)
+    scheduler, deliveries = low_scheduler
+
+    await run_alert_pass(scheduler)
+    await run_alert_pass(scheduler)
+    emit.assert_awaited_once_with(printer.id, printer.name, printer.serial_number, "HT-A", 10, "Red", spool.id)
+    assert deliveries == []
+
+    spool.weight_used = 100
+    await db_session.commit()
+    await run_alert_pass(scheduler)
+    spool.weight_used = 225
+    await db_session.commit()
+    await run_alert_pass(scheduler)
+    assert emit.await_count == 2

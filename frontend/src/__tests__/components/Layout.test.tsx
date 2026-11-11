@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { Layout } from '../../components/Layout';
 import { http, HttpResponse } from 'msw';
@@ -50,7 +50,7 @@ describe('Layout', () => {
       http.get('/api/v1/version', () => {
         return HttpResponse.json({ version: '0.1.6', build: 'test' });
       }),
-      http.get('/api/v1/settings/', () => {
+      http.get('/api/v1/settings/ui-flags', () => {
         return HttpResponse.json({
           check_updates: false,
           check_printer_firmware: false,
@@ -86,6 +86,21 @@ describe('Layout', () => {
   });
 
   describe('rendering', () => {
+    it('warns operators when a plate check could not run', async () => {
+      render(<Layout />);
+      await waitFor(() => expect(sidebarLink('/printers')).toBeInTheDocument());
+
+      act(() => {
+        window.dispatchEvent(new CustomEvent('plate-check-failed', {
+          detail: { printer_id: 1, printer_name: 'X1 Carbon', reason: 'no_camera_frame' },
+        }));
+      });
+
+      expect(await screen.findByText(
+        'Could not check the build plate on X1 Carbon. No camera image was received.',
+      )).toBeInTheDocument();
+    });
+
     it('renders the global encryption warning above page content', async () => {
       server.use(
         http.get('/api/v1/auth/encryption-status', () =>

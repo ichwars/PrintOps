@@ -1,14 +1,17 @@
 import asyncio
 import logging
 
+from fastapi import Depends
 from sqlalchemy import event
-from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from backend.app.core.active_print_migrations import migrate_active_print_spoolman
 from backend.app.core.app_message_migration import migrate_notification_options
-from backend.app.core.archive_metadata_migration import repair_archive_plate_metadata
+from backend.app.core.archive_metadata_migration import repair_archive_metadata
+from backend.app.core.archived_spool_migration import release_slots_of_archived_spools
+from backend.app.core.auth_ephemeral_migration import migrate_auth_ephemeral_columns
 from backend.app.core.commerce_schema_migrations import (
     migrate_commercial_settings,
     migrate_production_quality,
@@ -16,8 +19,14 @@ from backend.app.core.commerce_schema_migrations import (
 )
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_already_applied as _is_already_applied, is_sqlite, postgres_connect_args
-from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
+from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files, repair_compound_3mf_library_types
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
+from backend.app.core.postgres_migration_ddl import (
+    idempotent_postgres_ddl,
+    is_postgres_connection,
+    postgres_ddl_already_applied,
+    quiet_postgres_migration_ddl,
+)
 from backend.app.core.rfid_core_weight_migration import repair_rfid_core_weights
 from backend.app.core.spool_k_profile_migration import migrate_spool_k_profile_contexts
 
@@ -36,12 +45,15 @@ def _set_sqlite_pragmas(dbapi_conn, connection_record):
 _pool_config: dict = {}
 
 
-def _resolve_pool_kwargs() -> dict:
+def _resolve_pool_kwargs(*, sqlite: bool | None = None) -> dict:
     """Build dialect-aware connection pool kwargs for the async engine."""
-    if is_sqlite():
+    sqlite = is_sqlite() if sqlite is None else sqlite
+    if sqlite:
+        # WAL can hold descriptors for closed overflow connections until the
+        # last pooled connection closes. Bound peak use with the SQLite default.
         kwargs = {
-            "pool_size": settings.db_pool_size if settings.db_pool_size is not None else 20,
-            "max_overflow": settings.db_max_overflow if settings.db_max_overflow is not None else 200,
+            "pool_size": settings.db_pool_size if settings.db_pool_size is not None else 10,
+            "max_overflow": settings.db_max_overflow if settings.db_max_overflow is not None else 90,
         }
     else:
         kwargs = {
@@ -60,26 +72,25 @@ def _resolve_connect_args() -> dict:
     return postgres_connect_args(settings.database_url, sqlite=is_sqlite())
 
 
-def _create_engine():
-    """Create the async engine with dialect-appropriate settings."""
-    kwargs = _resolve_pool_kwargs()
-    connect_args = _resolve_connect_args()
+def _create_engine(url: str | None = None):
+    """Create a database engine. An auxiliary URL does not replace runtime pool stats."""
+    database_url = settings.database_url if url is None else url
+    sqlite = is_sqlite() if url is None else url.startswith("sqlite")
+    kwargs = _resolve_pool_kwargs(sqlite=sqlite)
+    connect_args = _resolve_connect_args() if url is None else postgres_connect_args(url, sqlite=sqlite)
     if connect_args:
         kwargs["connect_args"] = connect_args
-    global _pool_config
-    _pool_config = {
-        "pool_size": kwargs["pool_size"],
-        "max_overflow": kwargs["max_overflow"],
-        "pool_timeout": kwargs.get("pool_timeout", 30),
-        "pool_recycle": kwargs.get("pool_recycle", -1),
-        "pool_pre_ping": kwargs.get("pool_pre_ping", False),
-    }
-    eng = create_async_engine(
-        settings.database_url,
-        echo=settings.debug,
-        **kwargs,
-    )
-    if is_sqlite():
+    if url is None:
+        global _pool_config
+        _pool_config = {
+            "pool_size": kwargs["pool_size"],
+            "max_overflow": kwargs["max_overflow"],
+            "pool_timeout": kwargs.get("pool_timeout", 30),
+            "pool_recycle": kwargs.get("pool_recycle", -1),
+            "pool_pre_ping": kwargs.get("pool_pre_ping", False),
+        }
+    eng = create_async_engine(database_url, echo=settings.debug, hide_parameters=True, **kwargs)
+    if sqlite:
         event.listen(eng.sync_engine, "connect", _set_sqlite_pragmas)
     else:
         # Strip timezone info from aware datetimes before they reach asyncpg.
@@ -146,24 +157,24 @@ def get_pool_status() -> dict:
     }
 
 
-async def run_with_retry(fn, *, max_attempts: int = 3, label: str = ""):
+async def run_with_retry(fn, *, max_attempts: int = 3, label: str = "", session_factory=None):
     """Run an async DB operation with retry for SQLite 'database is locked' errors.
 
     ``fn`` is an async callable that receives an ``AsyncSession`` and performs
     the full query-mutate-commit cycle.  On each retry a fresh session is used
     so there are no stale-object / expired-attribute issues after rollback.
 
-    On PostgreSQL this calls ``fn`` once with no retry (Postgres uses row-level
-    locking and doesn't suffer from single-writer contention).
+    PostgreSQL executes the operation once.
     """
+    sessions = async_session if session_factory is None else session_factory
     if not is_sqlite():
-        async with async_session() as db:
+        async with sessions() as db:
             return await fn(db)
 
     last_exc: OperationalError | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            async with async_session() as db:
+            async with sessions() as db:
                 return await fn(db)
         except OperationalError as exc:
             last_exc = exc
@@ -229,8 +240,12 @@ async def get_db() -> AsyncSession:
                 pass
 
 
-async def init_db():
-    # Import models to register them with SQLAlchemy
+# Finish committing before FastAPI sends the response or starts a stream.
+DB_SESSION = Depends(get_db, scope="function")
+
+
+def load_all_models():
+    """Register the application models before using their metadata."""
     from backend.app.models import (  # noqa: F401
         active_print_spoolman,
         ams_history,
@@ -253,10 +268,12 @@ async def init_db():
         equipment,
         external_link,
         filament,
+        filament_profile_default,
         filament_sku_settings,
         github_backup,
         group,
         kprofile_note,
+        label_template,
         library,
         local_preset,
         location,
@@ -303,13 +320,47 @@ async def init_db():
         warehouse_number_sequence,
     )
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    return Base.metadata
 
+
+async def init_db():
+    metadata = load_all_models()
+
+    async with engine.begin() as conn:
+        await conn.run_sync(metadata.create_all)
+
+        from backend.app.core.account_retirement import repair_deleted_accounts
+        from backend.app.core.archive_relation_migration import migrate_archive_relations
+        from backend.app.core.auth_sessions import cleanup_orphan_ephemeral_tokens
+        from backend.app.core.auth_time import migrate_auth_timestamps
+        from backend.app.core.bug_report_migration import clear_bug_report_contacts
         from backend.app.core.connected_identity_migration import migrate_connected_identity
+        from backend.app.core.filament_color_migration import migrate_silk_plus_colors
+        from backend.app.core.identity_sequence_migration import migrate_identity_sequences
+        from backend.app.core.notification_template_migrations import migrate_account_templates
+        from backend.app.core.postgres_column_defaults import migrate_postgres_column_defaults
+        from backend.app.core.postgres_column_types import migrate_postgres_column_types
+        from backend.app.core.printer_associations import repair_deleted_printer_associations
+        from backend.app.core.printer_maintenance_migration import migrate_printer_maintenance
+        from backend.app.core.spool_usage_migration import migrate_spool_usage_history
+        from backend.app.services.project_lifecycle import repair_project_choices
 
         await migrate_connected_identity(conn)
+        await clear_bug_report_contacts(conn)
         await run_migrations(conn)
+        await migrate_printer_maintenance(conn)
+        await migrate_silk_plus_colors(conn)
+        await migrate_postgres_column_types(conn)
+        await migrate_postgres_column_defaults(conn, Base.metadata)
+        await repair_project_choices(conn)
+        await migrate_account_templates(conn)
+        await migrate_identity_sequences(conn, Base.metadata)
+        await migrate_spool_usage_history(conn)
+        await migrate_archive_relations(conn, Base.metadata)
+        await migrate_auth_timestamps(conn)
+        await repair_deleted_printer_associations(conn)
+        await repair_deleted_accounts(conn)
+        await cleanup_orphan_ephemeral_tokens(conn)
 
     # Re-encrypt legacy OIDC/TOTP secrets in a fresh session after schema DDL
     # to avoid SQLite WAL writer contention.
@@ -321,13 +372,11 @@ async def init_db():
         await backfill_material_numbers(session)
         await session.commit()
 
-    # Seed default notification templates
     await seed_notification_templates()
 
     # Seed default groups and migrate existing users
     await seed_default_groups()
 
-    # Seed default catalog entries
     await seed_spool_catalog()
     await seed_color_catalog()
 
@@ -490,6 +539,11 @@ async def _safe_execute(conn, sql):
     """
     from sqlalchemy import text
 
+    if is_postgres_connection(conn):
+        if await postgres_ddl_already_applied(conn, sql):
+            return
+        sql = idempotent_postgres_ddl(sql)
+
     try:
         async with conn.begin_nested():
             await conn.execute(text(sql))
@@ -519,16 +573,6 @@ async def _api_keys_column_exists(conn, column_name: str) -> bool:
         {"col": column_name},
     )
     return result.scalar_one_or_none() is not None
-
-
-async def _migrate_normalize_printer_ids(conn) -> None:
-    from sqlalchemy import text
-
-    async with conn.begin_nested():
-        if is_sqlite():
-            await conn.execute(text("UPDATE api_keys SET printer_ids = NULL WHERE printer_ids = '[]'"))
-        else:
-            await conn.execute(text("UPDATE api_keys SET printer_ids = NULL WHERE printer_ids::text = '[]'"))
 
 
 async def _migrate_drop_library_print_name(conn) -> None:
@@ -651,101 +695,15 @@ async def _migrate_update_auto_link_constraint(conn) -> None:
                 raise
 
 
+async def _migrate_spool_assignments(conn) -> None:
+    await _migrate_widen_spoolman_slot_ams_id_range(conn)
+    await release_slots_of_archived_spools(conn)
+
+
 async def _migrate_widen_spoolman_slot_ams_id_range(conn) -> None:
-    """Widen ck_ams_id_range on spoolman_slot_assignments to admit AMS-HT (#1274).
+    from backend.app.core.spoolman_slot_migration import widen_spoolman_slot_ams_id_range
 
-    Old formula: (ams_id >= 0 AND ams_id <= 7) OR ams_id = 255
-    New formula: (ams_id >= 0 AND ams_id <= 7) OR (ams_id >= 128 AND ams_id <= 191) OR ams_id = 255
-
-    The H2C/H2D AMS-HT reports ams_id 128+. The old constraint rejected every
-    AMS-HT slot link with `IntegrityError: CHECK constraint failed: ck_ams_id_range`.
-
-    PostgreSQL: DROP CONSTRAINT IF EXISTS + ADD new formula via _safe_execute.
-    SQLite: table recreation when the old (narrower) formula is detected in
-    sqlite_master. Fresh installs already have the widened constraint from
-    the CREATE TABLE migration above.
-    """
-    from sqlalchemy import text
-
-    _NEW_FORMULA = "(ams_id >= 0 AND ams_id <= 7) OR (ams_id >= 128 AND ams_id <= 191) OR ams_id = 255"
-    _CONSTRAINT_NAME = "ck_ams_id_range"
-
-    if not is_sqlite():
-        await _safe_execute(
-            conn,
-            f"ALTER TABLE spoolman_slot_assignments DROP CONSTRAINT IF EXISTS {_CONSTRAINT_NAME}",
-        )
-        await _safe_execute(
-            conn,
-            f"ALTER TABLE spoolman_slot_assignments ADD CONSTRAINT {_CONSTRAINT_NAME} CHECK ({_NEW_FORMULA})",
-        )
-        return
-
-    row = (
-        await conn.execute(
-            text("SELECT sql FROM sqlite_master WHERE type='table' AND name='spoolman_slot_assignments'")
-        )
-    ).fetchone()
-    if not row:
-        return
-    sql = row[0] or ""
-    # Already widened by an earlier run or by the fresh-install CREATE TABLE above.
-    if "ams_id >= 128" in sql:
-        return
-    # Pre-migration table without any CHECK constraint at all → leave alone;
-    # the app-level validation handles correctness and we don't risk a
-    # destructive table rebuild for a constraint that isn't blocking anyone.
-    if "ck_ams_id_range" not in sql and "ams_id <= 7" not in sql:
-        return
-
-    try:
-        async with conn.begin_nested():
-            await conn.execute(text("DROP TABLE IF EXISTS spoolman_slot_assignments_v2"))
-            await conn.execute(
-                text(
-                    "CREATE TABLE spoolman_slot_assignments_v2 ("
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                    "printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE, "
-                    f"ams_id INTEGER NOT NULL CHECK ({_NEW_FORMULA}), "
-                    "tray_id INTEGER NOT NULL CHECK (tray_id >= 0 AND tray_id <= 3), "
-                    "spoolman_spool_id INTEGER NOT NULL, "
-                    "assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
-                    "CONSTRAINT uq_slot_assignment UNIQUE(printer_id, ams_id, tray_id)"
-                    ")"
-                )
-            )
-            await conn.execute(
-                text(
-                    "INSERT INTO spoolman_slot_assignments_v2 "
-                    "(id, printer_id, ams_id, tray_id, spoolman_spool_id, assigned_at) "
-                    "SELECT id, printer_id, ams_id, tray_id, spoolman_spool_id, assigned_at "
-                    "FROM spoolman_slot_assignments"
-                )
-            )
-            original = (await conn.execute(text("SELECT count(*) FROM spoolman_slot_assignments"))).scalar_one()
-            copied = (await conn.execute(text("SELECT count(*) FROM spoolman_slot_assignments_v2"))).scalar_one()
-            if copied != original:
-                raise RuntimeError(
-                    f"spoolman_slot_assignments migration: row count mismatch after copy "
-                    f"({original} in source, {copied} in copy)"
-                )
-            await conn.execute(text("DROP TABLE spoolman_slot_assignments"))
-            await conn.execute(text("ALTER TABLE spoolman_slot_assignments_v2 RENAME TO spoolman_slot_assignments"))
-            # The index sits on the renamed table; recreate it idempotently
-            # to handle older sqlite versions that don't auto-rename indexes.
-            await conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_slot_assignment_spool "
-                    "ON spoolman_slot_assignments (spoolman_spool_id)"
-                )
-            )
-    except Exception as exc:
-        logger.error(
-            "spoolman_slot_assignments ck_ams_id_range widening (SQLite table recreation) FAILED: %s",
-            exc,
-            exc_info=True,
-        )
-        raise
+    await widen_spoolman_slot_ams_id_range(conn, _safe_execute, is_sqlite)
 
 
 async def migrate_document_layout_schema(conn) -> None:
@@ -774,6 +732,7 @@ async def migrate_document_layout_schema(conn) -> None:
     )
 
 
+@quiet_postgres_migration_ddl
 async def run_migrations(conn):
     """Run all schema migrations and data backfills on startup.
 
@@ -788,6 +747,11 @@ async def run_migrations(conn):
     """
     from sqlalchemy import text
 
+    # Legacy SQLite databases lack the unique index required by settings migration markers.
+    async with conn.begin_nested():
+        await conn.execute(text("DELETE FROM settings WHERE id NOT IN (SELECT MIN(id) FROM settings GROUP BY key)"))
+    await _safe_execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_settings_key ON settings(key)")
+
     await migrate_document_layout_schema(conn)
     await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
     await _migrate_document_payments(conn)
@@ -797,6 +761,11 @@ async def run_migrations(conn):
         "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
     )
     await _safe_execute(conn, "ALTER TABLE small_parts ADD COLUMN internal_notes TEXT")
+
+    await _safe_execute(conn, "ALTER TABLE spool_usage_history ADD COLUMN spoolman_spool_id INTEGER")
+    await conn.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_spool_usage_history_spoolman_spool_id ON spool_usage_history (spoolman_spool_id)"
+    )
 
     # Migration: Add parent_run_id column to pipeline_runs (#1425 PR C).
     # Links a retry-failed run back to its parent so the dashboard can show
@@ -968,6 +937,10 @@ async def run_migrations(conn):
         except (OperationalError, ProgrammingError):
             pass  # Already applied
 
+        from backend.app.core.archive_relation_migration import rebuild_legacy_archive_fts
+
+        await rebuild_legacy_archive_fts(conn)
+
     # Migration: Add auto_off_pending columns to smart_plugs (for restart recovery)
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN auto_off_pending BOOLEAN DEFAULT 0")
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN auto_off_pending_since DATETIME")
@@ -1133,6 +1106,7 @@ async def run_migrations(conn):
     # still load; nothing reads or writes to it anymore.
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN nozzle_mapping TEXT")
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN nozzles_info TEXT")
+    await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN color_substitutions TEXT")
 
     # Migration: Add target_parts_count column to projects for tracking total parts needed
     await _safe_execute(conn, "ALTER TABLE projects ADD COLUMN target_parts_count INTEGER")
@@ -1419,6 +1393,7 @@ async def run_migrations(conn):
     await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN external_camera_type VARCHAR(20)")
     await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN external_camera_enabled BOOLEAN DEFAULT 0")
     await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN external_camera_snapshot_url VARCHAR(500)")
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN camera_light_auto BOOLEAN NOT NULL DEFAULT FALSE")
 
     # Migration: Add external_url column to print_archives for user-defined links (Printables, etc.)
     await _safe_execute(conn, "ALTER TABLE print_archives ADD COLUMN external_url VARCHAR(500)")
@@ -1744,7 +1719,7 @@ async def run_migrations(conn):
         """
         CREATE TABLE IF NOT EXISTS spool_usage_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            spool_id INTEGER NOT NULL REFERENCES spool(id) ON DELETE CASCADE,
+            spool_id INTEGER REFERENCES spool(id) ON DELETE SET NULL,
             printer_id INTEGER REFERENCES printers(id) ON DELETE SET NULL,
             print_name VARCHAR(500),
             weight_used REAL NOT NULL DEFAULT 0,
@@ -1757,7 +1732,7 @@ async def run_migrations(conn):
         else """
         CREATE TABLE IF NOT EXISTS spool_usage_history (
             id SERIAL PRIMARY KEY,
-            spool_id INTEGER NOT NULL REFERENCES spool(id) ON DELETE CASCADE,
+            spool_id INTEGER REFERENCES spool(id) ON DELETE SET NULL,
             printer_id INTEGER REFERENCES printers(id) ON DELETE SET NULL,
             print_name VARCHAR(500),
             weight_used REAL NOT NULL DEFAULT 0,
@@ -1804,7 +1779,12 @@ async def run_migrations(conn):
     # Consumed" stat (#1390). Existing spools default to 0 (no baseline),
     # so the counter starts unaffected; pressing "Reset usage to 0" now
     # stamps baseline = weight_used without touching remaining.
-    await _safe_execute(conn, "ALTER TABLE spool ADD COLUMN weight_used_baseline REAL DEFAULT 0")
+    await _safe_execute(
+        conn,
+        "ALTER TABLE spool ADD COLUMN weight_used_baseline REAL DEFAULT 0"
+        if is_sqlite()
+        else "ALTER TABLE spool ADD COLUMN weight_used_baseline DOUBLE PRECISION DEFAULT 0",
+    )
     # Migration: Widen tag_uid column from VARCHAR(16) to VARCHAR(32) to accommodate 7-byte NFC
     # UIDs (14 hex chars) in addition to 8-byte Bambu Lab UIDs (16 hex chars).
     # ALTER COLUMN ... TYPE is PostgreSQL-only syntax; SQLite ignores VARCHAR sizes so no-op there.
@@ -1824,7 +1804,9 @@ async def run_migrations(conn):
     try:
         async with conn.begin_nested():
             await conn.execute(
-                text("ALTER TABLE spool_usage_history ADD COLUMN archive_id INTEGER REFERENCES print_archives(id)")
+                text(
+                    "ALTER TABLE spool_usage_history ADD COLUMN archive_id INTEGER REFERENCES print_archives(id) ON DELETE SET NULL"
+                )
             )
     except (OperationalError, ProgrammingError):
         pass  # Already applied
@@ -1847,77 +1829,9 @@ async def run_migrations(conn):
         """,
     )
 
-    # Migration: Migrate single virtual printer key-value settings to virtual_printers table
-    try:
-        async with conn.begin_nested():
-            result = await conn.execute(text("SELECT COUNT(*) FROM virtual_printers"))
-            count = result.scalar() or 0
+    from backend.app.core.printer_associations import migrate_legacy_virtual_printer
 
-            if count == 0:
-                result = await conn.execute(text("SELECT value FROM settings WHERE key = 'virtual_printer_enabled'"))
-                row = result.fetchone()
-                if row:
-                    # Old settings exist — migrate to first virtual printer row
-                    old_enabled = row[0] == "true" if row[0] else False
-
-                    result = await conn.execute(
-                        text("SELECT value FROM settings WHERE key = 'virtual_printer_access_code'")
-                    )
-                    row = result.fetchone()
-                    old_access_code = row[0] if row else None
-
-                    result = await conn.execute(text("SELECT value FROM settings WHERE key = 'virtual_printer_mode'"))
-                    row = result.fetchone()
-                    old_mode = row[0] if row else "archive"
-                    # Translate to canonical wire values (#1429 mode-label
-                    # discrepancy): legacy `immediate` → `archive`, legacy
-                    # `print_queue` → `queue`. The historical `queue` alias
-                    # for `review` predates the canonical rename and is
-                    # preserved (existing user intent was "pending review").
-                    if old_mode == "queue":
-                        old_mode = "review"
-                    elif old_mode == "immediate":
-                        old_mode = "archive"
-                    elif old_mode == "print_queue":
-                        old_mode = "queue"
-
-                    result = await conn.execute(text("SELECT value FROM settings WHERE key = 'virtual_printer_model'"))
-                    row = result.fetchone()
-                    old_model = row[0] if row else "BL-P001"
-
-                    result = await conn.execute(
-                        text("SELECT value FROM settings WHERE key = 'virtual_printer_target_printer_id'")
-                    )
-                    row = result.fetchone()
-                    old_target_id = int(row[0]) if row and row[0] else None
-
-                    result = await conn.execute(
-                        text("SELECT value FROM settings WHERE key = 'virtual_printer_remote_interface_ip'")
-                    )
-                    row = result.fetchone()
-                    old_remote_iface = row[0] if row else None
-
-                    await conn.execute(
-                        text("""
-                            INSERT INTO virtual_printers
-                                (name, enabled, mode, model, access_code, target_printer_id,
-                                 bind_ip, remote_interface_ip, serial_suffix, position)
-                            VALUES
-                                (:name, :enabled, :mode, :model, :access_code, :target_id,
-                                 NULL, :remote_iface, '391800001', 0)
-                        """),
-                        {
-                            "name": "PrintOps",
-                            "enabled": old_enabled,
-                            "mode": old_mode or "archive",
-                            "model": old_model,
-                            "access_code": old_access_code,
-                            "target_id": old_target_id,
-                            "remote_iface": old_remote_iface,
-                        },
-                    )
-    except (OperationalError, ProgrammingError, IntegrityError):
-        pass  # Table may not exist yet on first run, or columns have different constraints
+    await migrate_legacy_virtual_printer(conn)
 
     # Migration: Add filament_overrides column to print_queue for filament override in model-based assignment
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN filament_overrides TEXT")
@@ -2146,21 +2060,8 @@ async def run_migrations(conn):
             )
         )
 
-    # Migration: Unify `LibraryFile.file_type` across ingest paths (#1600).
-    # Pre-#1600, only the external scan stored `gcode.3mf`; upload, ZIP
-    # extraction, and in-process imports stored `3mf`, splitting one family.
-    # Going forward `classify_file_type()` is canonical; this backfill flips
-    # existing legacy `3mf` rows whose filename ends in `.gcode.3mf` to the
-    # canonical compound name. Idempotent (post-update rows no longer match
-    # `file_type = '3mf'`) and dialect-neutral (`LOWER` + `LIKE` work the
-    # same under SQLite and Postgres).
-    await conn.execute(
-        text(
-            "UPDATE library_files SET file_type = 'gcode.3mf' "
-            "WHERE file_type = '3mf' AND LOWER(filename) LIKE '%.gcode.3mf'"
-        )
-    )
-
+    # Content-based 3MF classification for existing local library rows.
+    await repair_compound_3mf_library_types(conn, settings.base_dir)
     await reclassify_sliced_3mf_library_files(conn, settings.base_dir)
     # Migration: Add per-user Bambu Cloud credential columns
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN cloud_token VARCHAR(500)")
@@ -2238,7 +2139,12 @@ async def run_migrations(conn):
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN rest_energy_url VARCHAR(500)")
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN rest_energy_multiplier REAL DEFAULT 1.0")
     await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN rest_energy_total_path VARCHAR(200)")
-    await _safe_execute(conn, "ALTER TABLE smart_plugs ADD COLUMN rest_energy_total_multiplier REAL DEFAULT 1.0")
+    await _safe_execute(
+        conn,
+        "ALTER TABLE smart_plugs ADD COLUMN rest_energy_total_multiplier REAL DEFAULT 1.0"
+        if is_sqlite()
+        else "ALTER TABLE smart_plugs ADD COLUMN rest_energy_total_multiplier DOUBLE PRECISION DEFAULT 1.0",
+    )
 
     # Migration: Add batch_id column to print_queue for batch grouping
     try:
@@ -2311,12 +2217,6 @@ async def run_migrations(conn):
             )
         except (OperationalError, ProgrammingError):
             pass  # Already applied
-
-    # Migration: Normalize empty printer_ids [] to NULL (global access) on API keys
-    # Previously both None and [] meant "all printers"; now [] means "no printers"
-    # PostgreSQL stores printer_ids as JSONB; comparing JSONB to a string literal fails
-    # with "operator does not exist: jsonb = unknown" — cast the literal to jsonb explicitly.
-    await _migrate_normalize_printer_ids(conn)
 
     # Migration: Add auth_source column to users for LDAP support (#794)
     await _safe_execute(conn, "ALTER TABLE users ADD COLUMN auth_source VARCHAR(20) DEFAULT 'local' NOT NULL")
@@ -2427,14 +2327,10 @@ async def run_migrations(conn):
         "ON smart_plug_energy_snapshots(plug_id, recorded_at)",
     )
 
-    # Migration: Add PKCE code_verifier column to auth_ephemeral_tokens
-    await _safe_execute(conn, "ALTER TABLE auth_ephemeral_tokens ADD COLUMN code_verifier VARCHAR(128)")
+    await migrate_auth_ephemeral_columns(conn)
 
     # Migration: Add TOTP replay-protection counter to user_totp
     await _safe_execute(conn, "ALTER TABLE user_totp ADD COLUMN last_totp_counter BIGINT")
-
-    # Migration: Add challenge_id for pre-auth token client binding (HttpOnly cookie)
-    await _safe_execute(conn, "ALTER TABLE auth_ephemeral_tokens ADD COLUMN challenge_id VARCHAR(128)")
 
     # Migration: Add auto_link_existing_accounts column to oidc_providers (M-4)
     # Postgres rejects `DEFAULT 0` for BOOLEAN columns.
@@ -2480,21 +2376,11 @@ async def run_migrations(conn):
     # SQLite does not support ALTER TABLE ADD CONSTRAINT — handled by __table_args__ at creation.
     # Runs AFTER the backfill so Fall B rows don't fail constraint validation.
     if not is_sqlite():
-        add_constraint = (
+        await _safe_execute(
+            conn,
             "ALTER TABLE oidc_providers ADD CONSTRAINT ck_auto_link_requires_verified_email_claim "
-            "CHECK (auto_link_existing_accounts = FALSE OR email_claim != 'email' OR require_email_verified = TRUE)"
+            "CHECK (auto_link_existing_accounts = FALSE OR email_claim != 'email' OR require_email_verified = TRUE)",
         )
-        try:
-            async with conn.begin_nested():
-                await conn.execute(text(add_constraint))
-        except (OperationalError, ProgrammingError) as exc:
-            if not _is_already_applied(exc, add_constraint):
-                logger.error(
-                    "Security constraint migration FAILED — auto_link safety constraint may not be enforced: %s",
-                    exc,
-                    exc_info=True,
-                )
-                raise
 
     # Migration: Update auto_link CHECK constraint formula (existing installs).
     # Existing PostgreSQL installs that ran the ADD CONSTRAINT above with the old formula
@@ -2727,15 +2613,6 @@ async def run_migrations(conn):
         "CREATE INDEX IF NOT EXISTS ix_library_files_deleted_at ON library_files(deleted_at)",
     )
 
-    # Legacy SQLite installs created `settings` without a UNIQUE constraint on `key`,
-    # so `INSERT OR IGNORE` below silently degrades to a plain INSERT and dupes rows on
-    # every restart. Dedupe (keep lowest id per key) and add the missing unique index
-    # before seeding. Safe/idempotent on both dialects — fresh installs already have
-    # no dupes and `create_all` already emits the index.
-    async with conn.begin_nested():
-        await conn.execute(text("DELETE FROM settings WHERE id NOT IN (SELECT MIN(id) FROM settings GROUP BY key)"))
-    await _safe_execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_settings_key ON settings(key)")
-
     # Migration: Add user scope and normalize legacy [] only once.
     from backend.app.core.user_printer_scope import migrate_user_printer_scope
 
@@ -2792,7 +2669,7 @@ async def run_migrations(conn):
     # Migration: widen ck_ams_id_range on spoolman_slot_assignments to allow
     # AMS-HT ids (128-191). Existing installs created before #1274 carry the
     # stale formula which rejects every AMS-HT slot link with a CHECK violation.
-    await _migrate_widen_spoolman_slot_ams_id_range(conn)
+    await _migrate_spool_assignments(conn)
 
     await migrate_spool_k_profile_contexts(conn)
 
@@ -3173,9 +3050,11 @@ async def run_migrations(conn):
             llt_n,
         )
 
-    # Migration: extend print_log_entries with archive_id, cost, energy, failure_reason,
-    # created_by_id (#1378). Statistics queries shift from PrintArchive to PrintLogEntry
-    # so reprints contribute new rows instead of overwriting the source archive's data.
+    # Backfill per-run data on pre-#1378 schemas.
+    from backend.app.core.print_log_legacy_migration import backfill_legacy_print_log, has_legacy_print_log
+    from backend.app.core.print_run_migrations import migrate_print_run_columns
+
+    legacy_print_log = await has_legacy_print_log(conn)
     if is_sqlite():
         await _safe_execute(conn, "ALTER TABLE print_log_entries ADD COLUMN archive_id INTEGER")
         await _safe_execute(conn, "ALTER TABLE print_log_entries ADD COLUMN cost REAL")
@@ -3194,77 +3073,10 @@ async def run_migrations(conn):
         conn, "CREATE INDEX IF NOT EXISTS ix_print_log_entries_archive_id ON print_log_entries (archive_id)"
     )
 
-    # Backfill PrintLogEntry → PrintArchive linkage and per-event cost/energy
-    # for pre-#1378 rows the column-add migration left NULL (#1390).
-    #
-    # Without this backfill the user's Quick Stats show Filament Cost = 0 and
-    # Time Accuracy empty even though their archives carry both, because:
-    #
-    #   - the new stats queries SUM PrintLogEntry.cost (NULL for old rows)
-    #   - the time-accuracy query JOINs PrintArchive ON archive_id (NULL for
-    #     old rows, so old runs get excluded from the average)
-    #
-    # Pre-#1378, archive.cost / energy_kwh / energy_cost were overwritten by
-    # each rerun, so the current archive values represent the *latest* run.
-    # Backfilling them onto the latest matching PrintLogEntry per archive
-    # reconstructs the pre-fix total exactly (sum across archives stays
-    # unchanged), and leaves earlier reprints with NULL cost so they
-    # contribute zero — matching the "first/latest writes, rest stay NULL"
-    # convention #1378 introduced for new prints.
-    #
-    # DML, not DDL — use conn.execute() inside a savepoint per _safe_execute's
-    # own docstring. SQL is plain ANSI (correlated UPDATE, MAX/GROUP BY/HAVING,
-    # CASE in HAVING) and runs unchanged on SQLite + PostgreSQL; verified
-    # against postgres:16-alpine + asyncpg.
-    #
-    # Step 1: link old log entries to their archive via print_name + printer_id.
-    # Picks the highest-id matching archive when multiple share the same key
-    # (newest archive wins — closest to the log's overwrite-then-leave shape).
-    from sqlalchemy import text as _text
-
-    async with conn.begin_nested():
-        await conn.execute(
-            _text("""
-            UPDATE print_log_entries
-            SET archive_id = (
-                SELECT a.id
-                FROM print_archives a
-                WHERE a.print_name = print_log_entries.print_name
-                  AND (
-                      a.printer_id = print_log_entries.printer_id
-                      OR (a.printer_id IS NULL AND print_log_entries.printer_id IS NULL)
-                  )
-                ORDER BY a.id DESC
-                LIMIT 1
-            )
-            WHERE archive_id IS NULL AND print_name IS NOT NULL
-            """)
-        )
-
-    # Step 2: backfill cost / energy_kwh / energy_cost onto the latest linked
-    # log entry per archive — the row whose creation time best matches the
-    # value currently stored on the archive (overwrite-on-reprint semantics
-    # under the old design). Only fires for archives where NO log entry has
-    # cost set yet, which gives the migration a clean idempotency property:
-    # the second pass sees the archive already has a cost-bearing run and
-    # leaves the rest of its history NULL (instead of marching up the
-    # ID-ordered list of NULL runs on every pass).
-    async with conn.begin_nested():
-        await conn.execute(
-            _text("""
-            UPDATE print_log_entries
-            SET cost = (SELECT cost FROM print_archives WHERE id = print_log_entries.archive_id),
-                energy_kwh = (SELECT energy_kwh FROM print_archives WHERE id = print_log_entries.archive_id),
-                energy_cost = (SELECT energy_cost FROM print_archives WHERE id = print_log_entries.archive_id)
-            WHERE id IN (
-                SELECT MAX(id)
-                FROM print_log_entries
-                WHERE archive_id IS NOT NULL
-                GROUP BY archive_id
-                HAVING SUM(CASE WHEN cost IS NOT NULL THEN 1 ELSE 0 END) = 0
-            )
-            """)
-        )
+    # A NULL in a schema that already has archive_id can be intentional.
+    if legacy_print_log:
+        await backfill_legacy_print_log(conn)
+    await migrate_print_run_columns(conn, _safe_execute)
 
     # Migration: per-plug auto-off-after-drying settings (#1349).
     if is_sqlite():
@@ -3508,7 +3320,7 @@ async def run_migrations(conn):
             "ALTER TABLE payment_policies ADD COLUMN installments JSON DEFAULT '[]'::json NOT NULL",
         )
     await _migrate_document_configurations(conn)
-    await repair_archive_plate_metadata(conn)
+    await repair_archive_metadata(conn, _safe_execute)
     await repair_rfid_core_weights(conn)
 
 
@@ -3592,8 +3404,18 @@ async def _migrate_document_payments(conn) -> None:
     await _migrate_backfill_variant_groups(conn)
     await _migrate_production_quality(conn)
 
+    datetime_type = "DATETIME" if is_sqlite() else "TIMESTAMP"
+    await _safe_execute(conn, f"ALTER TABLE spool ADD COLUMN last_dried_at {datetime_type}")
+    await _safe_execute(conn, "ALTER TABLE spool ADD COLUMN last_dried_temp INTEGER")
+    duration_type = "REAL" if is_sqlite() else "DOUBLE PRECISION"
+    await _safe_execute(conn, f"ALTER TABLE spool ADD COLUMN last_dried_hours {duration_type}")
+
+    await _safe_execute(conn, "ALTER TABLE print_log_entries ADD COLUMN pause_warned_layer INTEGER")
+    await _safe_execute(
+        conn, "ALTER TABLE notification_providers ADD COLUMN on_print_pause_upcoming BOOLEAN NOT NULL DEFAULT FALSE"
+    )
+
     # Home Assistant alert provider opt-ins (#1148).
-    # Both dialects accept FALSE for a boolean default.
     await _safe_execute(conn, "ALTER TABLE notification_providers ADD COLUMN on_ha_sensor_alert BOOLEAN DEFAULT FALSE")
     await _safe_execute(
         conn, "ALTER TABLE notification_providers ADD COLUMN on_storage_sensor_alert BOOLEAN DEFAULT FALSE"
@@ -3610,6 +3432,7 @@ async def _migrate_slot_preset_identity(conn) -> None:
 
 async def _migrate_production_quality(conn) -> None:
     await migrate_production_quality(conn, _safe_execute, is_sqlite)
+    await _safe_execute(conn, "ALTER TABLE print_log_entries ADD COLUMN duration_unmeasured BOOLEAN")
 
 
 async def _migrate_backfill_variant_groups(conn) -> None:
@@ -3757,6 +3580,7 @@ async def seed_default_groups():
 
     from sqlalchemy import select
 
+    from backend.app.core.group_permission_backfills import apply_legacy_group_grants
     from backend.app.core.permissions import ALL_PERMISSIONS, DEFAULT_GROUPS
     from backend.app.models.group import Group
     from backend.app.models.user import User
@@ -3811,6 +3635,9 @@ async def seed_default_groups():
         # Get existing groups
         result = await session.execute(select(Group))
         existing_groups = {group.name: group for group in result.scalars().all()}
+        # Capture the installed version's grants before the administrator sync.
+        admin_at_start = existing_groups.get("Administrators")
+        previous_admin_permissions = set(admin_at_start.permissions or []) if admin_at_start is not None else set()
 
         # Create default groups if they don't exist
         groups_created = []
@@ -3823,6 +3650,7 @@ async def seed_default_groups():
                     is_system=group_config["is_system"],
                 )
                 session.add(group)
+                existing_groups[group_name] = group
                 groups_created.append(group_name)
                 logger.info("Created default group: %s", group_name)
             else:
@@ -3869,47 +3697,6 @@ async def seed_default_groups():
                     if updated:
                         group.permissions = new_permissions
 
-        await session.commit()
-
-        # Migrate new permissions: grant printers:clear_plate to all groups with printers:control
-        result = await session.execute(select(Group))
-        all_groups = result.scalars().all()
-        for group in all_groups:
-            if (
-                group.permissions
-                and "printers:control" in group.permissions
-                and "printers:clear_plate" not in group.permissions
-            ):
-                group.permissions = [*group.permissions, "printers:clear_plate"]
-                logger.info("Added printers:clear_plate to group '%s' (has printers:control)", group.name)
-        await session.commit()
-
-        # Migrate new permissions for MakerWorld integration: groups that
-        # already have library:upload (i.e. can write to the library) are
-        # the correct audience for makerworld:view + makerworld:import, and
-        # groups that only have library:read get makerworld:view (browse
-        # only). Matches the intent of DEFAULT_GROUPS without clobbering
-        # any user-customised permission lists.
-        result = await session.execute(select(Group))
-        for group in result.scalars().all():
-            if not group.permissions:
-                continue
-            perms = list(group.permissions)
-            changed = False
-            if "library:upload" in perms:
-                for new_perm in ("makerworld:view", "makerworld:import"):
-                    if new_perm not in perms:
-                        perms.append(new_perm)
-                        changed = True
-                        logger.info("Added %s to group '%s' (has library:upload)", new_perm, group.name)
-            elif "library:read" in perms and "makerworld:view" not in perms:
-                perms.append("makerworld:view")
-                changed = True
-                logger.info("Added makerworld:view to group '%s' (has library:read)", group.name)
-            if changed:
-                group.permissions = perms
-        await session.commit()
-
         # Backfill: sync the Administrators system group to ALL_PERMISSIONS.
         # Administrators' contract is full access to every feature — fresh
         # installs get that via DEFAULT_GROUPS["Administrators"]["permissions"]
@@ -3937,7 +3724,6 @@ async def seed_default_groups():
                     logger.info("Added %s to Administrators group (ALL_PERMISSIONS sync)", new_perm)
             if added:
                 admin_group.permissions = perms
-        await session.commit()
 
         # Backfill the least-privilege order-management defaults for existing
         # system groups. Additive updates preserve customized grants while
@@ -3984,7 +3770,6 @@ async def seed_default_groups():
                     logger.info("Added %s to %s group (order backfill)", new_permission, group_name)
             if changed:
                 group.permissions = permissions
-        await session.commit()
 
         # Same OWN-tier backfill for non-admin system groups. Operators and
         # Viewers are seeded with _own on fresh installs (see DEFAULT_GROUPS),
@@ -4016,54 +3801,8 @@ async def seed_default_groups():
                 logger.info("Added orca_cloud:auth to Operators group (backfill)")
             if changed:
                 grp.permissions = perms
-        await session.commit()
 
-        # Backfill inventory forecast permissions for existing groups.
-        # inventory:forecast_read was added after initial seeding, so groups
-        # that already have inventory:read (or inventory:update) need it added.
-        # inventory:forecast_write goes to any group with inventory:update.
-        result = await session.execute(select(Group))
-        for group in result.scalars().all():
-            if not group.permissions:
-                continue
-            perms = list(group.permissions)
-            changed = False
-            if "inventory:read" in perms and "inventory:forecast_read" not in perms:
-                perms.append("inventory:forecast_read")
-                changed = True
-                logger.info("Added inventory:forecast_read to group '%s' (backfill)", group.name)
-            if "inventory:update" in perms and "inventory:forecast_write" not in perms:
-                perms.append("inventory:forecast_write")
-                changed = True
-                logger.info("Added inventory:forecast_write to group '%s' (backfill)", group.name)
-            if changed:
-                group.permissions = perms
-        await session.commit()
-
-        # Backfill pipeline permissions (#1425) for non-admin groups.
-        # Administrators is handled by the ALL_PERMISSIONS sync above.
-        #   - Operators: all three (matches fresh-install DEFAULT_GROUPS)
-        #   - Any other group with library:read_own or settings:read:
-        #     pipelines:read only
-        result = await session.execute(select(Group))
-        for group in result.scalars().all():
-            if not group.permissions or group.name == "Administrators":
-                continue
-            perms = list(group.permissions)
-            changed = False
-            if group.name == "Operators":
-                for new_perm in ("pipelines:read", "pipelines:write", "pipelines:run"):
-                    if new_perm not in perms:
-                        perms.append(new_perm)
-                        changed = True
-                        logger.info("Added %s to Operators group (backfill)", new_perm)
-            elif "pipelines:read" not in perms and ("library:read_own" in perms or "settings:read" in perms):
-                perms.append("pipelines:read")
-                changed = True
-                logger.info("Added pipelines:read to group '%s' (backfill)", group.name)
-            if changed:
-                group.permissions = perms
-        await session.commit()
+        await apply_legacy_group_grants(session, list(existing_groups.values()), previous_admin_permissions)
 
         # Migrate existing users to groups if they're not already in any group
         if groups_created:
@@ -4089,7 +3828,7 @@ async def seed_default_groups():
                     user.groups.append(operators_group)
                     logger.info("Migrated user '%s' to Operators group", user.username)
 
-            await session.commit()
+        await session.commit()
 
 
 async def seed_spool_catalog():

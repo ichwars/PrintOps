@@ -7,20 +7,21 @@ from sqlalchemy import delete, func, nullslast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
-    RequirePermissionIfAuthEnabled,
+    OwnershipAccess,
     check_printer_access,
     require_media_token_ownership,
     require_ownership_permission,
-    resolve_optional_api_key,
+    require_permission_with_key,
     user_can_access_printer,
 )
 from backend.app.core.config import settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
-from backend.app.models.api_key import APIKey
+from backend.app.models.archive import PrintArchive
 from backend.app.models.print_log import PrintLogEntry
-from backend.app.models.user import User
 from backend.app.schemas.print_log import PrintLogEntrySchema, PrintLogEntryUpdate, PrintLogResponse
+from backend.app.services.print_log_run import project_latest_finished_run, run_visibility_conditions
+from backend.app.utils.safe_path import PathTraversalError, safe_join_under
 
 logger = logging.getLogger(__name__)
 
@@ -55,21 +56,19 @@ async def get_print_log(
     offset: int = Query(default=0, ge=0),
     sort_by: str = Query(default="date"),
     sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Get the print log."""
-    user, can_read_all = auth_result
-    query = select(PrintLogEntry)
-    count_query = select(func.count(PrintLogEntry.id))
-    if user is not None and not can_read_all:
-        query = query.where(PrintLogEntry.created_by_id == user.id)
-        count_query = count_query.where(PrintLogEntry.created_by_id == user.id)
+    visible = run_visibility_conditions(auth_result)
+    query = select(PrintLogEntry).where(*visible)
+    count_query = select(func.count(PrintLogEntry.id)).where(*visible)
 
     if printer_id is not None:
         query = query.where(PrintLogEntry.printer_id == printer_id)
@@ -112,11 +111,10 @@ async def get_print_log(
 @router.get("/{entry_id}/thumbnail")
 async def get_print_log_thumbnail(
     entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail for a print log entry.
 
@@ -129,7 +127,7 @@ async def get_print_log_thumbnail(
     gated on entry.thumbnail_path being truthy, so the next fetch of the
     log list will simply not request this thumbnail again.
     """
-    user, can_read_all = auth_result
+    user, can_read_all, api_key = auth_result
     entry = await db.get(PrintLogEntry, entry_id)
     if not entry or not entry.thumbnail_path:
         raise HTTPException(404, "Thumbnail not found")
@@ -142,7 +140,10 @@ async def get_print_log_thumbnail(
     if api_key is not None:
         check_printer_access(api_key, entry.printer_id)
 
-    thumb_path = settings.base_dir / entry.thumbnail_path
+    try:
+        thumb_path = safe_join_under(settings.base_dir, entry.thumbnail_path, http=False)
+    except PathTraversalError as error:
+        raise HTTPException(404, "Thumbnail not found") from error
     if not thumb_path.exists():
         entry.thumbnail_path = None
         await db.commit()
@@ -157,14 +158,15 @@ async def get_print_log_thumbnail(
 
 @router.delete("/")
 async def clear_print_log(
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_DELETE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_DELETE_ALL)),
 ):
     """Clear the print log.
 
     Only deletes log entries. Archives and queue items are never touched.
     """
-    result = await db.execute(delete(PrintLogEntry))
+    visible = run_visibility_conditions(access)
+    result = await db.execute(delete(PrintLogEntry).where(*visible))
     deleted = result.rowcount
     await db.commit()
 
@@ -175,11 +177,12 @@ async def clear_print_log(
 @router.delete("/{entry_id}")
 async def delete_print_log_entry(
     entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_DELETE_ALL,
             Permission.ARCHIVES_DELETE_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -191,15 +194,15 @@ async def delete_print_log_entry(
     The linked archive (if any) is untouched — the FK on the archive row
     is from PrintLogEntry, not the other way around.
     """
-    user, can_modify_all = auth_result
-
     entry = await db.get(PrintLogEntry, entry_id)
-    if not entry:
+    if not entry or not user_can_access_printer(auth_result.user, entry.printer_id):
         raise HTTPException(404, "Print log entry not found")
 
-    if not can_modify_all:
-        if entry.created_by_id is None or (user is not None and entry.created_by_id != user.id):
-            raise HTTPException(403, "You can only delete your own print log entries")
+    if auth_result.api_key is not None:
+        check_printer_access(auth_result.api_key, entry.printer_id)
+
+    if not auth_result.can_access_all and (auth_result.user is None or entry.created_by_id != auth_result.user.id):
+        raise HTTPException(403, "You can only delete your own print log entries")
 
     await db.delete(entry)
     await db.commit()
@@ -226,6 +229,7 @@ _FAILURE_REASON_KEYS = frozenset(
         "underExtrusion",
         "powerFailure",
         "userCancelled",
+        "noStatusUpdate",
         "other",
     }
 )
@@ -238,11 +242,12 @@ _STATUS_KEYS = frozenset({"completed", "failed", "stopped", "cancelled", "skippe
 async def update_print_log_entry(
     entry_id: int,
     update: PrintLogEntryUpdate,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_UPDATE_ALL,
             Permission.ARCHIVES_UPDATE_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -259,15 +264,15 @@ async def update_print_log_entry(
     Ownership semantics mirror the per-row delete: archives:update_all sees
     everything; archives:update_own sees only rows it owns.
     """
-    user, can_modify_all = auth_result
-
     entry = await db.get(PrintLogEntry, entry_id)
-    if not entry:
+    if not entry or not user_can_access_printer(auth_result.user, entry.printer_id):
         raise HTTPException(404, "Print log entry not found")
 
-    if not can_modify_all:
-        if entry.created_by_id is None or (user is not None and entry.created_by_id != user.id):
-            raise HTTPException(403, "You can only update your own print log entries")
+    if auth_result.api_key is not None:
+        check_printer_access(auth_result.api_key, entry.printer_id)
+
+    if not auth_result.can_access_all and (auth_result.user is None or entry.created_by_id != auth_result.user.id):
+        raise HTTPException(403, "You can only update your own print log entries")
 
     payload = update.model_dump(exclude_unset=True)
 
@@ -289,6 +294,10 @@ async def update_print_log_entry(
             raise HTTPException(400, f"Unknown status: {new_status!r}")
         entry.status = new_status
 
+    if entry.archive_id is not None:
+        archive = await db.get(PrintArchive, entry.archive_id, with_for_update=True)
+        if archive is not None:
+            await project_latest_finished_run(db, archive)
     await db.commit()
     await db.refresh(entry)
 

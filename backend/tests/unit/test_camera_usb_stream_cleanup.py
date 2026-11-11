@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 from contextlib import suppress
-from unittest.mock import AsyncMock, mock_open, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -106,9 +105,8 @@ async def test_stream_usb_rejects_prefix_traversal_before_ffmpeg(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_stop_endpoint_terminates_registered_external_process(monkeypatch):
-    monkeypatch.setattr(camera, "get_subscriber_count", lambda _key: 0)
-
-    async def fake_shutdown(_key):
+    async def fake_shutdown(_key, *, only_if_idle):
+        assert only_if_idle
         return False
 
     monkeypatch.setattr(camera, "shutdown_broadcaster", fake_shutdown)
@@ -119,7 +117,7 @@ async def test_stop_endpoint_terminates_registered_external_process(monkeypatch)
     event = asyncio.Event()
     camera._active_streams[stream_id] = proc
     camera._disconnect_events[stream_id] = event
-    camera._spawned_ffmpeg_pids[proc.pid] = time.time()
+    camera._spawned_ffmpeg_processes[proc] = time.time()
     camera._stream_last_frame_times[stream_id] = time.time()
 
     try:
@@ -129,23 +127,21 @@ async def test_stop_endpoint_terminates_registered_external_process(monkeypatch)
         assert event.is_set()
         assert stream_id not in camera._active_streams
         assert stream_id not in camera._disconnect_events
-        assert proc.pid not in camera._spawned_ffmpeg_pids
+        assert proc not in camera._spawned_ffmpeg_processes
     finally:
         camera._active_streams.pop(stream_id, None)
         camera._disconnect_events.pop(stream_id, None)
-        camera._spawned_ffmpeg_pids.pop(proc.pid, None)
+        camera._spawned_ffmpeg_processes.pop(proc, None)
         camera._stream_last_frame_times.pop(stream_id, None)
 
 
 @pytest.mark.asyncio
-async def test_cleanup_janitor_reaps_stale_external_usb_stream(monkeypatch):
-    monkeypatch.setattr(camera, "_scan_bambu_ffmpeg_pids", lambda: [])
-
-    proc = _CleanProc(pid=os.getpid())
+async def test_cleanup_janitor_reaps_stale_external_usb_stream():
+    proc = _CleanProc(pid=52011)
     stream_id = "7-ext-deadbeef"
     now = time.time()
     camera._active_streams[stream_id] = proc
-    camera._spawned_ffmpeg_pids[proc.pid] = now - 120
+    camera._spawned_ffmpeg_processes[proc] = now - 120
     camera._stream_last_frame_times[stream_id] = now - 60
     camera._disconnect_events[stream_id] = asyncio.Event()
 
@@ -155,32 +151,40 @@ async def test_cleanup_janitor_reaps_stale_external_usb_stream(monkeypatch):
         assert stream_id not in camera._active_streams
     finally:
         camera._active_streams.pop(stream_id, None)
-        camera._spawned_ffmpeg_pids.pop(proc.pid, None)
+        camera._spawned_ffmpeg_processes.pop(proc, None)
         camera._stream_last_frame_times.pop(stream_id, None)
         camera._disconnect_events.pop(stream_id, None)
 
 
-def test_scan_matches_tracked_v4l2_ffmpeg(monkeypatch):
-    cmdline = b"ffmpeg\x00-f\x00v4l2\x00-i\x00/dev/video0\x00-f\x00mjpeg\x00-\x00"
-    monkeypatch.setattr("os.listdir", lambda _path: ["52020"])
-    camera._spawned_ffmpeg_pids[52020] = time.time()
-    try:
-        with patch("builtins.open", mock_open(read_data=cmdline)):
-            assert 52020 in camera._scan_bambu_ffmpeg_pids()
-    finally:
-        camera._spawned_ffmpeg_pids.pop(52020, None)
+@pytest.mark.asyncio
+async def test_janitor_reaps_only_owned_detached_processes(monkeypatch):
+    detached = _CleanProc(pid=52020)
+    streaming = _CleanProc(pid=52021)
+    monkeypatch.setattr(camera, "_spawned_ffmpeg_processes", {detached: time.time(), streaming: time.time()})
+    monkeypatch.setattr(camera, "_active_streams", {"7-ext-active": streaming})
+
+    with patch("os.listdir", return_value=["52022"]) as scan, patch("os.kill") as kill:
+        await camera.cleanup_orphaned_streams()
+
+    scan.assert_not_called()
+    kill.assert_not_called()
+    assert detached.returncode == -9
+    assert streaming.returncode is None
+    assert set(camera._spawned_ffmpeg_processes) == {streaming}
 
 
-def test_scan_ignores_untracked_v4l2_ffmpeg(monkeypatch):
-    cmdline = b"ffmpeg\x00-f\x00v4l2\x00-i\x00/dev/video0\x00-f\x00mjpeg\x00-\x00"
-    monkeypatch.setattr("os.listdir", lambda _path: ["52020"])
-    camera._spawned_ffmpeg_pids.pop(52020, None)
-    with patch("builtins.open", mock_open(read_data=cmdline)):
-        assert camera._scan_bambu_ffmpeg_pids() == []
+@pytest.mark.asyncio
+async def test_janitor_keeps_stream_identity_between_processes(monkeypatch):
+    process = _CleanProc(pid=52023)
+    process.returncode = 0
+    stream_id = "7-ext-reconnect"
+    disconnected = asyncio.Event()
+    monkeypatch.setattr(camera, "_active_streams", {stream_id: process})
+    monkeypatch.setattr(camera, "_spawned_ffmpeg_processes", {process: time.time()})
+    monkeypatch.setattr(camera, "_disconnect_events", {stream_id: disconnected})
 
+    await camera.cleanup_orphaned_streams()
 
-def test_scan_ignores_unrelated_ffmpeg(monkeypatch):
-    cmdline = b"ffmpeg\x00-i\x00C:\\Users\\droth\\video.mp4\x00out.mkv\x00"
-    monkeypatch.setattr("os.listdir", lambda _path: ["52021"])
-    with patch("builtins.open", mock_open(read_data=cmdline)):
-        assert camera._scan_bambu_ffmpeg_pids() == []
+    assert camera._active_streams[stream_id] is process
+    assert not disconnected.is_set()
+    assert process not in camera._spawned_ffmpeg_processes

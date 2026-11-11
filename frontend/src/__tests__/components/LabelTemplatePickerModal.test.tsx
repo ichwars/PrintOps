@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { render, selectComboboxOption } from '../utils';
 import { LabelTemplatePickerModal } from '../../components/LabelTemplatePickerModal';
 import { api } from '../../api/client';
 import { smallPartsApi } from '../../api/smallParts';
+import { labelTemplatesApi } from '../../api/client/label-templates';
+import { DEFAULT_SHEET } from '../../utils/labelSheetLayout';
 
 vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
@@ -13,6 +15,7 @@ vi.mock('../../api/client', () => ({
     previewLabels: vi.fn().mockResolvedValue(new Blob(["png"], { type: "image/png" })),
     printSpoolmanSpoolLabels: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
+    getUiFlags: vi.fn().mockResolvedValue({}),
     getAuthStatus: vi.fn().mockResolvedValue({ auth_enabled: false }),
   },
 }));
@@ -21,6 +24,10 @@ vi.mock('../../api/smallParts', () => ({
   smallPartsApi: {
     printLabels: vi.fn(),
   },
+}));
+
+vi.mock('../../api/client/label-templates', () => ({
+  labelTemplatesApi: { list: vi.fn(), save: vi.fn(), remove: vi.fn() },
 }));
 
 const PDF_BLOB = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: 'application/pdf' });
@@ -40,6 +47,7 @@ const MATERIALS = [
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  vi.mocked(labelTemplatesApi.list).mockResolvedValue([]);
   vi.mocked(api.getSettings).mockResolvedValue({} as never);
   vi.mocked(api.getAuthStatus).mockResolvedValue({ auth_enabled: false } as never);
   Object.defineProperty(window.URL, 'createObjectURL', {
@@ -54,6 +62,69 @@ beforeEach(() => {
 });
 
 describe('LabelTemplatePickerModal', () => {
+  it('validates geometry and the first slot, previews a custom cell and prints the chosen geometry', async () => {
+    vi.mocked(api.printSpoolLabels).mockResolvedValue(PDF_BLOB);
+    render(<LabelTemplatePickerModal isOpen onClose={vi.fn()} availableSpools={SPOOLS} initialSelectedIds={[1, 2]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Custom sheet' }));
+    const width = screen.getByRole('spinbutton', { name: 'Label width (mm)' });
+    const print = screen.getByRole('button', { name: 'Print custom sheet' });
+    expect(screen.getByRole('img', { name: 'Sheet layout preview' })).toBeInTheDocument();
+    fireEvent.change(width, { target: { value: '100' } });
+    expect(print).toBeDisabled();
+    fireEvent.change(width, { target: { value: '62.5' } });
+    selectComboboxOption(screen.getByRole('combobox', { name: 'Paper size' }), /US Letter/);
+    expect(print).toBeDisabled();
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Rows' }), { target: { value: '6' } });
+    const position = screen.getByRole('spinbutton', { name: 'Start position', exact: true });
+    fireEvent.change(position, { target: { value: '19' } });
+    expect(print).toBeDisabled();
+    fireEvent.change(position, { target: { value: '18' } });
+    const layout = { ...DEFAULT_SHEET, page: 'letter', label_w_mm: 62.5, rows: 6 };
+    await waitFor(() => expect(api.previewLabels).toHaveBeenCalledWith('inventory', expect.objectContaining({
+      template: 'custom', layout,
+    })));
+    fireEvent.click(print);
+    await waitFor(() => expect(api.printSpoolLabels).toHaveBeenCalledWith(expect.objectContaining({
+      spool_ids: [1, 2], template: 'custom', layout, start_position: 18,
+    })));
+  });
+
+  it('loads, saves, updates and deletes a named sheet', async () => {
+    const saved = { id: 8, name: 'Workroom', layout: { ...DEFAULT_SHEET, label_w_mm: 60 } };
+    vi.mocked(labelTemplatesApi.list).mockResolvedValue([saved]);
+    render(<LabelTemplatePickerModal isOpen onClose={vi.fn()} availableSpools={SPOOLS} initialSelectedIds={[1]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Custom sheet' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Saved label templates' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Workroom' }));
+    expect(screen.getByRole('spinbutton', { name: 'Label width (mm)' })).toHaveValue(60);
+    const name = screen.getByRole('textbox', { name: 'Template name' });
+    fireEvent.change(name, { target: { value: 'Office' } });
+    const office = { id: 9, name: 'Office', layout: saved.layout };
+    vi.mocked(labelTemplatesApi.list).mockResolvedValue([saved, office]);
+    vi.mocked(labelTemplatesApi.save).mockResolvedValueOnce(office);
+    fireEvent.click(screen.getByRole('button', { name: 'Save as new template' }));
+    await waitFor(() => expect(labelTemplatesApi.save).toHaveBeenCalledWith(
+      { name: office.name, layout: office.layout }, undefined,
+    ));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
+    const renamed = { ...office, name: 'New office' };
+    vi.mocked(labelTemplatesApi.list).mockResolvedValue([saved, renamed]);
+    vi.mocked(labelTemplatesApi.save).mockResolvedValueOnce(renamed);
+    fireEvent.change(name, { target: { value: renamed.name } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(labelTemplatesApi.save).toHaveBeenLastCalledWith(
+      { name: renamed.name, layout: renamed.layout }, renamed.id,
+    ));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete', exact: true })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }));
+    vi.mocked(labelTemplatesApi.list).mockResolvedValue([saved]);
+    vi.mocked(labelTemplatesApi.remove).mockResolvedValueOnce({ status: 'deleted' });
+    const confirm = await screen.findByRole('dialog', { name: 'Delete label template' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete', exact: true }));
+    await waitFor(() => expect(labelTemplatesApi.remove).toHaveBeenCalledWith(renamed.id));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete label template' })).not.toBeInTheDocument());
+  });
+
   it.each(['local', 'spoolman', 'material'] as const)('sends the chosen sheet position for %s labels', async (source) => {
     const print = source === 'material' ? smallPartsApi.printLabels : source === 'spoolman' ? api.printSpoolmanSpoolLabels : api.printSpoolLabels;
     vi.mocked(print).mockResolvedValue(PDF_BLOB);

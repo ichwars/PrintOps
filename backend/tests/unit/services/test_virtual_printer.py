@@ -39,6 +39,10 @@ def _write_3mf_with_filaments(file_path: Path, filaments: list[dict], plate_inde
 class TestVirtualPrinterInstance:
     """Tests for VirtualPrinterInstance class."""
 
+    @pytest.fixture(autouse=True)
+    def queue_announcements(self, monkeypatch):
+        monkeypatch.setattr("backend.app.services.virtual_printer.manager.announce_queue_jobs_added", AsyncMock())
+
     @pytest.fixture
     def instance(self, tmp_path):
         """Create a VirtualPrinterInstance with test defaults."""
@@ -1737,6 +1741,7 @@ class TestVirtualPrinterInstance:
             name="H2CRack",
             mode="queue",
             model="O1C2",
+            target_printer_id=1,
             access_code="12345678",
             serial_suffix="391800042",
             base_dir=tmp_path,
@@ -1879,6 +1884,7 @@ class TestVirtualPrinterInstance:
             name="H2CMultiPlate",
             mode="queue",
             model="O1C2",
+            target_printer_id=1,
             access_code="12345678",
             serial_suffix="391800044",
             base_dir=tmp_path,
@@ -1950,16 +1956,9 @@ class TestVirtualPrinterInstance:
         mock_db.flush = AsyncMock(side_effect=_flush)
         mock_db.commit = AsyncMock()
 
-        # First execute() call (the position-max SELECT inside _add_to_print_queue)
-        # returns None; second (the eligible-pending SELECT in
-        # _restamp_recent_queue_item) returns the committed queue id; third
-        # (the UPDATE) is fire-and-forget.
         position_max_result = MagicMock()
         position_max_result.scalar = MagicMock(return_value=None)
-        select_pending_result = MagicMock()
-        select_pending_result.all = MagicMock(return_value=[(101,)])
-        update_result = MagicMock()
-        mock_db.execute = AsyncMock(side_effect=[position_max_result, select_pending_result, update_result])
+        mock_db.execute = AsyncMock(side_effect=[position_max_result, MagicMock()])
 
         mock_session_factory = MagicMock()
         mock_session_ctx = AsyncMock()
@@ -1972,6 +1971,7 @@ class TestVirtualPrinterInstance:
             name="LateMQTT",
             mode="queue",
             model="O1C2",
+            target_printer_id=1,
             access_code="12345678",
             serial_suffix="391800099",
             base_dir=tmp_path,
@@ -2027,8 +2027,7 @@ class TestVirtualPrinterInstance:
             },
         )
 
-        # The UPDATE call is the third execute. Inspect its values.
-        update_call = mock_db.execute.await_args_list[2]
+        update_call = mock_db.execute.await_args_list[1]
         update_stmt = update_call.args[0]
         compiled = update_stmt.compile(compile_kwargs={"literal_binds": False})
         params = dict(compiled.params)
@@ -2061,10 +2060,7 @@ class TestVirtualPrinterInstance:
 
         position_max_result = MagicMock()
         position_max_result.scalar = MagicMock(return_value=None)
-        select_pending_result = MagicMock()
-        select_pending_result.all = MagicMock(return_value=[(301,)])
-        update_result = MagicMock()
-        mock_db.execute = AsyncMock(side_effect=[position_max_result, select_pending_result, update_result])
+        mock_db.execute = AsyncMock(side_effect=[position_max_result, MagicMock()])
 
         mock_session_factory = MagicMock()
         mock_session_ctx = AsyncMock()
@@ -2077,6 +2073,7 @@ class TestVirtualPrinterInstance:
             name="RaceCommitYield",
             mode="queue",
             model="O1C2",
+            target_printer_id=1,
             access_code="12345678",
             serial_suffix="391800096",
             base_dir=tmp_path,
@@ -2131,7 +2128,7 @@ class TestVirtualPrinterInstance:
         assert len(added_items) == 1
         # But the post-commit pop caught the late stash and applied the
         # slicer nozzle_mapping via _restamp's UPDATE.
-        update_call = mock_db.execute.await_args_list[2]
+        update_call = mock_db.execute.await_args_list[1]
         update_stmt = update_call.args[0]
         compiled = update_stmt.compile(compile_kwargs={"literal_binds": False})
         params = dict(compiled.params)
@@ -2142,59 +2139,6 @@ class TestVirtualPrinterInstance:
         assert file_path.name not in inst._recent_queue_items
         # And the stash is empty.
         assert file_path.name not in inst._slicer_print_options
-
-    @pytest.mark.asyncio
-    async def test_on_print_command_late_mqtt_skips_already_dispatched_item(self, tmp_path):
-        """Once the scheduler has picked the queue item up (status != pending),
-        the retroactive patch is a no-op — racing the dispatcher would be
-        unsafe.
-        """
-        from backend.app.services.virtual_printer.manager import VirtualPrinterInstance
-
-        mock_db = AsyncMock()
-        mock_db.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
-        mock_db.get_bind.return_value.dialect.name = "sqlite"
-        mock_db.execute.return_value.scalar = MagicMock(return_value=0)
-        # The eligible-pending SELECT returns nothing — item is no longer pending.
-        empty_result = MagicMock()
-        empty_result.all = MagicMock(return_value=[])
-        mock_db.execute = AsyncMock(return_value=empty_result)
-        mock_db.commit = AsyncMock()
-
-        mock_session_factory = MagicMock()
-        mock_session_ctx = AsyncMock()
-        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_db)
-        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-        mock_session_factory.return_value = mock_session_ctx
-
-        inst = VirtualPrinterInstance(
-            vp_id=98,
-            name="LateMQTTDispatched",
-            mode="queue",
-            model="O1C2",
-            access_code="12345678",
-            serial_suffix="391800098",
-            base_dir=tmp_path,
-            session_factory=mock_session_factory,
-        )
-        inst._mqtt = MagicMock()
-        # Pre-seed the recent-queue dict — pretend _add_to_print_queue just
-        # committed item id 42.
-        inst._recent_queue_items["test.3mf"] = ([42], 1_000_000.0)
-        # Drive _restamp via on_print_command on the late-MQTT path.
-        with patch("backend.app.services.virtual_printer.manager.time.monotonic", return_value=1_000_001.0):
-            await inst.on_print_command(
-                "test.3mf",
-                {
-                    "command": "project_file",
-                    "file": "test.3mf",
-                    "nozzle_mapping": [16, -1],
-                },
-            )
-        # No UPDATE was issued — only the eligibility SELECT ran.
-        assert mock_db.execute.await_count == 1
-        mock_db.commit.assert_not_awaited()
-        assert "test.3mf" not in inst._recent_queue_items
 
 
 class TestVirtualPrinterManager:
@@ -2573,6 +2517,7 @@ class TestVirtualPrinterManager:
             await manager.sync_from_db()
 
         mock_remove.assert_not_called()
+        assert inst.tailscale_disabled is True
 
     @pytest.mark.asyncio
     async def test_sync_from_db_restarts_on_gcode_injection_toggle(self, manager, tmp_path):
@@ -3133,22 +3078,17 @@ class TestSlicerProxyManager:
             bind_address="10.0.0.1",
         )
 
-        # Mock asyncio.create_task and asyncio.gather to prevent actual
-        # server start. Close every coroutine handed to gather — otherwise
-        # the ~110 run_with_logging() coros built inside start() are
-        # garbage-collected unfinalized and surface later as
-        # PytestUnraisableExceptionWarning at random in other tests.
-        async def _close_pending(*coros, **_):
-            for c in coros:
-                if asyncio.iscoroutine(c):
-                    c.close()
+        # The mocks stand in for running the listeners. Dispose of the
+        # coroutines at the point they would have been scheduled.
+        def close_pending_task(coro, **_):
+            coro.close()
+            return MagicMock()
 
         with (
-            patch("asyncio.create_task") as mock_create_task,
-            patch("asyncio.gather", side_effect=_close_pending),
+            patch("asyncio.create_task", side_effect=close_pending_task),
+            patch("asyncio.gather", new=AsyncMock()),
             patch.object(SlicerProxyManager, "_log_activity"),
         ):
-            mock_create_task.return_value = MagicMock()
             await mgr.start()
 
         # FTP must dynamically proxy passive data connections from the same

@@ -1,4 +1,5 @@
 import type { LabelField } from "../api/client";
+import { isSheetDraft, type SheetDraft } from "./labelSheetLayout";
 
 export const DEFAULT_FIELDS: LabelField[] = ['brand', 'material', 'hex', 'name', 'location', 'qr', 'spool_id'];
 export const FIELDS: [LabelField, string][] = [
@@ -11,6 +12,7 @@ export interface LabelPreferences {
   format: 'pdf' | 'png';
   dpi: 203 | 300 | 600;
   monochrome: boolean;
+  sheetDraft?: SheetDraft;
 }
 export function defaultLabelPreferences(): LabelPreferences {
   return { fields: [...DEFAULT_FIELDS], format: 'pdf', dpi: 300, monochrome: false };
@@ -21,6 +23,7 @@ export function readLabelPreferences(key: string): LabelPreferences {
     const saved = JSON.parse(localStorage.getItem(key) || 'null');
     if (!saved || !Array.isArray(saved.fields) || !saved.fields.every((field: unknown) => FIELDS.some(([value]) => value === field))) return defaults;
     return { fields: [...new Set(saved.fields as LabelField[])], format: saved.format === 'png' ? 'png' : 'pdf',
-      dpi: [203, 300, 600].includes(saved.dpi) ? saved.dpi : 300, monochrome: saved.monochrome === true };
+      dpi: [203, 300, 600].includes(saved.dpi) ? saved.dpi : 300, monochrome: saved.monochrome === true,
+      sheetDraft: isSheetDraft(saved.sheetDraft) ? saved.sheetDraft : undefined };
   } catch { return defaults; }
 }

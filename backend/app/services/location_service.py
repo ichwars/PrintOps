@@ -171,9 +171,16 @@ async def resolve_spool_location_fields(
     return None
 
 
+def lock_entered_spool_weight(payload: dict, fields_set: set[str]) -> dict:
+    """A positive manually entered used weight must survive automatic AMS estimates."""
+    if (payload.get("weight_used") or 0) > 0 and "weight_locked" not in fields_set:
+        payload["weight_locked"] = True
+    return payload
+
+
 async def prepare_internal_spool_payload(db: AsyncSession, data: dict, fields_set: set[str]) -> dict:
     """Apply resolved location fields before creating or updating an internal spool."""
-    payload = dict(data)
+    payload = lock_entered_spool_weight(dict(data), fields_set)
     resolved = await resolve_spool_location_fields(
         db,
         location_id=payload.get("location_id"),

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, VideoOff, WifiOff } from 'lucide-react';
-import { getAuthToken, withStreamToken } from '../api/client';
+import { getAuthToken } from '../api/client';
 import { formatDuration } from '../utils/date';
+import { useStreamImgRef } from '../hooks/useStreamImgRef';
+import { useCameraViewport } from '../hooks/useCameraViewport';
+import { useCameraFeedRecovery } from '../hooks/useCameraFeedRecovery';
+import { useCameraFeedAccess } from '../hooks/useCameraStreamToken';
 
 export type CameraTileMode = 'live' | 'snapshot' | 'paused';
 export type CameraTileStatusMode = 'off' | 'compact' | 'full';
@@ -14,6 +18,7 @@ interface CameraTileProps {
   mode: CameraTileMode;
   snapshotIntervalMs: number;
   connected: boolean;
+  cameraToken?: string | null;
   disabled?: boolean;
   onClick?: () => void;
   // Optional status overlay — wired by CameraWall from the shared
@@ -65,6 +70,7 @@ export function CameraTile({
   mode,
   snapshotIntervalMs,
   connected,
+  cameraToken,
   onClick,
   disabled = false,
   statusMode = 'off',
@@ -79,7 +85,15 @@ export function CameraTile({
   const { t } = useTranslation();
   const [bust, setBust] = useState(0);
   const [errored, setErrored] = useState(false);
+  const access = useCameraFeedAccess(cameraToken);
+  const recovery = useCameraFeedRecovery(
+    access.enabled && connected && mode === 'live',
+    `${printerId}:${access.token ?? ''}`,
+  );
   const lastModeRef = useRef<CameraTileMode>(mode);
+  const snapshotRetriedRef = useRef(false);
+  const viewportRef = useRef<HTMLButtonElement>(null);
+  const frameBounds = useCameraViewport(viewportRef, cameraRotation);
 
   // Tell the backend to release its MJPEG transcoder when this tile stops
   // being live — either by unmounting or by transitioning to snapshot/paused.
@@ -99,8 +113,8 @@ export function CameraTile({
       }).catch(() => {});
     }
     setErrored(false);
-    setBust((b) => b + 1);
-  }, [mode, printerId]);
+    snapshotRetriedRef.current = false;
+  }, [mode, printerId, access.token]);
 
   useEffect(() => {
     return () => {
@@ -123,18 +137,17 @@ export function CameraTile({
     return () => clearInterval(interval);
   }, [mode, snapshotIntervalMs]);
 
-  const liveUrl = withStreamToken(
-    `/api/v1/printers/${printerId}/camera/stream?fps=${LIVE_FPS}&t=${bust}`,
-  );
-  const snapshotUrl = withStreamToken(
-    `/api/v1/printers/${printerId}/camera/snapshot?t=${bust}`,
-  );
+  const tokenParam = access.token ? `&token=${encodeURIComponent(access.token)}` : '';
+  const liveUrl = `/api/v1/printers/${printerId}/camera/stream?fps=${LIVE_FPS}&t=${recovery.imageKey}`;
+  const snapshotUrl = `/api/v1/printers/${printerId}/camera/snapshot?t=${bust}`;
+  const source = mode === 'live' ? liveUrl : snapshotUrl;
+  const attachImage = useStreamImgRef(access.enabled && !recovery.waiting ? source + tokenParam : undefined);
 
   const handleClick = () => {
     if (onClick) onClick();
   };
 
-  const transform = cameraRotation ? `rotate(${cameraRotation}deg)` : undefined;
+  const rotation = cameraRotation ? `rotate(${cameraRotation}deg)` : undefined;
 
   const bucket = classifyState(printerState, hmsErrorCount);
   // Hide chip for idle to keep cold walls clean; always show when something
@@ -149,13 +162,14 @@ export function CameraTile({
 
   return (
     <button
+      ref={viewportRef}
       type="button"
       disabled={disabled}
       onClick={handleClick}
       className="group relative aspect-video w-full overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-black text-left focus:outline-none focus:ring-2 focus:ring-bambu-green disabled:cursor-not-allowed disabled:opacity-50"
       title={printerName}
     >
-      {!connected || mode === 'paused' ? (
+      {!connected || mode === 'paused' || !access.enabled ? (
         <div className="absolute inset-0 flex items-center justify-center bg-bambu-dark/60">
           {connected ? (
             <VideoOff className="h-8 w-8 text-bambu-gray/70" aria-hidden="true" />
@@ -163,21 +177,40 @@ export function CameraTile({
             <WifiOff className="h-8 w-8 text-bambu-gray/70" aria-hidden="true" />
           )}
         </div>
-      ) : errored ? (
+      ) : errored || recovery.failed ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/80 text-bambu-gray">
           <VideoOff className="h-7 w-7" aria-hidden="true" />
           <span className="text-xs">{t('printers.camWall.noSignal')}</span>
         </div>
       ) : (
         <img
-          key={`${mode}-${bust}`}
-          src={mode === 'live' ? liveUrl : snapshotUrl}
+          key={`${mode}-${mode === 'live' ? recovery.imageKey : bust}`}
+          ref={attachImage}
+          data-camera-token-managed
           alt={printerName}
           draggable={false}
           loading="lazy"
           className="h-full w-full select-none object-contain"
-          style={{ transform }}
-          onError={() => setErrored(true)}
+          style={frameBounds ? {
+            ...frameBounds, maxWidth: 'none', position: 'absolute', top: '50%', left: '50%',
+            transform: `translate(-50%, -50%) ${rotation}`,
+          } : { transform: rotation }}
+          onLoad={() => {
+            if (mode === 'live') recovery.onLoad();
+            snapshotRetriedRef.current = false;
+          }}
+          onError={(event) => {
+            if (!event.currentTarget.getAttribute('src')) return;
+            if (mode === 'live') {
+              recovery.onError();
+              return;
+            }
+            if (mode === 'snapshot' && !snapshotRetriedRef.current) {
+              snapshotRetriedRef.current = true;
+              return;
+            }
+            setErrored(true);
+          }}
         />
       )}
 

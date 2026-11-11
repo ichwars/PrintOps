@@ -19,6 +19,7 @@ vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({}),
     getSpoolmanSettings: vi.fn(),
@@ -369,4 +370,41 @@ describe('SpoolmanSettings', () => {
       });
     });
   });
+  describe('AMS weight sync with a printer printing', () => {
+    beforeEach(() => {
+      vi.mocked(api.getSpoolmanSettings).mockResolvedValue({
+        spoolman_enabled: 'true',
+        spoolman_url: 'http://localhost:7912',
+        spoolman_sync_mode: 'auto',
+        spoolman_disable_weight_sync: 'false',
+        spoolman_report_partial_usage: 'true',
+      });
+      vi.mocked(api.getSpoolmanStatus).mockResolvedValue({
+        enabled: true,
+        connected: true,
+        url: 'http://localhost:7912',
+      });
+      vi.mocked(api.syncSpoolmanAmsWeights).mockResolvedValue({ synced: 1, skipped: 2, printing: 2 });
+    });
+
+    it('says which spools were left alone because their printer is printing', async () => {
+      const user = userEvent.setup();
+      render(<SpoolmanSettings />);
+
+      const syncButtons = await screen.findAllByRole('button', { name: /Sync Spoolman Weights from AMS/i });
+      await user.click(syncButtons[0]);
+      const dialogTitle = await screen.findByText('Sync Spoolman Spool Weights from AMS');
+      const dialog = dialogTitle.closest('div[class*="fixed"]') ?? document.body;
+      const confirm = Array.from(dialog.querySelectorAll('button')).filter((b) =>
+        /Sync Spoolman Weights from AMS/i.test(b.textContent ?? ''),
+      );
+      await user.click(confirm[confirm.length - 1]);
+
+      expect(
+        await screen.findByText('2 spool(s) on a printer that is printing left alone. Sync again once the print has finished.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+
 });

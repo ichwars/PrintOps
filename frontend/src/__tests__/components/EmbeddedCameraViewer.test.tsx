@@ -80,6 +80,57 @@ describe('EmbeddedCameraViewer camera defaults', () => {
     expect(screen.getByRole('combobox', { name: 'Default camera view' })).toHaveAttribute('data-value', 'snapshot');
   });
 
+  it('releases the external camera image when minimized and when closed', async () => {
+    vi.mocked(localStorage.getItem).mockReturnValue(null);
+    server.use(http.get('*/api/v1/printers/1', () => HttpResponse.json({
+      id: 1, name: 'Workshop', serial_number: 'serial-workshop', model: 'X1C', external_camera_enabled: true,
+    })));
+    const view = render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    await waitFor(() => expect(view.container.querySelector('img')).toHaveAttribute('src', expect.stringContaining('/camera/stream')));
+    const first = view.container.querySelector('img')!;
+    fireEvent.click(screen.getByTitle('Minimize'));
+    expect(first).not.toHaveAttribute('src');
+    expect(view.container.querySelector('img')).toBeNull();
+    fireEvent.click(screen.getByTitle('Expand'));
+    const restored = view.container.querySelector('img')!;
+    expect(restored).toHaveAttribute('src', expect.stringContaining('/camera/stream'));
+    view.unmount();
+    expect(restored).not.toHaveAttribute('src');
+  });
+
+  it('closes the MSE socket on minimize and opens a fresh socket on restore', async () => {
+    vi.mocked(localStorage.getItem).mockReturnValue(null);
+    const sockets: Array<{ close: ReturnType<typeof vi.fn> }> = [];
+    vi.stubGlobal('MediaSource', class extends EventTarget {
+      readyState = 'closed';
+      static isTypeSupported() { return true; }
+    });
+    vi.stubGlobal('WebSocket', class {
+      close = vi.fn();
+      constructor(url: string) {
+        if (url.includes('/camera/mse')) sockets.push(this);
+      }
+    });
+    vi.stubGlobal('URL', class extends URL {
+      static createObjectURL() { return 'blob:camera-test'; }
+      static revokeObjectURL() {}
+    });
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    try {
+      const view = render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      fireEvent.click(screen.getByTitle('Minimize'));
+      expect(sockets[0].close).toHaveBeenCalledOnce();
+      expect(view.container.querySelector('video')).toBeNull();
+      fireEvent.click(screen.getByTitle('Expand'));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      view.unmount();
+      expect(sockets[1].close).toHaveBeenCalledOnce();
+    } finally {
+      load.mockRestore();
+    }
+  });
+
   it('changes and resets the default through the owned camera combobox', async () => {
     render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
     await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot'));

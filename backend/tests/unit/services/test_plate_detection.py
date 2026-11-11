@@ -1,6 +1,6 @@
 """Unit tests for plate detection service."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -39,6 +39,7 @@ class TestPlateDetectionResult:
             assert d["message"] == "Test message"
             assert d["has_debug_image"] is False
             assert d["needs_calibration"] is False
+            assert d["failure_reason"] is None
 
     def test_result_with_debug_image(self):
         """Verify has_debug_image is True when debug_image is provided."""
@@ -82,6 +83,18 @@ class TestPlateDetectionResult:
 
             d = result.to_dict()
             assert d["needs_calibration"] is True
+            assert d["failure_reason"] == "not_calibrated"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("opencv_available", "reason"), [(True, "no_camera_frame"), (False, "opencv_missing")])
+async def test_check_returns_unavailable_reason(monkeypatch, opencv_available, reason):
+    from backend.app.services import plate_detection
+
+    monkeypatch.setattr(plate_detection, "OPENCV_AVAILABLE", opencv_available)
+    monkeypatch.setattr(plate_detection, "capture_camera_image", AsyncMock(return_value=(None, "fixture")))
+    result = await plate_detection.check_plate_empty(1, "192.0.2.1", "fixture", "X1C")
+    assert result.to_dict()["failure_reason"] == reason
 
 
 class TestPlateDetector:

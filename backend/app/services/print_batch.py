@@ -31,6 +31,7 @@ from sqlalchemy.orm import selectinload
 from backend.app.models.print_batch import PrintBatch, PrintBatchPlate
 from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
+from backend.app.services.queue_item_printer import drop_printer_resolved
 from backend.app.services.queue_position import next_queue_position
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,18 @@ async def batch_dispatch_lock(db: AsyncSession, batch_id: int):
         if db.get_bind().dialect.name == "postgresql":
             await db.execute(text("SELECT pg_advisory_xact_lock(342, :batch_id)"), {"batch_id": batch_id})
         yield
+
+
+def batch_jobs_outside_printer_scope(batch_id, printer_scope: set[int]):
+    return (
+        select(PrintQueueItem.id)
+        .where(
+            PrintQueueItem.batch_id == batch_id,
+            PrintQueueItem.printer_id.is_not(None),
+            PrintQueueItem.printer_id.not_in(printer_scope),
+        )
+        .exists()
+    )
 
 
 # Statuses that consume a unit of the target. "printing" counts because the
@@ -427,6 +440,14 @@ async def load_progress(db: AsyncSession, batch: PrintBatch) -> BatchProgress:
     return progress
 
 
+def reopen_batch_for_add(batch: PrintBatch) -> bool:
+    """Only an active or failed grouping accepts another job."""
+    if batch.status not in ("active", "failed"):
+        return False
+    batch.status = "active"
+    return True
+
+
 async def refresh_batch_status(db: AsyncSession, batch: PrintBatch) -> bool:
     """Flip an ``active`` batch to ``completed`` once its targets are met.
 
@@ -462,6 +483,16 @@ async def refresh_batch_status(db: AsyncSession, batch: PrintBatch) -> bool:
             batch.status = "cancelled"
             logger.info("Batch %s had every item cancelled — marked cancelled", batch.id)
             return True
+
+        if settled and progress.failed > 0 and progress.skipped == 0:
+            batch.status = "failed"
+            logger.info("Batch %s ended with failures and nothing printed", batch.id)
+            return True
+
+    if batch.status == "failed" and (progress.pending > 0 or progress.printing > 0):
+        batch.status = "active"
+        logger.info("Batch %s reopened with new work", batch.id)
+        return True
 
     if batch.status == "completed" and not progress.is_fulfilled:
         batch.status = "active"
@@ -517,6 +548,53 @@ async def backfill_batch_statuses(db: AsyncSession) -> int:
     return changed
 
 
+async def refresh_batches_for_items(db: AsyncSession, queue_item_ids: list[int]) -> None:
+    """Re-evaluate every batch owning one of *queue_item_ids*, once each.
+
+    For the paths that end items without a print completing (a cancel, a stop,
+    the stranded-item sweep, a library delete): a grouping whose last item was
+    cancelled, or an order whose last run was closed, would otherwise stay
+    active until the next restart. Changes are left for the caller to commit.
+    """
+    if not queue_item_ids:
+        return
+    await db.flush()
+    batch_ids = (
+        (
+            await db.execute(
+                select(PrintQueueItem.batch_id)
+                .where(PrintQueueItem.id.in_(queue_item_ids))
+                .where(PrintQueueItem.batch_id.is_not(None))
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for batch_id in batch_ids:
+        batch = await db.get(PrintBatch, batch_id)
+        if batch is not None:
+            await refresh_batch_status(db, batch)
+
+
+async def refresh_batches_after(queue_item_ids: list[int]) -> None:
+    """:func:`refresh_batches_for_items` in its own session, after the caller's commit.
+
+    Best-effort, as on the print-completion path: an order's status must not
+    be the reason a cancel, a stop or a scheduler step fails or rolls back.
+    """
+    if not queue_item_ids:
+        return
+    from backend.app.core import database
+
+    try:
+        async with database.async_session() as db:
+            await refresh_batches_for_items(db, queue_item_ids)
+            await db.commit()
+    except Exception as e:
+        logger.warning("Failed to refresh the batch status of queue items %s: %s", queue_item_ids, e)
+
+
 async def refresh_batch_status_for_item(db: AsyncSession, queue_item_id: int) -> None:
     """Re-evaluate the batch owning *queue_item_id*, if it has one.
 
@@ -570,39 +648,54 @@ async def _open_batch_needing_last_source(db: AsyncSession, item: PrintQueueItem
     return batch if survivor is None else None
 
 
+async def remove_queue_item_in_transaction(db: AsyncSession, item: PrintQueueItem) -> dict[str, object]:
+    """Apply the local batch retention rule under the caller's transaction and locks."""
+    protected_batch = await _open_batch_needing_last_source(db, item)
+    if protected_batch is None:
+        await db.delete(item)
+        return {"message": "Queue item deleted", "deleted": True}
+
+    if item.status not in ("completed", "cancelled"):
+        item.status = "cancelled"
+        item.completed_at = datetime.now(timezone.utc)
+        await db.flush()
+        await refresh_batch_status(db, protected_batch)
+
+    return {
+        "message": (
+            f'Queue item retained for batch "{protected_batch.name}": it is the last reusable template for this plate'
+        ),
+        "deleted": False,
+        "batch_id": protected_batch.id,
+        "batch_name": protected_batch.name,
+        "retention_reason": "last_batch_plate_source",
+    }
+
+
+async def refresh_batches_after_queue_removal(db: AsyncSession, batch_ids: set[int]) -> None:
+    for batch_id in sorted(batch_ids):
+        try:
+            batch = await db.get(PrintBatch, batch_id)
+            if batch is not None and await refresh_batch_status(db, batch):
+                await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            logger.warning("Failed to refresh batch %s after deletion: %s", batch_id, exc)
+
+
 async def delete_or_retain_queue_item(db: AsyncSession, item: PrintQueueItem) -> dict[str, object]:
     """Delete an item unless it is an open batch plate's last clone source."""
-
-    async def remove_locked() -> dict[str, object]:
-        protected_batch = await _open_batch_needing_last_source(db, item)
-        if protected_batch is None:
-            await db.delete(item)
-            return {"message": "Queue item deleted", "deleted": True}
-
-        if item.status != "completed":
-            item.status = "cancelled"
-            await db.flush()
-            await refresh_batch_status(db, protected_batch)
-
-        return {
-            "message": (
-                f'Queue item retained for batch "{protected_batch.name}": '
-                "it is the last reusable template for this plate"
-            ),
-            "deleted": False,
-            "batch_id": protected_batch.id,
-            "batch_name": protected_batch.name,
-            "retention_reason": "last_batch_plate_source",
-        }
-
-    if item.batch_id is None:
-        result = await remove_locked()
+    batch_id = item.batch_id
+    if batch_id is None:
+        result = await remove_queue_item_in_transaction(db, item)
         await db.commit()
         return result
-    async with batch_dispatch_lock(db, item.batch_id):
-        result = await remove_locked()
+    async with batch_dispatch_lock(db, batch_id):
+        result = await remove_queue_item_in_transaction(db, item)
         await db.commit()
-        return result
+    if result["deleted"]:
+        await refresh_batches_after_queue_removal(db, {batch_id})
+    return result
 
 
 async def _next_position(db: AsyncSession, printer_id: int | None) -> int:
@@ -634,6 +727,10 @@ def _clone_queue_item(source: PrintQueueItem, *, position: int, created_by_id: i
     )
     for column in CLONED_SETTING_COLUMNS:
         setattr(clone, column, getattr(source, column))
+    # The old run's scheduler-selected printer is not a user pin on its copy.
+    if source.printer_id is not None and (source.target_model or source.variants):
+        clone.printer_id = None
+        drop_printer_resolved(clone)
     return clone
 
 

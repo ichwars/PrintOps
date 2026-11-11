@@ -128,7 +128,8 @@ class TestPrintLogSorting:
 
 
 @pytest.mark.asyncio
-async def test_print_log_preserves_recorded_money_on_list_and_edit(async_client, db_session):
+@pytest.mark.parametrize("reason", ["other", "noStatusUpdate"])
+async def test_print_log_preserves_recorded_money_on_list_and_edit(reason, async_client, db_session):
     from backend.app.models.print_log import PrintLogEntry
 
     entry = PrintLogEntry(status="completed", cost=0.42, energy_kwh=0.31, energy_cost=0.09)
@@ -136,7 +137,7 @@ async def test_print_log_preserves_recorded_money_on_list_and_edit(async_client,
     await db_session.commit()
     for response in (
         await async_client.get("/api/v1/print-log/"),
-        await async_client.patch(f"/api/v1/print-log/{entry.id}", json={"failure_reason": "other"}),
+        await async_client.patch(f"/api/v1/print-log/{entry.id}", json={"failure_reason": reason}),
     ):
         assert response.status_code == 200
         row = response.json()["items"][0] if "items" in response.json() else response.json()

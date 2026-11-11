@@ -1,10 +1,11 @@
-import { Link2, Pencil, Trash2 } from 'lucide-react';
+import { Link2, MoveRight, Pencil, Trash2 } from 'lucide-react';
 import type { LibraryFolderTree, Permission } from '../../api/client';
 import { ActionMenu } from '../../components/ui/ActionMenu';
 
 type Props = {
   folder: LibraryFolderTree;
   onRename: (folder: LibraryFolderTree) => void;
+  onMove: (folder: LibraryFolderTree) => void;
   onLink: (folder: LibraryFolderTree) => void;
   onDelete: (id: number) => void;
   hasPermission: (permission: Permission) => boolean;
@@ -12,7 +13,7 @@ type Props = {
 };
 
 /** Shared by the folder tree and the compact/mobile folder selector. */
-export function FolderActions({ folder, onRename, onLink, onDelete, hasPermission, t }: Props) {
+export function FolderActions({ folder, onRename, onMove, onLink, onDelete, hasPermission, t }: Props) {
   const isLinked = folder.project_id || folder.archive_id;
   return (
     <ActionMenu label={`${t('common.actions')}: ${folder.name}`} className="p-1 rounded hover:bg-bambu-dark-tertiary">
@@ -29,6 +30,12 @@ export function FolderActions({ folder, onRename, onLink, onDelete, hasPermissio
             <Pencil className="w-3.5 h-3.5" />
             {t('common.rename')}
           </button>
+          {!folder.is_external && <button role="menuitem"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-white hover:bg-bambu-dark disabled:cursor-not-allowed disabled:text-bambu-gray"
+            disabled={!hasPermission('library:update_all')} onClick={() => { close(); onMove(folder); }}>
+            <MoveRight className="w-3.5 h-3.5" />
+            {t('fileManager.folderMove.action')}
+          </button>}
           <button
             role="menuitem"
             className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${

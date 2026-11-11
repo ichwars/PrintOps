@@ -37,9 +37,10 @@ async def eligible_channels(db, key, owner, printer_id=None):
 
         if await db.get(Printer, printer_id) is None:
             raise HTTPException(404, "Printer not found")
-        query = query.where(
-            (NotificationProvider.printer_id.is_(None)) | (NotificationProvider.printer_id == printer_id)
-        )
+        target = NotificationProvider.printer_id == printer_id
+        if allowed is None:
+            target = target | NotificationProvider.printer_id.is_(None)
+        query = query.where(target)
     elif allowed is not None:
         query = query.where(NotificationProvider.printer_id.in_(allowed))
     else:

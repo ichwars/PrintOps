@@ -15,6 +15,7 @@ function formatDate(dateStr: string): string {
 
 interface SpoolUsageHistoryProps {
   spoolId: number;
+  spoolmanMode?: boolean;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -23,20 +24,21 @@ const STATUS_COLORS: Record<string, string> = {
   aborted: 'text-yellow-700 dark:text-yellow-400',
 };
 
-export function SpoolUsageHistory({ spoolId }: SpoolUsageHistoryProps) {
+export function SpoolUsageHistory({ spoolId, spoolmanMode = false }: SpoolUsageHistoryProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
   const { data: history, isLoading } = useQuery({
-    queryKey: ['spool-usage', spoolId],
-    queryFn: () => api.getSpoolUsageHistory(spoolId),
+    queryKey: ['spool-usage', spoolId, spoolmanMode],
+    queryFn: () => api.getSpoolUsageHistory(spoolId, 50, spoolmanMode),
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => api.clearSpoolUsageHistory(spoolId),
+    mutationFn: () => api.clearSpoolUsageHistory(spoolId, spoolmanMode),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['spool-usage', spoolId] });
+      queryClient.invalidateQueries({ queryKey: ['spool-usage', spoolId, spoolmanMode] });
+      void queryClient.invalidateQueries({ queryKey: ['all-usage-history-forecast', spoolmanMode] });
       showToast(t('inventory.historyCleared'), 'success');
     },
   });

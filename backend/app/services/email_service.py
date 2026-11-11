@@ -11,6 +11,7 @@ import string
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr, formatdate, make_msgid, parseaddr
 from typing import Any
 
 from sqlalchemy import select
@@ -19,6 +20,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.notification_template import NotificationTemplate
 from backend.app.models.settings import Settings
 from backend.app.schemas.auth import SMTPSettings
+from backend.app.services.secret_fields import (
+    SECRET_PLACEHOLDER,
+    SMTP_DESTINATIONS,
+    SecretConfigError,
+    lock_settings_credentials,
+    same_value,
+    secret_is_set,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +152,29 @@ async def get_smtp_settings(db: AsyncSession) -> SMTPSettings | None:
     )
 
 
+async def smtp_settings_for_test(db: AsyncSession, form: SMTPSettings | None) -> SMTPSettings | None:
+    """Use form values, reusing a saved password only at its original destination."""
+    settings = form if form is not None else await get_smtp_settings(db)
+    if settings is None:
+        return None
+    if settings.smtp_security not in {"none", "ssl", "starttls"}:
+        raise SecretConfigError("Choose a supported SMTP security mode")
+    if form is None or not settings.smtp_auth_enabled or secret_is_set(settings.smtp_password):
+        return settings
+
+    stored = await get_smtp_settings(db)
+    if stored and secret_is_set(stored.smtp_password):
+        moved = [
+            field for field in SMTP_DESTINATIONS if not same_value(getattr(settings, field), getattr(stored, field))
+        ]
+        if moved:
+            raise SecretConfigError(f"Enter the SMTP password again because {', '.join(moved)} changed")
+        return settings.model_copy(update={"smtp_password": stored.smtp_password})
+    if settings.smtp_password == SECRET_PLACEHOLDER:
+        raise SecretConfigError("Enter the SMTP password because none is saved")
+    return settings
+
+
 async def save_smtp_settings(db: AsyncSession, smtp_settings: SMTPSettings) -> None:
     """Save SMTP settings to database.
 
@@ -151,6 +183,28 @@ async def save_smtp_settings(db: AsyncSession, smtp_settings: SMTPSettings) -> N
         smtp_settings: SMTP settings to save
     """
     from backend.app.core.db_dialect import upsert_setting
+
+    await lock_settings_credentials(db)
+    password = smtp_settings.smtp_password
+    if not password or password == SECRET_PLACEHOLDER:
+        saved_password = await db.scalar(select(Settings.value).where(Settings.key == "smtp_password"))
+        if password == SECRET_PLACEHOLDER and not secret_is_set(saved_password):
+            raise SecretConfigError("Enter the SMTP password because none is saved")
+        password = None
+        if secret_is_set(saved_password):
+            try:
+                stored = await get_smtp_settings(db)
+            except (TypeError, ValueError):
+                stored = None
+            changed = [
+                field
+                for field in SMTP_DESTINATIONS
+                if not same_value(getattr(smtp_settings, field), getattr(stored, field, None))
+            ]
+            if changed and smtp_settings.smtp_auth_enabled:
+                raise SecretConfigError(f"Enter the SMTP password again because {', '.join(changed)} changed")
+            if changed:
+                password = ""
 
     settings_data = {
         "smtp_host": smtp_settings.smtp_host,
@@ -165,12 +219,20 @@ async def save_smtp_settings(db: AsyncSession, smtp_settings: SMTPSettings) -> N
     if smtp_settings.smtp_username:
         settings_data["smtp_username"] = smtp_settings.smtp_username
 
-    # Only save password if provided
-    if smtp_settings.smtp_password:
-        settings_data["smtp_password"] = smtp_settings.smtp_password
+    if password is not None:
+        settings_data["smtp_password"] = password
 
     for key, value in settings_data.items():
         await upsert_setting(db, Settings, key, value)
+
+
+def add_message_headers(message: MIMEMultipart, sender: str) -> None:
+    """Set delivery metadata using the sender domain, without a hostname lookup."""
+    _, separator, domain = parseaddr(sender)[1].rpartition("@")
+    if "Date" not in message:
+        message["Date"] = formatdate(usegmt=True)
+    if "Message-ID" not in message:
+        message["Message-ID"] = make_msgid(domain=domain if separator and domain else "printops.local")
 
 
 def send_email(
@@ -193,9 +255,10 @@ def send_email(
         Exception: If email sending fails
     """
     msg = MIMEMultipart("alternative")
-    msg["From"] = f"{smtp_settings.smtp_from_name} <{smtp_settings.smtp_from_email}>"
+    msg["From"] = formataddr((smtp_settings.smtp_from_name, smtp_settings.smtp_from_email))
     msg["To"] = to_email
     msg["Subject"] = subject
+    add_message_headers(msg, smtp_settings.smtp_from_email)
 
     # Attach plain text part
     msg.attach(MIMEText(body_text, "plain"))
@@ -239,6 +302,13 @@ def send_email(
         raise
 
 
+def _welcome_credentials_html(username: str, password: str) -> str:
+    return f"""<div style="background: white; padding: 20px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #667eea;">
+            <p style="margin: 0 0 10px 0;"><strong>Username:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">{html.escape(username)}</code></p>
+            <p style="margin: 0;"><strong>Password:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">{html.escape(password)}</code></p>
+        </div>"""
+
+
 def create_welcome_email(username: str, password: str, login_url: str) -> tuple[str, str, str]:
     """Create welcome email content for new user.
 
@@ -280,13 +350,10 @@ PrintOps Team
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none;">
         <p style="font-size: 16px;">Your account has been created. Here are your login details:</p>
 
-        <div style="background: white; padding: 20px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #667eea;">
-            <p style="margin: 0 0 10px 0;"><strong>Username:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">{username}</code></p>
-            <p style="margin: 0;"><strong>Password:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">{password}</code></p>
-        </div>
+        {_welcome_credentials_html(username, password)}
 
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{login_url}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">Login Now</a>
+            <a href="{html.escape(login_url)}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">Login Now</a>
         </div>
 
         <p style="font-size: 14px; color: #666; border-top: 1px solid #ddd; padding-top: 20px; margin-top: 20px;">
@@ -379,6 +446,32 @@ PrintOps Team
     return subject, text_body, html_body
 
 
+def _account_template_html(subject: str, body: str, url: str, button: str, details: str = "") -> str:
+    escaped_text_body = html.escape(body).replace("\n", "<br>\n")
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); background-color: #667eea; padding: 30px; border-radius: 8px 8px 0 0;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">{html.escape(subject)}</h1>
+    </div>
+    <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none;">
+        <div style="font-size: 16px;">{escaped_text_body}</div>
+
+        {details}
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{html.escape(url)}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">{html.escape(button)}</a>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+
 def create_password_reset_link_email(username: str, reset_url: str) -> tuple[str, str, str]:
     """Create a password-reset email that contains a secure link (not a plaintext password)."""
     subject = "PrintOps - Password Reset Request"
@@ -407,10 +500,10 @@ PrintOps Team
         <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Password Reset Request</h1>
     </div>
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none;">
-        <p style="font-size: 16px;">A password reset was requested for your PrintOps account (<strong>{username}</strong>).</p>
+        <p style="font-size: 16px;">A password reset was requested for your PrintOps account (<strong>{html.escape(username)}</strong>).</p>
         <p>Click the button below to set a new password. This link is valid for <strong>1 hour</strong>.</p>
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{reset_url}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">Reset Password</a>
+            <a href="{html.escape(reset_url)}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">Reset Password</a>
         </div>
         <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 15px; margin: 20px 0;">
             <p style="margin: 0; font-size: 14px; color: #856404;">
@@ -428,20 +521,22 @@ PrintOps Team
 
 
 async def create_password_reset_link_email_from_template(
-    db: AsyncSession, username: str, reset_url: str
+    db: AsyncSession, username: str, reset_url: str, app_name: str = "PrintOps"
 ) -> tuple[str, str, str]:
-    """Create password-reset link email, using DB template if configured."""
-    template = await get_notification_template(db, "password_reset_link")
-    if template:
-        variables = {"username": username, "reset_url": reset_url}
-        subject = render_template(template.subject or "PrintOps - Password Reset Request", variables)
-        text_body = render_template(template.body or "", variables)
-        html_body = render_template(template.html_body or "", variables) if template.html_body else None
-        if not html_body:
-            _, text_body, html_body = create_password_reset_link_email(username, reset_url)
-            return subject, text_body, html_body
-        return subject, text_body, html_body
-    return create_password_reset_link_email(username, reset_url)
+    """Append the reset link after rendering the editable account template."""
+    template = await get_notification_template(db, "password_reset")
+    if template is None:
+        return create_password_reset_link_email(username, reset_url)
+
+    variables = {
+        "username": username,
+        "app_name": app_name,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    subject = render_template(template.title_template, variables)
+    body = render_template(template.body_template, variables).rstrip()
+    text_body = f"{body}\n\n{reset_url}"
+    return subject, text_body, _account_template_html(subject, text_body, reset_url, "Reset Password")
 
 
 async def create_welcome_email_from_template(
@@ -467,37 +562,16 @@ async def create_welcome_email_from_template(
         variables = {
             "app_name": app_name,
             "username": username,
-            "password": password,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "login_url": login_url,
         }
 
         subject = render_template(template.title_template, variables)
-        text_body = render_template(template.body_template, variables)
-
-        # Create HTML version with embedded login button
-        # Escape text_body to prevent XSS vulnerabilities and convert newlines to <br> tags
-        escaped_text_body = html.escape(text_body).replace("\n", "<br>\n")
-        html_body = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); background-color: #667eea; padding: 30px; border-radius: 8px 8px 0 0;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 24px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">{html.escape(subject)}</h1>
-    </div>
-    <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none;">
-        <div style="font-size: 16px;">{escaped_text_body}</div>
-
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="{login_url}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">Login Now</a>
-        </div>
-    </div>
-</body>
-</html>
-"""
-
+        body = render_template(template.body_template, variables).rstrip()
+        text_body = f"{body}\n\nUsername: {username}\nPassword: {password}"
+        html_body = _account_template_html(
+            subject, body, login_url, "Login Now", _welcome_credentials_html(username, password)
+        )
         logger.info("Using custom welcome email template from database")
         return subject, text_body, html_body
     else:
@@ -529,12 +603,12 @@ async def create_password_reset_email_from_template(
         variables = {
             "app_name": app_name,
             "username": username,
-            "password": password,
-            "login_url": login_url,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         }
 
         subject = render_template(template.title_template, variables)
-        text_body = render_template(template.body_template, variables)
+        body = render_template(template.body_template, variables).rstrip()
+        text_body = f"{body}\n\nUsername: {username}\nNew Password: {password}\n\nLogin at: {login_url}"
 
         # Create HTML version with embedded login button
         # Escape text_body to prevent XSS vulnerabilities and convert newlines to <br> tags
@@ -553,7 +627,7 @@ async def create_password_reset_email_from_template(
         <div style="font-size: 16px;">{escaped_text_body}</div>
 
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{login_url}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">Login Now</a>
+            <a href="{html.escape(login_url)}" style="display: inline-block; background-color: #667eea; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">Login Now</a>
         </div>
 
         <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 15px; margin: 20px 0;">

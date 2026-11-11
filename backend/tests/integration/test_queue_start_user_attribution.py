@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from backend.app.models.print_queue import PrintQueueItem
+from backend.app.models.user import User
 
 
 async def _read_item(test_engine, item_id: int) -> PrintQueueItem:
@@ -128,13 +129,14 @@ class TestStartCreditsTheClicker:
         keeps user A's attribution — the original uploader's claim is stronger
         than the dispatcher's. (Matches the standard ownership semantics in
         `auth.py::require_ownership_permission`.)"""
-        admin_token, admin_user = await _enable_auth_with_admin(async_client)
+        admin_token, _ = await _enable_auth_with_admin(async_client)
 
-        # Pre-set a different owner on the queue item using a fresh session
-        # (the test's `db_session` is detached from the route's session pool).
-        prior_owner_id = admin_user["id"] + 9999
         maker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
         async with maker() as fresh:
+            prior_owner = User(username="prior-uploader")
+            fresh.add(prior_owner)
+            await fresh.flush()
+            prior_owner_id = prior_owner.id
             item = (await fresh.execute(select(PrintQueueItem).where(PrintQueueItem.id == queue_item.id))).scalar_one()
             item.created_by_id = prior_owner_id
             await fresh.commit()
@@ -173,7 +175,6 @@ class TestSchedulerPropagatesOwnerToPrinterManager:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_propagates_when_created_by_id_resolves_to_user(self, db_session, queue_item, monkeypatch):
-        from backend.app.models.user import User
         from backend.app.services import print_scheduler as scheduler_module
         from backend.app.services.print_scheduler import PrintScheduler
 
@@ -191,7 +192,7 @@ class TestSchedulerPropagatesOwnerToPrinterManager:
         monkeypatch.setattr(
             scheduler_module.printer_manager,
             "set_current_print_user",
-            lambda printer_id, uid, username: captured.append((printer_id, uid, username)),
+            lambda printer_id, uid, username, **_: captured.append((printer_id, uid, username)),
         )
 
         await PrintScheduler()._propagate_owner_to_printer_manager(db_session, queue_item)
@@ -213,7 +214,7 @@ class TestSchedulerPropagatesOwnerToPrinterManager:
         monkeypatch.setattr(
             scheduler_module.printer_manager,
             "set_current_print_user",
-            lambda *args: captured.append(args),
+            lambda *args, **_: captured.append(args),
         )
 
         await PrintScheduler()._propagate_owner_to_printer_manager(db_session, queue_item)
@@ -228,8 +229,12 @@ class TestSchedulerPropagatesOwnerToPrinterManager:
         from backend.app.services import print_scheduler as scheduler_module
         from backend.app.services.print_scheduler import PrintScheduler
 
-        queue_item.created_by_id = 999_999  # no such user row
-        db_session.add(queue_item)
+        uploader = User(username="deleted-uploader")
+        db_session.add(uploader)
+        await db_session.flush()
+        queue_item.created_by_id = uploader.id
+        await db_session.commit()
+        await db_session.delete(uploader)
         await db_session.commit()
         await db_session.refresh(queue_item)
 
@@ -237,7 +242,7 @@ class TestSchedulerPropagatesOwnerToPrinterManager:
         monkeypatch.setattr(
             scheduler_module.printer_manager,
             "set_current_print_user",
-            lambda *args: captured.append(args),
+            lambda *args, **_: captured.append(args),
         )
 
         # Must not raise — the dispatch loop would otherwise lose the whole

@@ -1,4 +1,35 @@
 export default {
+  profileDefaults: {
+    "title": "Product profile defaults",
+    "description": "Copy slicer presets and K profiles from a configured spool. New spools of that product inherit missing settings.",
+    "pickSpool": "Choose a configured spool",
+    "allColors": "All colours",
+    "save": "Save as product default",
+    "saved": "Product default saved",
+    "apply": "Apply missing profiles",
+    "applied": "Spools updated ({{applied}}), failed ({{failed}})",
+    "deleteMessage": "Delete this product default? Spools keep their existing profiles."
+  },
+  archiveMerge: {
+    "title": "Merge duplicates",
+    "description": "Select archive groups to merge into their oldest entry. Print runs and their history are preserved.",
+    "keep": "Keep {{name}} (#{{id}})",
+    "move": "Move {{name}} (#{{id}})",
+    "empty": "No duplicate archive groups found.",
+    "previewError": "Could not load the merge preview.",
+    "submit": "Merge groups ({{count}})",
+    "submitError": "Could not submit the archive merge.",
+    "result": "Groups merged ({{count}})",
+    "limit": "Select up to {{count}} groups at a time.",
+    "reasons": {
+      "busy": "A print or archive operation is still in progress.",
+      "invalid_group": "The group changed. Open a new preview.",
+      "missing_file": "An archive file is missing.",
+      "conflicting_files": "Archive files are incompatible.",
+      "conflicting_metadata": "Archive metadata is incompatible.",
+      "failed": "The group could not be merged."
+    }
+  },
   telegramQuality: {
     "title": "Telegram quality reactions",
     "enable": "Enable quality reactions",
@@ -2343,6 +2374,8 @@ export default {
 
   // Common
   common: {
+    secretKept: 'The saved value will be kept.',
+    secretReenter: 'Re-enter the credential for the changed destination.',
     plusNMore: '+{{count}} more',
     save: 'Save',
     saving: 'Saving...',
@@ -2691,6 +2724,9 @@ export default {
     addFromCloud: 'Add from Cloud',
     // Toast messages
     toast: {
+      assignmentVerified: "Slot {{slot}} configuration confirmed ({{printer}})",
+      assignmentVerifiedNoKprofile: "Slot {{slot}} configuration confirmed, but its K-profile is not confirmed ({{printer}})",
+      assignmentNotConfirmed: 'Could not confirm the assignment for slot {{slot}} on {{printer}}: check the AMS slot',
       printerDeleted: 'Printer deleted',
       missingSpoolAssignment: 'Print started on {{printer}}. Missing spool assignment for: {{slots}}',
       printerAdded: 'Printer added',
@@ -2926,7 +2962,7 @@ export default {
       powerRequired: 'Connect AMS power adapter to enable drying',
       startingDrying: 'Starting drying...',
       toastStarted: 'Drying started',
-      toastStopped: 'Drying stopped',
+      toastStopped: 'Stop command sent',
       toastNotStarted: 'The printer accepted the command but the AMS never started drying. Check that the AMS power adapter is connected and that the printer is idle.',
       screenOnly: 'Drying can only be controlled from this printer\'s screen',
       stoppingDrying: 'Stopping drying...',
@@ -2979,6 +3015,16 @@ export default {
       calibrationInstructions: 'Please ensure the build plate is <strong>completely empty</strong>, then click Calibrate.',
       calibrationDescription: 'Calibration captures a reference image of the empty plate. Future checks will compare against this reference to detect objects.',
       calibrationTip: '<strong>Tip:</strong> You can store up to 5 calibrations for different plates. The system automatically uses the best match when checking.',
+      couldNotRunTitle: 'Build plate check unavailable',
+      couldNotRun: 'Could not check the build plate on {{printer}}. {{reason}}',
+      unavailableReasons: {
+        no_camera_frame: 'No camera image was received.',
+        decode_failed: 'The camera image could not be decoded.',
+        analysis_error: 'Image analysis failed.',
+        opencv_missing: 'OpenCV is unavailable.',
+        not_calibrated: 'Calibrate the build plate first.',
+        error: 'The check failed.',
+      },
       plateEmpty: 'Plate appears empty',
       objectsDetected: 'Objects detected on plate',
       confidence: 'Confidence',
@@ -3011,6 +3057,9 @@ export default {
     },
     // Fans
     fans: {
+      leftAuxiliary: 'Left Auxiliary Fan',
+      rightAuxiliary: 'Right Auxiliary Fan',
+      exhaust: 'Exhaust',
       partCooling: 'Part Cooling Fan',
       auxiliary: 'Auxiliary Fan',
       chamber: 'Chamber Fan',
@@ -3037,6 +3086,8 @@ export default {
       lastError: 'Last error',
       openSettings: 'Open settings',
     },
+    pauseAtLayer: 'Pause at layer {{layer}}',
+    pauseIn: 'Pause in {{time}} at layer {{layer}}',
     estimatedCompletion: 'Estimated completion time',
     plateNumber: 'Plate {{number}}',
     slotOptions: 'Slot options',
@@ -3057,6 +3108,7 @@ export default {
       currentVersion: 'Current:',
       latestVersion: 'Latest:',
       releaseNotes: 'Release Notes',
+      idleRequired: 'Firmware can only be uploaded while the printer is idle.',
       checkingPrereqs: 'Checking prerequisites...',
       sdCardReady: 'SD card ready. Click below to upload firmware.',
       uploadedSuccess: 'Firmware uploaded to SD card!',
@@ -3294,6 +3346,9 @@ export default {
       noGcode: 'This archive has no sliced G-code to preview. Open it in Bambu Studio to slice first.',
     },
     card: {
+      costFullPrint: "Cost of one full print. The Print Log shows what this run used.",
+      aborted: "aborted",
+      costEstimate: 'Estimate — the final cost is set when the print finishes',
       previousPlate: 'Previous plate',
       nextPlate: 'Next plate',
       plateNumber: 'Plate {{index}}',
@@ -3307,6 +3362,7 @@ export default {
       openSource3mf: 'Open source 3MF in Bambu Studio (right-click for more options)',
       downloadF3d: 'Download Fusion 360 design file',
       viewTimelapse: 'View timelapse',
+      viewTimelapses: 'View {{count}} timelapses',
       viewPhoto: 'View 1 photo',
       viewPhotos: 'View {{count}} photos',
       openFolder: 'Open folder: {{name}}',
@@ -3344,6 +3400,7 @@ export default {
       delete: 'Delete',
     },
     runLog: {
+      estimate: "Estimated: {{value}}",
       title: 'Print Log',
       modalTitle: 'Print Log — {{name}}',
       modalTitleFallback: 'this archive',
@@ -3351,6 +3408,7 @@ export default {
       col: {
         date: 'Date',
         status: 'Status',
+        plate: "Plate",
         duration: 'Duration',
         filament: 'Filament',
         cost: 'Cost',
@@ -3542,8 +3600,17 @@ export default {
 
   // Queue page
   queue: {
+    editSuccess: "Queue item updated.",
     title: 'Print Queue',
     subtitle: 'Schedule and manage your print jobs',
+    filamentMissing: {
+      confirmTitle: 'Filament not loaded',
+      confirmIntro: 'The printer has no tray with this filament. Load it and press Start again, or print anyway:',
+    },
+    filamentNotes: {
+      color: "Slot {{slot}}: {{wanted}} requested, {{got}} loaded",
+      backup: "AMS backup spool: {{from}} → {{to}}",
+    },
     filamentShort: {
       rowBadge: 'Insufficient filament for the assigned spool',
       rowTooltip: 'The dispatch scheduler flagged this item. Click Play to see the per-slot deficit and decide whether to print anyway.',
@@ -3611,11 +3678,13 @@ export default {
         completed: 'Completed',
         cancelled: 'Cancelled',
         all: 'All',
+        failed: 'Failed',
       },
       status: {
         active: 'Active',
         completed: 'Completed',
         cancelled: 'Cancelled',
+        failed: 'Failed',
       },
       noTargets: 'Grouping only',
       noTargetsHint: 'Created before per-plate targets existed, so it tracks the runs it queued rather than a target.',
@@ -3814,6 +3883,9 @@ export default {
       historyCleared: 'Cleared {{count}} history item(s)',
       clearHistoryFailed: 'Failed to clear history',
       updateFailed: 'Failed to update items',
+      bulkUpdated: 'Updated {{updated}} of the selected items.',
+      bulkUpdatedSome: 'Updated {{updated}} of the selected items. Skipped {{skipped}}.',
+      bulkUpdatedNone: 'No items were updated. Skipped {{skipped}}.',
       bulkCancelled: 'Cancelled {{count}} item(s)',
       bulkCancelFailed: 'Failed to cancel items',
       batchCreated: 'Batch "{{name}}" created',
@@ -3821,7 +3893,13 @@ export default {
       batchUngrouped: 'Ungrouped {{count}} item(s)',
       batchUngroupFailed: 'Failed to ungroup batch',
       resumedAfterFailure: 'Resumed queue — {{restored}} job(s) restored to pending',
+      resumedModelAfterFailure: 'Gate cleared on {{count}} failed print(s)',
       resumeAfterFailureFailed: 'Failed to resume queue',
+    },
+    resumeModelAfterFailure: {
+      banner: 'Jobs for any {{model}} wait ({{count}}): the last print failed on every free {{model}}',
+      bannerHint: 'Fix the printers, then resume to clear the gate. The jobs then start on the next free {{model}}.',
+      confirmMessage: 'Clear the previous-print gate on every {{model}} printer you can use. Make sure the printers are ready before continuing.',
     },
     resumeAfterFailure: {
       banner: '{{printer}} is blocked by a previous-print failure — {{count}} job(s) skipped',
@@ -3938,6 +4016,8 @@ export default {
     exportDownloaded: 'Export downloaded',
     exportFailed: 'Export failed',
     layoutReset: 'Layout reset',
+    repricedUsage: "Usage records repriced ({{count}})",
+    repricingSpoolmanUnavailable: "Spoolman unavailable. Prices retained for {{count}} usage records",
     recalculatedCosts: 'Recalculated costs for {{count}} archives',
     recalculateFailed: 'Failed to recalculate costs',
     // Loading
@@ -4090,6 +4170,7 @@ export default {
     printerAssigned: 'Printer assigned',
     printerRemoved: 'Printer removed',
     // Confirmation
+    deleteTypeAllPrinters: 'This deletes the maintenance task and its history from every printer.',
     deleteTypeConfirm: 'Delete "{{name}}"?',
     deleteSystemTypeTitle: 'Delete default maintenance task?',
     deleteSystemTypeMessage: 'Are you sure you want to delete the default maintenance task "{{name}}"?',
@@ -4126,6 +4207,7 @@ export default {
       queueDispatch: 'Queue & Dispatch',
       queuePipelines: 'Pipelines',
       deviceManagementDevices: 'Devices',
+      deviceManagementCameras: "Cameras",
       deviceManagementPrintProcess: 'Print Process',
       projectManagementFiles: 'File Management',
       warehouseFilament: 'Filament',
@@ -4149,7 +4231,8 @@ export default {
       security: 'Security',
     },
     printerProductionSubTabDescriptions: {
-      devices: 'Manage default printers, cameras, FTP retry behavior, and virtual printer endpoints.',
+      devices: "Manage default printers, FTP retries, and virtual printers.",
+      cameras: "Configure external cameras, chamber lighting, streaming overlays, and camera tokens.",
       printProcess: 'Configure print defaults, archiving, queue behavior, G-code, slicer, and completion rules.',
       pipelines: 'Manage slicer pipelines, presets, and automated preparation flows.',
       failureDetection: 'Configure AI failure monitoring, per-printer detection behavior, status, and history.',
@@ -4527,9 +4610,8 @@ export default {
     upToDate: 'You are up to date',
     updateAvailable: 'Update available',
     // Notifications
-    notificationLanguage: 'Notification Language',
-    notificationLanguageDescription: 'Language for push notifications',
     bedCooledThreshold: 'Bed Cooled Threshold',
+    pauseWarningMinutes: 'Slicer pause warning lead time (minutes)',
     bedCooledThresholdDescription: 'Temperature below which the bed is considered cooled after a print',
     userNotificationsEnabled: 'User Notifications',
     userNotificationsEnabledDescription: 'Enable the user notifications menu and email notifications for print job events. Requires Advanced Authentication.',
@@ -4601,6 +4683,7 @@ export default {
     amsSyncMessage: 'This will overwrite all inventory spool weights with the current AMS remain% values from connected printers. Use this to recover from corrupted weight data. Printers must be online.',
     amsSyncing: 'Syncing...',
     amsSyncSuccess: '{{synced}} spool(s) synced, {{skipped}} skipped',
+    amsSyncSkippedPrinting: '{{count}} spool(s) on a printer that is printing left alone. Sync again once the print has finished.',
     amsSyncError: 'Failed to sync weights from AMS',
     spoolmanAmsSyncButton: 'Sync Spoolman Weights from AMS',
     spoolmanAmsSyncTitle: 'Sync Spoolman Spool Weights from AMS',
@@ -4641,7 +4724,6 @@ export default {
     // Sidebar
     sidebarOrder: 'Sidebar order',
     // Camera
-    saveThumbnails: 'Save thumbnails',
     captureFinishPhoto: 'Capture finish photo',
     noPrintersConfigured: 'No printers configured',
     // Archive settings
@@ -4670,6 +4752,7 @@ export default {
     homeAssistantDescription: 'Control smart plugs via Home Assistant',
     environmentManagedLabel: '(Environment Managed)',
     autoEnabledViaEnv: 'Automatically enabled via environment variables',
+    haUrlEnvRequired: 'Set HA_URL in the environment to change the URL used by HA_TOKEN.',
     urlFromEnvReadOnly: 'Value set by HA_URL environment variable (read-only)',
     tokenFromEnvReadOnly: 'Value set by HA_TOKEN environment variable (read-only)',
     // MQTT
@@ -4767,11 +4850,11 @@ export default {
     webhookEndpoints: 'Webhook Endpoints',
     webhookApiKeyHint: 'Use your API key in the X-API-Key header.',
     webhook: {
-      getAllStatus: 'Get all printer status',
+      queueStatus: "Get queue status",
       getSpecificStatus: 'Get specific printer status',
       addToQueue: 'Add to print queue',
-      pausePrint: 'Pause print',
-      resumePrint: 'Resume print',
+      startNext: "Start next queued print",
+      cancelPrint: "Cancel print",
       stopPrint: 'Stop print',
     },
     apiBrowser: 'API Browser',
@@ -4794,6 +4877,7 @@ export default {
     goodBlue: 'Good (blue)',
     aboveFairHot: 'Above fair threshold shows as red (hot)',
     historyRetention: 'History Retention',
+    keepPrinterTemperatureHistory: "Keep printer temperature history for",
     keepSensorHistory: 'Keep sensor history for',
     historyRetentionDescription: 'Older humidity and temperature data will be automatically deleted',
     defaultPrintOptions: 'Default Print Options',
@@ -5011,6 +5095,8 @@ export default {
       connectionFailed: 'Connection failed',
       testFailed: 'Test failed',
       cameraConnected: 'Camera connected{{resolution}}',
+      cameraConnectedLiveView: 'Frame from the live view{{resolution}}',
+      cameraLiveViewPending: 'The live view has no recent frame yet. Try again in a moment.',
 
       "saveFailed": "Save failed",
     },
@@ -5150,21 +5236,33 @@ export default {
     styleVibrant: 'Vibrant',
     themeToggleHint: 'Toggle between dark, light, and system mode using the icon in the sidebar.',
     progressInTitle: 'Show print progress in browser tab',
+    tabDisplay: "Print status in browser tab",
+    tabDisplayPercentage: "Percent complete",
+    tabDisplayTime: "Time remaining",
     progressInTitleHint: 'When a printer is running, the tab title and favicon show the active print percentage.',
     // Archive
     autoArchivePrints: 'Auto-archive prints',
     autoArchiveDescription: 'Automatically save 3MF files when prints complete',
-    saveThumbnailsDescription: 'Extract and save preview images from 3MF files',
     captureFinishPhotoDescription: 'Take a photo from printer camera when print completes. PrintOps records a brief timelapse during the print so the photo can be sourced from the moment before the bed drops; the timelapse file is kept if you enabled timelapse for this print, otherwise it is deleted automatically after the photo is captured.',
     ffmpegNotInstalled: 'ffmpeg not installed',
     ffmpegRequired: 'Camera capture requires ffmpeg. Install it via <brew>brew install ffmpeg</brew> (macOS) or <apt>apt install ffmpeg</apt> (Linux).',
     // Camera
     camera: 'Camera',
     cameraViewMode: 'Camera View Mode',
+    cameraLight: "Automatic chamber lighting",
+    cameraLightOff: "Off",
+    cameraLightAll: "All printers",
+    cameraLightSelected: "Selected printers",
+    cameraLightDelay: "Snapshot exposure delay (seconds)",
     cameraOverlayDescription: 'Camera opens in a resizable overlay on the main screen',
     cameraWindowDescription: 'Camera opens in a separate browser window',
     externalCamerasDescription: 'Configure external cameras to replace the built-in printer camera. Supports MJPEG streams, RTSP, HTTP snapshots, and USB cameras (V4L2). When enabled, the external camera is used for live view and finish photos.',
     cameraPlaceholderUsb: 'Device path (/dev/video0)',
+    usbCameraChoose: "Choose a USB camera",
+    usbCameraRefresh: "Refresh USB devices",
+    usbCameraListError: "USB cameras could not be listed.",
+    usbCameraNone: "No USB camera found. In Docker, pass through the device, for example",
+    usbCameraMissing: "USB camera {{device}} is not currently available.",
     cameraPlaceholderUrl: 'Camera URL (rtsp://... or http://...)',
     cameraUrlBuilderToggle: 'Build URL from host, port and path',
     cameraUrlBuilderHost: 'Host or IP',
@@ -5323,6 +5421,8 @@ export default {
       newBackupCodes: 'New backup codes',
       linkedAccounts: 'Linked SSO Accounts',
       linkedAccountsDesc: 'These external identity providers are linked to your account.',
+      oidcUnlink: 'Unlink sign-in account',
+      oidcUnlinkConfirm: 'Remove the sign-in link for {{provider}}?',
       oidcUnlinked: 'Account unlinked.',
     },
 
@@ -5658,6 +5758,8 @@ export default {
 
   // Printer File Manager modal (printer internal storage)
   printerFiles: {
+      listingTimedOut: 'The printer is answering, but listing this folder is taking too long (a large folder on a slow SD card). Try again in a moment.',
+      printerUnavailable: 'The printer file service is unavailable. Try again when the printer is reachable.',
     videos: 'Videos',
     rangeSelectionHint: 'Click a file, then Shift-click another to select a range.',
     saveToFolder: 'Save videos to folder',
@@ -5690,6 +5792,7 @@ export default {
 
   // Login page
   login: {
+    retryingConnection: "PrintOps is temporarily unavailable. Reconnecting…",
     title: 'PrintOps Login',
     subtitle: 'Sign in to your account',
     username: 'Username',
@@ -6031,6 +6134,10 @@ export default {
       ldapErrorProvision: 'Provisioning failed. Check the LDAP server status and try again.',
     },
     form: {
+      twoFactorReset: "Reset two-factor authentication",
+      twoFactorResetHint: "Remove the authenticator, email codes and backup codes for this user. Their sessions will end.",
+      twoFactorResetDone: "Two-factor authentication was reset.",
+      twoFactorResetNone: "This user had no active two-factor authentication.",
       username: 'Username',
       usernamePlaceholder: 'Enter username',
       email: 'Email',
@@ -6048,7 +6155,7 @@ export default {
       printerScopeCount: '{{count}} printers',
       optional: 'optional',
       autoGeneratedPassword: 'A secure password will be automatically generated and emailed to the user.',
-      passwordManagedByAdvancedAuth: 'Password is managed by Advanced Authentication. Use "Reset Password" to send a new password to the user via email.',
+      passwordManagedByAdvancedAuth: 'Advanced Authentication manages the password. Use “Reset Password” to email a link for setting a new password.',
       resetPassword: 'Reset Password',
       resettingPassword: 'Resetting Password...',
     },
@@ -6450,6 +6557,15 @@ export default {
 
   // File manager
   fileManager: {
+    highlightedFileNotFound: "The linked file is unavailable.",
+    folderMove: {
+      action: "Move folder",
+      title: "Move “{{name}}”",
+      destination: "Destination folder",
+      choose: "Choose a destination",
+      root: "Managed storage root",
+      done: "Folder moved.",
+    },
     combine: {
       action: 'Combine to 3MF',
       tooltip: 'Combine the selected STLs into one 3MF so they can be sliced on a single plate',
@@ -6624,6 +6740,10 @@ export default {
       bulkTitle: 'Tag {{count}} selected file(s)',
       bulkTooltip: 'Add or remove tags on every selected file.',
       noPermission: 'You do not have permission to tag files.',
+      searchTags: "Search tags",
+      noTagsMatch: "No tags match",
+      showAllTags: "Show all ({{count}})",
+      showFewerTags: "Show fewer",
       filterLabel: 'Filtering by:',
       clearAll: 'Clear all',
       confirmDelete: 'Delete tag "{{name}}"?',
@@ -7063,6 +7183,20 @@ export default {
 
   // Slice (slicer-API integration via SliceModal)
   slice: {
+    searchPresets: "Search profiles",
+    closeSearch: "Close search",
+    noPresetMatches: "No profiles match.",
+    filters: {
+      online: "Only online printer models",
+      loaded: "Only loaded spools",
+      noOnline: "No online printer model found. Showing all printer profiles.",
+      noMatch: "No profile matches the loaded spools. Showing all filament profiles.",
+    },
+    loadedSpools: {
+      choose: "Choose a loaded spool",
+      noProfile: "No matching profile",
+      unidentified: "Unidentified spool",
+    },
     title: 'Slice model',
     stepUnsupported: 'Slicing not supported',
     stepUnsupportedHint: 'STEP/STP files cannot be sliced on the server - the slicer cannot import them. Convert the model to STL or 3MF to slice it here.',
@@ -7256,6 +7390,8 @@ export default {
       updateFailed: 'Bulk update failed',
       updatePartial: '{{ok}} spools updated, {{failed}} failed',
       updateAllFailed: 'All {{count}} spool updates failed — selection kept so you can retry',
+      resetAllFailed: 'No counter was reset: all {{count}} failed',
+      resetPartial: 'Counter reset for {{ok}} spool(s), {{failed}} failed',
       deleteSuccess: '{{count}} spools deleted',
       deleteFailed: 'Bulk delete failed',
       deletePartial: '{{ok}} spools deleted, {{failed}} failed',
@@ -7284,6 +7420,31 @@ export default {
     spoolmanMixedContentFixReverseProxy: 'Put Spoolman behind the same reverse proxy as PrintOps (Traefik / Nginx / Caddy) with HTTPS, then update the Spoolman URL in Settings to the new HTTPS address.',
     spoolmanMixedContentFixOpenNewTab: 'As a workaround, open Spoolman in a new browser tab over HTTP — mixed-content rules only apply to embedded frames, so a standalone tab still works.',
     spoolmanOpenInNewTab: 'Open Spoolman in a new tab',
+    spoolIdNotFound: "Spool #{{id}} was not found.",
+    spoolIdArchived: "Spool #{{id}} is archived.",
+    spoolIdInOtherSlot: "Spool #{{id}} is already assigned to another slot.",
+    qrAssign: {
+      title: "Scan spool label",
+      target: "Assignment target",
+      ams: "AMS slot",
+      printer: "Printer",
+      chooseLocation: "Select a storage location",
+      choosePrinter: "Select a printer",
+      chooseSlot: "Select a slot",
+      wrongInventory: "This label belongs to a different inventory.",
+      archived: "This spool is archived.",
+      assigned: "Spool assigned to {{target}}.",
+      mismatch: "The slot reports {{slot}}. The scanned spool contains {{spool}}.",
+      assign: "Assign to {{target}}",
+      scanAgain: "Scan another label",
+      startCamera: "Start camera",
+      stopCamera: "Stop camera",
+      photo: "Choose a photo",
+      pasteLabel: "Spool label link",
+      read: "Read label",
+      cameraError: "The camera could not start. Choose a photo or paste the label link.",
+      noCode: "No QR code was found in the photo.",
+    },
     labels: {
       template: 'Label size',
       preview: 'Preview',
@@ -7315,6 +7476,32 @@ export default {
         spoolId: 'Spool ID',
       },
 
+      custom: {
+        option: "Custom sheet",
+        savedGroup: "Saved label templates",
+        page: "Paper size",
+        pageLetter: "US Letter (215.9 × 279.4 mm)",
+        label_w_mm: "Label width (mm)",
+        label_h_mm: "Label height (mm)",
+        cols: "Columns",
+        rows: "Rows",
+        top_mm: "Top margin (mm)",
+        left_mm: "Left margin (mm)",
+        col_gap_mm: "Column gap (mm)",
+        row_gap_mm: "Row gap (mm)",
+        diagram: "Sheet layout preview",
+        invalid: "Use labels of at least 40 × 20 mm and fit the grid and margins on the selected paper.",
+        pngLimit: "PNG export allows up to {{max}} sheets at {{dpi}} dpi.",
+        name: "Template name",
+        saveAsNew: "Save as new template",
+        saveChanges: "Save changes",
+        print: "Print custom sheet",
+        deleteTitle: "Delete label template",
+        deleteMessage: "Delete the template “{{name}}”?",
+        loadFailed: "Could not load templates ({{message}})",
+        saveFailed: "Could not save the template ({{message}})",
+        deleteFailed: "Could not delete the template ({{message}})",
+      },
       startPosition: "Start position",
       startPositionHint: "First sheet: 1–{{max}}, left to right, then down. Later sheets start at 1.",
       startPositionError: "Enter a whole number from 1 to {{max}}.",
@@ -7415,6 +7602,7 @@ export default {
     currentWeight: 'Remaining Weight',
     measuredWeight: 'Measured Weight',
     spoolName: 'Spool',
+    costFromFilament: "Price from the filament catalog",
     costPerKg: 'Cost per kg',
     storageLocation: 'Storage Location',
     storageLocationPlaceholder: 'e.g. Shelf A, Drawer 1',
@@ -7508,6 +7696,7 @@ export default {
     modelPresetsSaveFailed: "Spool data saved, but model presets could not be saved. Retry saving.",
     paProfileTab: 'PA Profile',
     filamentInfo: 'Filament',
+    lastDried: 'Last dried',
     additional: 'Additional',
     // Cloud
     loadingPresets: 'Loading cloud presets...',
@@ -7690,6 +7879,7 @@ export default {
     emptySlot: 'Empty slot',
     slotEmpty: 'Empty',
     slotUnconfigured: '?',
+    assignedNotConfigured: 'Assigned in PrintOps, not configured on the printer yet. The printer takes the setting once the slot is free, after the print.',
     emptySlotReset: 'No filament assigned',
     unknown: 'Unknown',
     humidity: 'Humidity',
@@ -7861,6 +8051,7 @@ export default {
     backupCompleteFiles: 'Backup complete - {{count}} files updated',
     backupSkippedNoChanges: 'Backup skipped - no changes',
     backupFailed2: 'Backup failed: {{message}}',
+    clearHistoryConfirm: 'Clear the GitHub backup history?',
     clearedLogs: 'Cleared {{count}} logs',
     failedToClearLogs: 'Failed to clear logs: {{message}}',
 
@@ -7894,6 +8085,7 @@ export default {
         notPresent: 'Not present in this backup commit',
         unreadableJson: 'Unreadable JSON: {{paths}}',
         settingsNoPayload: 'No settings in payload',
+        settingsNotRestorableWillSkip: '{{count}} settings will be skipped because they are unknown, contain invalid values, or define a destination for this instance',
         settingsCredentialsWillSkip: '{{count}} credential-like key(s) will be skipped',
         settingsCompanionWillSkip: '{{count}} credential-like key(s) will be skipped, and {{companion}} switch(es) that depend on them will be left off',
         settingsCompanionOnlyWillSkip: '{{companion}} switch(es) will be left off - the credential each one needs cannot be restored from a backup',
@@ -7913,11 +8105,18 @@ export default {
         archivesOwnerUnknown: 'Some archives were restored without an owner - this backup does not record one, so they are visible only to users with the archives:read_all permission until an admin reassigns them',
         archivesUndeleted: 'Archive(s) deleted since the backup are visible again - overwrite was on',
         archivesMetadataOnly: 'Restored archives carry metadata only - the 3MF and thumbnail files are not in a Git backup',
+        archivesNumbersDropped: "Invalid numeric values in some archives were omitted",
+        runsArchiveMissing: "Some runs were skipped because their archives are missing",
+        runsPrinterMissing: "Some runs were restored without their original printer",
+        usageNumbersDropped: "Invalid weights, percentages or costs in some usage records were reset",
         spoolUsageUnresolved: '{{count}} usage record(s) skipped - their spool is not in this backup\'s spool list, so there is nothing to attach them to.',
         spoolUsageUnlinked: '{{count}} usage record(s) restored without their print-history link - select Print archives alongside Spool inventory to keep it.',
         spoolTagKept: '{{count}} spool tag(s) left as they are - the backup would have cleared a tag that has since been scanned, or moved one onto a second spool.',
         settingsCredentialsSkipped: '{{count}} credential-like key(s) skipped - re-enter secrets manually',
         settingsAuthSkipped: '{{count}} authentication setting(s) skipped - change those in Settings > Authentication so the lockout checks still run',
+        settingsInvalidSkipped: '{{count}} settings skipped because their values are invalid',
+        settingsUnknownSkipped: '{{count}} unknown settings skipped',
+        settingsAddressKept: 'Kept the current values for {{keys}}. Edit these destinations in Settings.',
         settingsCompanionSkipped: '{{keys}} left switched off - the credential each one needs cannot be restored from a backup and this instance has none stored, so switching them on would leave the integration unauthenticated',
         settingsMqttRelayFailed: 'MQTT settings restored, but the relay could not be reconnected - restart Bambuddy',
         kprofilesAlwaysOverwrite: 'K-profiles always overwrite the matching slot on the printer',
@@ -8121,6 +8320,7 @@ export default {
     saving: 'Saving...',
     // Failure reasons
     failureReasons: {
+      noStatusUpdate: "No completion status received",
       adhesionFailure: 'Adhesion failure',
       spaghettiDetached: 'Spaghetti / Detached',
       layerShift: 'Layer shift',
@@ -8137,13 +8337,16 @@ export default {
     statuses: {
       completed: 'Completed',
       failed: 'Failed',
-      aborted: 'Cancelled',
+      aborted: "Aborted",
+      cancelled: 'Cancelled',
       printing: 'Printing',
     },
   },
 
   // K-Profiles
   kProfiles: {
+      readFailed: 'Couldn\'t read K-Profiles',
+      noAnswerDesc: 'The printer did not answer the K-profile request. Its profiles may still be there: try again.',
     title: 'K-Profiles',
     noPrintersConfigured: 'No Printers Configured',
     addPrinterInSettings: 'Add a printer in Settings to manage K-profiles',
@@ -8230,6 +8433,8 @@ export default {
     },
     // Toast
     toast: {
+      writeUnconfirmed: 'Sent to the printer, but it did not confirm. Check the list once it refreshes.',
+      writesUnconfirmed: 'The printer did not confirm {{count}} of them. Check the list once it refreshes.',
       profileSaved: 'K-profile saved',
       profilesSaved: 'K-profile saved to {{count}} extruders',
       selectAtLeastOneExtruder: 'Please select at least one extruder',
@@ -8799,6 +9004,7 @@ export default {
     printFailed: 'Print Failed',
     printStopped: 'Print Stopped',
     progressMilestones: 'Progress Milestones',
+    pauseUpcoming: 'Upcoming slicer pause',
     progressMilestonesDescription: 'Notify at 25%, 50%, 75%',
     printerOffline: 'Printer Offline',
     printerError: 'Printer Error',
@@ -9191,6 +9397,8 @@ export default {
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+      kProfilesUnread: 'The printer did not answer, so its K-profiles could not be read. Default K=0.020 will be used.',
+      kValueUnsent: 'The filament was set, but the K value could not be sent to the printer.',
     orcaFallback: {
       no_generic_filament_id: 'No safe generic preset exists for {{material}}. Select a profile with a printer filament ID.',
       no_filament_id: 'This Orca profile has no filament ID of its own, so OrcaSlicer will see this slot as Generic {{material}}.',
@@ -9226,6 +9434,8 @@ export default {
     clear: 'Clear',
     hexLabel: 'Hex: #{{hex}}',
     resetting: 'Resetting...',
+    resetWhilePrinting: 'Reset the slot after printing finishes.',
+    resetConfirm: 'Clear the filament configuration for this slot?',
     resetSlot: 'Reset Slot',
     cancel: 'Cancel',
     configuring: 'Configuring...',
@@ -9529,6 +9739,7 @@ export default {
       apiTokenPlaceholder: 'Enter API token',
       saveConfig: 'Save Config',
       systemQueued: 'Config queued.',
+      systemRestartQueued: 'Daemon restart queued.',
       nfcDiagnostic: 'NFC Diagnostic',
       scaleDiagnostic: 'Scale Diagnostic',
       readTagDiagnostic: 'Read Tag Diagnostic',
@@ -9720,6 +9931,9 @@ export default {
         warn: 'Port {{port}} is unreachable. The live camera view will not work. This does not affect printing.',
       },
       network_mode: {
+        lan: "Connected directly to the LAN ({{mode}}).",
+        ipvlan_l3: "IPvlan in routed mode. Automatic printer discovery may be unavailable.",
+        unknown: "The container network mode could not be detected.",
         title: 'Docker network mode',
         pass: 'Running in host network mode.',
         warn: 'PrintOps is running in Docker bridge networking. Printer discovery and the Virtual Printer need host network mode — recreate the container with "network_mode: host".',
@@ -9874,8 +10088,12 @@ export default {
     openIssueForm: 'Open GitHub issue',
     stepEnableLogging: 'Debug logging enabled',
     stepReproduce: 'Reproduce the issue now',
-    stepStopLogging: 'Stop & submit report',
-    stopAndSubmit: 'Stop & Submit',
+    stepStopLogging: "Stop logging",
+    stopLogging: "Stop logging",
+    reviewTitle: "Review bug report",
+    reviewBody: "The report includes system diagnostics and any details shown below. Review them before submitting.",
+    recordedLogs: "Recorded debug logs",
+    discard: "Discard",
     maxDuration: 'Auto-stops after {{minutes}} min',
     stoppingLogs: 'Collecting logs & submitting...',
     submitting: 'Submitting bug report...',
@@ -9927,6 +10145,7 @@ export default {
     statusTitle: 'Status',
     serviceRunning: 'Service running',
     thresholds: 'Low / High thresholds',
+    pauseThreshold: 'Automatic pause threshold',
     activePrinters: 'Active prints',
     noActivePrints: 'No prints currently running.',
     historyTitle: 'Recent Detections',
@@ -10276,6 +10495,7 @@ export default {
     markReceived: 'Mark as received — adds spools to Stock inventory',
     resetToPending: 'Reset to pending',
     remove: 'Remove',
+    clearAllConfirm: 'Remove all entries from the shopping list?',
     clearAll: 'Clear all',
     downloadCsv: 'CSV',
     // Add to cart modal

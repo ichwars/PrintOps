@@ -3,11 +3,38 @@ import io
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
+from backend.app.core.auth import OwnershipAccess
+from backend.app.core.row_visibility import RowVisibility
 from backend.app.models.archive import PrintArchive
+from backend.app.models.print_log import INCLUDE_OPEN_RUNS, PrintLogEntry
+from backend.app.models.project import Project
+from backend.app.services.print_log_run import run_visibility_conditions
+from backend.app.services.spool_csv import _sanitize_cell
+from backend.app.utils.local_time import to_naive_utc
+
+_RUN_FIELDS = frozenset(
+    {
+        "print_name",
+        "status",
+        "quantity",
+        "printer_id",
+        "printer_name",
+        "plate_id",
+        "filament_type",
+        "filament_used_grams",
+        "cost",
+        "energy_kwh",
+        "energy_cost",
+        "failure_reason",
+        "user_verdict",
+        "duration_seconds",
+        "started_at",
+        "completed_at",
+    }
+)
 
 
 class ExportService:
@@ -16,11 +43,14 @@ class ExportService:
     # Default fields to export
     DEFAULT_FIELDS = [
         "id",
+        "run_id",
         "print_name",
         "filename",
         "status",
         "quantity",
         "printer_id",
+        "printer_name",
+        "plate_id",
         "project_name",
         "filament_type",
         "filament_used_grams",
@@ -35,6 +65,8 @@ class ExportService:
         "tags",
         "notes",
         "failure_reason",
+        "user_verdict",
+        "duration_seconds",
         "started_at",
         "completed_at",
         "created_at",
@@ -43,6 +75,13 @@ class ExportService:
     # Field labels for headers
     FIELD_LABELS = {
         "id": "ID",
+        "run_id": "Print ID",
+        "printer_name": "Printer",
+        "plate_id": "Plate",
+        "user_verdict": "Outcome",
+        "duration_seconds": "Duration (s)",
+        "energy_kwh": "Energy (kWh)",
+        "energy_cost": "Energy Cost",
         "print_name": "Print Name",
         "filename": "Filename",
         "status": "Status",
@@ -80,71 +119,64 @@ class ExportService:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         search: str | None = None,
-        visible_to_user_id: int | None = None,
-        allowed_printer_ids: set[int] | None = None,
+        access: OwnershipAccess = OwnershipAccess(None, True),
     ) -> tuple[bytes, str, str]:
-        """Export archives to CSV or Excel format.
-
-        Args:
-            format: Export format ('csv' or 'xlsx')
-            fields: List of fields to include (None = all default fields)
-            printer_id: Filter by printer
-            project_id: Filter by project
-            status: Filter by status
-            date_from: Filter by start date
-            date_to: Filter by end date
-            search: Search filter
-            visible_to_user_id: Scope rows to those owned by this user (used
-                when the caller has ARCHIVES_READ_OWN but not _ALL).
-            allowed_printer_ids: Optional printer scope for the caller.
-
-        Returns:
-            Tuple of (file_bytes, filename, content_type)
-        """
-        # Build query
-        query = (
-            select(PrintArchive).options(selectinload(PrintArchive.project)).order_by(PrintArchive.created_at.desc())
-        )
-
-        # Apply filters
-        if printer_id:
-            query = query.where(PrintArchive.printer_id == printer_id)
-        if project_id:
-            query = query.where(PrintArchive.project_id == project_id)
-        if status:
-            query = query.where(PrintArchive.status == status)
-        if date_from:
-            query = query.where(PrintArchive.created_at >= date_from)
-        if date_to:
-            query = query.where(PrintArchive.created_at <= date_to)
-        if visible_to_user_id is not None:
-            query = query.where(PrintArchive.created_by_id == visible_to_user_id)
-        if allowed_printer_ids is not None:
-            query = query.where(
-                or_(PrintArchive.printer_id.is_(None), PrintArchive.printer_id.in_(allowed_printer_ids))
-            )
-        if search:
-            like_pattern = f"%{search}%"
-            query = query.where(
-                (PrintArchive.print_name.ilike(like_pattern))
-                | (PrintArchive.filename.ilike(like_pattern))
-                | (PrintArchive.tags.ilike(like_pattern))
-                | (PrintArchive.notes.ilike(like_pattern))
-                | (PrintArchive.designer.ilike(like_pattern))
-            )
-
-        # Execute query
-        result = await self.db.execute(query)
-        archives = list(result.scalars().all())
-
-        # Determine fields to export
+        """Export one row for each visible run, or one row for a legacy archive."""
         export_fields = fields if fields else self.DEFAULT_FIELDS
+        if any(field not in self.FIELD_LABELS for field in export_fields):
+            raise ValueError("Unknown archive export field")
 
-        # Convert to rows
-        rows = []
-        for archive in archives:
-            row = self._archive_to_row(archive, export_fields)
-            rows.append(row)
+        has_run = PrintLogEntry.id.is_not(None)
+        scope = RowVisibility(access.user, access.api_key, access.user is None and access.can_access_all)
+        run_printer = case((has_run, PrintLogEntry.printer_id), else_=PrintArchive.printer_id)
+        run_project = case((has_run, PrintLogEntry.project_id), else_=PrintArchive.project_id)
+        run_status = case((has_run, PrintLogEntry.status), else_=PrintArchive.status)
+        run_date = func.coalesce(PrintLogEntry.started_at, PrintLogEntry.created_at, PrintArchive.created_at)
+        query = (
+            select(PrintArchive, PrintLogEntry, Project.name)
+            .outerjoin(PrintLogEntry, PrintLogEntry.archive_id == PrintArchive.id)
+            .outerjoin(Project, Project.id == run_project)
+            .where(
+                PrintArchive.deleted_at.is_(None),
+                or_(
+                    and_(has_run, *run_visibility_conditions(access)),
+                    and_(~has_run, *scope.printer_criteria(PrintArchive.printer_id)),
+                ),
+            )
+            .order_by(run_date.desc(), PrintArchive.id.desc(), PrintLogEntry.id.desc())
+            .execution_options(**{INCLUDE_OPEN_RUNS: True})
+        )
+        if not access.can_access_all:
+            if access.user is None:
+                raise ValueError("Export has no archive owner")
+            query = query.where(PrintArchive.created_by_id == access.user.id)
+        if printer_id is not None:
+            query = query.where(run_printer == printer_id)
+        if project_id is not None:
+            query = query.where(run_project == project_id)
+        if status:
+            query = query.where(run_status.in_([value.strip() for value in status.split(",") if value.strip()]))
+        if date_from is not None:
+            query = query.where(run_date >= to_naive_utc(date_from))
+        if date_to is not None:
+            query = query.where(run_date <= to_naive_utc(date_to))
+        if search:
+            pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    PrintArchive.print_name.ilike(pattern),
+                    PrintArchive.filename.ilike(pattern),
+                    PrintArchive.tags.ilike(pattern),
+                    PrintArchive.notes.ilike(pattern),
+                    PrintArchive.designer.ilike(pattern),
+                    PrintLogEntry.print_name.ilike(pattern),
+                )
+            )
+
+        rows = [
+            self._archive_to_row(archive, run, project, export_fields)
+            for archive, run, project in (await self.db.execute(query)).all()
+        ]
 
         # Generate headers
         headers = [self.FIELD_LABELS.get(f, f) for f in export_fields]
@@ -171,6 +203,7 @@ class ExportService:
         project_id: int | None = None,
         created_by_id: int | None = None,
         allowed_printer_ids: set[int] | None = None,
+        include_unassigned: bool = True,
     ) -> tuple[bytes, str, str]:
         """Export statistics summary to CSV or Excel format.
 
@@ -181,6 +214,7 @@ class ExportService:
             project_id: Filter by project
             created_by_id: Filter by user who created the print (-1 for no user)
             allowed_printer_ids: Optional printer scope for the caller.
+            include_unassigned: Include printer-less runs when applying a printer scope.
 
         Returns:
             Tuple of (file_bytes, filename, content_type)
@@ -195,6 +229,7 @@ class ExportService:
             project_id=project_id,
             created_by_id=created_by_id,
             allowed_printer_ids=allowed_printer_ids,
+            include_unassigned=include_unassigned,
         )
 
         # Build stats rows
@@ -250,19 +285,18 @@ class ExportService:
 
         return file_bytes, filename, content_type
 
-    def _archive_to_row(self, archive: PrintArchive, fields: list[str]) -> list[Any]:
-        """Convert an archive to a row of values."""
+    def _archive_to_row(self, archive, run, project, fields: list[str]) -> list[Any]:
         row = []
         for field in fields:
             if field == "project_name":
-                value = archive.project.name if archive.project else None
-            elif field in ("started_at", "completed_at", "created_at"):
-                value = getattr(archive, field)
-                if value:
-                    value = value.isoformat()
+                value = project
+            elif field == "run_id":
+                value = run.id if run is not None else None
+            elif run is not None and field in _RUN_FIELDS:
+                value = getattr(run, field)
             else:
                 value = getattr(archive, field, None)
-            row.append(value)
+            row.append(value.isoformat() if isinstance(value, datetime) else value)
         return row
 
     def _generate_csv(self, headers: list[str], rows: list[list]) -> bytes:
@@ -270,7 +304,7 @@ class ExportService:
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(headers)
-        writer.writerows(rows)
+        writer.writerows([_sanitize_cell(cell) if isinstance(cell, str) else cell for cell in row] for row in rows)
         return output.getvalue().encode("utf-8")
 
     def _generate_csv_simple(self, rows: list[list]) -> bytes:
@@ -308,7 +342,9 @@ class ExportService:
         # Write data
         for row_idx, row in enumerate(rows, 2):
             for col_idx, value in enumerate(row, 1):
-                ws.cell(row=row_idx, column=col_idx, value=value)
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                if isinstance(value, str):
+                    cell.data_type = "s"
 
         # Auto-adjust column widths
         for col_idx, _field in enumerate(fields, 1):

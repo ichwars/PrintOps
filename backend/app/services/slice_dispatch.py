@@ -123,6 +123,17 @@ class SliceDispatchService:
     def get(self, job_id: int) -> SliceJob | None:
         return self._jobs.get(job_id)
 
+    def forget_owner(self, user_id: int) -> None:
+        for job in self._jobs.values():
+            if job.owner_id == user_id:
+                job.owner_id = None
+
+    def owner_now(self, job_id: int | None, requested_owner_id: int | None) -> int | None:
+        if job_id is None:
+            return requested_owner_id
+        job = self._jobs.get(job_id)
+        return job.owner_id if job is not None else None
+
     def set_progress(self, job_id: int, progress: dict[str, Any] | None) -> None:
         """Update the live-progress snapshot for a running job.
 

@@ -30,7 +30,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from backend.app.core.database import run_migrations
+from backend.app.core.database import load_all_models, run_migrations
 
 
 @pytest.fixture(autouse=True)
@@ -45,44 +45,8 @@ def force_sqlite_dialect(monkeypatch):
     monkeypatch.setattr(database_module, "is_sqlite", lambda: True)
 
 
-def _register_all_models():
-    """Import every model so Base.metadata knows the full schema."""
-    from backend.app.models import (  # noqa: F401
-        ams_history,
-        ams_label,
-        api_key,
-        archive,
-        color_catalog,
-        external_link,
-        filament,
-        group,
-        kprofile_note,
-        maintenance,
-        notification,
-        notification_template,
-        print_log,
-        print_queue,
-        printer,
-        project,
-        project_bom,
-        settings,
-        slot_preset,
-        smart_plug,
-        smart_plug_energy_snapshot,
-        spool,
-        spool_assignment,
-        spool_catalog,
-        spool_k_profile,
-        spool_usage_history,
-        spoolbuddy_device,
-        user,
-        user_email_pref,
-        virtual_printer,
-    )
-
-
 @pytest.fixture
-async def engine_with_legacy_data():
+async def engine_with_legacy_data(request):
     """Fresh schema + a legacy-shape dataset: two archives, four PrintLogEntry
     rows. The cube.3mf archive carries cost+energy (the user's reprinted file);
     gear.3mf has neither set. Three matching log entries simulate cube's
@@ -91,14 +55,13 @@ async def engine_with_legacy_data():
     migration leaves on a pre-#1378 install."""
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
-    from backend.app.core.database import Base
     from backend.app.models.archive import PrintArchive
 
-    _register_all_models()
+    metadata = load_all_models()
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(metadata.create_all)
 
     SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
     async with SessionLocal() as session:
@@ -160,6 +123,14 @@ async def engine_with_legacy_data():
         await conn.execute(
             text("UPDATE print_log_entries SET archive_id = NULL, cost = NULL, energy_kwh = NULL, energy_cost = NULL")
         )
+
+        if getattr(request, "param", True):
+            # Mirror a backup whose print-log table genuinely predates archive_id.
+            rows = await conn.exec_driver_sql("PRAGMA table_info(print_log_entries)")
+            cols = ", ".join(f'"{row[1]}"' for row in rows if row[1] != "archive_id")
+            await conn.exec_driver_sql(f"CREATE TABLE legacy_print_log AS SELECT {cols} FROM print_log_entries")
+            await conn.exec_driver_sql("DROP TABLE print_log_entries")
+            await conn.exec_driver_sql("ALTER TABLE legacy_print_log RENAME TO print_log_entries")
 
     yield engine
     await engine.dispose()
@@ -245,3 +216,13 @@ async def test_backfill_skips_archives_with_any_costed_run(engine_with_legacy_da
     # there too, so the backfill UPDATE would set NULL → NULL anyway, which
     # is the desired no-op.
     assert dict(rows) == {1: 1.11, 2: None, 3: None, 4: None}
+
+
+@pytest.mark.parametrize("engine_with_legacy_data", [False], indirect=True)
+async def test_modern_unlinked_runs_stay_unlinked_even_with_matching_archives(engine_with_legacy_data):
+    for _ in range(2):
+        async with engine_with_legacy_data.begin() as conn:
+            await run_migrations(conn)
+    async with engine_with_legacy_data.connect() as conn:
+        result = await conn.exec_driver_sql("SELECT archive_id, cost FROM print_log_entries ORDER BY id")
+        assert result.all() == [(None, None)] * 4

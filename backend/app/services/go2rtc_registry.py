@@ -38,10 +38,15 @@ _GRACE_SECONDS = 5.0
 
 
 class _Registration:
-    __slots__ = ("go2rtc_name", "local_server", "refcount", "grace_task", "registered_at", "source_urls")
+    __slots__ = ("go2rtc_name", "local_server", "refcount", "grace_task", "registered_at", "source_urls", "source")
 
     def __init__(
-        self, go2rtc_name: str, local_server: asyncio.Server | None, source_urls: list[str] | None = None
+        self,
+        go2rtc_name: str,
+        local_server: asyncio.Server | None,
+        source_urls: list[str] | None = None,
+        *,
+        source: CameraSource | None = None,
     ) -> None:
         self.go2rtc_name = go2rtc_name
         self.local_server = local_server
@@ -49,6 +54,7 @@ class _Registration:
         self.grace_task: asyncio.Task | None = None
         self.registered_at = time.time()
         self.source_urls = list(source_urls or [])
+        self.source = source
 
 
 _registrations: dict[int, _Registration] = {}
@@ -83,6 +89,11 @@ def registered_since(printer_id: int) -> float | None:
     """
     reg = _registrations.get(printer_id)
     return reg.registered_at if reg is not None else None
+
+
+def registered_source(printer_id: int) -> CameraSource | None:
+    registration = _registrations.get(printer_id)
+    return registration.source if registration is not None else None
 
 
 async def acquire(printer_id: int, source: CameraSource) -> str:
@@ -129,7 +140,7 @@ async def acquire(printer_id: int, source: CameraSource) -> str:
                 registered = await go2rtc_client.ensure_stream_multi(go2rtc_name, result.go2rtc_sources)
                 if not registered:
                     raise RuntimeError("go2rtc unavailable")
-                new_reg = _Registration(go2rtc_name, result.local_server, result.go2rtc_sources)
+                new_reg = _Registration(go2rtc_name, result.local_server, result.go2rtc_sources, source=source)
                 new_reg.refcount = 1
                 _registrations[printer_id] = new_reg
                 transferred = True
@@ -190,8 +201,19 @@ async def _grace_then_teardown(printer_id: int) -> None:
             return
         del _registrations[printer_id]
 
-    if reg.local_server is not None:
-        reg.local_server.close()
-        await reg.local_server.wait_closed()
+    await _close_local_server(reg.local_server)
     await go2rtc_client.remove_stream(reg.go2rtc_name)
     logger.debug("go2rtc registration for printer %s torn down", printer_id)
+
+
+async def discard(printer_id: int) -> None:
+    """Release a deleted printer's registration without a reconnect grace period."""
+    async with _lock:
+        reg = _registrations.pop(printer_id, None)
+        if reg is None:
+            return
+        if reg.grace_task is not None:
+            reg.grace_task.cancel()
+
+    await _close_local_server(reg.local_server)
+    await go2rtc_client.remove_stream(reg.go2rtc_name)

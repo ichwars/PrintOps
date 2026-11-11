@@ -37,8 +37,11 @@ class TestPrintStartLogic:
             # Mock the database session
             mock_session = AsyncMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock()
-            mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+            mock_session.__aexit__ = AsyncMock(return_value=False)
+            mock_session.execute = AsyncMock(
+                return_value=MagicMock(all=MagicMock(return_value=[]), scalar_one_or_none=MagicMock(return_value=None))
+            )
+            mock_session.scalars = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=[])))
             mock_session_maker.return_value = mock_session
 
             from backend.app.main import on_print_start
@@ -84,8 +87,11 @@ class TestPlateClearGate:
 
         mock_session = AsyncMock()
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock()
-        mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session.execute = AsyncMock(
+            return_value=MagicMock(all=MagicMock(return_value=[]), scalar_one_or_none=MagicMock(return_value=None))
+        )
+        mock_session.scalars = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=[])))
         mock_session_maker.return_value = mock_session
         return mock_pm
 
@@ -198,8 +204,11 @@ class TestPrintCompleteLogic:
             # Mock the database session
             mock_session = AsyncMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock()
-            mock_session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+            mock_session.__aexit__ = AsyncMock(return_value=False)
+            mock_session.execute = AsyncMock(
+                return_value=MagicMock(all=MagicMock(return_value=[]), scalar_one_or_none=MagicMock(return_value=None))
+            )
+            mock_session.scalars = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=[])))
             mock_session_maker.return_value = mock_session
 
             from backend.app.main import on_print_complete

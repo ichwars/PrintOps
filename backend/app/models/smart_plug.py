@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, false, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -80,9 +80,9 @@ class SmartPlug(Base):
 
     # Link to a controlled target. Printer automation still uses printer_id;
     # equipment_id is used for standalone equipment such as filament dryers.
-    printer_id: Mapped[int | None] = mapped_column(ForeignKey("printers.id", ondelete="SET NULL"), nullable=True)
+    printer_id: Mapped[int | None] = mapped_column(ForeignKey("printers.id", ondelete="CASCADE"), nullable=True)
     equipment_id: Mapped[int | None] = mapped_column(ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True)
-    controls_printer_power: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    controls_printer_power: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
     # Automation settings
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -101,7 +101,7 @@ class SmartPlug(Base):
     # than the print-finish default. Fires whenever any AMS attached to the
     # linked printer finishes a dry cycle — PrintOps doesn't model per-AMS
     # plug routing, the trigger is plug-vs-printer-level.
-    auto_off_after_drying: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    auto_off_after_drying: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     off_delay_after_drying_minutes: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
 
     # Optional auth (some Tasmota configs require it)

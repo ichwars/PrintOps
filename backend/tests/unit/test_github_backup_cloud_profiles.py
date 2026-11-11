@@ -1,5 +1,7 @@
 """Git backup cloud-profile collection."""
 
+import json
+
 import pytest
 
 from backend.app.api.routes.cloud import CLOUD_TOKEN_KEY
@@ -7,6 +9,7 @@ from backend.app.core.auth import get_password_hash
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.services.github_backup import GitHubBackupService
+from backend.app.services.secret_fields import SECRET_PLACEHOLDER
 
 
 class FakeCloud:
@@ -145,3 +148,57 @@ async def test_bambu_profile_backup_fails_instead_of_writing_partial_files(db_se
         await GitHubBackupService()._collect_cloud_profiles(db_session, files)
 
     assert "cloud_profiles/bambu/global/filament.json" not in files
+
+
+@pytest.mark.asyncio
+async def test_cloud_backup_masks_printer_secrets_and_url_logins(db_session, monkeypatch):
+    monkeypatch.setattr("backend.app.services.github_backup._BAMBU_DETAIL_THROTTLE_SECONDS", 0)
+    preset = {
+        "printer_model": "X1C",
+        "printhost_apikey": "fixture-printer-code",
+        "printhost_user": "fixture-user",
+        "printhost_password": "",
+        "print_host": "http://fixture-user:fixture-password@octopi.example.test",
+        "profiles": [
+            {
+                "PRINTHOST_PASSWORD": "fixture-nested-password",
+                "print_host_webui": "https://fixture-url-token@octopi.example.test/ui",
+                "plain_url": "https://octopi.example.test/ui",
+            }
+        ],
+    }
+
+    class PrinterCloud(FakeCloud):
+        async def get_slicer_settings(self):
+            return {"printer": {"private": [{"setting_id": "pm-fixture", "name": "Test printer"}]}}
+
+        async def get_setting_detail(self, setting_id):
+            return {"name": "Test printer", "setting": preset}
+
+    cloud = PrinterCloud("test")
+
+    async def fake_build_authenticated_cloud(db, user=None):
+        return cloud
+
+    monkeypatch.setattr("backend.app.api.routes.cloud.build_authenticated_cloud", fake_build_authenticated_cloud)
+    files = {}
+    counts = await GitHubBackupService()._collect_bambu_profiles(db_session, files, "global", None)
+
+    assert counts == {"printer": 1}
+    assert cloud.closed
+    assert "fixture-printer-code" not in json.dumps(files)
+    assert files["cloud_profiles/bambu/global/printer.json"]["profiles"][0]["setting"] == {
+        "printer_model": "X1C",
+        "printhost_apikey": SECRET_PLACEHOLDER,
+        "printhost_user": SECRET_PLACEHOLDER,
+        "printhost_password": "",
+        "print_host": "http://********@octopi.example.test",
+        "profiles": [
+            {
+                "PRINTHOST_PASSWORD": SECRET_PLACEHOLDER,
+                "print_host_webui": "https://********@octopi.example.test/ui",
+                "plain_url": "https://octopi.example.test/ui",
+            }
+        ],
+    }
+    assert preset["printhost_apikey"] == "fixture-printer-code"

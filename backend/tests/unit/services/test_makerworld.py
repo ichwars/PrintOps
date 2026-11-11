@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.error import HTTPError, URLError
+from zipfile import ZipFile
 
 import httpx
 import pytest
@@ -210,12 +212,7 @@ class TestGetDesign:
 
 
 class TestGetProfileDownload:
-    """The new auth-gated 3MF manifest endpoint on the Bambu iot-service.
-
-    Replaces the removed ``get_instance_download`` / ``get_model_download``
-    helpers — YASTL#51's endpoint mints the signed CDN URL from the same
-    long-lived Bambu Cloud bearer users already have.
-    """
+    """The fallback 3MF manifest endpoint on the Bambu iot-service."""
 
     def _make_service(self, *, auth_token: str | None = "tok-abc") -> MakerWorldService:
         svc = MakerWorldService(client=MagicMock(spec=httpx.AsyncClient), auth_token=auth_token)
@@ -313,8 +310,103 @@ class TestGetProfileDownload:
             await svc.get_profile_download(1, "M1")
 
 
+class TestGetDownloadManifest:
+    @pytest.mark.asyncio
+    async def test_uses_instance_for_requested_profile_without_legacy_model_id(self):
+        signed_url = "https://makerworld.bblmw.com/fixture.3mf"
+
+        def handler(request):
+            assert request.url.host == "api.bambulab.com"
+            if request.url.path == "/v1/design-service/design/1400373":
+                return httpx.Response(
+                    200,
+                    json={
+                        "instances": [
+                            {"profileId": 298919107, "id": 4028000},
+                            {"profileId": 298919564, "id": 4028001},
+                        ]
+                    },
+                )
+            assert request.url.path == "/v1/design-service/instance/4028001/f3mf"
+            assert request.url.params == httpx.QueryParams({"type": "download"})
+            assert request.headers["Authorization"] == "Bearer fixture-token"
+            return httpx.Response(200, json={"url": signed_url})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            service = MakerWorldService(client=client, auth_token="fixture-token")
+            assert await service.get_download_manifest(1400373, 298919564) == (298919564, {"url": signed_url})
+
+    @pytest.mark.asyncio
+    async def test_selects_first_valid_profile_from_instance_listing(self):
+        service = MakerWorldService(client=AsyncMock())
+        service.get_design = AsyncMock(return_value={"instances": [None, {"profileId": True}]})
+        service.get_design_instances = AsyncMock(
+            return_value={
+                "hits": [
+                    {"profileId": 0, "id": 7},
+                    {"profileId": 8, "id": False},
+                    {"profileId": 8, "id": 9},
+                    {"profileId": 10, "id": 11},
+                ]
+            }
+        )
+        manifest = {"url": "https://makerworld.bblmw.com/fixture.3mf"}
+        service.get_instance_download = AsyncMock(return_value=manifest)
+
+        assert await service.get_download_manifest(123) == (8, manifest)
+        service.get_design_instances.assert_awaited_once_with(123)
+        service.get_instance_download.assert_awaited_once_with(9)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("instance_status", [200, 404])
+    async def test_uses_legacy_profile_when_instance_returns_no_link(self, instance_status):
+        signed_url = "https://makerworld.bblmw.com/fallback.3mf"
+
+        def handler(request):
+            if request.url.path == "/v1/design-service/design/123":
+                return httpx.Response(200, json={"modelId": "USfixture", "instances": [{"profileId": 8, "id": 9}]})
+            if request.url.path == "/v1/design-service/instance/9/f3mf":
+                return httpx.Response(instance_status, json={"url": ""})
+            assert request.url.path == "/v1/iot-service/api/user/profile/8"
+            assert request.url.params == httpx.QueryParams({"model_id": "USfixture"})
+            return httpx.Response(200, json={"url": signed_url})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            service = MakerWorldService(client=client, auth_token="fixture-token")
+            assert await service.get_download_manifest(123) == (8, {"url": signed_url})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error", [MakerWorldAuthError, MakerWorldForbiddenError])
+    async def test_does_not_fallback_on_denied_instance_access(self, error):
+        service = MakerWorldService(client=AsyncMock())
+        service.get_design = AsyncMock(return_value={"modelId": "USfixture", "instances": [{"profileId": 8, "id": 9}]})
+        service.get_instance_download = AsyncMock(side_effect=error("denied"))
+        service.get_profile_download = AsyncMock()
+
+        with pytest.raises(error, match="denied"):
+            await service.get_download_manifest(123)
+        service.get_profile_download.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_empty_links_from_both_endpoints(self):
+        service = MakerWorldService(client=AsyncMock())
+        service.get_design = AsyncMock(return_value={"modelId": "USfixture", "instances": [{"profileId": 8, "id": 9}]})
+        service.get_instance_download = AsyncMock(return_value={"url": " "})
+        service.get_profile_download = AsyncMock(return_value={"url": ""})
+
+        with pytest.raises(MakerWorldUnavailableError, match="did not return a download URL"):
+            await service.get_download_manifest(123)
+
+
+def _valid_3mf() -> bytes:
+    payload = BytesIO()
+    with ZipFile(payload, "w") as archive:
+        archive.writestr("3D/3dmodel.model", "<model/>")
+    return payload.getvalue()
+
+
 class TestDownload3MF:
-    """SSRF guard + size cap + streaming behaviour."""
+    """SSRF guard, size cap, streaming and archive validation."""
 
     def _stream_ctx(self, resp):
         ctx = MagicMock()
@@ -340,9 +432,10 @@ class TestDownload3MF:
     @pytest.mark.asyncio
     async def test_s3_host_delegates_to_urllib_path(self):
         svc = MakerWorldService(client=MagicMock(spec=httpx.AsyncClient))
+        expected_payload = _valid_3mf()
         with patch(
             "backend.app.services.makerworld._download_s3_urllib",
-            new=AsyncMock(return_value=(b"payload", "file.3mf")),
+            new=AsyncMock(return_value=(expected_payload, "file.3mf")),
         ) as mocked:
             payload, filename = await svc.download_3mf(
                 "https://s3.us-west-2.amazonaws.com/bucket/key/file.3mf?X-Amz-Signature=abc"
@@ -352,7 +445,7 @@ class TestDownload3MF:
         # httpx/urlparse.urlencode since that breaks S3 SigV4.
         args = mocked.await_args.args
         assert args[0] == ("https://s3.us-west-2.amazonaws.com/bucket/key/file.3mf?X-Amz-Signature=abc")
-        assert payload == b"payload"
+        assert payload == expected_payload
         assert filename == "file.3mf"
 
     @pytest.mark.asyncio
@@ -366,7 +459,7 @@ class TestDownload3MF:
         resp.status_code = 200
 
         async def _chunks():
-            yield b"PK\x03\x04"
+            yield _valid_3mf()
 
         resp.aiter_bytes = lambda: _chunks()
         svc._client.stream = MagicMock(return_value=self._stream_ctx(resp))
@@ -389,9 +482,11 @@ class TestDownload3MF:
         resp = MagicMock()
         resp.status_code = 200
 
+        expected_payload = _valid_3mf()
+
         async def _chunks():
-            yield b"PK\x03\x04"  # 3MF = zip magic
-            yield b"rest of file"
+            yield expected_payload[:4]
+            yield expected_payload[4:]
 
         resp.aiter_bytes = lambda: _chunks()
         svc._client.stream = MagicMock(return_value=self._stream_ctx(resp))
@@ -399,8 +494,29 @@ class TestDownload3MF:
         payload, filename = await svc.download_3mf(
             "https://makerworld.bblmw.com/makerworld/model/X/Y/foo.3mf?exp=1&key=k"
         )
-        assert payload.startswith(b"PK\x03\x04")
+        assert payload == expected_payload
         assert filename == "foo.3mf"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("payload", [b"<html>quota</html>", b"PK\x03\x04truncated"])
+    async def test_cdn_rejects_invalid_archive_with_http_200(self, payload):
+        transport = httpx.MockTransport(lambda _: httpx.Response(200, content=payload))
+        async with httpx.AsyncClient(transport=transport) as client:
+            svc = MakerWorldService(client=client)
+            with pytest.raises(MakerWorldUnavailableError, match="not a valid 3MF"):
+                await svc.download_3mf("https://makerworld.bblmw.com/model.3mf")
+
+    @pytest.mark.asyncio
+    async def test_s3_rejects_truncated_archive(self):
+        svc = MakerWorldService(client=MagicMock(spec=httpx.AsyncClient))
+        with (
+            patch(
+                "backend.app.services.makerworld._download_s3_urllib",
+                new=AsyncMock(return_value=(_valid_3mf()[:-10], "file.3mf")),
+            ),
+            pytest.raises(MakerWorldUnavailableError, match="not a valid 3MF"),
+        ):
+            await svc.download_3mf("https://s3.us-west-2.amazonaws.com/bucket/file.3mf")
 
     @pytest.mark.asyncio
     async def test_http_error_on_cdn_path_raises_unavailable(self):

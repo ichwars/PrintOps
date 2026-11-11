@@ -13,7 +13,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from backend.app.api.routes import _oidc_helpers, api_keys as api_key_routes, mfa, users as user_routes
+from backend.app.api.routes import _oidc_helpers, api_keys as api_key_routes, mfa
 from backend.app.core.auth import _validate_api_key, generate_api_key, get_api_key as get_webhook_api_key
 from backend.app.models.api_key import APIKey
 from backend.app.models.user import User
@@ -54,20 +54,34 @@ def test_oidc_private_ip_literal_update_honors_explicit_opt_in():
     assert update.issuer_url == "https://192.168.1.11"
 
 
-def test_admin_password_update_advances_session_freshness_timestamp():
-    helper = getattr(user_routes, "_set_local_user_password", None)
-    assert helper is not None
-    user = User(username="reset-target", password_hash="old", role="user", is_active=True)
+@pytest.mark.asyncio
+async def test_admin_password_update_advances_session_freshness_timestamp(async_client, db_session):
+    from backend.app.core.auth import create_access_token, get_password_hash, verify_password
+    from backend.tests.integration.test_long_lived_tokens_api import _setup_admin
+
+    admin = await _setup_admin(async_client)
+    user = User(username="reset-target", password_hash=get_password_hash("OriginalPassword1!"), role="user")
+    db_session.add(user)
+    await db_session.commit()
+    original_session = create_access_token({"sub": user.username})
+    original_headers = {"Authorization": f"Bearer {original_session}"}
+    assert (await async_client.get("/api/v1/auth/me", headers=original_headers)).status_code == 200
     before = datetime.now(timezone.utc)
 
-    helper(user, "replacement-password")
-
-    assert user.password_hash != "old"
-    assert user.password_changed_at is not None
+    response = await async_client.patch(
+        f"/api/v1/users/{user.id}",
+        json={"password": "ReplacementPassword1!"},
+        headers={"Authorization": f"Bearer {admin}"},
+    )
+    assert response.status_code == 200
+    await db_session.refresh(user)
+    assert verify_password("ReplacementPassword1!", user.password_hash)
     changed = user.password_changed_at
+    assert changed is not None
     if changed.tzinfo is None:
         changed = changed.replace(tzinfo=timezone.utc)
     assert changed >= before
+    assert (await async_client.get("/api/v1/auth/me", headers=original_headers)).status_code == 401
 
 
 def test_custom_oidc_claim_cannot_auto_link_without_matching_verified_email():

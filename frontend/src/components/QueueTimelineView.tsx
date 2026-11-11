@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Clock, Layers, Printer as PrinterIcon } from 'lucide-react';
 import { formatDuration, parseUTCDate } from '../utils/date';
 import type { PrintQueueItem, Printer } from '../api/client';
-import { api } from '../api/client';
+import { queueItemThumbnailUrl } from '../utils/queueItemThumbnail';
 import { Button } from './Button';
 
 /** Gantt-style 24h-rolling timeline. One horizontal swimlane per printer
@@ -395,11 +395,7 @@ export function QueueTimelineView({
                       const displayName = ev.item.archive_name
                         || ev.item.library_file_name
                         || `#${ev.item.id}`;
-                      const thumbnailUrl = ev.item.archive_thumbnail
-                        ? api.getArchiveThumbnail(ev.item.archive_id!)
-                        : ev.item.library_file_thumbnail
-                          ? api.getLibraryFileThumbnailUrl(ev.item.library_file_id!)
-                          : null;
+                      const thumbnailUrl = queueItemThumbnailUrl(ev.item);
                       const isPrinting = ev.type === 'printing';
                       const isBatched = ev.item.batch_id != null;
                       const tooltipParts = [

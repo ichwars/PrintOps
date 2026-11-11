@@ -1,5 +1,5 @@
-import { isServerSliceableFilename } from './sliceFormats';
-import { isSliceableFilename, type SlicerType } from './slicer';
+import { isServerSliceableFilename, isServerSliceableFileType } from './sliceFormats';
+import { isSliceableFilename, isSliceableFileType, type SlicerType } from './slicer';
 
 type LibraryFileClassification = {
   filename: string;
@@ -13,17 +13,20 @@ export function isSlicedLibraryFile(file: LibraryFileClassification): boolean {
     return true;
   }
 
-  // Keep filename fallback support for records created before the content-based
-  // 3MF classification/backfill introduced for issue #132.
+  if (fileType === '3mf') return false;
+
+  // Keep filename fallback support for records without a recognized type.
   const filename = file.filename.toLowerCase();
   return filename.endsWith('.gcode') || filename.endsWith('.gcode.3mf');
 }
 
 /** Return whether a library file can be sent to the slicer. */
 export function isSliceableLibraryFile(file: LibraryFileClassification): boolean {
-  return !isSlicedLibraryFile(file) && isServerSliceableFilename(file.filename);
+  return !isSlicedLibraryFile(file)
+    && (isServerSliceableFileType(file.file_type) || isServerSliceableFilename(file.filename));
 }
 
 export function isDesktopSliceableLibraryFile(file: LibraryFileClassification, slicer: SlicerType): boolean {
-  return !isSlicedLibraryFile(file) && isSliceableFilename(file.filename, slicer);
+  return !isSlicedLibraryFile(file)
+    && (isSliceableFileType(file.file_type, slicer) || isSliceableFilename(file.filename, slicer));
 }

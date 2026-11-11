@@ -3,79 +3,64 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.auth_camera import StreamOpener, camera_request_access, camera_share_status
+from backend.app.core.auth_issuers import bind_user_issuer, load_user_issuer
 from backend.app.core.permissions import Permission
-from backend.app.models.api_key import APIKey
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, TokenType
 from backend.app.models.user import User
 
 
-async def create_media_token(username: str | None) -> str:
-    """Issue a reusable media credential bound to a username and user id.
-
-    An auth-disabled token has no principal and fails closed if auth is later
-    enabled. API keys retain their own scopes through the header path instead.
-    """
+async def create_media_token(request: Request, user: User | None) -> str:
+    """Issue a reusable media credential bound to the issuing session."""
     from backend.app.core import auth
 
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(minutes=auth.MEDIA_TOKEN_EXPIRE_MINUTES)
     token = auth.secrets.token_urlsafe(24)
+    row = AuthEphemeralToken(
+        token=token, token_type=TokenType.MEDIA, expires_at=now + timedelta(minutes=auth.MEDIA_TOKEN_EXPIRE_MINUTES)
+    )
+    if user is not None:
+        bind_user_issuer(row, request, user)
     async with auth.async_session() as db:
-        # Prune expired tokens opportunistically (same shape as camera/websocket).
+        if user is None and await auth.is_auth_enabled(db):
+            raise HTTPException(401, "Valid issuing session required")
         await db.execute(
             delete(AuthEphemeralToken).where(
-                AuthEphemeralToken.token_type == TokenType.MEDIA,
-                AuthEphemeralToken.expires_at < now,
+                AuthEphemeralToken.token_type == TokenType.MEDIA, AuthEphemeralToken.expires_at <= now
             )
         )
-        user = await auth.get_user_by_username(db, username) if username else None
-        db.add(
-            AuthEphemeralToken(
-                token=token,
-                token_type=TokenType.MEDIA,
-                username=username or "",
-                nonce=str(user.id) if user is not None else None,
-                expires_at=expires_at,
-            )
-        )
+        db.add(row)
         await db.commit()
     return token
 
 
+async def _get_media_token(db: AsyncSession, token: str) -> AuthEphemeralToken | None:
+    return await db.scalar(
+        select(AuthEphemeralToken).where(
+            AuthEphemeralToken.token == token,
+            AuthEphemeralToken.token_type == TokenType.MEDIA,
+            AuthEphemeralToken.expires_at > datetime.now(timezone.utc),
+        )
+    )
+
+
 async def verify_media_token(token: str) -> str | None:
-    """Verify a media token, returning the username it was minted for.
-
-    Returns ``""`` for an auth-disabled token (no per-row identity) and
-    ``None`` when the token is missing / expired / unknown. Not consumed --
-    one token serves every image on a page.
-
-    Deliberately narrower than :func:`verify_camera_stream_token`: no
-    long-lived scope passes here. ``camera_stream`` / ``camwall`` / ``overlay``
-    tokens are handed to kiosks, walls and Home Assistant to display *video*,
-    and are anonymous by construction, so accepting one would reinstate the
-    unowned read this token type exists to close (#3025). The inverse also
-    holds -- see :func:`verify_camwall_token`, which refuses a camera-stream
-    token for the same reason in the other direction.
-    """
+    """Verify a media credential and return its current username."""
     from backend.app.core import auth
 
-    now = datetime.now(timezone.utc)
     async with auth.async_session() as db:
-        result = await db.execute(
-            select(AuthEphemeralToken).where(
-                AuthEphemeralToken.token == token,
-                AuthEphemeralToken.token_type == TokenType.MEDIA,
-                AuthEphemeralToken.expires_at > now,
-            )
-        )
-        row = result.scalar_one_or_none()
+        row = await _get_media_token(db, token)
         if row is None:
             return None
-        return row.username or ""
+        if not row.username:
+            return None if await auth.is_auth_enabled(db) else ""
+        user = await load_user_issuer(db, row)
+        return user.username if user is not None else None
 
 
 def require_camera_stream_token_if_auth_enabled():
@@ -86,20 +71,17 @@ def require_camera_stream_token_if_auth_enabled():
     POST /printers/camera/stream-token and appends it as ?token=xxx.
     Camera routes only; resource media uses the identified media token.
     """
-    from backend.app.core import auth
 
-    async def checker(printer_id: int, token: str | None = None) -> None:
-        async with auth.async_session() as db:
-            if not await auth.is_auth_enabled(db):
-                return  # Auth disabled, allow access
-        access_status = await auth.camera_stream_token_status(token, printer_id) if token else 401
+    async def checker(printer_id: int, token: str | None = None) -> StreamOpener:
+        access_status, opener = await camera_request_access(token, printer_id)
         if access_status == 403:
             raise HTTPException(status_code=403, detail="Printer access denied.")
-        if access_status != 200:
+        if opener is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Valid camera stream token required. Obtain one from POST /api/v1/printers/camera/stream-token",
             )
+        return opener
 
     return checker
 
@@ -134,9 +116,9 @@ def require_overlay_token_if_auth_enabled():
             record = await verify_token(db, token or "", scope="overlay")
             if record is None:
                 raise HTTPException(status_code=401, detail="Valid streaming overlay token required.")
-            owner = await db.get(User, record.user_id)
-            if owner is None or not auth.user_can_access_printer(owner, printer_id):
-                raise HTTPException(status_code=403, detail="Printer access denied.")
+            access = await camera_share_status(db, record, printer_id)
+            if access != 200:
+                raise HTTPException(status_code=access, detail="Printer access denied.")
 
     return checker
 
@@ -157,26 +139,12 @@ async def _user_from_media_token(token: str) -> User:
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Valid media token required. Obtain one from POST /api/v1/auth/media-token",
     )
-    username = await auth.verify_media_token(token)
-    if not username:
-        raise unauthorized
     async with auth.async_session() as db:
-        user = await auth.get_user_by_username(db, username)
-        row = await db.scalar(
-            select(AuthEphemeralToken).where(
-                AuthEphemeralToken.token == token,
-                AuthEphemeralToken.token_type == TokenType.MEDIA,
-            )
-        )
-    if (
-        user is None
-        or not user.is_active
-        or row is None
-        or row.nonce != str(user.id)
-        or not auth._is_token_fresh(row.created_at.replace(tzinfo=timezone.utc).timestamp(), user)
-    ):
-        raise unauthorized
-    return user
+        row = await _get_media_token(db, token)
+        user = await load_user_issuer(db, row) if row is not None else None
+        if user is None:
+            raise unauthorized
+        return user
 
 
 def require_media_token_permission(*permissions: str | Permission):
@@ -222,46 +190,33 @@ def require_media_token_permission(*permissions: str | Permission):
 def require_media_token_ownership(
     all_permission: str | Permission,
     own_permission: str | Permission,
+    *,
+    include_api_key: bool = False,
 ):
-    """Media-route dependency for ownership-scoped resources (#3025).
-
-    The ownership counterpart of :func:`require_media_token_permission`, and
-    the reason media tokens carry a principal at all: it returns the same
-    ``(user, can_read_all)`` pair as :func:`require_ownership_permission`, so a
-    thumbnail route can hand it straight to the ``_ensure_*_visible`` gate its
-    header-authenticated siblings already use instead of serving any row to any
-    token holder.
-
-    Header callers are delegated to :func:`require_ownership_permission`
-    unchanged -- including its API-key rule, where a key satisfying the ALL
-    permission's scope flag gets ``can_read_all=True`` because keys have no
-    per-row identity.
-    """
+    """Check ownership using a media token when present, or header credentials."""
     from backend.app.core import auth
 
     all_perm = all_permission.value if isinstance(all_permission, Permission) else all_permission
     own_perm = own_permission.value if isinstance(own_permission, Permission) else own_permission
-    header_checker = auth.require_ownership_permission(all_permission, own_permission)
+    header_checker = auth.require_ownership_permission(all_permission, own_permission, include_api_key=include_api_key)
 
     async def checker(
         token: str | None = None,
         credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(auth.security)] = None,
         x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
-    ) -> tuple[User | None, bool]:
+    ):
+        if not token:
+            return await header_checker(credentials=credentials, x_api_key=x_api_key)
         async with auth.async_session() as db:
-            if not await auth.is_auth_enabled(db):
-                return None, True  # Auth disabled, allow all
-        if token:
-            user = await auth._user_from_media_token(token)
-            if user.has_permission(all_perm):
-                return user, True
-            if user.has_permission(own_perm):
-                return user, False
+            auth_enabled = await auth.is_auth_enabled(db)
+        user = await auth._user_from_media_token(token) if auth_enabled else None
+        can_access_all = user is None or user.has_permission(all_perm)
+        if not can_access_all and not user.has_permission(own_perm):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Missing permission: {own_perm} or {all_perm}",
             )
-        return await header_checker(credentials=credentials, x_api_key=x_api_key)
+        return auth.OwnershipAccess(user, can_access_all) if include_api_key else (user, can_access_all)
 
     return checker
 
@@ -270,17 +225,13 @@ def require_media_token_printer_permission(permission: str | Permission):
     """Apply resource permission and user/API-key printer scopes to media."""
     from backend.app.core import auth
 
-    media_checker = auth.require_media_token_permission(permission)
+    media_checker = require_media_token_ownership(permission, permission, include_api_key=True)
 
-    async def checker(
-        printer_id: int,
-        user: User | None = Depends(media_checker),
-        api_key: APIKey | None = Depends(auth.resolve_optional_api_key),
-    ) -> User | None:
-        if not auth.user_can_access_printer(user, printer_id):
+    async def checker(printer_id: int, access=Depends(media_checker)) -> User | None:
+        if not auth.user_can_access_printer(access.user, printer_id):
             raise HTTPException(404, "Printer not found")
-        if api_key is not None:
-            auth.check_printer_access(api_key, printer_id)
-        return user
+        if access.api_key is not None:
+            auth.check_printer_access(access.api_key, printer_id)
+        return access.user
 
     return checker

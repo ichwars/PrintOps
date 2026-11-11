@@ -1,8 +1,9 @@
 import io
+import json
 import logging
 import os
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import get_args
@@ -13,14 +14,39 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled, caller_is_api_key, require_energy_cost_update
+from backend.app.core.auth import (
+    OwnershipAccess,
+    RequireAdminIfAuthEnabled,
+    RequirePermissionIfAuthEnabled,
+    caller_is_api_key,
+    require_energy_cost_update,
+    require_permission_with_key,
+    resolve_optional_api_key,
+)
 from backend.app.core.config import settings as app_settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
+from backend.app.core.group_permission_backfills import GROUP_PERMISSION_BACKFILL_KEYS
 from backend.app.core.permissions import Permission
-from backend.app.core.user_printer_scope import USER_PRINTER_SCOPE_MIGRATION_KEY
+from backend.app.core.printer_associations import OBICO_PRINTERS_KEY, VIRTUAL_PRINTER_MIGRATION_KEY
+from backend.app.core.user_printer_scope import (
+    USER_PRINTER_SCOPE_MIGRATION_KEY,
+    prepare_printer_scope_write,
+    validate_printer_grants,
+)
+from backend.app.models.api_key import APIKey
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
-from backend.app.schemas.settings import AppSettings, AppSettingsUpdate
+from backend.app.schemas.settings import ADMIN_ONLY_SETTING_KEYS, AppSettings, AppSettingsUpdate
+from backend.app.services.secret_fields import (
+    SECRET_PLACEHOLDER,
+    SETTINGS_CREDENTIAL_FIELDS,
+    SETTINGS_SECRETS,
+    SecretConfigError,
+    lock_settings_credentials,
+    merge_secret_update,
+    same_value,
+    secret_is_set,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +68,6 @@ _NULLABLE_TYPED_SETTING_KEYS = frozenset(
     key for key in _TYPED_SETTING_ADAPTERS if type(None) in get_args(AppSettings.model_fields[key].annotation)
 )
 _NON_NULL_TYPED_SETTING_KEYS = _TYPED_SETTING_ADAPTERS.keys() - _NULLABLE_TYPED_SETTING_KEYS
-
-# Sensitive credential fields blanked for API-key callers
-_SENSITIVE_FIELDS_FOR_API_KEY = (
-    "mqtt_password",
-    "ha_token",
-    "obico_ml_token",
-    "prometheus_token",
-    "virtual_printer_access_code",
-    "ldap_bind_password",
-)
 
 
 def _sqlalchemy_type_to_sqlite_type(type_repr: str) -> str:
@@ -115,11 +131,20 @@ async def set_setting(db: AsyncSession, key: str, value: str) -> None:
     await upsert_setting(db, Settings, key, value)
 
 
-async def _build_settings_response(db: AsyncSession, is_api_key: bool = False) -> AppSettings:
-    """Build the full settings response, scrubbing secrets for API-key callers."""
+async def _build_settings_response(
+    db: AsyncSession,
+    is_api_key: bool = False,
+    *,
+    validate_stored_values: bool = False,
+    fields: tuple[str, ...] | None = None,
+) -> AppSettings:
+    """Build settings for a caller or compare typed database values during an edit."""
     settings_dict = DEFAULT_SETTINGS.model_dump()
 
-    result = await db.execute(select(Settings))
+    query = select(Settings)
+    if fields is not None:
+        query = query.where(Settings.key.in_(fields))
+    result = await db.execute(query)
     for setting in result.scalars().all():
         if setting.key not in settings_dict:
             continue
@@ -139,24 +164,22 @@ async def _build_settings_response(db: AsyncSession, is_api_key: bool = False) -
         else:
             settings_dict[setting.key] = setting.value
 
-    ha_settings = await get_homeassistant_settings(db)
-    settings_dict.update(ha_settings)
+    if validate_stored_values or fields is not None:
+        return AppSettings(**settings_dict)
 
-    # ldap_bind_password is never returned to any caller
-    settings_dict["ldap_bind_password"] = ""
-
-    if is_api_key:
-        for field in _SENSITIVE_FIELDS_FOR_API_KEY:
-            if field in settings_dict:
-                settings_dict[field] = ""
-
+    settings_dict.update(await get_homeassistant_settings(db))
+    for field in SETTINGS_SECRETS:
+        if is_api_key or field == "ldap_bind_password":
+            settings_dict[field] = ""
+        elif secret_is_set(settings_dict.get(field)):
+            settings_dict[field] = SECRET_PLACEHOLDER
     return AppSettings(**settings_dict)
 
 
 @router.get("", response_model=AppSettings)
 @router.get("/", response_model=AppSettings)
 async def get_settings(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
     _is_api_key: bool = Depends(caller_is_api_key),
 ):
@@ -164,10 +187,14 @@ async def get_settings(
     return await _build_settings_response(db, is_api_key=_is_api_key)
 
 
+def _serialize_setting(value: object) -> str:
+    return str(value).lower() if isinstance(value, bool) else str(value)
+
+
 @router.put("/", response_model=AppSettings)
 async def update_settings(
     settings_update: AppSettingsUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Update application settings."""
@@ -180,6 +207,50 @@ async def update_settings(
     )
     if null_keys:
         raise HTTPException(422, detail=f"These settings cannot be null: {', '.join(null_keys)}")
+
+    validate_obico_printers = bool(update_data.get(OBICO_PRINTERS_KEY))
+    if validate_obico_printers:
+        await prepare_printer_scope_write(db)
+    if update_data.keys() & SETTINGS_CREDENTIAL_FIELDS:
+        await lock_settings_credentials(db)
+
+    protected_keys = update_data.keys() & ADMIN_ONLY_SETTING_KEYS
+    if protected_keys and current_user is not None and not current_user.is_admin:
+        rows = await db.execute(select(Settings.key, Settings.value).where(Settings.key.in_(protected_keys)))
+        stored = dict(rows.all())
+        changed = sorted(
+            key
+            for key in protected_keys
+            if _serialize_setting(update_data[key])
+            != stored.get(key, _serialize_setting(getattr(DEFAULT_SETTINGS, key)))
+        )
+        if changed:
+            raise HTTPException(403, f"Only an administrator can change these settings: {', '.join(changed)}")
+        for key in protected_keys:
+            del update_data[key]
+
+    if update_data.keys() & SETTINGS_CREDENTIAL_FIELDS:
+        stored_values = (await _build_settings_response(db, validate_stored_values=True)).model_dump()
+        ha_url_env = os.environ.get("HA_URL")
+        if ha_url_env and update_data.get("ha_url") == ha_url_env:
+            del update_data["ha_url"]
+        if os.environ.get("HA_TOKEN"):
+            if (
+                not ha_url_env
+                and "ha_url" in update_data
+                and not same_value(update_data["ha_url"], stored_values["ha_url"])
+            ):
+                raise HTTPException(400, "Set HA_URL in the environment when changing the URL for HA_TOKEN")
+            if update_data.get("ha_token") == SECRET_PLACEHOLDER:
+                del update_data["ha_token"]
+        try:
+            update_data = merge_secret_update(stored_values, update_data, SETTINGS_SECRETS)
+        except SecretConfigError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    caller_id = current_user.id if current_user else None
+    if validate_obico_printers:
+        await validate_printer_grants(db, json.loads(update_data[OBICO_PRINTERS_KEY]))
 
     # Safety refusals on disabling local login (#1589). Two failure modes
     # would otherwise lock everyone out of the install:
@@ -199,10 +270,8 @@ async def update_settings(
                 status_code=400,
                 detail="Cannot disable local login: no OIDC provider is enabled.",
             )
-        if current_user is not None:
-            caller_links = await db.scalar(
-                select(func.count(UserOIDCLink.id)).where(UserOIDCLink.user_id == current_user.id)
-            )
+        if caller_id is not None:
+            caller_links = await db.scalar(select(func.count(UserOIDCLink.id)).where(UserOIDCLink.user_id == caller_id))
             if not caller_links:
                 raise HTTPException(
                     status_code=400,
@@ -222,14 +291,7 @@ async def update_settings(
     mqtt_updated = bool(mqtt_keys & set(update_data.keys()))
 
     for key, value in update_data.items():
-        # Convert value to string for storage
-        if isinstance(value, bool):
-            str_value = "true" if value else "false"
-        elif value is None:
-            str_value = "None"
-        else:
-            str_value = str(value)
-        await set_setting(db, key, str_value)
+        await set_setting(db, key, "" if key in SETTINGS_SECRETS and value is None else _serialize_setting(value))
 
     await db.commit()
     # Expire all objects to ensure fresh reads after commit
@@ -240,20 +302,27 @@ async def update_settings(
         try:
             from backend.app.services.mqtt_relay import mqtt_relay
 
+            rows = await db.execute(select(Settings.key, Settings.value).where(Settings.key.in_(mqtt_keys)))
+            mqtt = dict(rows.all())
             mqtt_settings = {
-                "mqtt_enabled": (await get_setting(db, "mqtt_enabled") or "false") == "true",
-                "mqtt_broker": await get_setting(db, "mqtt_broker") or "",
-                "mqtt_port": int(await get_setting(db, "mqtt_port") or "1883"),
-                "mqtt_username": await get_setting(db, "mqtt_username") or "",
-                "mqtt_password": await get_setting(db, "mqtt_password") or "",
-                "mqtt_topic_prefix": await get_setting(db, "mqtt_topic_prefix") or "printops",
-                "mqtt_use_tls": (await get_setting(db, "mqtt_use_tls") or "false") == "true",
+                "mqtt_enabled": mqtt.get("mqtt_enabled") == "true",
+                "mqtt_broker": mqtt.get("mqtt_broker") or "",
+                "mqtt_port": int(mqtt.get("mqtt_port") or "1883"),
+                "mqtt_username": mqtt.get("mqtt_username") or "",
+                "mqtt_password": mqtt.get("mqtt_password") or "",
+                "mqtt_topic_prefix": mqtt.get("mqtt_topic_prefix") or "printops",
+                "mqtt_use_tls": mqtt.get("mqtt_use_tls") == "true",
             }
             await mqtt_relay.configure(mqtt_settings)
         except Exception:
             pass  # Don't fail the settings update if MQTT reconfiguration fails
 
-    # Return updated settings (never scrub secrets on PUT — caller has SETTINGS_UPDATE permission)
+    from backend.app.services.camera_light import CAMERA_LIGHT_SETTINGS, invalidate_settings
+
+    if update_data.keys() & set(CAMERA_LIGHT_SETTINGS):
+        invalidate_settings()
+
+    # Return the same write-only credential representation as the read endpoint.
     return await _build_settings_response(db, is_api_key=False)
 
 
@@ -261,7 +330,7 @@ async def update_settings(
 @router.patch("", response_model=AppSettings)
 async def patch_settings(
     settings_update: AppSettingsUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Partially update application settings (same as PUT, for REST compatibility)."""
@@ -283,7 +352,7 @@ class ElectricityPriceUpdate(BaseModel):
 @router.post("/electricity-price", response_model=AppSettings)
 async def update_electricity_price(
     payload: ElectricityPriceUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_energy_cost_update()),
     _is_api_key: bool = Depends(caller_is_api_key),
 ):
@@ -304,23 +373,28 @@ async def update_electricity_price(
 
 @router.post("/reset", response_model=AppSettings)
 async def reset_settings(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Reset all settings to defaults."""
     # Reset public settings while preserving one-time authorization history.
-    result = await db.execute(select(Settings).where(Settings.key != USER_PRINTER_SCOPE_MIGRATION_KEY))
+    preserved = (USER_PRINTER_SCOPE_MIGRATION_KEY, VIRTUAL_PRINTER_MIGRATION_KEY, *GROUP_PERMISSION_BACKFILL_KEYS)
+    result = await db.execute(select(Settings).where(Settings.key.not_in(preserved)))
     for setting in result.scalars().all():
         await db.delete(setting)
 
     await db.commit()
 
+    from backend.app.services.camera_light import invalidate_settings
+
+    invalidate_settings()
     return DEFAULT_SETTINGS
 
 
 @router.get("/default-sidebar-order")
 async def get_default_sidebar_order(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get the admin-set default sidebar order.
 
@@ -362,7 +436,7 @@ _UI_PREFERENCE_FIELDS: tuple[str, ...] = (
 
 
 @router.get("/ui-preferences")
-async def get_ui_preferences(db: AsyncSession = Depends(get_db)):
+async def get_ui_preferences(db: AsyncSession = DB_SESSION):
     """Get the curated subset of settings that any page needs to render correctly.
 
     Intentionally not gated on SETTINGS_READ — every authenticated user (and
@@ -374,9 +448,77 @@ async def get_ui_preferences(db: AsyncSession = Depends(get_db)):
     returns for fields with the same name — bool/int/float/str types stay in
     sync without a separate type-coercion path.
     """
-    full = await _build_settings_response(db, is_api_key=False)
-    dumped = full.model_dump()
-    return {key: dumped[key] for key in _UI_PREFERENCE_FIELDS if key in dumped}
+    preferences = await _build_settings_response(db, fields=_UI_PREFERENCE_FIELDS)
+    return preferences.model_dump(include=set(_UI_PREFERENCE_FIELDS))
+
+
+_UI_FLAG_FIELDS: tuple[str, ...] = (
+    "currency",
+    "check_updates",
+    "user_notifications_enabled",
+    "queue_shortest_first",
+    "use_slicer_api",
+    "open_in_slicer",
+    "preferred_slicer",
+    "disable_filament_warnings",
+    "prefer_lowest_filament",
+    "per_printer_mapping_expanded",
+    "default_filament_cost",
+    "default_printer_id",
+    "default_bed_levelling",
+    "default_flow_cali",
+    "default_vibration_cali",
+    "default_layer_inspect",
+    "default_timelapse",
+    "default_nozzle_offset_cali",
+    "stagger_group_size",
+    "stagger_interval_minutes",
+    "library_disk_warning_gb",
+    "low_stock_threshold",
+    "pipeline_max_copies",
+    "language",
+    "dark_style",
+    "dark_background",
+    "dark_accent",
+    "light_style",
+    "light_background",
+    "light_accent",
+    "spoolman_enabled",
+    "forecast_global_lead_time_days",
+    "time_format",
+    "date_format",
+    "ams_humidity_good",
+    "ams_humidity_fair",
+    "ams_temp_good",
+    "ams_temp_fair",
+)
+
+
+@router.get("/ui-flags")
+async def get_ui_flags(
+    db: AsyncSession = DB_SESSION,
+    user: User | None = RequirePermissionIfAuthEnabled(),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
+):
+    """Return configuration needed by signed-in UI pages."""
+    from backend.app.core.row_visibility import resolve_row_visibility
+
+    values = await _build_settings_response(db, fields=_UI_FLAG_FIELDS)
+    result = values.model_dump(include=set(_UI_FLAG_FIELDS))
+    if values.default_printer_id is not None:
+        visibility = await resolve_row_visibility(db, user, api_key)
+        if not visibility.allows_printer(values.default_printer_id):
+            result["default_printer_id"] = None
+    result["has_gcode_snippets"] = (
+        await db.scalar(
+            select(Settings.key).where(
+                Settings.key == "gcode_snippets",
+                func.trim(Settings.value).not_in(("", "{}", "[]", "null")),
+            )
+        )
+        is not None
+    )
+    return result
 
 
 @router.get("/check-ffmpeg")
@@ -402,7 +544,7 @@ async def check_ffmpeg(
 
 @router.get("/spoolman")
 async def get_spoolman_settings(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
 ):
     """Get Spoolman integration settings."""
@@ -426,7 +568,7 @@ async def get_spoolman_settings(
 @router.put("/spoolman")
 async def update_spoolman_settings(
     settings: dict,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Update Spoolman integration settings."""
@@ -471,16 +613,14 @@ async def get_homeassistant_settings(db: AsyncSession) -> dict:
     Get Home Assistant integration settings.
     Environment variables (HA_URL, HA_TOKEN) take precedence over database settings.
     """
-    import os
-
-    # Check environment variables first
     ha_url_env = os.environ.get("HA_URL")
     ha_token_env = os.environ.get("HA_TOKEN")
-
-    # Fall back to database values
-    ha_url = ha_url_env or await get_setting(db, "ha_url") or ""
-    ha_token = ha_token_env or await get_setting(db, "ha_token") or ""
-    ha_enabled_db = await get_setting(db, "ha_enabled") or "false"
+    keys = ("ha_url", "ha_token", "ha_enabled")
+    rows = await db.execute(select(Settings.key, Settings.value).where(Settings.key.in_(keys)))
+    stored = dict(rows.all())
+    ha_url = ha_url_env or stored.get("ha_url") or ""
+    ha_token = ha_token_env or stored.get("ha_token") or ""
+    ha_enabled_db = stored.get("ha_enabled") or "false"
 
     # Track which settings come from environment
     ha_url_from_env = bool(ha_url_env)
@@ -648,7 +788,8 @@ async def create_backup_zip(output_path: Path | None = None) -> tuple[Path, str]
 
 @router.get("/backup")
 async def create_backup(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_BACKUP),
 ):
     """Create a complete backup (database + all files) as a ZIP download."""
@@ -681,7 +822,15 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
     from sqlalchemy import MetaData, text
 
     from backend.app.core.database import Base, _create_engine
+    from backend.app.core.identity_sequence_migration import IDENTITY_TABLES, raise_postgres_identity_sequences
+    from backend.app.core.print_log_legacy_migration import backfill_legacy_print_log
     from backend.app.core.spool_k_profile_migration import validate_restore_contexts
+    from backend.app.models.project import normalize_project_priority, normalize_project_status
+
+    project_fields = {
+        "priority": normalize_project_priority,
+        "status": normalize_project_status,
+    }
 
     # Create a temporary engine for the import (current engine was disposed)
     pg_engine = _create_engine()
@@ -699,6 +848,12 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
             "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'archive_fts%'"
         )
         src_tables = {row["name"] for row in cursor.fetchall()}
+        legacy_print_log = "print_log_entries" in src_tables and all(
+            row["name"] != "archive_id" for row in src.execute("PRAGMA table_info(print_log_entries)")
+        )
+        source_floors = {}
+        if src.execute("SELECT 1 FROM sqlite_schema WHERE name = 'sqlite_sequence'").fetchone():
+            source_floors = {row["name"]: row["seq"] for row in src.execute("SELECT name, seq FROM sqlite_sequence")}
 
         # Get Postgres tables from our ORM models
         metadata = MetaData(naming_convention=Base.metadata.naming_convention)
@@ -770,7 +925,9 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
                 src_columns = rows[0].keys()
                 pg_table = metadata.tables.get(table_name)
                 pg_columns = {c.name for c in pg_table.columns} if pg_table is not None else set()
-                columns = [c for c in src_columns if c in pg_columns]
+                restored_columns = [c for c in src_columns if c in pg_columns]
+                value_fixes = project_fields if table_name == "projects" else {}
+                columns = list(dict.fromkeys([*restored_columns, *value_fixes]))
 
                 if not columns:
                     continue
@@ -814,10 +971,16 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
                                     if sd is not None:
                                         not_null_defaults[col.name] = sd
 
-                now = dt.now()
+                now = dt.now(timezone.utc).replace(tzinfo=None)
 
                 def _convert_row(
-                    row, cols=columns, bools=bool_columns, dts=datetime_columns, nn_defaults=not_null_defaults, _now=now
+                    row,
+                    cols=restored_columns,
+                    bools=bool_columns,
+                    dts=datetime_columns,
+                    nn_defaults=not_null_defaults,
+                    _now=now,
+                    fixes=value_fixes,
                 ):
                     result = {}
                     for c in cols:
@@ -833,14 +996,22 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
                                 except ValueError:
                                     pass
                         result[c] = val
+                    for c, normalize in fixes.items():
+                        result[c] = normalize(result.get(c))
                     return result
 
                 batch = [_convert_row(row) for row in rows]
                 await conn.execute(insert_sql, batch)
                 logger.info("Imported %d rows into %s", len(batch), table_name)
 
+            if legacy_print_log:
+                await backfill_legacy_print_log(conn)
+
             # Reset sequences to max(id) + 1 for each table with an id column
+            await raise_postgres_identity_sequences(conn, Base.metadata, source_floors)
             for table_name in sorted_tables:
+                if table_name in IDENTITY_TABLES:
+                    continue
                 try:
                     async with conn.begin_nested():
                         result = await conn.execute(text(f"SELECT MAX(id) FROM {table_name}"))  # noqa: S608  # nosec B608
@@ -882,19 +1053,16 @@ async def _import_sqlite_to_postgres(sqlite_path: Path, postgres_url: str):
 @router.post("/restore")
 async def restore_backup(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
+    _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_RESTORE),
 ):
-    """Restore from a complete backup ZIP.
-
-    Replaces the database and all data directories from the backup ZIP.
-    Requires a restart after restore.
-    """
+    """Replace the database and data directories from a full backup. Restart after restoring."""
     import shutil
     import tempfile
 
-    from fastapi import HTTPException
-
+    from backend.app.api.routes.cloud import forget_all_cloud_presets
+    from backend.app.core.auth_sessions import handle_restored_sessions
     from backend.app.core.database import close_all_connections, init_db, reinitialize_database
     from backend.app.core.db_dialect import is_sqlite
     from backend.app.services.virtual_printer import virtual_printer_manager
@@ -955,14 +1123,9 @@ async def restore_backup(
         try:
             import asyncio
 
-            # 3. Stop virtual printer if running (releases file locks)
-            try:
-                if virtual_printer_manager.is_enabled:
-                    logger.info("Stopping virtual printer for restore...")
-                    await virtual_printer_manager.configure(enabled=False)
-                    await asyncio.sleep(1)
-            except Exception as e:
-                logger.warning("Failed to stop virtual printer: %s", e)
+            if virtual_printer_manager.is_enabled:
+                logger.info("Stopping virtual printers before restore")
+                await virtual_printer_manager.stop_all()
 
             # 3b. Pause timer-based background services BEFORE the DB swap.
             # close_all_connections() below only disposes the engine's pool,
@@ -1054,7 +1217,7 @@ async def restore_backup(
                 # checkpointed yet (seed_default_groups + init_db on first
                 # start, plus whatever background heartbeats wrote during
                 # the request window) sits in printops.db-wal with valid
-                # checksums. The route handler's own `db: Depends(get_db)`
+                # checksums. The route handler's own `db: DB_SESSION`
                 # session also keeps a connection checked out across
                 # engine.dispose(), holding fds to the WAL inode. With
                 # `shutil.copy2` SQLite finds the stale WAL on the next
@@ -1083,9 +1246,8 @@ async def restore_backup(
                 # Import SQLite backup into PostgreSQL
                 logger.info("Importing SQLite backup into PostgreSQL...")
                 await _import_sqlite_to_postgres(backup_db, app_settings.database_url)
+            forget_all_cloud_presets()
 
-            # 6. Replace data directories
-            # For Docker compatibility: clear contents then copy (don't delete mount points)
             dirs_to_restore = [
                 ("archive", base_dir / "archive"),
                 ("virtual_printer", base_dir / "virtual_printer"),
@@ -1155,6 +1317,7 @@ async def restore_backup(
             # immediately, without requiring a manual restart.
             await reinitialize_database()
             await init_db()
+            await handle_restored_sessions()
 
             logger.info("Restore complete - restart required")
             message = "Backup restored successfully. Please restart PrintOps for changes to take effect."
@@ -1215,8 +1378,8 @@ async def get_virtual_printer_models(
 
 @router.get("/virtual-printer")
 async def get_virtual_printer_settings(
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.SETTINGS_READ)),
 ):
     """Get virtual printer settings and status."""
     from backend.app.services.virtual_printer import (
@@ -1228,13 +1391,17 @@ async def get_virtual_printer_settings(
     access_code = await get_setting(db, "virtual_printer_access_code")
     mode = await get_setting(db, "virtual_printer_mode")
     model = await get_setting(db, "virtual_printer_model")
-    target_printer_id = await get_setting(db, "virtual_printer_target_printer_id")
+    target_id_text = await get_setting(db, "virtual_printer_target_printer_id")
+    target_id = int(target_id_text) if target_id_text else None
     remote_interface_ip = await get_setting(db, "virtual_printer_remote_interface_ip")
     tailscale_disabled_raw = await get_setting(db, "virtual_printer_tailscale_disabled")
     archive_name_source = await get_setting(db, "virtual_printer_archive_name_source")
 
     from backend.app.models.virtual_printer import VP_MODE_ARCHIVE, normalize_vp_mode
 
+    status = virtual_printer_manager.get_status()
+    if access.printer_ids is not None:
+        status = {k: v for k, v in status.items() if k not in {"name", "serial", "target_printer_ip", "proxy"}}
     return {
         "enabled": enabled == "true" if enabled else False,
         "access_code_set": bool(access_code),
@@ -1242,11 +1409,11 @@ async def get_virtual_printer_settings(
         # `print_queue`) come out as `archive` / `queue` for the frontend.
         "mode": normalize_vp_mode(mode) or VP_MODE_ARCHIVE,
         "model": model or DEFAULT_VIRTUAL_PRINTER_MODEL,
-        "target_printer_id": int(target_printer_id) if target_printer_id else None,
+        "target_printer_id": target_id if access.allows_printer(target_id) else None,
         "remote_interface_ip": remote_interface_ip or "",
         "tailscale_disabled": tailscale_disabled_raw == "true" if tailscale_disabled_raw else True,
         "archive_name_source": archive_name_source if archive_name_source in ("metadata", "filename") else "metadata",
-        "status": virtual_printer_manager.get_status(),
+        "status": status,
     }
 
 
@@ -1260,176 +1427,45 @@ async def update_virtual_printer_settings(
     remote_interface_ip: str = None,
     tailscale_disabled: bool = None,
     archive_name_source: str = None,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.SETTINGS_UPDATE)),
 ):
-    """Update virtual printer settings and restart services if needed.
+    """Update the archive naming preference and the first VP's Tailscale setting."""
+    from backend.app.models.virtual_printer import VirtualPrinter
+    from backend.app.services.virtual_printer import virtual_printer_manager
 
-    For proxy mode with SSDP proxy (dual-homed setup):
-    - remote_interface_ip: IP of interface on slicer's network (LAN B)
-    - Local interface is auto-detected based on target printer IP
-    """
-    from sqlalchemy import select
-
-    from backend.app.models.printer import Printer
-    from backend.app.services.virtual_printer import (
-        DEFAULT_VIRTUAL_PRINTER_MODEL,
-        VIRTUAL_PRINTER_MODELS,
-        virtual_printer_manager,
-    )
-
-    # Get current values
-    current_enabled = await get_setting(db, "virtual_printer_enabled") == "true"
-    current_access_code = await get_setting(db, "virtual_printer_access_code") or ""
-    # Default to `archive` (the canonical name) but tolerate legacy `immediate`
-    # in the stored value — normalized later before validation.
-    current_mode = await get_setting(db, "virtual_printer_mode") or "archive"
-    current_model = await get_setting(db, "virtual_printer_model") or DEFAULT_VIRTUAL_PRINTER_MODEL
-    current_target_id_str = await get_setting(db, "virtual_printer_target_printer_id")
-    current_target_id = int(current_target_id_str) if current_target_id_str else None
-    current_remote_iface = await get_setting(db, "virtual_printer_remote_interface_ip") or ""
-    current_ts_disabled_raw = await get_setting(db, "virtual_printer_tailscale_disabled")
-    # Default True (opt-in) when the setting has never been saved — matches the model default.
-    current_ts_disabled = current_ts_disabled_raw == "true" if current_ts_disabled_raw else True
-
-    # Apply updates
-    new_enabled = enabled if enabled is not None else current_enabled
-    new_access_code = access_code if access_code is not None else current_access_code
-    new_mode = mode if mode is not None else current_mode
-    new_model = model if model is not None else current_model
-    new_target_id = target_printer_id if target_printer_id is not None else current_target_id
-    new_remote_iface = remote_interface_ip if remote_interface_ip is not None else current_remote_iface
-    new_ts_disabled = tailscale_disabled if tailscale_disabled is not None else current_ts_disabled
-
-    # Validate mode. Canonical wire values are `archive` / `review` / `queue`
-    # / `proxy`; legacy `immediate` and `print_queue` are accepted as aliases
-    # and translated before storage so support bundles stop showing the old
-    # confusing pair (#1429 mode-label discrepancy).
-    from backend.app.models.virtual_printer import VP_MODE_VALUES, normalize_vp_mode
-
-    canonical_mode = normalize_vp_mode(new_mode)
-    if canonical_mode not in VP_MODE_VALUES:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "detail": f"Mode must be one of: {', '.join(VP_MODE_VALUES)}",
-            },
-        )
-    new_mode = canonical_mode
-
-    # Validate archive_name_source
+    await prepare_printer_scope_write(db)
+    first_vp = await db.scalar(select(VirtualPrinter).order_by(VirtualPrinter.position, VirtualPrinter.id).limit(1))
+    if first_vp is not None and not access.allows_printer(first_vp.target_printer_id):
+        raise HTTPException(404, "Virtual printer not found")
+    legacy_only = {
+        "enabled": enabled,
+        "access_code": access_code,
+        "mode": mode,
+        "model": model,
+        "target_printer_id": target_printer_id,
+        "remote_interface_ip": remote_interface_ip,
+    }
+    supplied = [field for field, value in legacy_only.items() if value is not None]
+    if supplied:
+        raise HTTPException(400, f"Set {', '.join(supplied)} with PUT /api/v1/virtual-printers/{{id}}")
     if archive_name_source is not None and archive_name_source not in ("metadata", "filename"):
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "archive_name_source must be 'metadata' or 'filename'"},
-        )
+        raise HTTPException(400, "Archive name source must be 'metadata' or 'filename'")
 
-    # Validate model
-    if model is not None and model not in VIRTUAL_PRINTER_MODELS:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": f"Invalid model. Must be one of: {', '.join(VIRTUAL_PRINTER_MODELS.keys())}"},
-        )
-
-    # Mode-specific validation and printer lookup
-    target_printer_ip = ""
-    target_printer_serial = ""
-    if new_mode == "proxy":
-        # Proxy mode requires target printer when enabling
-        if new_enabled and not new_target_id:
-            # If just switching to proxy mode (not explicitly enabling), auto-disable
-            if enabled is None:
-                new_enabled = False
-            else:
-                return JSONResponse(
-                    status_code=400,
-                    content={"detail": "Target printer is required for proxy mode"},
-                )
-
-        # Look up printer IP and serial if we have a target
-        if new_target_id:
-            result = await db.execute(select(Printer).where(Printer.id == new_target_id))
-            printer = result.scalar_one_or_none()
-            if not printer:
-                return JSONResponse(
-                    status_code=400,
-                    content={"detail": f"Printer with ID {new_target_id} not found"},
-                )
-            target_printer_ip = printer.ip_address
-            target_printer_serial = printer.serial_number
-        # Access code not required for proxy mode
-    else:
-        # Non-proxy modes require access code when enabling
-        if new_enabled and not new_access_code:
-            # If just switching modes (not explicitly enabling), auto-disable
-            if enabled is None:
-                new_enabled = False
-            else:
-                return JSONResponse(
-                    status_code=400,
-                    content={"detail": "Access code is required when enabling virtual printer"},
-                )
-
-        # Validate access code length (Bambu Studio requires exactly 8 characters)
-        if access_code is not None and access_code and len(access_code) != 8:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "Access code must be exactly 8 characters"},
-            )
-
-    # Save settings
-    await set_setting(db, "virtual_printer_enabled", "true" if new_enabled else "false")
-    if access_code is not None:
-        await set_setting(db, "virtual_printer_access_code", access_code)
-    await set_setting(db, "virtual_printer_mode", new_mode)
-    if model is not None:
-        await set_setting(db, "virtual_printer_model", model)
-    if target_printer_id is not None:
-        await set_setting(db, "virtual_printer_target_printer_id", str(target_printer_id))
-    if remote_interface_ip is not None:
-        await set_setting(db, "virtual_printer_remote_interface_ip", remote_interface_ip)
-    if tailscale_disabled is not None:
-        await set_setting(db, "virtual_printer_tailscale_disabled", "true" if tailscale_disabled else "false")
+    sync_needed = (
+        first_vp is not None and tailscale_disabled is not None and first_vp.tailscale_disabled != tailscale_disabled
+    )
     if archive_name_source is not None:
         await set_setting(db, "virtual_printer_archive_name_source", archive_name_source)
-
-    # Propagate tailscale_disabled to the first VirtualPrinter row so sync_from_db() picks it up
     if tailscale_disabled is not None:
-        from backend.app.models.virtual_printer import VirtualPrinter as VPModel
-
-        vp_result = await db.execute(select(VPModel).order_by(VPModel.position).limit(1))
-        first_vp = vp_result.scalar_one_or_none()
+        await set_setting(db, "virtual_printer_tailscale_disabled", "true" if tailscale_disabled else "false")
         if first_vp is not None:
-            first_vp.tailscale_disabled = new_ts_disabled
-
+            first_vp.tailscale_disabled = tailscale_disabled
     await db.commit()
-    db.expire_all()
 
-    # Reconfigure virtual printer
-    try:
-        await virtual_printer_manager.configure(
-            enabled=new_enabled,
-            access_code=new_access_code,
-            mode=new_mode,
-            model=new_model,
-            target_printer_ip=target_printer_ip,
-            target_printer_serial=target_printer_serial,
-            remote_interface_ip=new_remote_iface,
-        )
-    except ValueError as e:
-        logger.warning("Virtual printer configuration validation error: %s", e)
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Invalid virtual printer configuration. Check the provided values."},
-        )
-    except Exception as e:
-        logger.error("Failed to configure virtual printer: %s", e, exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Failed to configure virtual printer. Check server logs for details."},
-        )
-
-    return await get_virtual_printer_settings(db)
+    if sync_needed:
+        await virtual_printer_manager.sync_from_db()
+    return await get_virtual_printer_settings(db, access)
 
 
 # MQTT Relay Settings

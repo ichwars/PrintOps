@@ -1,11 +1,12 @@
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, timedelta
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.printer import Printer
+from backend.app.utils.local_time import calendar_bounds, utcnow_naive
 
 
 class FailureAnalysisService:
@@ -30,30 +31,32 @@ class FailureAnalysisService:
         project_id: int | None = None,
         created_by_id: int | None = None,
         allowed_printer_ids: set[int] | None = None,
+        include_unassigned: bool = True,
+        tz: str | None = None,
     ) -> dict:
         """Analyze failure patterns across logged print events."""
         # Build base query — separate date vs non-date filters for trend reuse
         base_filter = []
         non_date_filter = []
-        if date_from or date_to:
-            if date_from:
-                dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+        dt_from, dt_to = calendar_bounds(date_from, date_to, tz)
+        now = utcnow_naive()
+        if dt_from is not None or dt_to is not None:
+            if dt_from is not None:
                 base_filter.append(PrintLogEntry.created_at >= dt_from)
-            if date_to:
-                dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+            if dt_to is not None:
                 base_filter.append(PrintLogEntry.created_at <= dt_to)
-            range_start = dt_from if date_from else datetime.now(timezone.utc) - timedelta(days=365)
-            range_end = dt_to if date_to else datetime.now(timezone.utc)
+            range_start = dt_from or now - timedelta(days=365)
+            range_end = dt_to or now
             effective_days = max((range_end - range_start).days, 1)
         else:
             effective_days = days if days is not None else 30
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=effective_days)
-            base_filter.append(PrintLogEntry.created_at >= cutoff_date)
+            base_filter.append(PrintLogEntry.created_at >= now - timedelta(days=effective_days))
         if printer_id:
             non_date_filter.append(PrintLogEntry.printer_id == printer_id)
         if allowed_printer_ids is not None:
+            assigned = PrintLogEntry.printer_id.in_(allowed_printer_ids)
             non_date_filter.append(
-                or_(PrintLogEntry.printer_id.is_(None), PrintLogEntry.printer_id.in_(allowed_printer_ids))
+                or_(PrintLogEntry.printer_id.is_(None), assigned) if include_unassigned else assigned
             )
         # project_id is an archive-level concept; PrintLogEntry has no project
         # link, so we resolve it by archive_id where present.
@@ -195,7 +198,7 @@ class FailureAnalysisService:
         trend_data = []
         num_weeks = max(effective_days // 7, 1)
         for i in range(num_weeks):
-            week_end = datetime.now(timezone.utc) - timedelta(weeks=i)
+            week_end = utcnow_naive() - timedelta(weeks=i)
             week_start = week_end - timedelta(weeks=1)
 
             week_filter = [

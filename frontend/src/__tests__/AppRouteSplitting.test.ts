@@ -7,8 +7,8 @@ const appSource = fs.readFileSync(path.resolve(process.cwd(), 'src/App.tsx'), 'u
 describe('application route splitting', () => {
   it('loads page modules through dynamic imports', () => {
     expect(appSource).not.toMatch(/^import .+ from ['"]\.\/pages\//m);
-    expect(appSource).toMatch(/lazy\(\(\) => import\(['"]\.\/pages\/PrintersPage['"]\)/);
-    expect(appSource).toMatch(/lazy\(\(\) => import\(['"]\.\/pages\/SettingsPage['"]\)/);
+    expect(appSource).toMatch(/lazyPage\(\(\) => import\(['"]\.\/pages\/PrintersPage['"]\)/);
+    expect(appSource).toMatch(/lazyPage\(\(\) => import\(['"]\.\/pages\/SettingsPage['"]\)/);
   });
 
   it('renders a stable fallback while route chunks load', () => {

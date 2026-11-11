@@ -16,6 +16,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.database import async_session
+from backend.app.core.logging_filters import redact_refused_headers
 from backend.app.core.paths import resolve_data_dir
 from backend.app.models.archive import PrintArchive
 from backend.app.models.commercial_document import (
@@ -64,7 +65,14 @@ from backend.app.models.spool import Spool
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.user import User
 from backend.app.services.git_providers.factory import get_provider_backend
+from backend.app.services.github_restore_settings import is_git_backup_setting_key
 from backend.app.services.printer_manager import printer_manager
+from backend.app.services.secret_fields import (
+    SECRET_PLACEHOLDER,
+    URL_USERINFO_PATTERN,
+    is_secret_setting_key,
+    mask_slicer_preset,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +104,7 @@ def _bambu_preset_record(setting_id: str, our_type: str, entry: dict, detail: di
         "updated_time": entry.get("updated_time"),
         "base_id": detail.get("base_id"),
         "filament_id": detail.get("filament_id"),
-        "setting": detail.get("setting") or {},
+        "setting": mask_slicer_preset(detail.get("setting") or {}),
     }
 
 
@@ -113,6 +121,10 @@ _PROVIDER_DISPLAY_NAMES = {
     "gitea": "Gitea",
     "forgejo": "Forgejo",
 }
+
+
+def _redact_provider_result(result: dict) -> dict:
+    return {key: redact_refused_headers(value) if isinstance(value, str) else value for key, value in result.items()}
 
 
 class GitHubBackupService:
@@ -188,7 +200,7 @@ class GitHubBackupService:
         """Test connection and permissions for the given provider."""
         backend = get_provider_backend(provider)
         client = await self._get_client()
-        return await backend.test_connection(repo_url, token, client)
+        return _redact_provider_result(await backend.test_connection(repo_url, token, client))
 
     async def run_backup(self, config_id: int, trigger: str = "manual") -> dict:
         """Run a backup operation.
@@ -319,7 +331,7 @@ class GitHubBackupService:
 
                     provider_name = _PROVIDER_DISPLAY_NAMES.get(config.provider, config.provider)
                     self._backup_progress = f"Pushing to {provider_name}..."
-                    push_result = await self._push_to_provider(config, backup_data)
+                    push_result = _redact_provider_result(await self._push_to_provider(config, backup_data))
 
                     # Update log and config
                     log.status = push_result["status"]
@@ -348,13 +360,14 @@ class GitHubBackupService:
 
                 except Exception as e:
                     logger.exception("Backup failed")
+                    error = redact_refused_headers(str(e))
                     log.status = "failed"
                     log.completed_at = datetime.now(timezone.utc)
-                    log.error_message = str(e)
+                    log.error_message = error
 
                     config.last_backup_at = datetime.now(timezone.utc)
                     config.last_backup_status = "failed"
-                    config.last_backup_message = str(e)
+                    config.last_backup_message = error
 
                     if config.schedule_enabled:
                         config.next_scheduled_run = self.calculate_next_run(config.schedule_type)
@@ -362,7 +375,7 @@ class GitHubBackupService:
                     await db.commit()
                     return {
                         "success": False,
-                        "message": str(e),
+                        "message": error,
                         "log_id": log_id,
                         "commit_sha": None,
                         "files_changed": 0,
@@ -622,9 +635,15 @@ class GitHubBackupService:
         result = await db.execute(select(Settings))
         settings = result.scalars().all()
 
-        # Filter out sensitive settings
-        sensitive_keys = {"bambu_cloud_token", "auth_secret_key"}
-        settings_data = {s.key: s.value for s in settings if s.key not in sensitive_keys}
+        settings_data = {}
+        for setting in settings:
+            if not is_git_backup_setting_key(setting.key):
+                continue
+            if is_secret_setting_key(setting.key):
+                # Retain only credential presence for restore checks on dependent toggles.
+                settings_data[setting.key] = SECRET_PLACEHOLDER if (setting.value or "").strip() else setting.value
+            elif not URL_USERINFO_PATTERN.search(setting.value or ""):
+                settings_data[setting.key] = setting.value
 
         files["settings/app_settings.json"] = {
             "version": "1.0",
@@ -834,6 +853,7 @@ class GitHubBackupService:
                 "label_weight": s.label_weight,
                 "core_weight": s.core_weight,
                 "weight_used": s.weight_used,
+                "weight_used_baseline": s.weight_used_baseline,
                 "weight_locked": s.weight_locked,
                 "slicer_filament": s.slicer_filament,
                 "slicer_filament_name": s.slicer_filament_name,
@@ -846,6 +866,10 @@ class GitHubBackupService:
                 "data_origin": s.data_origin,
                 "tag_type": s.tag_type,
                 "archived_at": str(s.archived_at) if s.archived_at else None,
+                "last_used": s.last_used.isoformat() if s.last_used else None,
+                "last_dried_at": s.last_dried_at.isoformat() if s.last_dried_at else None,
+                "last_dried_temp": s.last_dried_temp,
+                "last_dried_hours": s.last_dried_hours,
                 "created_at": str(s.created_at) if s.created_at else None,
             }
             spool_list.append(spool_data)
@@ -866,6 +890,7 @@ class GitHubBackupService:
                     {
                         "id": u.id,
                         "spool_id": u.spool_id,
+                        "spoolman_spool_id": u.spoolman_spool_id,
                         "printer_id": u.printer_id,
                         "print_name": u.print_name,
                         "archive_id": u.archive_id,
@@ -887,9 +912,6 @@ class GitHubBackupService:
         """Collect print archive metadata (no binary files)."""
         result = await db.execute(select(PrintArchive))
         archives = result.scalars().all()
-
-        if not archives:
-            return
 
         # The natural key for an owner. created_by_id alone is only meaningful on
         # the instance that wrote it: restoring onto a rebuilt instance — this
@@ -962,7 +984,52 @@ class GitHubBackupService:
             "archives": archive_list,
         }
 
+        await self._collect_archive_runs(db, files, user_names)
         logger.info("Collected %d print archives", len(archive_list))
+
+    async def _collect_archive_runs(self, db: AsyncSession, files: dict, user_names: dict):
+        from backend.app.models.print_log import INCLUDE_OPEN_RUNS, PrintLogEntry
+
+        printer_serials = dict((await db.execute(select(Printer.id, Printer.serial_number))).all())
+        runs = await db.scalars(
+            select(PrintLogEntry).order_by(PrintLogEntry.id).execution_options(**{INCLUDE_OPEN_RUNS: True})
+        )
+        fields = (
+            "archive_id",
+            "status",
+            "print_name",
+            "printer_name",
+            "plate_id",
+            "duration_seconds",
+            "duration_unmeasured",
+            "filament_type",
+            "filament_color",
+            "filament_used_grams",
+            "cost",
+            "energy_kwh",
+            "energy_cost",
+            "failure_reason",
+            "quantity",
+            "confirm_requested",
+            "good_quantity",
+            "reject_quantity",
+            "user_verdict_source",
+        )
+        files["archives/print_runs.json"] = {
+            "version": "1.0",
+            "runs": [
+                {
+                    **{key: getattr(run, key) for key in fields},
+                    "printer_serial": printer_serials.get(run.printer_id),
+                    "created_by_username": user_names.get(run.created_by_id),
+                    "started_at": str(run.started_at) if run.started_at is not None else None,
+                    "completed_at": str(run.completed_at) if run.completed_at is not None else None,
+                    "created_at": str(run.created_at) if run.created_at is not None else None,
+                    "user_verdict_at": str(run.user_verdict_at) if run.user_verdict_at is not None else None,
+                }
+                for run in runs
+            ],
+        }
 
     async def _push_to_provider(self, config: GitHubBackupConfig, files: dict) -> dict:
         """Push files to the configured Git provider."""

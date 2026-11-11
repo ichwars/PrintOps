@@ -3,7 +3,10 @@
 Tests the full request/response cycle for /api/v1/archives/ endpoints.
 """
 
+from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 from httpx import AsyncClient
@@ -15,6 +18,40 @@ class TestArchivesAPI:
     # ========================================================================
     # List endpoints
     # ========================================================================
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_bulk_upload_reports_each_same_named_file_by_position(self, async_client, monkeypatch, tmp_path):
+        from backend.app.api.routes.archives import ArchiveService, settings
+
+        monkeypatch.setattr(settings, "archive_dir", tmp_path)
+        zip_data = BytesIO()
+        with ZipFile(zip_data, "w") as container:
+            container.writestr("Metadata/plate_1.gcode", "G28")
+        sources = []
+
+        async def archive_print(self, *, source_file, **kwargs):
+            assert source_file.name == "same.3mf"
+            assert source_file.read_bytes() == zip_data.getvalue()
+            sources.append(source_file)
+            return SimpleNamespace(id=99)
+
+        monkeypatch.setattr(ArchiveService, "archive_print", archive_print)
+        response = await async_client.post(
+            "/api/v1/archives/upload-bulk",
+            files=[
+                ("files", ("same.3mf", zip_data.getvalue())),
+                ("files", ("same.3mf", b"not a ZIP")),
+                ("files", ("same.3mf", zip_data.getvalue())),
+            ],
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert (data["uploaded"], data["failed"]) == (2, 1)
+        assert [row["index"] for row in data["results"]] == [0, 2]
+        assert [row["index"] for row in data["errors"]] == [1]
+        assert "valid ZIP" in data["errors"][0]["error"]
+        assert len(set(sources)) == 2 and not any(path.exists() for path in sources)
 
     @pytest.mark.asyncio
     @pytest.mark.integration

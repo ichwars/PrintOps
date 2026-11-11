@@ -12,10 +12,11 @@ class SpoolUsageHistory(Base):
     __tablename__ = "spool_usage_history"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    spool_id: Mapped[int] = mapped_column(ForeignKey("spool.id", ondelete="CASCADE"))
+    spool_id: Mapped[int | None] = mapped_column(ForeignKey("spool.id", ondelete="SET NULL"), index=True)
+    spoolman_spool_id: Mapped[int | None] = mapped_column(Integer)
     printer_id: Mapped[int | None] = mapped_column(ForeignKey("printers.id", ondelete="SET NULL"))
     print_name: Mapped[str | None] = mapped_column(String(500))
-    archive_id: Mapped[int | None] = mapped_column(ForeignKey("print_archives.id"), nullable=True)
+    archive_id: Mapped[int | None] = mapped_column(ForeignKey("print_archives.id", ondelete="SET NULL"), index=True)
     weight_used: Mapped[float] = mapped_column(Float, default=0)
     percent_used: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="completed")  # completed/failed/aborted

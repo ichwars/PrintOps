@@ -12,7 +12,7 @@ from backend.app.core.auth import (
     resolve_optional_api_key,
     user_can_access_printer,
 )
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.drying_schedule import DryingSchedule, DryingScheduleRun
 from backend.app.models.printer import Printer
@@ -66,7 +66,7 @@ async def _validate_enable(db, printer, data):
 async def list_schedules(
     printer_id: int,
     user=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     api_key=Depends(resolve_optional_api_key),
 ):
     _access(printer_id, user, api_key)
@@ -117,7 +117,7 @@ async def create_schedule(
     printer_id: int,
     data: DryingScheduleWrite,
     user=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     api_key=Depends(resolve_optional_api_key),
 ):
     _access(printer_id, user, api_key)
@@ -136,7 +136,7 @@ async def update_schedule(
     schedule_id: int,
     data: DryingScheduleWrite,
     user=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     api_key=Depends(resolve_optional_api_key),
 ):
     _access(printer_id, user, api_key)
@@ -155,7 +155,7 @@ async def delete_schedule(
     printer_id: int,
     schedule_id: int,
     user=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     api_key=Depends(resolve_optional_api_key),
 ):
     _access(printer_id, user, api_key)
@@ -170,7 +170,7 @@ async def resolve_run(
     printer_id: int,
     run_id: int,
     user=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     api_key=Depends(resolve_optional_api_key),
 ):
     _access(printer_id, user, api_key)

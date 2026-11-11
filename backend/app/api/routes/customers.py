@@ -5,12 +5,12 @@ from collections.abc import Awaitable
 from datetime import date
 from typing import NoReturn, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.core.text_normalization import normalize_case_insensitive_key
 from backend.app.models.customer import Customer, CustomerAccount
@@ -261,7 +261,7 @@ async def list_customers(
     customer_kind: CustomerKind | None = Query(default=None, alias="kind"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CUSTOMERS_READ),
 ) -> CustomerListResponse:
     page = await customer_service.list_customers(
@@ -284,7 +284,7 @@ async def list_customers(
 @router.post("/", response_model=CustomerDetailResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     data: CustomerCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CUSTOMERS_MANAGE),
 ) -> CustomerDetailResponse:
     try:
@@ -329,7 +329,7 @@ async def create_tax_override(
 @router.get("/{customer_id}", response_model=CustomerDetailResponse)
 async def get_customer(
     customer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CUSTOMERS_READ),
 ) -> CustomerDetailResponse:
     try:
@@ -343,7 +343,7 @@ async def get_customer(
 async def update_customer(
     customer_id: int,
     data: CustomerUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CUSTOMERS_MANAGE),
 ) -> CustomerDetailResponse:
     try:
@@ -368,7 +368,7 @@ async def update_customer(
 )
 async def delete_customer(
     customer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CUSTOMERS_MANAGE),
 ) -> Response:
     try:

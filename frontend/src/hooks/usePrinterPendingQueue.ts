@@ -14,7 +14,7 @@ export function usePrinterPendingQueue(printerId: number, printerModel?: string 
   const subject = authEnabled ? preferenceSubject : 'appliance';
   const query = useQuery({
     queryKey: ['queue', printerId, 'pending', printerModel, subject, session],
-    queryFn: () => api.getQueue(printerId, 'pending', printerModel || undefined),
+    queryFn: () => api.getQueue(printerId, 'pending'),
     enabled,
     refetchInterval: 30000,
   });

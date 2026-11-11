@@ -26,17 +26,11 @@ import {
 } from '../api/procurement';
 import { ProcurementOffersEditor } from './warehouse/ProcurementOffersEditor';
 import { MeasuredResponsiveContainer } from './charts/MeasuredResponsiveContainer';
+import { ShoppingListClearButton } from './ShoppingListClearButton';
+import { groupStockSpools, skuKey, skuLabel, type SkuGroup } from '../utils/forecastStock';
+import { parseUTCDate } from '../utils/date';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface SkuGroup {
-  key: string;
-  material: string;
-  subtype: string | null;
-  brand: string | null;
-  colorName: string | null;
-  spools: InventorySpool[];
-}
 
 interface SkuForecast {
   group: SkuGroup;
@@ -82,10 +76,6 @@ async function loadAllSuppliers() {
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
-function skuKey(material: string, subtype: string | null, brand: string | null, colorName: string | null) {
-  return [material, subtype, brand, colorName].map((value) => value?.trim() ?? '').join('||');
-}
-
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + Math.round(days));
@@ -123,7 +113,7 @@ function buildProjectionSeries(
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
+export function ForecastPanel({ spools, spoolmanMode = false }: { spools: InventorySpool[]; spoolmanMode?: boolean }) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { t } = useTranslation();
@@ -144,9 +134,9 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
   const [listOpen, setListOpen] = useState(false);
   const [chartDays, setChartDays] = useState<ChartDays>(30);
 
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings, enabled: canRead });
+  const { data: settings } = useQuery({ queryKey: ['settings', 'ui-flags'], queryFn: api.getUiFlags, enabled: canRead });
   const { data: skuSettingsList = [] } = useQuery({ queryKey: ['sku-settings'], queryFn: api.getSkuSettings, staleTime: 60_000, enabled: canRead });
-  const { data: usageHistory = [] } = useQuery({ queryKey: ['all-usage-history-forecast'], queryFn: () => api.getAllUsageHistory(5000), staleTime: 60_000, enabled: canRead });
+  const { data: usageHistory = [] } = useQuery({ queryKey: ['all-usage-history-forecast', spoolmanMode], queryFn: () => api.getAllUsageHistory(5000, undefined, spoolmanMode), staleTime: 60_000, enabled: canRead });
   const { data: shoppingList = [] } = useQuery({ queryKey: ['shopping-list'], queryFn: api.getShoppingList, staleTime: 30_000, enabled: canRead });
 
   const globalLeadTime = settings?.forecast_global_lead_time_days ?? 0;
@@ -166,24 +156,15 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
   const usageBySpoolId = useMemo(() => {
     const m = new Map<number, SpoolUsageRecord[]>();
     for (const r of usageHistory) {
-      const arr = m.get(r.spool_id) ?? [];
+      const id = spoolmanMode ? r.spoolman_spool_id : r.spool_id;
+      if (id == null) continue;
+      const arr = m.get(id) ?? [];
       arr.push(r);
-      m.set(r.spool_id, arr);
+      m.set(id, arr);
     }
     return m;
-  }, [usageHistory]);
-
-  const groups = useMemo((): SkuGroup[] => {
-    const map = new Map<string, SkuGroup>();
-    for (const spool of spools) {
-      if (spool.archived_at) continue;
-      const key = skuKey(spool.material, spool.subtype, spool.brand, spool.color_name);
-      const g = map.get(key) ?? { key, material: spool.material, subtype: spool.subtype, brand: spool.brand, colorName: spool.color_name, spools: [] };
-      g.spools.push(spool);
-      map.set(key, g);
-    }
-    return [...map.values()];
-  }, [spools]);
+  }, [usageHistory, spoolmanMode]);
+  const groups = useMemo(() => groupStockSpools(spools), [spools]);
 
   const forecasts = useMemo((): SkuForecast[] => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -202,17 +183,20 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
 
       const totalRemainingG = group.spools.reduce((s, sp) => s + Math.max(0, sp.label_weight - sp.weight_used), 0);
       const totalLabelG = group.spools.reduce((s, sp) => s + sp.label_weight, 0);
-      // Consumed since baseline (post-reset); see InventoryPage stats calc (#1390).
-      const totalUsedG = group.spools.reduce((s, sp) => s + Math.max(0, sp.weight_used - (sp.weight_used_baseline ?? 0)), 0);
+      const rateSpools = [...group.spools, ...group.recentlyArchived];
+      const totalUsedG = rateSpools.reduce((s, sp) => s + Math.max(0, sp.weight_used - (sp.weight_used_baseline ?? 0)), 0);
 
-      // Only include history from spools that haven't been reset — pre-reset
-      // events on a reset spool have no anchor timestamp so they'd inflate the
-      // rate. Spools without a baseline are clean and keep their records.
       const groupHistory: SpoolUsageRecord[] = [];
-      for (const s of group.spools) {
-        if ((s.weight_used_baseline ?? 0) === 0) {
-          groupHistory.push(...(usageBySpoolId.get(s.id) ?? []));
+      const firstUses = new Map<number, number>();
+      for (const spool of rateSpools) {
+        const registered = spoolmanMode ? parseUTCDate(spool.created_at)?.getTime() : undefined;
+        const records = (usageBySpoolId.get(spool.id) ?? []).filter(record =>
+          registered === undefined || (parseUTCDate(record.created_at)?.getTime() ?? -Infinity) >= registered);
+        for (const record of records) {
+          const at = parseUTCDate(record.created_at)?.getTime();
+          if (at !== undefined) firstUses.set(spool.id, Math.min(firstUses.get(spool.id) ?? Infinity, at));
         }
+        if ((spool.usage_reset_baseline ?? spool.weight_used_baseline ?? 0) === 0) groupHistory.push(...records);
       }
 
       let dailyRateG: number | null = null;
@@ -225,7 +209,7 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         dailyRateStdDev = histResult.stdDev;
         rateTier = 'history';
       } else {
-        const delta = computeDeltaRate(group.spools);
+        const delta = computeDeltaRate(rateSpools, firstUses, group.usedBefore);
         if (delta !== null) { dailyRateG = delta; rateTier = 'delta'; }
       }
 
@@ -262,7 +246,7 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
         reorderAlert, stockBreakAlert,
       };
     });
-  }, [groups, settingsMap, usageBySpoolId, globalLeadTime]);
+  }, [groups, settingsMap, usageBySpoolId, globalLeadTime, spoolmanMode]);
 
   const uniqueMaterials = useMemo(() =>
     [...new Set(groups.map((g) => g.material))].sort(),
@@ -426,11 +410,6 @@ export function ForecastPanel({ spools }: { spools: InventorySpool[] }) {
               .then(() => queryClient.invalidateQueries({ queryKey: ['shopping-list'] }))
               .catch(() => showToast(t('forecast.failedSaveSettings'), 'error'));
           }}
-          onClear={() => {
-            api.clearShoppingList()
-              .then(() => queryClient.invalidateQueries({ queryKey: ['shopping-list'] }))
-              .catch(() => showToast(t('forecast.failedSaveSettings'), 'error'));
-          }}
         />
       )}
 
@@ -569,7 +548,7 @@ function SortableTh({
 
 function AlertBanner({ forecast: f, onCart }: { forecast: SkuForecast; onCart: () => void }) {
   const { t } = useTranslation();
-  const label = [f.group.brand, f.group.material, f.group.subtype, f.group.colorName].filter(Boolean).join(' ');
+  const label = skuLabel(f.group.brand, f.group.material, f.group.subtype, f.group.colorName);
   const isBreak = f.stockBreakAlert;
 
   return (
@@ -617,7 +596,7 @@ function UsageChart({ forecasts, days: maxDays, onDaysChange }: {
 
   const series = forecasts.map((f, idx) => ({
     key: f.group.key,
-    label: [f.group.brand, f.group.material, f.group.subtype, f.group.colorName].filter(Boolean).join(' '),
+    label: skuLabel(f.group.brand, f.group.material, f.group.subtype, f.group.colorName),
     color: CHART_COLORS[idx % CHART_COLORS.length],
     rop: f.reorderPointG,
     points: buildProjectionSeries(f, maxDays),
@@ -830,7 +809,7 @@ function ForecastRow({
 
   const snoozed = f.settings?.alerts_snoozed ?? false;
 
-  const label = [f.group.brand, f.group.material, f.group.subtype, f.group.colorName].filter(Boolean).join(' ');
+  const label = skuLabel(f.group.brand, f.group.material, f.group.subtype, f.group.colorName);
   const procurementResource: ProcurementResource = {
     kind: 'filament',
     material: f.group.material,
@@ -1335,7 +1314,7 @@ function SafetyMarginField({
 // ── Shopping list panel ───────────────────────────────────────────────────────
 
 function ShoppingListPanel({
-  items, forecasts, globalLeadTime, canWrite, onClose, onRemove, onClear,
+  items, forecasts, globalLeadTime, canWrite, onClose, onRemove,
 }: {
   items: ShoppingListItem[];
   forecasts: SkuForecast[];
@@ -1343,7 +1322,6 @@ function ShoppingListPanel({
   canWrite: boolean;
   onClose: () => void;
   onRemove: (id: number) => void;
-  onClear: () => void;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -1487,11 +1465,7 @@ function ShoppingListPanel({
                 <Download className="w-3 h-3" />
                 {t('forecast.downloadCsv')}
               </button>
-              {canWrite && (
-                <button onClick={onClear} className="text-xs text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-200 dark:border-red-500/20 hover:bg-red-50 dark:hover:bg-red-500/10">
-                  {t('forecast.clearAll')}
-                </button>
-              )}
+              {canWrite && <ShoppingListClearButton />}
             </>
           )}
           <button onClick={onClose} className="p-1 text-bambu-gray hover:text-white transition-colors"><X className="w-4 h-4" /></button>
@@ -1520,7 +1494,7 @@ function ShoppingListPanel({
             </thead>
             <tbody className="divide-y divide-bambu-dark-tertiary">
               {items.map((item) => {
-                const lbl = [item.brand, item.material, item.subtype, item.color_name].filter(Boolean).join(' ');
+                const lbl = skuLabel(item.brand, item.material, item.subtype, item.color_name);
                 const hasBreak = breakAlerts.some((a) => a.item.id === item.id);
                 const f = forecastMap.get(skuKey(item.material, item.subtype, item.brand, item.color_name)) ?? null;
                 const avgSpoolG = f && f.totalSpools > 0 ? f.totalLabelG / f.totalSpools : 1000;
@@ -1652,7 +1626,7 @@ function CartLogisticsRow({
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
-  const label = [item.brand, item.material, item.subtype, item.color_name].filter(Boolean).join(' ');
+  const label = skuLabel(item.brand, item.material, item.subtype, item.color_name);
 
   // Build a timeline showing stock depletion, arrival bump, then post-arrival depletion.
   // Two points are inserted at day `lt` (just-before and just-after arrival) so the
@@ -1887,7 +1861,7 @@ function AddToCartModal({
   onAdd: (item: { material: string; subtype: string | null; brand: string | null; color_name: string | null; quantity_spools: number; note: string | null }) => void;
 }) {
   const { t } = useTranslation();
-  const label = [f.group.brand, f.group.material, f.group.subtype, f.group.colorName].filter(Boolean).join(' ');
+  const label = skuLabel(f.group.brand, f.group.material, f.group.subtype, f.group.colorName);
   const [mode, setMode] = useState<'qty' | 'duration'>('qty');
   const [qty, setQty] = useState('1');
   const [durationDays, setDurationDays] = useState('30');

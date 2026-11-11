@@ -32,10 +32,11 @@ async def test_attach_timelapse_rejects_dotdot_filename(tmp_path: Path, monkeypa
 
     db = MagicMock()
     db.commit = AsyncMock()
+    db.scalar = AsyncMock(return_value=None)
     service = ArchiveService(db)
 
     # Mock the archive lookup to return a row whose file_path resolves under tmp_path.
-    fake_archive = MagicMock()
+    fake_archive = MagicMock(deleted_at=None)
     fake_archive.file_path = "archive/1/20260101_test/file.3mf"
     service.get_archive = AsyncMock(return_value=fake_archive)
 
@@ -69,9 +70,10 @@ async def test_attach_timelapse_rejects_absolute_filename(tmp_path: Path, monkey
 
     db = MagicMock()
     db.commit = AsyncMock()
+    db.scalar = AsyncMock(return_value=None)
     service = ArchiveService(db)
 
-    fake_archive = MagicMock()
+    fake_archive = MagicMock(deleted_at=None)
     fake_archive.file_path = "archive/1/20260101_test/file.3mf"
     service.get_archive = AsyncMock(return_value=fake_archive)
 
@@ -97,9 +99,10 @@ async def test_attach_timelapse_accepts_legit_filename(tmp_path: Path, monkeypat
 
     db = MagicMock()
     db.commit = AsyncMock()
+    db.scalar = AsyncMock(return_value=None)
     service = ArchiveService(db)
 
-    fake_archive = MagicMock()
+    fake_archive = MagicMock(deleted_at=None)
     fake_archive.file_path = "archive/1/20260101_test/file.3mf"
     fake_archive.timelapse_path = None
     service.get_archive = AsyncMock(return_value=fake_archive)

@@ -6,6 +6,12 @@ import { render } from '../utils';
 import { server } from '../mocks/server';
 import { ConfirmOutcomeDialog } from '../../components/ConfirmOutcomeDialog';
 
+vi.mock('../../components/PrintModal', () => ({
+  PrintModal: ({ preselectPlateId }: { preselectPlateId?: number | null }) => (
+    <div data-testid="replacement-print-modal" data-plate={String(preselectPlateId)} />
+  ),
+}));
+
 const current = {
   id: 7, filename: 'Production.3mf', print_name: 'Production', status: 'completed',
   created_by_id: 1, quantity: 4, plate_id: 2, project_id: null,
@@ -59,6 +65,15 @@ describe('production outcome inspection', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
+  it('opens a non-batch replacement on the plate the archive printed', async () => {
+    server.use(http.post('/api/v1/archives/7/outcome', () => HttpResponse.json({ run_id: 41 })));
+    render(<ConfirmOutcomeDialog archiveId={7} onClose={vi.fn()} />);
+    await enterPartial();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Queue a replacement after saving' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save inspection' }));
+    expect(await screen.findByTestId('replacement-print-modal')).toHaveAttribute('data-plate', '2');
+  });
+
   it('dispatches one replacement run from the existing batch without changing its target', async () => {
     const calls: string[] = [];
     let dispatched: unknown;
@@ -101,6 +116,19 @@ describe('production outcome inspection', () => {
     expect(screen.getByRole('button', { name: 'Save inspection' })).toBeDisabled();
     expect(close).not.toHaveBeenCalled();
     expect(confirmations).toBe(1);
+  });
+
+  it('saves a historical inspection reached via a merged archive link', async () => {
+    const close = vi.fn();
+    server.use(
+      http.get('/api/v1/archives/6', () => HttpResponse.json(current)),
+      http.get('/api/v1/archives/7/runs', () => HttpResponse.json({ total: 1, items: [{ id: 30, status: 'completed', quantity: 2 }] })),
+      http.post('/api/v1/archives/7/runs/30/outcome', () => HttpResponse.json({ run_id: 30 })),
+    );
+    render(<ConfirmOutcomeDialog archiveId={6} runId={30} onClose={close} />);
+    expect(await screen.findByText('Intended quantity: 2 parts')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Save inspection' }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
   });
 
   it('uses the selected historical run and its own quantity while a reprint is active', async () => {

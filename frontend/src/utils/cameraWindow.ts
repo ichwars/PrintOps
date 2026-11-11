@@ -1,6 +1,11 @@
 import type { CameraViewPreference } from '../hooks/useCameraViewPreference';
 
-export function openCameraWindow(printerId: number, mode: CameraViewPreference) {
+export function isIosHomeScreenApp(): boolean {
+  return typeof navigator !== 'undefined' && (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+export function openCameraWindow(printerId: number, mode?: CameraViewPreference): boolean {
+  if (isIosHomeScreenApp()) return false;
   const state = { width: 640, height: 400, left: undefined as number | undefined, top: undefined as number | undefined };
   try {
     const saved = JSON.parse(localStorage.getItem('cameraWindowState') ?? 'null');
@@ -20,5 +25,6 @@ export function openCameraWindow(printerId: number, mode: CameraViewPreference) 
     // (auth token) into the new window.
     'menubar=no,toolbar=no,location=no,status=no',
   ].filter(Boolean).join(',');
-  window.open(`/camera/${printerId}?view=${mode}`, `camera-${printerId}`, features);
+  const view = mode ? `?view=${mode}` : '';
+  return window.open(`/camera/${printerId}${view}`, `camera-${printerId}`, features) != null;
 }

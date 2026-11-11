@@ -12,6 +12,8 @@ import {
   type Supplier,
 } from '../api/procurement';
 import { Button } from './Button';
+import { parseUTCDate, toDateTimeLocalValue } from '../utils/date';
+import { formatSpoolDryingDetails } from '../utils/spoolDrying';
 import { useToast } from '../contexts/ToastContext';
 import type { SpoolFormData, PrinterWithCalibrations, ColorPreset } from './spool-form/types';
 import { defaultFormData, validateForm, SPOOLMAN_LINKED_FIELDS } from './spool-form/types';
@@ -122,6 +124,7 @@ export function SpoolFormModal({
   }, [isOpen, spool?.id, mode, spoolmanMode]);
 
   // Form state
+  const [lastDriedInput, setLastDriedInput] = useState<string | null>(null);
   const [formData, setFormData] = useState<SpoolFormData>(defaultFormData);
   const [errors, setErrors] = useState<Partial<Record<keyof SpoolFormData, string>>>({});
   const [activeTab, setActiveTab] = useState<TabId>('filament');
@@ -477,6 +480,7 @@ export function SpoolFormModal({
       }
       setErrors({});
       setActiveTab('filament');
+      setLastDriedInput(null);
       setWeightTouched(false);
       setCoreWeightTouched(false);
       setLocationIdTouched(false);
@@ -740,7 +744,7 @@ export function SpoolFormModal({
     enabled: isOpen && isEditing && !spoolmanMode,
   });
   const { data: spoolmanSlotAssignments } = useQuery({
-    queryKey: ['spoolman-slot-assignments-all'],
+    queryKey: ['spoolman-slot-assignments', 'all'],
     queryFn: () => api.getSpoolmanSlotAssignments(),
     enabled: isOpen && isEditing && spoolmanMode,
   });
@@ -760,8 +764,8 @@ export function SpoolFormModal({
     enabled: isOpen && !spoolmanMode,
   });
   const { data: settingsForForm } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
     enabled: isOpen,
   });
   const availableCategories = (() => {
@@ -786,7 +790,7 @@ export function SpoolFormModal({
     },
     onSuccess: async () => {
       if (spoolmanMode) {
-        await queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments-all'] });
+        await queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments', 'all'] });
         await queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
       } else {
         await queryClient.invalidateQueries({ queryKey: ['spool-assignments'] });
@@ -938,6 +942,9 @@ export function SpoolFormModal({
     }
 
     if (isEditing) {
+      if (lastDriedInput != null && lastDriedInput !== initialDryingInput) {
+        data.last_dried_at = lastDriedInput ? new Date(lastDriedInput).toISOString() : null;
+      }
       updateMutation.mutate(data);
     } else if (createdTargets.current.length ? createdInBulk.current : quantity > 1) {
       bulkCreateMutation.mutate({ data, qty: quantity });
@@ -946,6 +953,8 @@ export function SpoolFormModal({
     }
   };
 
+  const driedDate = parseUTCDate(spool?.last_dried_at);
+  const initialDryingInput = driedDate && Number.isFinite(driedDate.getTime()) ? toDateTimeLocalValue(driedDate) : '';
   const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || clearTrayUuidMutation.isPending || unassignMutation.isPending || isSavingProcurement;
 
   return (
@@ -1131,6 +1140,11 @@ export function SpoolFormModal({
                   }}
                   globalLowStockThreshold={globalLowStockThreshold}
                   spoolmanMode={spoolmanMode}
+                  drying={isEditing && spool ? {
+                    value: lastDriedInput ?? initialDryingInput,
+                    onChange: setLastDriedInput,
+                    details: lastDriedInput == null || lastDriedInput === initialDryingInput ? formatSpoolDryingDetails(spool) : '',
+                  } : undefined}
                 />
               </div>
 
@@ -1181,9 +1195,9 @@ export function SpoolFormModal({
               )}
 
               {/* Usage History (only when editing internal inventory; Spoolman tracks its own) */}
-              {isEditing && spool && !spoolmanMode && (
+              {isEditing && spool && (
                 <div>
-                  <SpoolUsageHistory spoolId={spool.id} />
+                  <SpoolUsageHistory spoolId={spool.id} spoolmanMode={spoolmanMode} />
                 </div>
               )}
             </fieldset>

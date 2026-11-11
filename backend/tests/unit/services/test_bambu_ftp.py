@@ -289,6 +289,17 @@ class TestDownload:
         assert local.read_bytes() == content
         client.disconnect()
 
+    def test_download_to_file_reports_size_on_a_fresh_connection(self, ftp_client_factory, ftp_server, tmp_path):
+        ftp_server.add_file("cache/size.bin", b"test" * 64)
+        client = ftp_client_factory()
+        assert client.connect()
+        sizes = []
+        try:
+            assert client.download_to_file("/cache/size.bin", tmp_path / "size.bin", size_callback=sizes.append)
+        finally:
+            client.disconnect()
+        assert sizes == [256]
+
     def test_download_to_file_creates_parent_dirs(self, ftp_client_factory, ftp_server, tmp_path):
         """download_to_file() creates parent directories automatically."""
         ftp_server.add_file("cache/nested.txt", b"nested content")
@@ -425,6 +436,61 @@ class TestUpload:
         result = client.upload_file(local, "/cache/test.bin")
         assert result is False
         client.disconnect()
+
+    @pytest.mark.parametrize(("reported_size", "level"), [(1024, "INFO"), (100, "ERROR"), (None, "WARNING")])
+    @pytest.mark.parametrize("use_bytes", [False, True])
+    def test_upload_without_confirmation_checks_size(
+        self, ftp_client_factory, tmp_path, monkeypatch, caplog, reported_size, level, use_bytes
+    ):
+        remote = "/cache/fixture.bin"
+        contents = b"abcd" * 256
+        local = tmp_path / "fixture.bin"
+        local.write_bytes(contents)
+        client = ftp_client_factory()
+        assert client.connect()
+
+        def no_confirmation():
+            raise TimeoutError("226 not received")
+
+        checks = []
+
+        def read_size(source, path):
+            checks.append((source, path))
+            return reported_size
+
+        monkeypatch.setattr(client._ftp, "voidresp", no_confirmation)
+        monkeypatch.setattr(bambu_ftp, "_size_on_new_connection", read_size)
+        with caplog.at_level("INFO", logger=bambu_ftp.__name__):
+            try:
+                assert client.upload_bytes(contents, remote) if use_bytes else client.upload_file(local, remote)
+            finally:
+                client.disconnect()
+        assert checks == [(client, remote)]
+        assert any(
+            record.levelname == level and "unconfirmed ftp upload" in record.getMessage().lower()
+            for record in caplog.records
+        )
+
+    def test_upload_readback_uses_fresh_binary_size_query(self, ftp_client_factory):
+        client = ftp_client_factory()
+        assert client.connect()
+        try:
+            assert client.upload_bytes(b"x" * 300, "/cache/readback.bin")
+            assert bambu_ftp._size_on_new_connection(client, "/cache/readback.bin") == 300
+        finally:
+            client.disconnect()
+
+    def test_refused_upload_readback_does_not_arm_cooldown(self, ftp_client_factory, monkeypatch):
+        client = ftp_client_factory()
+        ip_address = client.ip_address
+        clear_ftps_cooldown(ip_address)
+
+        def refuse(*_args, **_kwargs):
+            raise ssl.SSLError("second connection refused")
+
+        monkeypatch.setattr(ImplicitFTP_TLS, "connect", refuse)
+        assert bambu_ftp._size_on_new_connection(client, "/cache/readback.bin") is None
+        assert ftps_cooldown_remaining(ip_address) is None
 
     def test_upload_426_with_intact_file_proceeds(self, ftp_client_factory, ftp_server, tmp_path):
         """Some P2S firmware revisions return 426 on voidresp() even when the

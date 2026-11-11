@@ -1,10 +1,12 @@
 import { LabelContentOptions } from "./LabelContentOptions";
+import { LabelSheetLayoutEditor } from "./LabelSheetLayoutEditor";
+import { DEFAULT_SHEET_DRAFT, parseSheetDraft } from "../utils/labelSheetLayout";
 import { DEFAULT_FIELDS, readLabelPreferences } from "../utils/labelPreferences";
 import { smallPartsText } from './warehouse/smallPartsCopy';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2, Printer, CheckSquare, Square, Search } from 'lucide-react';
-import { api, type SpoolLabelTemplate, type InventorySpool } from '../api/client';
+import { api, type SpoolLabelTemplate, type InventorySpool, type LabelSheetLayout } from '../api/client';
 import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
@@ -224,6 +226,9 @@ export function LabelTemplatePickerModal({
   const [sortMode, setSortMode] = useState<SortMode>('id');
   const preferenceKey = `printops-labels-${resourceType}`;
   const [preferences, setPreferences] = useState(() => readLabelPreferences(preferenceKey));
+  const [customOpen, setCustomOpen] = useState(false);
+  const sheetDraft = preferences.sheetDraft ?? DEFAULT_SHEET_DRAFT;
+  const sheetLayout = useMemo(() => parseSheetDraft(sheetDraft), [sheetDraft]);
   const monochrome = preferences.monochrome;
   function setMonochrome(value: boolean) { setPreferences(previous => ({ ...previous, monochrome: value })); }
   useEffect(() => { if (isOpen) { try { localStorage.setItem(preferenceKey, JSON.stringify(preferences)); } catch { /* storage may be disabled */ } } }, [preferences, preferenceKey, isOpen]);
@@ -246,6 +251,7 @@ export function LabelTemplatePickerModal({
       setSortMode('id');
       setPreferences(readLabelPreferences(preferenceKey));
       setStartPositions({});
+      setCustomOpen(false);
       setPending(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,14 +331,14 @@ export function LabelTemplatePickerModal({
     setSelectedIds(new Set());
   }
 
-  async function handlePick(template: SpoolLabelTemplate, startPosition = 1) {
+  async function handlePick(template: SpoolLabelTemplate, startPosition = 1, layout?: LabelSheetLayout) {
     if (noSelection || pending) return;
     // Order matters: the backend (labels.py) prints labels in the same order
     // we send IDs. Use the sorted list so a "by colour" sort flows through to
     // the PDF instead of being clobbered by an ascending-ID re-sort.
     const ids = sortedItems.filter((s) => selectedIds.has(s.id)).map((s) => s.id);
     const defaults = preferences.fields.length === DEFAULT_FIELDS.length && DEFAULT_FIELDS.every(field => preferences.fields.includes(field));
-    const options = { template, monochrome, ...(startPosition !== 1 ? { start_position: startPosition } : {}),
+    const options = { template, monochrome, ...(layout ? { layout } : {}), ...(startPosition !== 1 ? { start_position: startPosition } : {}),
       ...(!defaults ? { fields: preferences.fields } : {}),
       ...(preferences.format === 'png' ? { format: preferences.format, dpi: preferences.dpi } : {}),
     };
@@ -568,7 +574,7 @@ export function LabelTemplatePickerModal({
         </div>
 
         <LabelContentOptions source={resourceType === 'material' ? 'small-parts' : spoolmanMode ? 'spoolman' : 'inventory'}
-          id={sortedItems.find(item => selectedIds.has(item.id))?.id} preferences={preferences} onChange={setPreferences} />
+          id={sortedItems.find(item => selectedIds.has(item.id))?.id} preferences={preferences} onChange={setPreferences} sheetLayout={customOpen ? sheetLayout : undefined} />
 
         {/* Templates — 2x2 grid on >= sm so all 4 plus the Cancel footer fit
             inside max-h-[90vh] even when browser chrome eats into the viewport
@@ -611,6 +617,16 @@ export function LabelTemplatePickerModal({
             );
           })}
         </div>
+        <div className="px-4 pb-2">
+          <Button variant="secondary" aria-expanded={customOpen} disabled={pending !== null}
+            onClick={() => setCustomOpen(previous => !previous)}>
+            {t('inventory.labels.custom.option')}
+          </Button>
+        </div>
+        {customOpen && <LabelSheetLayoutEditor draft={sheetDraft} layout={sheetLayout} labelCount={selectedCount}
+          pngDpi={preferences.format === 'png' ? preferences.dpi : undefined} printing={pending !== null}
+          onChange={draft => setPreferences(previous => ({ ...previous, sheetDraft: draft }))}
+          onPrint={(layout, position) => void handlePick('custom', position, layout)} />}
         </div>
 
         <div className="flex shrink-0 justify-end gap-2 px-5 py-2 border-t border-bambu-dark-tertiary">

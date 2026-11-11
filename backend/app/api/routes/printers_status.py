@@ -1,3 +1,4 @@
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,12 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.routes.cloud import get_stored_token, resolve_api_key_cloud_owner
 from backend.app.core.auth import (
+    OwnershipAccess,
     RequireOverlayTokenIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
     is_auth_enabled,
+    require_permission_with_key,
 )
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import RowVisibility, resolve_printer_visibility
+from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
 from backend.app.schemas.printer import (
@@ -25,6 +30,7 @@ from backend.app.schemas.printer import (
     PrintOptionsResponse,
     hms_error_responses,
 )
+from backend.app.services.pause_eta import next_pause
 from backend.app.services.printer_diagnostic import run_connection_diagnostic
 from backend.app.services.printer_manager import (
     drying_screen_only,
@@ -37,6 +43,8 @@ from backend.app.services.printer_manager import (
     supports_drying_while_printing,
 )
 from backend.app.services.printer_status_ams import build_ams_units, build_virtual_trays
+from backend.app.services.printer_status_slots import backup_trays, extruder_slots
+from backend.app.services.runout_tray import nozzle_wiring
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -55,23 +63,31 @@ printer_manager = _PrinterManagerProxy()
 @router.get("/{printer_id}/status", response_model=PrinterStatus)
 async def get_printer_status(
     printer_id: int,
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PRINTERS_READ)),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get real-time status of a printer."""
+    visibility = await resolve_printer_visibility(db, access, Permission.PRINTERS_READ, printer_id)
+
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
     printer = result.scalar_one_or_none()
     if not printer:
         raise HTTPException(404, "Printer not found")
 
-    cloud_user = current_user or cloud_owner
-    if cloud_user is None and await is_auth_enabled(db):
-        cloud_configured = False
-    else:
-        cloud_token, _cloud_email, _cloud_region = await get_stored_token(db, cloud_user)
-        cloud_configured = bool(cloud_token)
+    return await build_printer_status(db, printer, await printer_cloud_configured(db, visibility, cloud_owner))
 
+
+async def printer_cloud_configured(db: AsyncSession, visibility: RowVisibility, cloud_owner: User | None) -> bool:
+    cloud_user = visibility.user if visibility.api_key is None else cloud_owner
+    if cloud_user is None and await is_auth_enabled(db):
+        return False
+    cloud_token, _cloud_email, _cloud_region = await get_stored_token(db, cloud_user)
+    return bool(cloud_token)
+
+
+async def build_printer_status(db: AsyncSession, printer: Printer, cloud_configured: bool) -> PrinterStatus:
+    printer_id = printer.id
     state = printer_manager.get_status(printer_id)
     if not state:
         return PrinterStatus(
@@ -180,20 +196,45 @@ async def get_printer_status(
     # just the 3MF filename. Only attempted for active prints, since subtask_id
     # is only meaningful then.
     current_archive_id: int | None = None
+    current_run_id: int | None = None
     current_plate_id: int | None = None
+    current_backup_trays: dict[int, int] = {}
     if state.state in ("RUNNING", "PAUSE"):
         current_plate_id = resolve_plate_id(state)
-        if state.subtask_id:
-            from backend.app.models.archive import PrintArchive
+        from backend.app.main import _active_prints
+        from backend.app.services.running_print_archive import find_running_print
 
-            archive_row = await db.execute(
-                select(PrintArchive.id)
-                .where(PrintArchive.subtask_id == state.subtask_id)
-                .where(PrintArchive.printer_id == printer_id)
-                .order_by(PrintArchive.created_at.desc())
-                .limit(1)
-            )
-            current_archive_id = archive_row.scalar_one_or_none()
+        archive, run = await find_running_print(
+            db,
+            printer_id,
+            state,
+            bindings=_active_prints,
+            printing_only=False,
+            by_name=True,
+        )
+        current_archive_id = archive.id if archive is not None else None
+        if run is not None:
+            current_run_id = run.id
+            if run.plate_id is not None:
+                current_plate_id = run.plate_id
+            changes = getattr(state, "tray_change_log", None)
+            if run.queue_item_id is not None and state.connected and isinstance(changes, list) and len(changes) > 1:
+                raw_mapping = await db.scalar(
+                    select(PrintQueueItem.ams_mapping).where(
+                        PrintQueueItem.id == run.queue_item_id,
+                        PrintQueueItem.printer_id == printer_id,
+                        PrintQueueItem.status == "printing",
+                        PrintQueueItem.use_ams.is_(True),
+                    )
+                )
+                try:
+                    mapping = json.loads(raw_mapping) if raw_mapping else None
+                except (TypeError, ValueError):
+                    mapping = None
+                if isinstance(mapping, list):
+                    current_backup_trays = backup_trays(
+                        mapping, changes, second_external_holder=any(tray.id == 255 for tray in vt_tray)
+                    )
 
     local_control_available = state.connected and state.developer_mode is not False
     control_connection = PrinterControlConnection(
@@ -215,6 +256,7 @@ async def get_printer_status(
         gcode_file=state.gcode_file,
         progress=state.progress,
         remaining_time=state.remaining_time,
+        next_pause=next_pause(state),
         layer_num=state.layer_num,
         total_layers=state.total_layers,
         temperatures=temperatures,
@@ -241,13 +283,18 @@ async def get_printer_status(
         chamber_light=state.chamber_light,
         active_extruder=state.active_extruder,
         ams_mapping=ams_mapping,
+        print_ams_mapping=state.print_ams_mapping,
         ams_extruder_map=ams_extruder_map,
         tray_now=tray_now,
+        current_backup_trays=current_backup_trays,
+        extruder_slots=extruder_slots(state),
         expected_tray=(
             resolve_expected_tray(
                 state.tray_tar,
                 [(unit.id, unit.is_ams_ht) for unit in ams_units],
                 raw_data.get("mapping"),
+                active_extruder=state.active_extruder,
+                ams_extruder_map=nozzle_wiring(state),
             )
             if state.state == "PAUSE"
             else None
@@ -257,6 +304,8 @@ async def get_printer_status(
                 state.tray_pre,
                 [(unit.id, unit.is_ams_ht) for unit in ams_units],
                 raw_data.get("mapping"),
+                active_extruder=state.active_extruder,
+                ams_extruder_map=nozzle_wiring(state),
             )
             if state.state == "PAUSE"
             else None
@@ -270,6 +319,8 @@ async def get_printer_status(
         big_fan1_speed=state.big_fan1_speed,
         big_fan2_speed=state.big_fan2_speed,
         heatbreak_fan_speed=state.heatbreak_fan_speed,
+        left_aux_fan_speed=getattr(state, "left_aux_fan_speed", None),
+        exhaust_fan_present=getattr(state, "exhaust_fan_present", None),
         firmware_version=state.firmware_version,
         developer_mode=state.developer_mode if state else None,
         control_connection=control_connection,
@@ -280,6 +331,7 @@ async def get_printer_status(
         drying_screen_only=drying_screen_only(printer.model),
         supports_chamber_heater=supports_chamber_heater(printer.model),
         current_archive_id=current_archive_id,
+        current_run_id=current_run_id,
         current_plate_id=current_plate_id,
         fila_switch=(
             FilaSwitchResponse(
@@ -323,7 +375,7 @@ def overlay_temperatures(temperatures: dict | None, chamber_sensor: bool) -> dic
 async def get_overlay_status(
     printer_id: int,
     _: None = RequireOverlayTokenIfAuthEnabled,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ) -> dict:
     """Minimal single-printer status for unauthenticated OBS overlay embeds."""
     from backend.app.api.routes.settings import get_setting
@@ -379,7 +431,7 @@ async def get_overlay_status(
 async def get_current_print_user(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get the user who started the current print (for reprint tracking).
 
@@ -393,14 +445,14 @@ async def get_current_print_user(
         raise HTTPException(404, "Printer not found")
 
     user_info = printer_manager.get_current_print_user(printer_id)
-    return user_info or {}
+    return {"user_id": user_info["user_id"], "username": user_info["username"]} if user_info else {}
 
 
 @router.post("/{printer_id}/refresh-status")
 async def refresh_printer_status(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Request a full status refresh from the printer (sends pushall command)."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -419,7 +471,7 @@ async def refresh_printer_status(
 async def connect_printer(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Manually connect to a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -435,7 +487,7 @@ async def connect_printer(
 async def disconnect_printer(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Manually disconnect from a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -484,7 +536,7 @@ async def diagnose_connection(
 async def diagnose_printer(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Run connection diagnostics for an existing saved printer.
 
@@ -500,6 +552,8 @@ async def diagnose_printer(
     printer = result.scalar_one_or_none()
     if not printer:
         raise HTTPException(404, "Printer not found")
+    # Auth and printer lookup are complete; no DB connection during probes.
+    await db.close()
     return await run_connection_diagnostic(
         printer.ip_address,
         printer=printer,

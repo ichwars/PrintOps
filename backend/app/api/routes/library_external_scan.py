@@ -4,11 +4,13 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.library import LibraryFile, LibraryFolder
 from backend.app.models.settings import Settings
+from backend.app.services.library_queue_references import release_queue_references
+from backend.app.services.library_trash import delete_dependent_variants
 
 
 async def _external_folder_tree(db: AsyncSession, folder_id: int):
@@ -78,7 +80,7 @@ async def scan_external_folder(folder_id: int, db: AsyncSession):
         )
     )
     existing_files = {f.file_path: f for f in existing_result.scalars().all()}
-    repair_key = f"_backfill_132_external_folder_{folder_id}"
+    repair_key = f"_backfill_3435_external_folder_{folder_id}"
     external_types_repaired = (
         await db.execute(select(Settings.id).where(Settings.key == repair_key))
     ).scalar_one_or_none() is not None
@@ -272,9 +274,10 @@ async def scan_external_folder(folder_id: int, db: AsyncSession):
             db.add(db_file)
             added += 1
 
-    # Remove DB entries for files that no longer exist on disk
+    # A partial scan must not remove records of files still on disk.
+    vanished_ids: list[int] = []
     for path_str, db_file in existing_files.items():
-        if path_str not in found_paths:
+        if path_str not in found_paths and not library.os.path.exists(path_str):
             # Clean up thumbnail if we generated one
             if db_file.thumbnail_path:
                 try:
@@ -283,9 +286,14 @@ async def scan_external_folder(folder_id: int, db: AsyncSession):
                         abs_thumb.unlink()
                 except OSError:
                     pass
-            await db.delete(db_file)
             library.remove_library_photos_dir(db_file.id)
-            removed += 1
+            vanished_ids.append(db_file.id)
+    for start in range(0, len(vanished_ids), 400):
+        batch = vanished_ids[start : start + 400]
+        await release_queue_references(db, batch)
+        await delete_dependent_variants(db, batch)
+        await db.execute(delete(LibraryFile).where(LibraryFile.id.in_(batch)))
+    removed += len(vanished_ids)
 
     # Remove empty subfolders whose directories no longer exist on disk
     # Process deepest-first by sorting on path depth (descending)

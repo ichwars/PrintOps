@@ -181,6 +181,10 @@ class TestBuildAmsTrayLookup:
 class TestStorePrintData:
     """Tests for store_print_data()."""
 
+    @pytest.fixture(autouse=True)
+    def existing_printer(self, monkeypatch):
+        monkeypatch.setattr("backend.app.core.printer_lifecycle.lock_existing_printer", AsyncMock(return_value=True))
+
     @pytest.mark.asyncio
     async def test_prefers_explicit_ams_mapping_over_queue_mapping(self):
         db = AsyncMock()
@@ -189,7 +193,7 @@ class TestStorePrintData:
         # row before inserting the new one. Two execute calls in that order.
         queue_item = SimpleNamespace(ams_mapping=json.dumps([2, -1, -1, -1]), plate_id=None)
         queue_result = MagicMock()
-        queue_result.scalar_one_or_none.return_value = queue_item
+        queue_result.scalars.return_value.first.return_value = queue_item
         delete_result = MagicMock()
         db.execute = AsyncMock(side_effect=[queue_result, delete_result])
         db.add = MagicMock()
@@ -235,7 +239,7 @@ class TestStorePrintData:
         db = AsyncMock()
         queue_item = SimpleNamespace(ams_mapping=None, plate_id=2)
         queue_result = MagicMock()
-        queue_result.scalar_one_or_none.return_value = queue_item
+        queue_result.scalars.return_value.first.return_value = queue_item
         delete_result = MagicMock()
         db.execute = AsyncMock(side_effect=[queue_result, delete_result])
         db.add = MagicMock()

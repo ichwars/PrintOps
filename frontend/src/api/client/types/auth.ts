@@ -286,6 +286,7 @@ export interface OIDCLink {
 
 export interface TestSMTPRequest {
   test_recipient: string;
+  smtp?: SMTPSettings;
 }
 
 export interface TestSMTPResponse {
@@ -324,6 +325,15 @@ export interface EncryptionStatus {
   // B2: count of rows skipped during the last legacy re-encryption migration.
   // Surfaced via a yellow secondary banner in SecurityStatusCard.
   migration_error_count: number;
+}
+
+export interface LDAPTestRequest {
+  ldap_server_url?: string;
+  ldap_bind_dn?: string;
+  ldap_bind_password?: string;
+  ldap_search_base?: string;
+  ldap_user_filter?: string;
+  ldap_security?: string;
 }
 
 export interface LDAPTestResponse {

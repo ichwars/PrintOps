@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
       resolvedMode: 'dark',
       darkAccent: 'green',
       lightAccent: 'green',
-    } as { progressInTitle: boolean; resolvedMode: string; darkAccent: string; lightAccent: string },
+    } as { progressInTitle: boolean; tabPrintDisplay?: "percentage" | "time"; resolvedMode: string; darkAccent: string; lightAccent: string },
   },
   getPrinters: vi.fn(),
   getPrinterStatus: vi.fn(),
@@ -143,5 +143,23 @@ describe('usePrintProgressTitle effect', () => {
 
     await waitFor(() => expect(document.title).toBe('PrintOps'));
     expect(faviconHref()).toContain('/favicon.svg');
+  });
+  it('shows remaining time for the soonest print and falls back to percent when time is unavailable', async () => {
+    h.theme.value = {
+      progressInTitle: true, tabPrintDisplay: 'time', resolvedMode: 'dark', darkAccent: 'green', lightAccent: 'green',
+    };
+    h.getPrinters.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    h.getPrinterStatus.mockImplementation(async (id: number) =>
+      id === 1 ? running(70, 80) : running(15, 18),
+    );
+    const result = renderHook(() => usePrintProgressTitle(), { wrapper: wrapper() });
+    await waitFor(() => expect(document.title).toBe('18m · PrintOps'));
+    result.unmount();
+
+    h.getPrinters.mockResolvedValue([{ id: 1 }]);
+    h.getPrinterStatus.mockResolvedValue(running(32, null));
+    renderHook(() => usePrintProgressTitle(), { wrapper: wrapper() });
+    await waitFor(() => expect(document.title).toBe('32% · PrintOps'));
+    expect(faviconHref()).toBe(RING_URL);
   });
 });

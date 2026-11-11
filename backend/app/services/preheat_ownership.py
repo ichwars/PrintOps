@@ -253,6 +253,13 @@ class PreheatOwnership:
         if required and manager.is_awaiting_plate_clear(printer_id):
             raise _PlateClearRequired
 
+    def cancel_dispatch(self, item_id: int) -> None:
+        for lease in list(self.leases.values()):
+            if lease.item_id == item_id and not lease.published:
+                if lease.task and lease.task is not asyncio.current_task() and not lease.task.done():
+                    lease.task.cancel()
+                self.rollback(lease)
+
     def release_undispatched(self, item_id: int) -> None:
         for lease in list(self.leases.values()):
             if lease.item_id == item_id and lease.purpose == "keep_warm":

@@ -59,7 +59,7 @@ def spoolman_usage_cost(spool: dict | None, grams_used) -> float | None:
         return None
     filament = spool.get("filament")
     if not isinstance(filament, dict):
-        return None
+        filament = {}
 
     price = positive_finite_number(spool.get("price"))
     weight = positive_finite_number(spoolman_net_weight(spool))

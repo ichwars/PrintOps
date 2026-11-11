@@ -12,17 +12,19 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.auth import OwnershipAccess, RequirePermissionIfAuthEnabled, require_permission_with_key
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import resolve_printer_visibility
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
 from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.firmware_check import get_firmware_service
 from backend.app.services.firmware_update import (
-    FirmwareUploadStatus,
+    PRINTER_BUSY_ERROR,
     get_firmware_update_service,
     get_upload_state,
+    upload_in_progress,
 )
 from backend.app.services.printer_manager import printer_manager
 
@@ -73,7 +75,7 @@ class LatestFirmwareInfo(BaseModel):
 
 @router.get("/updates", response_model=FirmwareUpdatesResponse)
 async def check_firmware_updates(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.FIRMWARE_READ),
 ):
     """
@@ -128,13 +130,11 @@ async def check_firmware_updates(
 @router.get("/updates/{printer_id}", response_model=FirmwareUpdateInfo)
 async def check_printer_firmware(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.FIRMWARE_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.FIRMWARE_READ)),
 ):
-    """
-    Check for firmware update for a specific printer.
-    """
-    firmware_service = get_firmware_service()
+    """Check for firmware update for a specific printer."""
+    await resolve_printer_visibility(db, access, Permission.FIRMWARE_READ, printer_id)
 
     # Get printer from database
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -142,7 +142,11 @@ async def check_printer_firmware(
 
     if not printer:
         raise HTTPException(status_code=404, detail="Printer not found")
+    return await printer_firmware_update(printer)
 
+
+async def printer_firmware_update(printer: Printer) -> FirmwareUpdateInfo:
+    firmware_service = get_firmware_service()
     # Get current firmware version from MQTT state
     current_version = None
     mqtt_client = printer_manager.get_client(printer.id)
@@ -231,7 +235,7 @@ class FirmwareUploadStartResponse(BaseModel):
 async def prepare_firmware_upload(
     printer_id: int,
     version: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.FIRMWARE_READ),
 ):
     """
@@ -254,9 +258,9 @@ async def prepare_firmware_upload(
 async def start_firmware_upload(
     printer_id: int,
     version: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.FIRMWARE_UPDATE),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """
     Start uploading firmware to a printer's SD card.
@@ -271,7 +275,9 @@ async def start_firmware_upload(
     After upload completes, the user must trigger the update from the
     printer's screen (Settings > Firmware).
     """
-    # First check prerequisites
+    if upload_in_progress(printer_id):
+        return FirmwareUploadStartResponse(started=False, message="Firmware upload already in progress")
+
     update_service = get_firmware_update_service()
     prepare_result = await update_service.prepare_update(printer_id, db, target_version=version)
 
@@ -287,15 +293,14 @@ async def start_firmware_upload(
 
     if not started:
         state = get_upload_state(printer_id)
-        if state.status == FirmwareUploadStatus.DOWNLOADING:
+        if upload_in_progress(printer_id):
             return FirmwareUploadStartResponse(
                 started=False,
                 message="Firmware upload already in progress",
             )
-        raise HTTPException(
-            status_code=500,
-            detail=state.error or "Failed to start firmware upload",
-        )
+        if state.error == PRINTER_BUSY_ERROR:
+            raise HTTPException(409, PRINTER_BUSY_ERROR)
+        raise HTTPException(500, state.error or "Failed to start firmware upload")
 
     return FirmwareUploadStartResponse(
         started=True,

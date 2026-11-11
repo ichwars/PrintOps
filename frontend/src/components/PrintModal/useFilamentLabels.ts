@@ -37,6 +37,32 @@ interface FilamentReqLike {
   tray_info_idx?: string;
 }
 
+export function useFilamentPresetNames() {
+  const { data: builtinFilaments } = useQuery({
+    queryKey: ['builtin-filaments'],
+    queryFn: () => api.getBuiltinFilaments(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: cloudFilamentIdMap } = useQuery({
+    queryKey: ['filament-id-map'],
+    queryFn: () => api.getFilamentIdMap(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const f of builtinFilaments || []) {
+      if (f.filament_id) map[f.filament_id] = f.name;
+    }
+    // Cloud user-preset map wins when both have the same id — the user-
+    // authored name is the more specific label.
+    for (const [fid, name] of Object.entries(cloudFilamentIdMap || {})) {
+      if (fid && name) map[fid] = name;
+    }
+    return map;
+  }, [builtinFilaments, cloudFilamentIdMap]);
+}
+
 /**
  * Resolve per-slot human-readable labels for the schedule modal's filament
  * panels (#1718). Both the model-mode ``FilamentOverride`` and the printer-
@@ -59,29 +85,7 @@ interface FilamentReqLike {
  * index without a length check.
  */
 export function useFilamentLabels(reqs: readonly FilamentReqLike[] | undefined): FilamentLabel[] {
-  const { data: builtinFilaments } = useQuery({
-    queryKey: ['builtin-filaments'],
-    queryFn: () => api.getBuiltinFilaments(),
-    staleTime: 5 * 60 * 1000,
-  });
-  const { data: cloudFilamentIdMap } = useQuery({
-    queryKey: ['filament-id-map'],
-    queryFn: () => api.getFilamentIdMap(),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const filamentNameByIdx = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const f of builtinFilaments || []) {
-      if (f.filament_id) map[f.filament_id] = f.name;
-    }
-    // Cloud user-preset map wins when both have the same id — the user-
-    // authored name is the more specific label.
-    for (const [fid, name] of Object.entries(cloudFilamentIdMap || {})) {
-      if (fid && name) map[fid] = name;
-    }
-    return map;
-  }, [builtinFilaments, cloudFilamentIdMap]);
+  const filamentNameByIdx = useFilamentPresetNames();
 
   // Compute the per-slot (resolvedName, materialHint) pairs up-front so the
   // ``useQueries`` call below has a stable shape and the render path below

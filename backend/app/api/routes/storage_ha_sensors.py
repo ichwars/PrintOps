@@ -2,14 +2,14 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.location import Location
 from backend.app.models.storage_ha_sensor import StorageHASensor
@@ -33,7 +33,7 @@ _WRITE = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE)
 
 
 @router.get("/entities", response_model=list[HADisplayEntity])
-async def entities(db: AsyncSession = Depends(get_db), _: User | None = _READ):
+async def entities(db: AsyncSession = DB_SESSION, _: User | None = _READ):
     from backend.app.api.routes.settings import get_homeassistant_settings
 
     settings = await get_homeassistant_settings(db)
@@ -57,7 +57,7 @@ async def entities(db: AsyncSession = Depends(get_db), _: User | None = _READ):
 
 
 @router.get("/", response_model=list[StorageHASensorResponse])
-async def list_sensors(location_id: int | None = None, db: AsyncSession = Depends(get_db), _: User | None = _READ):
+async def list_sensors(location_id: int | None = None, db: AsyncSession = DB_SESSION, _: User | None = _READ):
     query = select(StorageHASensor)
     if location_id is not None:
         query = query.where(StorageHASensor.location_id == location_id)
@@ -65,7 +65,7 @@ async def list_sensors(location_id: int | None = None, db: AsyncSession = Depend
 
 
 @router.get("/readings", response_model=list[StorageHASensorReading])
-async def readings(db: AsyncSession = Depends(get_db), _: User | None = _READ):
+async def readings(db: AsyncSession = DB_SESSION, _: User | None = _READ):
     sensors = (await db.execute(select(StorageHASensor).order_by(StorageHASensor.id))).scalars().all()
     output = []
     now = utcnow_naive()
@@ -113,7 +113,7 @@ async def _save(db: AsyncSession, sensor: StorageHASensor):
 
 
 @router.post("/", response_model=StorageHASensorResponse, status_code=201)
-async def create(data: StorageHASensorCreate, db: AsyncSession = Depends(get_db), _: User | None = _WRITE):
+async def create(data: StorageHASensorCreate, db: AsyncSession = DB_SESSION, _: User | None = _WRITE):
     if await db.get(Location, data.location_id) is None:
         raise HTTPException(404, "Location not found")
     sensor = StorageHASensor(**data.model_dump())
@@ -122,9 +122,7 @@ async def create(data: StorageHASensorCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.patch("/{sensor_id}", response_model=StorageHASensorResponse)
-async def update(
-    sensor_id: int, data: StorageHASensorUpdate, db: AsyncSession = Depends(get_db), _: User | None = _WRITE
-):
+async def update(sensor_id: int, data: StorageHASensorUpdate, db: AsyncSession = DB_SESSION, _: User | None = _WRITE):
     sensor = await db.get(StorageHASensor, sensor_id)
     if sensor is None:
         raise HTTPException(404, "Sensor not found")
@@ -143,7 +141,7 @@ async def update(
 
 
 @router.delete("/{sensor_id}", status_code=204)
-async def delete(sensor_id: int, db: AsyncSession = Depends(get_db), _: User | None = _WRITE):
+async def delete(sensor_id: int, db: AsyncSession = DB_SESSION, _: User | None = _WRITE):
     sensor = await db.get(StorageHASensor, sensor_id)
     if sensor is None:
         raise HTTPException(404, "Sensor not found")

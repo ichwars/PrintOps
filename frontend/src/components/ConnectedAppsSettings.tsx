@@ -12,8 +12,8 @@ const inputClass = 'w-full rounded-lg border border-bambu-dark-tertiary bg-bambu
 
 export function ConnectedAppsSettings() {
   const { t } = useTranslation();
-  const { authEnabled, hasPermission } = useAuth();
-  const allowed = authEnabled && hasPermission('settings:update');
+  const { authEnabled, hasPermission, isAdmin } = useAuth();
+  const allowed = authEnabled && isAdmin && hasPermission('settings:update');
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [callback, setCallback] = useState('');
@@ -24,7 +24,7 @@ export function ConnectedAppsSettings() {
   const apps = useQuery({ queryKey: ['connected-apps'], queryFn: connectedAppsApi.list, enabled: allowed });
   const mutation = useMutation({ mutationFn: async (operation: () => Promise<unknown>) => operation(),
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['connected-apps'] }); setConfirm(null); } });
-  if (!hasPermission('settings:update')) return null;
+  if (!hasPermission('settings:update') || (authEnabled && !isAdmin)) return null;
   const save = () => mutation.mutate(async () => {
     if (editing === null) { setSecret(await connectedAppsApi.create({ name, redirect_uri: callback })); setCopyStatus(''); }
     else await connectedAppsApi.update(editing, { name, redirect_uri: callback });

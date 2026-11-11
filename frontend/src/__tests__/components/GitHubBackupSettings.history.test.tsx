@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '../utils';
 import { GitHubBackupSettings } from '../../components/GitHubBackupSettings';
 import { api } from '../../api/client';
@@ -17,6 +17,7 @@ vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     getGitHubBackupConfig: vi.fn().mockResolvedValue({
       id: 1,
       repository_url: 'https://github.com/someone/backup',
@@ -24,6 +25,7 @@ vi.mock('../../api/client', () => ({
     }),
     getGitHubBackupStatus: vi.fn().mockResolvedValue({ is_running: false, configured: true, enabled: true }),
     getGitHubBackupLogs: vi.fn(),
+    clearGitHubBackupLogs: vi.fn().mockResolvedValue({ deleted: 1, message: 'ok' }),
     getCloudStatus: vi.fn().mockResolvedValue({ is_authenticated: false }),
     getPrinters: vi.fn().mockResolvedValue([]),
     getPrinterStatus: vi.fn().mockResolvedValue({ connected: false }),
@@ -62,6 +64,20 @@ const historyRows = async () => {
 describe('GitHubBackupSettings — backup history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('clears GitHub backup history only after confirmation', async () => {
+    vi.mocked(api.getGitHubBackupLogs).mockResolvedValue([log(1, 'restore')]);
+    render(<GitHubBackupSettings />);
+    const card = (await screen.findByText('History')).closest('div[id="card-backup-history"]') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Clear' }));
+    expect(api.clearGitHubBackupLogs).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: 'History' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(api.clearGitHubBackupLogs).not.toHaveBeenCalled();
+    fireEvent.click(within(card).getByRole('button', { name: 'Clear' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'History' })).getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(api.clearGitHubBackupLogs).toHaveBeenCalledWith(0));
   });
 
   it('labels a restore as a restore, not a successful backup', async () => {

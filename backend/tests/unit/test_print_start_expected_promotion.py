@@ -56,11 +56,11 @@ class TestRegisterExpectedPrint:
 
     def test_stores_ams_mapping(self):
         register_expected_print(1, "test.3mf", archive_id=10, ams_mapping=[2, -1, 3])
-        assert _print_ams_mappings[10] == [2, -1, 3]
+        assert _print_ams_mappings[(1, 10)] == [2, -1, 3]
 
     def test_no_ams_mapping_when_none(self):
         register_expected_print(1, "test.3mf", archive_id=10, ams_mapping=None)
-        assert 10 not in _print_ams_mappings
+        assert (1, 10) not in _print_ams_mappings
 
     def test_stores_creator(self):
         register_expected_print(1, "test.3mf", archive_id=10, created_by_id=5)
@@ -77,20 +77,20 @@ class TestRegisterExpectedPrint:
     def test_stores_plate_id(self):
         """plate_id is registered so usage tracking can scope multi-plate 3MFs (#1697)."""
         register_expected_print(1, "test.3mf", archive_id=10, plate_id=2)
-        assert _print_plate_ids[10] == 2
+        assert _print_plate_ids[(1, 10)] == 2
 
     def test_no_plate_id_when_none(self):
         """Direct-Print of a single-plate file passes plate_id=None; nothing stored."""
         register_expected_print(1, "test.3mf", archive_id=10, plate_id=None)
-        assert 10 not in _print_plate_ids
+        assert (1, 10) not in _print_plate_ids
 
     def test_get_start_plate_id_reads_back(self):
         register_expected_print(1, "test.3mf", archive_id=10, plate_id=3)
-        assert _get_start_plate_id(10) == 3
+        assert _get_start_plate_id(1, 10) == 3
 
     def test_get_start_plate_id_returns_none_for_unregistered(self):
-        assert _get_start_plate_id(10) is None
-        assert _get_start_plate_id(None) is None
+        assert _get_start_plate_id(1, 10) is None
+        assert _get_start_plate_id(1, None) is None
 
     def test_resolved_start_plate_prefers_live_dispatch_evidence(self):
         from backend.app.services.fallback_archive_recovery import resolve_fallback_plate
@@ -273,7 +273,7 @@ class TestExpectedPrintPromotion:
         )
 
         # ams_mapping should still be available for on_print_complete
-        assert _print_ams_mappings[54] == [1]
+        assert _print_ams_mappings[(1, 54)] == [1]
 
     def test_completion_lookup_finds_promoted_archive(self):
         """Simulate on_print_complete finding the archive in _active_prints."""
@@ -300,7 +300,7 @@ class TestExpectedPrintPromotion:
 
         assert found_id == 54
         # And ams_mapping is retrievable
-        assert _print_ams_mappings.pop(54, None) == [1]
+        assert _print_ams_mappings.pop((1, 54), None) == [1]
 
     def test_no_promotion_for_external_print(self):
         """When no expected print exists, nothing is promoted."""
@@ -342,7 +342,7 @@ class TestAMSMappingInjection:
         register_expected_print(1, "Box.3mf", archive_id=54, ams_mapping=[1])
 
         # Simulate the injection logic from on_print_start
-        _stored_map = _print_ams_mappings.get(54)
+        _stored_map = _print_ams_mappings.get((1, 54))
         assert _stored_map == [1]
 
         ut_session = _active_sessions.get(1)
@@ -375,7 +375,7 @@ class TestAMSMappingInjection:
 
         register_expected_print(1, "Box.3mf", archive_id=54, ams_mapping=[1])
 
-        _stored_map = _print_ams_mappings.get(54)
+        _stored_map = _print_ams_mappings.get((1, 54))
         ut_session = _active_sessions.get(1)
 
         # Guard: don't overwrite if session already has a mapping
@@ -416,7 +416,7 @@ class TestPlateIdInjection:
         register_expected_print(1, "Box.3mf", archive_id=54, plate_id=2)
 
         # Mirror the injection branch from main.py.
-        _stored_plate_id = _print_plate_ids.get(54)
+        _stored_plate_id = _print_plate_ids.get((1, 54))
         assert _stored_plate_id == 2
 
         ut_session = _active_sessions.get(1)
@@ -451,7 +451,7 @@ class TestPlateIdInjection:
 
         register_expected_print(1, "Box.3mf", archive_id=54, plate_id=2)
 
-        _stored_plate_id = _print_plate_ids.get(54)
+        _stored_plate_id = _print_plate_ids.get((1, 54))
         ut_session = _active_sessions.get(1)
 
         # Guard: don't overwrite if session already has a plate_id

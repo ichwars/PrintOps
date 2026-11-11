@@ -17,6 +17,7 @@ BED_KEYS = {
     "Engineering Plate": "eng_plate_temp_initial_layer",
     "High Temp Plate": "hot_plate_temp_initial_layer",
     "Textured PEI Plate": "textured_plate_temp_initial_layer",
+    "Textured Cool Plate": "textured_cool_plate_temp_initial_layer",
     "Supertack Plate": "supertack_plate_temp_initial_layer",
 }
 

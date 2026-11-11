@@ -1,5 +1,17 @@
 """Color comparison utilities for RFID/firmware color matching."""
 
+import re
+
+
+def filament_rgb(value: object) -> str:
+    """Format firmware RGB or RGBA as an archive swatch."""
+    if not isinstance(value, str):
+        return ""
+    digits = value.strip().removeprefix("#")
+    if re.fullmatch(r"[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?", digits):
+        return f"#{digits[:6].upper()}"
+    return ""
+
 
 def colors_similar(hex_a: str, hex_b: str, threshold: int = 50) -> bool:
     """Compare two RRGGBB(AA) hex colors with tolerance for RFID/firmware variations.

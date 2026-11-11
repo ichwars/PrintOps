@@ -6,6 +6,8 @@ Tests the /api/v1/metrics endpoint for Prometheus scraping.
 import pytest
 from httpx import AsyncClient
 
+from backend.app.services.secret_fields import SECRET_PLACEHOLDER
+
 
 class TestMetricsAPI:
     """Integration tests for /api/v1/metrics endpoint."""
@@ -129,7 +131,9 @@ class TestMetricsAPI:
         settings = response.json()
 
         assert settings["prometheus_enabled"] is True
-        assert settings["prometheus_token"] == "mytoken"
+        assert settings["prometheus_token"] == SECRET_PLACEHOLDER
+        authorised = await async_client.get("/api/v1/metrics", headers={"Authorization": "Bearer mytoken"})
+        assert authorised.status_code == 200
 
         # Disable and verify
         await async_client.put("/api/v1/settings/", json={"prometheus_enabled": False})

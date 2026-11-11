@@ -207,7 +207,10 @@ async def test_recreated_identical_spool_with_reused_id_starts_new_warning_and_d
     await FilamentLowMonitor().tick(db_session)
     await db_session.delete(original)
     await db_session.commit()
-    replacement = Spool(material="PLA", color_name="Red", label_weight=250, weight_used=225, weight_used_baseline=225)
+    # Restore/import and legacy databases can supply an explicit reused ID.
+    replacement = Spool(
+        id=original_id, material="PLA", color_name="Red", label_weight=250, weight_used=225, weight_used_baseline=225
+    )
     db_session.add(replacement)
     await db_session.flush()
     db_session.add(SpoolAssignment(printer_id=printer.id, spool_id=replacement.id, ams_id=255, tray_id=1))

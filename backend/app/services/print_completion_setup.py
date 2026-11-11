@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-async def prepare_print_completion(printer_id: int, data: dict, logger, baselines: dict):
+async def prepare_print_completion(printer_id: int, data: dict, logger, baselines: dict, *, internal_job=None):
     """Claim attribution, reject internal jobs, recover cache, then evict it."""
     from backend.app.services import active_print_provenance as provenance
     from backend.app.services.bambu_ftp import clear_3mf_cache
@@ -11,7 +11,9 @@ async def prepare_print_completion(printer_id: int, data: dict, logger, baseline
     from backend.app.utils.print_jobs import ignore_internal_printer_job
 
     session = await provenance.claim_print_session(printer_id, data, logger)
-    if ignore_internal_printer_job(data, logger, "completion"):
+    if internal_job is None:
+        internal_job = ignore_internal_printer_job(data, logger, "completion")
+    if internal_job:
         await provenance.discard_print_session(printer_id, session, logger)
         baselines.pop(printer_id, None)
         return session, True

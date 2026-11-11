@@ -39,7 +39,8 @@ export function PurgeArchivesModal({ onClose, initialDays }: PurgeArchivesModalP
   });
 
   const purgeMutation = useMutation({
-    mutationFn: () => api.executeArchivePurge(days, purgeStats),
+    mutationFn: (params: { days: number; purgeStats: boolean }) =>
+      api.executeArchivePurge(params.days, params.purgeStats),
     onSuccess: (res) => {
       showToast(t('archivePurge.toast.success', { count: res.deleted }), 'success');
       queryClient.invalidateQueries({ queryKey: ['archives'] });
@@ -60,7 +61,8 @@ export function PurgeArchivesModal({ onClose, initialDays }: PurgeArchivesModalP
   const preview = previewQuery.data;
   const count = preview?.count ?? 0;
   const totalBytes = preview?.total_bytes ?? 0;
-  const canConfirm = count > 0 && !purgeMutation.isPending;
+  const canConfirm = count > 0 && days === debouncedDays
+    && previewQuery.isSuccess && !previewQuery.isFetching && !purgeMutation.isPending;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -169,7 +171,9 @@ export function PurgeArchivesModal({ onClose, initialDays }: PurgeArchivesModalP
           <Button
             variant="danger"
             disabled={!canConfirm}
-            onClick={() => purgeMutation.mutate()}
+            onClick={() => {
+              if (canConfirm) purgeMutation.mutate({ days: debouncedDays, purgeStats });
+            }}
           >
             {purgeMutation.isPending ? (
               <>

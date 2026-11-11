@@ -4,6 +4,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+BAMBU_GREEN = "#00AE42"
+BACKGROUND_COLOR = "#1a1a1a"
+
 VIEW_ELEVATION = 25
 VIEW_AZIMUTH = 45
 LIGHT_AZIMUTH = 315

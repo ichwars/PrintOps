@@ -462,3 +462,92 @@ async def test_identity_change_during_profile_read_cannot_select_previous_spool_
     monkeypatch.setattr(kprofile_drift, "_slot_profiles", read_then_change)
     assert await kprofile_drift.reapply_lost_kprofiles(printer.id, throttle=False) == 0
     assert selections(mqtt) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "source,expected,reads",
+    [
+        ("remote", "GFA01", 1),
+        ("model", "GFA02", 0),
+        ("blank", "GFA00", 0),
+        ("invalid", "GFA00", 1),
+        ("unavailable", "GFA00", 1),
+        ("reassigned", "GFA00", 1),
+    ],
+)
+async def test_drift_uses_the_current_spool_preset_only_as_a_safe_fallback(
+    recovery, db_session, monkeypatch, source, expected, reads
+):
+    from contextlib import asynccontextmanager
+
+    from backend.app.core import database
+    from backend.app.models.spool_filament_preset import SpoolmanFilamentPreset
+
+    printer, _, _, mqtt, push = recovery
+    db_session.add_all(
+        [
+            Settings(key="spoolman_enabled", value="true"),
+            SpoolmanSlotAssignment(printer_id=printer.id, ams_id=0, tray_id=0, spoolman_spool_id=42),
+            SpoolmanKProfile(
+                printer_id=printer.id, spoolman_spool_id=42, extruder=0, nozzle_diameter="0.4", cali_idx=8, k_value=0.03
+            ),
+        ]
+    )
+    if source in ("model", "blank"):
+        db_session.add(
+            SpoolmanFilamentPreset(
+                spoolman_spool_id=42,
+                printer_model="X1C",
+                slicer_filament="GFA02" if source == "model" else None,
+            )
+        )
+    await db_session.commit()
+    mqtt.state.kprofiles = []
+    mqtt.state.kprofile_diameters.clear()
+    mqtt.state.raw_data["ams"][0]["tray"][0]["cali_idx"] = -1
+    factory, active, observed = database.async_session, [0], []
+
+    @asynccontextmanager
+    async def sessions():
+        async with factory() as db:
+            active[0] += 1
+            try:
+                yield db
+            finally:
+                active[0] -= 1
+
+    async def remote_spool(spool_id):
+        observed.append(active[0])
+        if source == "unavailable":
+            raise RuntimeError("not reachable")
+        if source == "reassigned":
+            row = await db_session.scalar(select(SpoolmanSlotAssignment))
+            row.spoolman_spool_id = 99
+            db_session.add(
+                SpoolmanKProfile(
+                    printer_id=printer.id,
+                    spoolman_spool_id=99,
+                    extruder=0,
+                    nozzle_diameter="0.4",
+                    cali_idx=8,
+                    k_value=0.03,
+                )
+            )
+            await db_session.commit()
+        return {
+            "id": spool_id,
+            "filament": {"material": "PLA", "name": "PLA", "weight": 1000},
+            "extra": {"bambu_slicer_filament": json.dumps("PFUS123" if source == "invalid" else "GFSA01_07")},
+        }
+
+    client = MagicMock()
+    client.get_spool = AsyncMock(side_effect=remote_spool)
+    monkeypatch.setattr(database, "async_session", sessions)
+    monkeypatch.setattr("backend.app.services.spoolman.get_spoolman_client", AsyncMock(return_value=client))
+    await push()
+    selected = selections(mqtt)
+    assert len(selected) == 1
+    assert selected[0]["filament_id"] == expected
+    assert client.get_spool.await_count == reads
+    assert observed == [0] * reads  # No local drift DB session held across remote I/O.

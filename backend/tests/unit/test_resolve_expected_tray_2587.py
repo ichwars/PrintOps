@@ -22,3 +22,17 @@ def test_idle_or_unknown_values_return_none():
     assert resolve_expected_tray(255, [(0, False)], None) is None
     assert resolve_expected_tray(-1, [(0, False)], None) is None
     assert resolve_expected_tray(None, [(0, False)], None) is None
+
+
+def test_active_nozzle_narrows_ambiguous_local_slots_only_with_complete_wiring():
+    layout = [(0, False), (1, False)]
+    snow = [2, 258]
+    assert resolve_expected_tray(2, layout, snow, active_extruder=1, ams_extruder_map={"0": 0, "1": 1}) == 6
+    assert resolve_expected_tray(2, layout, None, active_extruder=1, ams_extruder_map={"0": 0, "1": 1}) == 6
+    assert resolve_expected_tray(2, layout, snow, active_extruder=1, ams_extruder_map={"0": 0}) is None
+    assert resolve_expected_tray(2, layout, snow, active_extruder=1, ams_extruder_map=None) is None
+
+
+def test_invalid_mapping_values_do_not_prove_a_slot():
+    assert resolve_expected_tray(False, [(0, False)], None) is None
+    assert resolve_expected_tray(2, [(0, False), (1, False)], [-254, True]) is None

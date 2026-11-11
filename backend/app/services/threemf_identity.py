@@ -4,12 +4,29 @@ from __future__ import annotations
 
 import re
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from backend.app.utils.archive_budget import ArchiveBudgetError, validate_zip_archive
 
 _GENERIC_PLATE_STEM = re.compile(r"^plate_?\d+$", re.IGNORECASE)
+
+
+def subtask_is_printed_file(subtask_name: str | None, filename: str | None) -> bool:
+    """A touchscreen print can report the full 3MF name in both fields."""
+    if not isinstance(subtask_name, str) or not subtask_name.lower().endswith(".3mf"):
+        return False
+    if not isinstance(filename, str):
+        return False
+    return PurePosixPath(filename.split("://", 1)[-1]).name == subtask_name
+
+
+def has_sliced_plate(path: Path, plate: int) -> bool:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            return any(info.filename == f"Metadata/plate_{plate}.gcode" for info in validate_zip_archive(archive))
+    except (OSError, zipfile.BadZipFile, ArchiveBudgetError):
+        return False
 
 
 def like_escape(value: str) -> str:

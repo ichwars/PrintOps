@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Video } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCameraPlacementPreference, type CameraPlacement, type CameraViewPreference } from '../hooks/useCameraViewPreference';
-import { openCameraWindow } from '../utils/cameraWindow';
+import { isIosHomeScreenApp, openCameraWindow } from '../utils/cameraWindow';
 import { Button } from './Button';
 
 interface CameraLaunchButtonProps {
@@ -24,9 +24,11 @@ export function CameraLaunchButton({ printerId, printerName, serialNumber, fallb
   ready, connected, permitted, onOpenEmbeddedCamera, className }: CameraLaunchButtonProps) {
   const { t } = useTranslation();
   const placement = useCameraPlacementPreference(serialNumber, fallback);
-  const disabled = !ready || !placement.ready || !connected || !permitted;
+  const embeddedOnly = isIosHomeScreenApp();
+  const mode = embeddedOnly ? 'embedded' : placement.mode;
+  const disabled = !ready || (!embeddedOnly && !placement.ready) || !connected || !permitted;
   const [openIdentity, setOpenIdentity] = useState<string | null>(null);
-  const open = openIdentity === placement.identity && !disabled;
+  const open = openIdentity === placement.identity && !disabled && !embeddedOnly;
   if (openIdentity !== null && !open) setOpenIdentity(null);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -48,23 +50,23 @@ export function CameraLaunchButton({ printerId, printerName, serialNumber, fallb
   const launch = (mode: CameraPlacement) => {
     if (disabled) return;
     if (mode === 'embedded' && onOpenEmbeddedCamera && onOpenEmbeddedCamera(printerId, printerName) !== false) return;
-    openCameraWindow(printerId, contentMode); // Synchronous: preserve popup gesture and sessionStorage opener.
+    if (!embeddedOnly) openCameraWindow(printerId, contentMode); // Synchronous: preserve popup gesture and sessionStorage opener.
   };
   return <div ref={root} className="relative inline-flex shrink-0" onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) close();
   }}>
     <Button variant="secondary" size="sm" disabled={disabled}
-      title={!permitted ? t('printers.permission.noCamera') : label(placement.mode)} aria-label={label(placement.mode)}
-      className={`${className ?? ''} rounded-r-none`} onClick={() => launch(placement.mode)}>
+      title={!permitted ? t('printers.permission.noCamera') : label(mode)} aria-label={label(mode)}
+      className={`${className ?? ''} ${embeddedOnly ? '' : 'rounded-r-none'}`} onClick={() => launch(mode)}>
       <Video className="w-4 h-4" />
     </Button>
-    <Button ref={trigger} variant="secondary" size="sm" disabled={disabled}
+    {!embeddedOnly && <Button ref={trigger} variant="secondary" size="sm" disabled={disabled}
       aria-label={t('camera.choosePlacement')} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
       className="h-8 rounded-l-none border-l border-bambu-dark-tertiary px-1.5"
       onClick={() => { initialFocus.current = 0; if (open) close(); else setOpenIdentity(placement.identity); }}
       onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault(); initialFocus.current = event.key === 'ArrowUp' ? 1 : 0; setOpenIdentity(placement.identity);
-      } }}><ChevronDown className="w-3 h-3" /></Button>
+      } }}><ChevronDown className="w-3 h-3" /></Button>}
     {open && <div id={menuId} role="menu" aria-label={t('camera.choosePlacement')}
       className="absolute bottom-full left-0 z-50 mb-1 w-max max-w-[calc(100vw-2rem)] rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-1 shadow-xl"
       onKeyDown={event => {

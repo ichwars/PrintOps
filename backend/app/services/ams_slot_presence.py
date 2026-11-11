@@ -58,3 +58,61 @@ def spool_present(tray: Mapping[str, Any] | None) -> bool | None:
         return None
     exists = tray.get("exists")
     return exists if isinstance(exists, bool) else None
+
+
+def _find_tray_in_ams_data(ams_data: list, ams_id: int, tray_id: int) -> dict | None:
+    """Find a specific tray in the AMS data structure."""
+    if not ams_data:
+        return None
+    for ams_unit in ams_data:
+        if int(ams_unit.get("id", -1)) != ams_id:
+            continue
+        for tray in ams_unit.get("tray", []):
+            if int(tray.get("id", -1)) == tray_id:
+                return tray
+    return None
+
+
+def tray_for_slot(raw_data: Mapping, ams_id: int, tray_id: int) -> dict:
+    """Read one live slot, including the external feeds' sentinel IDs."""
+    if ams_id == 255:
+        for tray in raw_data.get("vt_tray") or []:
+            if isinstance(tray, dict) and int(tray.get("id", 254)) == tray_id + 254:
+                return tray
+        return {}
+    ams = raw_data.get("ams", {})
+    units = ams.get("ams", []) if isinstance(ams, dict) else ams if isinstance(ams, list) else []
+    return _find_tray_in_ams_data(units, ams_id, tray_id) or {}
+
+
+def unit_reported_absent(ams_id, ams_list: list, ams_exist_bits) -> bool:
+    """Whether a push that doesn't list AMS unit ``ams_id`` says it is unplugged.
+
+    ``ams_exist_bits`` (hex) has bit n set for AMS unit n, measured on an X1C
+    (unit 1 -> "2", none -> "0") and an H2C (units 0, 1, 2 and HT 128 -> "17").
+    So an AMS unit 0-3 whose bit is clear is gone. An empty unit list with no
+    bits set means no unit at all, which is what the X1C sends with its AMS
+    unplugged. Anything else is kept, as the merge always did: a partial push
+    lists only some units, and the bits of an AMS HT or AMS Lite next to other
+    units are not measured well enough to read.
+    """
+    if ams_exist_bits is None:
+        return False
+    try:
+        bits = int(ams_exist_bits, 16) if isinstance(ams_exist_bits, str) else int(ams_exist_bits)
+        unit = int(ams_id)
+    except (TypeError, ValueError):
+        return False
+    if bits == 0 and not ams_list:
+        return True
+    return 0 <= unit <= 3 and not bits >> unit & 1
+
+
+def attached_ams_units(existing_by_id: dict, ams_list: list, ams_data: object) -> list:
+    """Merge completion: drop only units explicitly reported unplugged."""
+    if isinstance(ams_data, dict):
+        listed = {str(unit.get("id")) for unit in ams_list if isinstance(unit, dict)}
+        for ams_id in list(existing_by_id):
+            if str(ams_id) not in listed and unit_reported_absent(ams_id, ams_list, ams_data.get("ams_exist_bits")):
+                del existing_by_id[ams_id]
+    return sorted(existing_by_id.values(), key=lambda unit: int(unit.get("id", 0)))

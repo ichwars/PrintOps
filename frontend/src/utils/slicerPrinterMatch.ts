@@ -26,6 +26,7 @@ export type PrinterCompatibility = 'match' | 'mismatch' | 'unknown';
 // (raw-token comparison), and gracefully degrades otherwise.
 export interface PrinterCompatibilityIndex {
   bambuModelByShortCode: Record<string, string>;
+  printerParents?: string[];
 }
 
 /** An empty index — used when the model map hasn't loaded yet. */
@@ -91,9 +92,11 @@ function buildShortCodeMap(
  */
 export function buildCompatibilityIndex(
   printerModels: Record<string, string> = {},
+  printerParents?: string[],
 ): PrinterCompatibilityIndex {
   return {
     bambuModelByShortCode: buildShortCodeMap(printerModels),
+    printerParents,
   };
 }
 
@@ -133,7 +136,7 @@ function extractBblToken(presetName: string): { token: string; nozzle: string | 
 // nozzle]" printer preset name. Returns null for non-Bambu printer
 // presets — there is no reliable name-based match against those.
 function extractPrinterPresetModel(printerPresetName: string): { model: string; nozzle: string | null } | null {
-  const m = printerPresetName.match(/^Bambu Lab\s+(.+)$/i);
+  const m = printerPresetName.replace(/^#\s+/, '').match(/^Bambu Lab\s+(.+)$/i);
   if (!m) return null;
   const { stripped, nozzle } = takeNozzleSuffix(m[1]);
   return stripped ? { model: stripped, nozzle } : null;
@@ -279,13 +282,17 @@ export function presetCompatibility(
   index: PrinterCompatibilityIndex,
 ): PrinterCompatibility {
   if (!selectedPrinterName) return 'unknown';
-  // (1) Imported presets carry the slicer's own compatible_printers list —
-  // authoritative when set.
+  const printerNames = [selectedPrinterName, ...(index.printerParents ?? [])];
   const compat = preset.compatible_printers;
-  if (compat && compat.length > 0) {
-    return compat.includes(selectedPrinterName) ? 'match' : 'mismatch';
+  if (compat?.length) {
+    const normalize = (name: string) => name.replace(/^#\s+/, '');
+    const compatibleNames = new Set(compat.map(normalize));
+    return printerNames.some((name) => compatibleNames.has(normalize(name))) ? 'match' : 'mismatch';
   }
-  // (2) BambuStudio's `@BBL <model>` name convention — covers cloud /
-  // standard presets that don't carry compatible_printers.
-  return classifyByBambuName(preset.name, selectedPrinterName, index.bambuModelByShortCode);
+  // The inherited name is more reliable than a user-defined label.
+  for (const name of printerNames.reverse()) {
+    const result = classifyByBambuName(preset.name, name, index.bambuModelByShortCode);
+    if (result !== 'unknown') return result;
+  }
+  return 'unknown';
 }

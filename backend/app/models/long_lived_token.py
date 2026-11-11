@@ -45,6 +45,7 @@ class LongLivedToken(Base):
     """Per-user, hashed-at-rest, revocable token for long-running camera viewers."""
 
     __tablename__ = "long_lived_tokens"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(

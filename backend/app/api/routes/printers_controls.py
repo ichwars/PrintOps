@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -14,7 +15,7 @@ from backend.app.core.auth import (
     user_can_access_printer,
 )
 from backend.app.core.config import settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
@@ -24,9 +25,10 @@ from backend.app.schemas.printer import (
 from backend.app.services.bambu_cloud import BambuCloudAuthError, BambuCloudError
 from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_manager import (
-    resolve_plate_id,
     supports_chamber_heater,
 )
+from backend.app.utils.printer_models import aux_fan_sides, uses_exhaust_fan_label
+from backend.app.utils.safe_path import safe_join_under
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -143,9 +145,9 @@ async def _send_print_command_with_cloud_fallback(
 @router.post("/{printer_id}/debug/simulate-print-complete")
 async def debug_simulate_print_complete(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """DEBUG: Simulate print completion to test freeze behavior.
 
@@ -194,31 +196,27 @@ async def stop_print(
     printer_id: int,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Stop/cancel the current print job."""
+    from backend.app.services.print_control import STOPPABLE_STATES, mark_stopped_by_user, stop_print_by_user
+
+    state = printer_manager.get_status(printer_id)
+    known = str(getattr(state, "state", "") or "").upper()
+    mark_stop = known in STOPPABLE_STATES or known in {"", "UNKNOWN", "PREPARE", "SLICING"}
     result = await _send_print_command_with_cloud_fallback(
         printer_id,
         command={"print": {"command": "stop", "sequence_id": "0"}},
-        local_send=lambda client: client.stop_print(),
+        local_send=lambda client: stop_print_by_user(printer_id, send=client.stop_print, should_mark=mark_stop),
         local_failure_message="Failed to stop print",
         success_message="Print stop command sent",
         db=db,
         current_user=current_user or cloud_owner,
     )
 
-    # Mark this printer as user-stopped so on_print_complete reclassifies
-    # the resulting "failed"/"aborted" MQTT status as "cancelled" — otherwise
-    # the HMS heuristic in _dispatch_archive_update mislabels user-cancels
-    # (e.g. the H2D's cancel-sequence module-0x0C HMS) as "Layer shift".
-    try:
-        from backend.app.main import mark_printer_stopped_by_user
-
-        mark_printer_stopped_by_user(printer_id)
-    except Exception as _mark_err:
-        logger.warning("Failed to mark printer %s as user-stopped: %s", printer_id, _mark_err)
-
+    if mark_stop and result["control_channel"] == "cloud":
+        mark_stopped_by_user(printer_id)
     return result
 
 
@@ -226,8 +224,8 @@ async def stop_print(
 async def clear_plate(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CLEAR_PLATE),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Acknowledge that the build plate has been cleared after a finished/failed print.
 
@@ -264,8 +262,8 @@ async def pause_print(
     printer_id: int,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Pause the current print job."""
     return await _send_print_command_with_cloud_fallback(
@@ -284,8 +282,8 @@ async def resume_print(
     printer_id: int,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Resume a paused print job."""
     return await _send_print_command_with_cloud_fallback(
@@ -305,8 +303,8 @@ async def set_print_speed(
     mode: int = Query(..., description="Speed mode (1=silent, 2=standard, 3=sport, 4=ludicrous)"),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Set the print speed mode."""
     if mode not in (1, 2, 3, 4):
@@ -331,8 +329,8 @@ async def set_nozzle_temperature(
     nozzle: int = Query(0, ge=0, le=1, description="Nozzle/extruder index (0=right/default, 1=left)"),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Set a nozzle target temperature."""
     return await _send_print_command_with_cloud_fallback(
@@ -352,8 +350,8 @@ async def set_bed_temperature(
     target: int = Query(..., ge=0, le=140, description="Target bed temperature in Celsius; 0 turns heating off"),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Set the bed target temperature."""
     return await _send_print_command_with_cloud_fallback(
@@ -374,13 +372,13 @@ async def set_chamber_temperature(
     target: int = Query(..., ge=0, le=60, description="Target chamber temperature in Celsius; 0 turns heating off"),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Set the chamber target temperature.
 
     Gated on `supports_chamber_heater(model)`: only H2C, H2D, H2D Pro, H2S,
-    and X2D have an active chamber heater. Sensor-only models (X1C, X1E,
+    X1E and X2D have an active chamber heater. Sensor-only models (X1C,
     P2S) report chamber temp but silently swallow M141, so we 400 here
     rather than send a no-op.
     """
@@ -407,21 +405,35 @@ async def set_chamber_temperature(
 @router.post("/{printer_id}/fan-speed")
 async def set_fan_speed(
     printer_id: int,
-    fan: str = Query(..., description="Fan to control: part, aux, or chamber"),
+    fan: str = Query(..., description="Fan to control: part, aux, aux2 (second auxiliary), or chamber"),
     speed: int = Query(..., ge=0, le=100, description="Fan speed percentage"),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Set a fan speed by percentage."""
-    fan_ids = {"part": 1, "aux": 2, "chamber": 3}
+    fan_ids = {"part": 1, "aux": 2, "aux2": 10, "chamber": 3}
     fan_id = fan_ids.get(fan)
     if fan_id is None:
-        raise HTTPException(400, "fan must be 'part', 'aux', or 'chamber'")
+        raise HTTPException(400, "fan must be 'part', 'aux', 'aux2', or 'chamber'")
 
     pwm_speed = round(speed * 255 / 100)
-    fan_names = {"part": "Part cooling fan", "aux": "Auxiliary fan", "chamber": "Chamber fan"}
+    result = await db.execute(select(Printer).where(Printer.id == printer_id))
+    printer = result.scalar_one_or_none()
+    if printer is None:
+        raise HTTPException(404, "Printer not found")
+    if fan == "aux2":
+        state = printer_manager.get_status(printer_id)
+        if state is None or type(getattr(state, "left_aux_fan_speed", None)) is not int:
+            raise HTTPException(400, "This printer does not report a second auxiliary fan (no airduct part 10)")
+    aux_side, aux2_side = aux_fan_sides(printer.model)
+    fan_names = {
+        "part": "Part cooling fan",
+        "aux": "Left auxiliary fan" if aux_side == "left" else "Auxiliary fan",
+        "aux2": f"{aux2_side.capitalize()} auxiliary fan",
+        "chamber": "Exhaust fan" if uses_exhaust_fan_label(printer.model) else "Chamber fan",
+    }
     return await _send_print_command_with_cloud_fallback(
         printer_id,
         command={"print": {"command": "gcode_line", "param": f"M106 P{fan_id} S{pwm_speed}", "sequence_id": "0"}},
@@ -438,8 +450,8 @@ async def select_extruder(
     printer_id: int,
     extruder: int = Query(..., ge=0, le=1, description="Extruder index (0=right, 1=left)"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Select the active extruder/nozzle on dual-nozzle printers."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -463,8 +475,8 @@ async def set_airduct_mode(
     printer_id: int,
     mode: str = Query(..., description="Airduct mode: 'cooling' or 'heating'"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Set the airduct mode (cooling/heating) on supported printers (P2S/H2*)."""
     if mode not in ("cooling", "heating"):
@@ -492,10 +504,12 @@ async def set_chamber_light(
     on: bool = Query(..., description="True to turn on, False to turn off"),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
     cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Turn the chamber light on or off."""
+    from backend.app.services.camera_light import hand_back_camera_light
+
     mode = "on" if on else "off"
     light_commands = [
         {
@@ -512,7 +526,7 @@ async def set_chamber_light(
         }
         for index, led_node in enumerate(["chamber_light", "chamber_light2"])
     ]
-    return await _send_print_command_with_cloud_fallback(
+    result = await _send_print_command_with_cloud_fallback(
         printer_id,
         command=light_commands,
         local_send=lambda client: client.set_chamber_light(on),
@@ -521,6 +535,9 @@ async def set_chamber_light(
         db=db,
         current_user=current_user or cloud_owner,
     )
+    if result.get("success"):
+        hand_back_camera_light(printer_id)
+    return result
 
 
 @router.post("/{printer_id}/bed-jog")
@@ -540,8 +557,8 @@ async def bed_jog(
         deprecated=True,
     ),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Adjust the nozzle-bed gap by a relative distance on every model.
 
@@ -581,8 +598,8 @@ async def xy_jog(
     x: float = Query(0, description="Signed relative X movement in mm"),
     y: float = Query(0, description="Signed relative Y movement in mm"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Move the toolhead by a relative X/Y distance.
 
@@ -620,8 +637,8 @@ async def extruder_jog(
         ..., description="Signed relative extrusion distance in mm. Positive extrudes, negative retracts."
     ),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Extrude or retract filament by a relative distance.
 
@@ -655,8 +672,8 @@ async def home_axes(
         description="Legacy; accepted values are 'z' | 'xy' | 'all'. Always runs the printer's full auto-home sequence — see below.",
     ),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Run the printer's full auto-home sequence via bare `G28`.
 
@@ -696,8 +713,8 @@ async def home_axes(
 async def clear_hms_errors(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Clear HMS/print errors on the printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -735,7 +752,7 @@ async def get_printable_objects(
     printer_id: int,
     reload: bool = False,
     _object_access=_require_object_printer_access(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get the list of printable objects for the current print.
 
@@ -753,6 +770,44 @@ async def get_printable_objects(
     client = printer_manager.get_client(printer_id)
     if not client:
         raise HTTPException(400, "Printer not connected")
+
+    from backend.app.services.printer_archive_objects import (
+        PrintChangedDuringReload,
+        load_archive_objects,
+        print_identity,
+    )
+
+    def check_identity():
+        if printer_manager.get_client(printer_id) is not client or print_identity(client.state) != expected_identity:
+            raise PrintChangedDuringReload("Print changed while reloading objects")
+
+    if reload or not client.state.printable_objects:
+        expected_identity = print_identity(client.state)
+        from backend.app.main import _active_prints
+        from backend.app.services.running_print_archive import find_running_archive
+
+        archive = await find_running_archive(
+            db,
+            printer_id,
+            client.state,
+            bindings=_active_prints,
+            printing_only=True,
+            by_name=False,
+        )
+        # Release the read transaction before local file or printer FTP I/O.
+        await db.close()
+        try:
+            check_identity()
+            if archive is not None and await load_archive_objects(
+                archive,
+                client,
+                settings.base_dir,
+                expected_identity=expected_identity,
+                is_current=lambda: printer_manager.get_client(printer_id) is client,
+            ):
+                reload = False
+        except PrintChangedDuringReload as error:
+            raise HTTPException(409, str(error)) from error
 
     # Reload objects from 3MF if requested or no objects loaded
     if reload or not client.state.printable_objects:
@@ -779,7 +834,7 @@ async def get_printable_objects(
                     possible_filenames.append(f"{normalized}.3mf")
 
             # Download 3MF from printer
-            temp_path = settings.archive_dir / "temp" / f"objects_{printer_id}_{possible_filenames[0]}"
+            temp_path = safe_join_under(settings.archive_dir / "temp", f"objects_{printer_id}_{uuid4().hex}.3mf")
             temp_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Build list of all remote paths to try
@@ -800,13 +855,16 @@ async def get_printable_objects(
                         data = f.read()
                     objects, bbox_all = extract_printable_objects_from_3mf(
                         data,
-                        plate_number=resolve_plate_id(client.state),
+                        plate_number=expected_identity[-1],
                         include_positions=True,
                     )
+                    check_identity()
                     if objects:
                         client.state.printable_objects = objects
                         client.state.printable_objects_bbox_all = bbox_all
                         logger.info("Reloaded %s objects for printer %s", len(objects), printer_id)
+            except PrintChangedDuringReload as error:
+                raise HTTPException(409, str(error)) from error
             except Exception as e:
                 logger.debug("Failed to reload objects from printer: %s", e)
             finally:
@@ -850,8 +908,8 @@ async def skip_objects(
     printer_id: int,
     object_ids: list[int],
     _object_access=_require_object_printer_access(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Skip specific objects during the current print.
 
@@ -899,7 +957,7 @@ async def skip_objects(
 async def get_runtime_debug(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Debug endpoint: Get runtime tracking status for a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -934,8 +992,8 @@ async def execute_hms_action(
     printer_id: int,
     body: HmsActionBody,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Execute an HMS action on the printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -963,7 +1021,15 @@ async def execute_hms_action(
     # the publish is the robust ack signal.
     pre_last_message = client._last_message_time
 
-    success = client.execute_hms_action(body.print_error, body.action, body.job_id)
+    from backend.app.services.hms_actions import HMSAction
+    from backend.app.services.print_control import stop_print_by_user
+
+    def send_action():
+        return client.execute_hms_action(body.print_error, body.action, body.job_id)
+
+    success = (
+        stop_print_by_user(printer_id, send=send_action) if body.action == HMSAction.STOP_PRINTING else send_action()
+    )
     if not success:
         raise HTTPException(400, "Failed to execute HMS action")
 

@@ -1,5 +1,7 @@
 """Schemas for timelapse video processing."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -13,6 +15,7 @@ class TimelapseInfoResponse(BaseModel):
     codec: str = Field(description="Video codec name")
     file_size: int = Field(description="File size in bytes")
     has_audio: bool = Field(description="Whether video has audio track")
+    source_version: str
 
 
 class ThumbnailResponse(BaseModel):
@@ -28,3 +31,11 @@ class ProcessResponse(BaseModel):
     status: str = Field(description="Processing status: completed, error")
     output_path: str | None = Field(default=None, description="Relative path to output file")
     message: str = Field(description="Status message")
+
+
+class TimelapseJobResponse(BaseModel):
+    job_id: str
+    status: Literal["running", "completed", "failed", "cancelled"]
+    progress: float | None = None
+    output_path: str | None = None
+    message: str | None = None

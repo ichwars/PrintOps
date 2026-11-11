@@ -65,6 +65,12 @@ describe('getMaintenanceWikiUrl', () => {
     });
   });
 
+  it.each(['P1S', 'P1P', 'P1 S'])('opens the shared X1/P1 belt tension procedure for %s', (model) => {
+    expect(getMaintenanceWikiUrl('Check Belt Tension', model)).toBe(
+      'https://wiki.bambulab.com/en/x1/maintenance/belt-tension',
+    );
+  });
+
   describe('regression: other families untouched', () => {
     it('X1C belt tension unchanged', () => {
       expect(getMaintenanceWikiUrl('Check Belt Tension', 'X1C')).toBe(

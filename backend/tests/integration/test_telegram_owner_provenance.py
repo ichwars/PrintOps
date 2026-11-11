@@ -41,6 +41,7 @@ async def test_replacement_explicitly_trusted_cannot_inherit_archive(context):
     await db.delete(user)
     await db.commit()
     replacement = User(
+        id=old_id,
         username="replacement",
         role="user",
         groups=[Group(name="own", permissions=[Permission.ARCHIVES_UPDATE_OWN.value])],

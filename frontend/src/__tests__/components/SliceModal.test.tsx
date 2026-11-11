@@ -23,6 +23,8 @@ vi.mock('../../api/client', () => ({
   subscribeAuthSession: () => () => {},
   api: {
     getSlicerPresets: vi.fn(),
+    getSlicerLoadedSpools: vi.fn().mockResolvedValue({ printers: [] }),
+    getSlicerPrinterModels: vi.fn().mockResolvedValue({}),
     sliceLibraryFile: vi.fn(),
     sliceArchive: vi.fn(),
     getSliceJob: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock('../../api/client', () => ({
     getLibraryFileFilamentRequirements: vi.fn(),
     getArchiveFilamentRequirements: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
+    getUiFlags: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({}),
     // Slicer Pipelines (#1425)
     listSlicerPipelines: vi.fn(),
@@ -40,6 +43,8 @@ vi.mock('../../api/client', () => ({
 
 const mockApi = api as unknown as {
   getSlicerPresets: ReturnType<typeof vi.fn>;
+  getSlicerLoadedSpools: ReturnType<typeof vi.fn>;
+  getSlicerPrinterModels: ReturnType<typeof vi.fn>;
   sliceLibraryFile: ReturnType<typeof vi.fn>;
   sliceArchive: ReturnType<typeof vi.fn>;
   getSliceJob: ReturnType<typeof vi.fn>;
@@ -106,8 +111,83 @@ async function waitForPrinterSelection(name: string | RegExp) {
 }
 
 describe('SliceModal', () => {
+  it('filters by the inherited online model and picks a live spool by slot', async () => {
+    const x1c = 'Bambu Lab X1 Carbon 0.4 nozzle';
+    const a1 = 'Bambu Lab A1 0.4 nozzle';
+    mockApi.getSlicerPrinterModels.mockResolvedValueOnce({ 'Bambu Lab A1': 'A1', 'Bambu Lab X1 Carbon': 'X1C' });
+    mockApi.getSlicerPresets.mockResolvedValueOnce(makeUnified({
+      local: {
+        printer: [{ id: 'copy', name: 'Workshop clone', source: 'local', printer_parent: x1c }],
+        process: [{ id: 'process', name: '0.20mm Workshop', source: 'local', compatible_printers: [x1c] }],
+        filament: [
+          { id: '7', name: 'Workshop PETG', source: 'local', filament_type: 'PETG', compatible_printers: [x1c] },
+          { id: 'unloaded', name: 'Bench PETG', source: 'local', filament_type: 'PETG', compatible_printers: [x1c] },
+        ],
+      },
+      standard: { printer: [{ id: 'a1', name: a1, source: 'standard' }], process: [], filament: [] },
+    }));
+    mockApi.getSlicerLoadedSpools.mockResolvedValueOnce({
+      printers: [{
+        id: 1, name: 'Workshop', model: 'X1C', external: [], external_holders: 0,
+        ams: [{ id: 0, trays: [
+          { ams_id: 0, tray_id: 0, exists: true, state: 9, tray_type: 'PETG', tray_color: '123456FF',
+            tray_info_idx: 'GFG02', saved_preset: {
+              preset_id: 'local_7', preset_source: 'local', preset_name: 'Workshop PETG', tray_info_idx: 'GFG02',
+            }, tray_sub_brands: 'Workshop PETG' },
+          { ams_id: 0, tray_id: 1, exists: false, tray_type: 'PETG', tray_sub_brands: 'Bench PETG' },
+          { ams_id: 0, tray_id: 2, exists: true, tray_type: null },
+        ] }],
+      }],
+    });
+    renderWithTracker({ source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' }, onClose: vi.fn() });
+    await waitForPrinterSelection('Workshop clone');
+    expect(screen.getByRole('combobox', { name: 'Process profile' })).toHaveTextContent('0.20mm Workshop');
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Only online printer models' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Printer profile' }));
+    expect(screen.queryByRole('option', { name: a1 })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Printer profile' }), { key: 'Escape' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Only loaded spools' }));
+    const filament = screen.getByRole('combobox', { name: 'Filament profile' });
+    fireEvent.click(filament);
+    expect(screen.queryByRole('option', { name: 'Bench PETG' })).not.toBeInTheDocument();
+    fireEvent.keyDown(filament, { key: 'Escape' });
+    const loaded = screen.getByRole('combobox', { name: /choose a loaded spool/i });
+    fireEvent.click(loaded);
+    expect(screen.queryByRole('option', { name: /A2/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /A3.*Unidentified spool/ })).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('option', { name: 'A1 · Workshop PETG' }));
+    expect(filament).toHaveTextContent('Workshop PETG');
+    expect(screen.getByLabelText(/filament profile.*colou?r/i)).toHaveValue('#123456');
+  });
+
+  it('keeps preset selection available when printer status is forbidden', async () => {
+    mockApi.getSlicerLoadedSpools.mockRejectedValueOnce(new Error('Forbidden'));
+    renderWithTracker({ source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' }, onClose: vi.fn() });
+    await waitForPrinterSelection('Imported X1C 0.4');
+    await waitFor(() => expect(mockApi.getSlicerLoadedSpools).toHaveBeenCalled());
+    expect(screen.queryByRole('checkbox', { name: 'Only online printer models' })).not.toBeInTheDocument();
+  });
+
+  it('searches the printer presets while keeping the current choice visible', async () => {
+    renderWithTracker({ source: { kind: 'libraryFile', id: 100, filename: 'Cube.stl' }, onClose: vi.fn() });
+    await waitForPrinterSelection('Imported X1C 0.4');
+    fireEvent.click(screen.getByRole('button', { name: 'Printer profile: Search' }));
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Printer profile: Search profiles' }), {
+      target: { value: 'custom x1c' },
+    });
+    const select = screen.getByRole('combobox', { name: 'Printer profile' });
+    expect(select).toHaveTextContent('Imported X1C 0.4');
+    fireEvent.click(select);
+    expect(screen.getByRole('option', { name: 'My Custom X1C' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Bambu Lab X1 Carbon 0.4 nozzle' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'My Custom X1C' }));
+    expect(select).toHaveTextContent('My Custom X1C');
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.removeItem('printops:slice:online-only');
+    localStorage.removeItem('printops:slice:loaded-only');
     mockApi.getSlicerPresets.mockResolvedValue(fullThreeTier);
     mockApi.getSliceJob.mockResolvedValue({
       job_id: 42,
@@ -264,7 +344,11 @@ describe('SliceModal', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
-  it('includes bed_type in the request when the user picks a non-auto plate (#1337)', async () => {
+  it.each([
+    ['Textured PEI Plate', 'Textured PEI Plate'],
+    ['Supertack Plate', 'Cool Plate SuperTack'],
+    ['High Temp Plate', 'High Temp Plate / Smooth PEI Plate'],
+  ])('sends the slicer build plate name %s', async (bedType, label) => {
     const onClose = vi.fn();
     mockApi.sliceLibraryFile.mockResolvedValue({
       job_id: 42,
@@ -285,13 +369,13 @@ describe('SliceModal', () => {
     // bed-type select by name rather than positional index so this stays
     // green if the layout adds another control around it.
     const bedSelect = screen.getByRole('combobox', { name: 'Build plate' });
-    selectComboboxOption(bedSelect, 'Textured PEI Plate');
+    selectComboboxOption(bedSelect, label);
     await user.click(screen.getByRole('button', { name: /^Slice$/ }));
 
     await waitFor(() => {
       expect(mockApi.sliceLibraryFile).toHaveBeenCalledWith(
         100,
-        expect.objectContaining({ bed_type: 'Textured PEI Plate' }),
+        expect.objectContaining({ bed_type: bedType }),
       );
     });
   });

@@ -1,9 +1,11 @@
+import { FilamentProfileDefaults } from '../components/FilamentProfileDefaults';
+import { SensorHistoryRetentionFields } from '../components/SensorHistoryRetentionFields';
 import { AppNotificationKeyToggle } from '../components/AppNotificationKeyToggle';
 import { APIKeyScopeControl } from '../components/APIKeyScopeControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Cog, QrCode, Workflow, Info, UploadCloud } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDateOnly } from '../utils/date';
@@ -17,6 +19,7 @@ import { SlicerBundlesPanel } from '../components/SlicerBundlesPanel';
 import { SlicerPipelinesPanel } from '../components/SlicerPipelinesPanel';
 import { ConnectedAppsSettings } from '../components/ConnectedAppsSettings';
 import { CameraTokensSection } from './CameraTokensPage';
+import { CameraLightingSettings } from '../components/settings/CameraLightingSettings';
 import { Collapsible } from '../components/Collapsible';
 import {
   Button,
@@ -33,6 +36,9 @@ import { AddSmartPlugModal } from '../components/AddSmartPlugModal';
 import { HASensorModal } from '../components/HASensorModal';
 import { NotificationProviderCard } from '../components/NotificationProviderCard';
 import { AddNotificationModal } from '../components/AddNotificationModal';
+import { PrintNotificationSettings } from '../components/settings/PrintNotificationSettings';
+import { WebhookEndpoints } from '../components/settings/WebhookEndpoints';
+import { AdminTwoFactorReset } from '../components/settings/AdminTwoFactorReset';
 import { NotificationTemplateEditor } from '../components/NotificationTemplateEditor';
 import { NotificationLogViewer } from '../components/NotificationLogViewer';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -53,6 +59,9 @@ import { AmbientDryingSettings } from '../components/settings/AmbientDryingSetti
 import { DryingPresetsEditor } from '../components/settings/DryingPresetsEditor';
 import { ScheduledDryingSettings } from '../components/settings/ScheduledDryingSettings';
 import { ExternalCameraUrlField } from '../components/settings/CameraUrlBuilder';
+import { ExternalCameraTestFeedback } from '../components/settings/ExternalCameraTestFeedback';
+import type { ExternalCameraTestResult } from '../api/client/printers-files';
+import { cameraTestMessage } from '../utils/cameraTestMessage';
 import {
   DryerManagementCard,
   PrinterManagementCard,
@@ -69,6 +78,7 @@ import { defaultNavItems, getDefaultView, setDefaultView } from '../components/L
 import { availableLanguages } from '../i18n';
 import { useToast } from '../contexts/ToastContext';
 import { useAutosaveDraft } from '../hooks/useAutosaveDraft';
+import { adoptConfirmedSettingsSecrets, selectPlaceholderOnFocus, settingsSecretsToReenter } from '../utils/secrets';
 import { useTheme, type ThemeStyle, type DarkBackground, type LightBackground, type ThemeAccent } from '../contexts/ThemeContext';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Gauge, Palette } from 'lucide-react';
@@ -128,7 +138,7 @@ registerSettingsSearch({ labelKey: 'settings.appearance', tab: 'general', keywor
 registerSettingsSearch({ labelKey: 'settings.resetUiPreferences', labelFallback: 'Reset UI Preferences', tab: 'general', keywords: 'ui preferences reset local storage sidebar layout defaults', anchor: 'card-ui-preferences' });
 registerSettingsSearch({ labelKey: 'settings.noticePreferences', labelFallback: 'Notices', tab: 'general', keywords: 'notices hints warnings developer lan supporter community sponsor', anchor: 'card-notice-preferences' });
 registerSettingsSearch({ labelKey: 'settings.archiveSettings', tab: 'printers-production', printerProductionSubTab: 'print-process', keywords: 'archive auto save thumbnails captures', anchor: 'card-archive' });
-registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'camera external video stream', anchor: 'card-camera' });
+registerSettingsSearch({ labelKey: 'settings.camera', tab: 'printers-production', printerProductionSubTab: 'cameras', keywords: 'camera external video stream rtsp usb light chamber', anchor: 'card-camera' });
 registerSettingsSearch({ labelKey: 'settings.defaultPrinter', labelFallback: 'Default Printer', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'default printer preferred printer fallback printer selection', anchor: 'card-default-printer' });
 registerSettingsSearch({ labelKey: 'settings.costTracking', tab: 'orders-calculation', orderManagementSubTab: 'calculation', keywords: 'currency filament cost energy kwh price', anchor: 'card-cost' });
 registerSettingsSearch({ labelKey: 'orders.businessProfile.title', tab: 'orders-calculation', orderManagementSubTab: 'business-profile', keywords: 'business company seller issuer tax bank country currency', anchor: 'card-business-profile' });
@@ -160,7 +170,8 @@ registerSettingsSearch({ labelKey: 'settings.createNewApiKey', tab: 'integration
 registerSettingsSearch({ labelKey: 'settings.webhookEndpoints', tab: 'integrations', integrationSubTab: 'webhooks', keywords: 'webhook endpoint post http', anchor: 'card-webhooks' });
 registerSettingsSearch({ labelKey: 'settings.apiBrowser', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'api browser endpoint documentation test', anchor: 'card-apibrowser' });
 registerSettingsSearch({ labelKey: 'connectedApps.title', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'connected applications login oauth identity', anchor: 'card-connected-apps' });
-registerSettingsSearch({ labelKey: 'cameraTokens.title', tab: 'integrations', integrationSubTab: 'api-metrics', keywords: 'camera token long-lived home assistant frigate kiosk stream', anchor: 'card-camera-tokens' });
+registerSettingsSearch({ labelKey: 'cameraTokens.title', tab: 'printers-production', printerProductionSubTab: 'cameras', keywords: 'camera token long-lived home assistant frigate kiosk stream', anchor: 'card-camera-tokens' });
+registerSettingsSearch({ labelKey: 'streamOverlay.builder.title', tab: 'printers-production', printerProductionSubTab: 'cameras', keywords: 'streaming overlay obs browser source', anchor: 'card-stream-overlay' });
 registerSettingsSearch({ labelKey: 'settings.tabs.virtualPrinter', tab: 'printers-production', printerProductionSubTab: 'devices', keywords: 'virtual printer proxy archive slicer bambustudio orcaslicer ip bind', anchor: 'card-vp' });
 registerSettingsSearch({ labelKey: 'settings.tabs.spoolbuddy', tab: 'warehouse-material', warehouseMaterialSubTab: 'spoolbuddy', keywords: 'spoolbuddy device scale nfc rfid kiosk unregister', anchor: 'card-spoolbuddy' });
 registerSettingsSearch({ labelKey: 'settings.currentUser', tab: 'users-security', subTab: 'users', keywords: 'current user profile password change', anchor: 'card-currentuser' });
@@ -177,6 +188,7 @@ registerSettingsSearch({ labelKey: 'settings.filamentTracking', tab: 'warehouse-
 registerSettingsSearch({ labelKey: 'settings.tabs.warehouseNumberSequences', labelFallback: 'Number sequences', tab: 'warehouse-material', warehouseMaterialSubTab: 'number-sequences', keywords: 'number sequence prefix material spool purchase order goods receipt nummernkreis präfix material spule bestellung wareneingang', anchor: 'card-warehouse-number-sequences' });
 registerSettingsSearch({ labelKey: 'settings.tabs.warehouseSmallParts', labelFallback: 'Material', tab: 'warehouse-material', warehouseMaterialSubTab: 'small-parts', keywords: 'material materials category unit location stock meldebestand', anchor: 'card-small-parts' });
 registerSettingsSearch({ labelKey: 'settings.catalog.spoolCatalog', labelFallback: 'Spool Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'spool catalog entries brand material reset import export', anchor: 'card-spool-catalog' });
+registerSettingsSearch({ labelKey: 'profileDefaults.title', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'spool filament slicer presets calibration k profile product defaults', anchor: 'card-filament-profile-defaults' });
 registerSettingsSearch({ labelKey: 'settings.colorCatalog.title', labelFallback: 'Color Catalog', tab: 'warehouse-material', warehouseMaterialSubTab: 'catalogs', keywords: 'color catalog hex swatch palette sync reset', anchor: 'card-color-catalog' });
 // Failure detection sub-cards
 registerSettingsSearch({ labelKey: 'settings.tabs.failureDetection', labelFallback: 'Failure Detection', tab: 'printers-production', printerProductionSubTab: 'failure-detection', keywords: 'failure detection ai ml obico spaghetti detect monitoring', anchor: 'card-fd-ml' });
@@ -211,11 +223,11 @@ export function SettingsPage() {
     mode, resolvedMode,
     darkStyle, darkBackground, darkAccent,
     lightStyle, lightBackground, lightAccent,
-    progressInTitle,
+    progressInTitle, tabPrintDisplay,
     setMode,
     setDarkStyle, setDarkBackground, setDarkAccent,
     setLightStyle, setLightBackground, setLightAccent,
-    setProgressInTitle,
+    setProgressInTitle, setTabPrintDisplay,
   } = useTheme();
   const [localSettings, setLocalSettings] = useState<AppSettings | null>(null);
   // Transient typed strings for the per-filament humidity threshold inputs
@@ -236,13 +248,18 @@ export function SettingsPage() {
   const [defaultView, setDefaultViewState] = useState<string>(getDefaultView());
 
   // Initialize tab from URL params, resolving legacy aliases to canonical tabs.
-  const tabParam = searchParams.get('tab');
-  const subTabParam = searchParams.get('sub');
+  const location = useLocation();
+  const requestedTab = searchParams.get('tab');
+  const cameraAnchor = ['#card-camera', '#card-camera-tokens', '#card-stream-overlay'].includes(location.hash);
+  const legacyCameraLink = cameraAnchor && requestedTab !== 'camera';
+  const tabParam = legacyCameraLink ? 'camera' : requestedTab;
+  const subTabParam = legacyCameraLink ? null : searchParams.get('sub');
   const initialTab = resolveSettingsTab(tabParam);
   const legacyDefaultAnchor = legacySettingsTabDefaultAnchor(tabParam);
   const legacySubTabs = legacySettingsTabDefaultSubTab(tabParam);
   const [activeTab, setActiveTab] = useState<CanonicalSettingsTab>(initialTab);
   const [usersSubTab, setUsersSubTab] = useState<UsersSubTab>(legacySubTabs.usersSubTab ?? 'users');
+  const shownUsersSubTab = !isAdmin && ['email', 'ldap', 'oidc', 'security'].includes(usersSubTab) ? 'users' : usersSubTab;
   const initialPrinterProductionSub: PrinterProductionSubTab =
     initialTab === 'printers-production'
       ? resolvePrinterProductionSubTab(subTabParam) ?? legacySubTabs.printerProductionSubTab ?? 'devices'
@@ -530,7 +547,7 @@ export function SettingsPage() {
   const [haTestLoading, setHaTestLoading] = useState(false);
 
   // External camera test state
-  const [extCameraTestResults, setExtCameraTestResults] = useState<Record<number, { success: boolean; error?: string; resolution?: string } | null>>({});
+  const [extCameraTestResults, setExtCameraTestResults] = useState<Record<number, ExternalCameraTestResult | null>>({});
   const [extCameraTestLoading, setExtCameraTestLoading] = useState<Record<number, boolean>>({});
 
   const handleDefaultViewChange = (path: string) => {
@@ -975,7 +992,7 @@ export function SettingsPage() {
     const updateData: UserUpdate = {
       username: userFormData.username || undefined,
       password: userFormData.password || undefined,
-      email: userFormData.email || undefined,
+      email: userFormData.email?.trim(),
       role: userFormData.role,
       group_ids: userFormData.group_ids,
       allowed_printer_ids: userFormData.allowed_printer_ids ?? null,
@@ -1109,12 +1126,12 @@ export function SettingsPage() {
       // Auto-detect external_url from browser if not set
       const settingsWithExternalUrl = {
         ...settings,
-        external_url: settings.external_url || window.location.origin,
+        external_url: settings.external_url || (isAdmin ? window.location.origin : settings.external_url),
       };
       serverBaselineRef.current = settings;
       setLocalSettings(settingsWithExternalUrl);
     }
-  }, [settings, localSettings]);
+  }, [settings, localSettings, isAdmin]);
 
   useEffect(() => {
     const baseline = serverBaselineRef.current;
@@ -1138,6 +1155,7 @@ export function SettingsPage() {
     onSuccess: data => {
       serverBaselineRef.current = data;
       queryClient.setQueryData(['settings'], data);
+      void queryClient.invalidateQueries({ queryKey: ['settings', 'ui-flags'] });
       queryClient.invalidateQueries({ queryKey: ['archiveStats'] });
       showToast(t('settings.toast.settingsSaved'), 'success');
     },
@@ -1147,7 +1165,7 @@ export function SettingsPage() {
   });
 
   const updatePrinterMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<{ external_camera_url: string | null; external_camera_type: string | null; external_camera_enabled: boolean; external_camera_snapshot_url: string | null; camera_rotation: number }> }) =>
+    mutationFn: ({ id, data }: { id: number; data: Partial<{ external_camera_url: string | null; external_camera_type: string | null; external_camera_enabled: boolean; external_camera_snapshot_url: string | null; camera_rotation: number; camera_light_auto: boolean }> }) =>
       api.updatePrinter(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['printers'] });
@@ -1162,7 +1180,6 @@ export function SettingsPage() {
     localSettings &&
     settings &&
     (settings.auto_archive !== localSettings.auto_archive ||
-      settings.save_thumbnails !== localSettings.save_thumbnails ||
       settings.capture_finish_photo !== localSettings.capture_finish_photo ||
       settings.default_filament_cost !== localSettings.default_filament_cost ||
       settings.currency !== localSettings.currency ||
@@ -1173,14 +1190,15 @@ export function SettingsPage() {
       (settings.show_developer_lan_warning ?? true) !== (localSettings.show_developer_lan_warning ?? true) ||
       (settings.show_sponsor_prompts ?? true) !== (localSettings.show_sponsor_prompts ?? true) ||
       (settings.include_beta_updates ?? false) !== (localSettings.include_beta_updates ?? false) ||
-      (settings.local_login_enabled ?? true) !== (localSettings.local_login_enabled ?? true) ||
-      settings.notification_language !== localSettings.notification_language ||
+      (isAdmin && (settings.local_login_enabled ?? true) !== (localSettings.local_login_enabled ?? true)) ||
+      (settings.pause_warning_minutes ?? 5) !== (localSettings.pause_warning_minutes ?? 5) ||
       (settings.bed_cooled_threshold ?? 35) !== (localSettings.bed_cooled_threshold ?? 35) ||
       settings.ams_humidity_good !== localSettings.ams_humidity_good ||
       settings.ams_humidity_fair !== localSettings.ams_humidity_fair ||
       settings.ams_temp_good !== localSettings.ams_temp_good ||
       settings.ams_temp_fair !== localSettings.ams_temp_fair ||
       settings.ams_history_retention_days !== localSettings.ams_history_retention_days ||
+      settings.printer_sensor_history_retention_days !== localSettings.printer_sensor_history_retention_days ||
       settings.disable_filament_warnings !== localSettings.disable_filament_warnings ||
       settings.prefer_lowest_filament !== localSettings.prefer_lowest_filament ||
       String(settings.small_parts_default_minimum_stock ?? '0') !== String(localSettings.small_parts_default_minimum_stock ?? '0') ||
@@ -1196,6 +1214,7 @@ export function SettingsPage() {
       settings.date_format !== localSettings.date_format ||
       settings.time_format !== localSettings.time_format ||
       settings.default_printer_id !== localSettings.default_printer_id ||
+      (settings.pipeline_max_copies ?? 50) !== (localSettings.pipeline_max_copies ?? 50) ||
       settings.ftp_retry_enabled !== localSettings.ftp_retry_enabled ||
       settings.ftp_retry_count !== localSettings.ftp_retry_count ||
       settings.ftp_retry_delay !== localSettings.ftp_retry_delay ||
@@ -1207,20 +1226,21 @@ export function SettingsPage() {
       settings.mqtt_password !== localSettings.mqtt_password ||
       settings.mqtt_topic_prefix !== localSettings.mqtt_topic_prefix ||
       settings.mqtt_use_tls !== localSettings.mqtt_use_tls ||
-      (settings.external_url || window.location.origin) !== localSettings.external_url ||
+      (isAdmin && (settings.external_url || window.location.origin) !== localSettings.external_url) ||
       settings.ha_enabled !== localSettings.ha_enabled ||
       settings.ha_url !== localSettings.ha_url ||
       settings.ha_token !== localSettings.ha_token ||
-      (settings.library_archive_mode ?? 'ask') !== (localSettings.library_archive_mode ?? 'ask') ||
       Number(settings.library_disk_warning_gb ?? 5) !== Number(localSettings.library_disk_warning_gb ?? 5) ||
       (settings.camera_view_mode ?? 'window') !== (localSettings.camera_view_mode ?? 'window') ||
+      (settings.camera_light_mode ?? 'off') !== (localSettings.camera_light_mode ?? 'off') ||
+      (settings.camera_light_delay ?? 2) !== (localSettings.camera_light_delay ?? 2) ||
       (settings.preferred_slicer ?? 'bambu_studio') !== (localSettings.preferred_slicer ?? 'bambu_studio') ||
       (settings.open_in_slicer ?? null) !== (localSettings.open_in_slicer ?? null) ||
       (settings.use_slicer_api ?? false) !== (localSettings.use_slicer_api ?? false) ||
       (settings.orcaslicer_api_url ?? '') !== (localSettings.orcaslicer_api_url ?? '') ||
       (settings.bambu_studio_api_url ?? '') !== (localSettings.bambu_studio_api_url ?? '') ||
-      settings.prometheus_enabled !== localSettings.prometheus_enabled ||
-      settings.prometheus_token !== localSettings.prometheus_token ||
+      (isAdmin && settings.prometheus_enabled !== localSettings.prometheus_enabled) ||
+      (isAdmin && settings.prometheus_token !== localSettings.prometheus_token) ||
       (settings.user_notifications_enabled ?? true) !== (localSettings.user_notifications_enabled ?? true) ||
       (settings.default_bed_levelling ?? true) !== (localSettings.default_bed_levelling ?? true) ||
       (settings.default_flow_cali ?? false) !== (localSettings.default_flow_cali ?? false) ||
@@ -1242,12 +1262,11 @@ export function SettingsPage() {
       (settings.bed_temp_presets ?? '') !== (localSettings.bed_temp_presets ?? '') ||
       (settings.chamber_temp_presets ?? '') !== (localSettings.chamber_temp_presets ?? '') ||
       (settings.fan_speed_presets ?? '') !== (localSettings.fan_speed_presets ?? '') ||
-      (settings.session_max_hours ?? 24) !== (localSettings.session_max_hours ?? 24))
+      (isAdmin && (settings.session_max_hours ?? 24) !== (localSettings.session_max_hours ?? 24)))
   );
 
   const settingsToSave: AppSettingsUpdate | null = localSettings ? {
         auto_archive: localSettings!.auto_archive,
-        save_thumbnails: localSettings!.save_thumbnails,
         capture_finish_photo: localSettings!.capture_finish_photo,
         default_filament_cost: localSettings!.default_filament_cost,
         currency: localSettings!.currency,
@@ -1258,14 +1277,14 @@ export function SettingsPage() {
         show_developer_lan_warning: localSettings!.show_developer_lan_warning,
         show_sponsor_prompts: localSettings!.show_sponsor_prompts,
         include_beta_updates: localSettings!.include_beta_updates,
-        local_login_enabled: localSettings!.local_login_enabled,
-        notification_language: localSettings!.notification_language,
         bed_cooled_threshold: localSettings!.bed_cooled_threshold,
+        pause_warning_minutes: localSettings!.pause_warning_minutes,
         ams_humidity_good: localSettings!.ams_humidity_good,
         ams_humidity_fair: localSettings!.ams_humidity_fair,
         ams_temp_good: localSettings!.ams_temp_good,
         ams_temp_fair: localSettings!.ams_temp_fair,
         ams_history_retention_days: localSettings!.ams_history_retention_days,
+        printer_sensor_history_retention_days: localSettings!.printer_sensor_history_retention_days,
         disable_filament_warnings: localSettings!.disable_filament_warnings,
         prefer_lowest_filament: localSettings!.prefer_lowest_filament,
         small_parts_default_minimum_stock: localSettings!.small_parts_default_minimum_stock,
@@ -1281,6 +1300,7 @@ export function SettingsPage() {
         date_format: localSettings!.date_format,
         time_format: localSettings!.time_format,
         default_printer_id: localSettings!.default_printer_id,
+        pipeline_max_copies: localSettings!.pipeline_max_copies ?? 50,
         ftp_retry_enabled: localSettings!.ftp_retry_enabled,
         ftp_retry_count: localSettings!.ftp_retry_count,
         ftp_retry_delay: localSettings!.ftp_retry_delay,
@@ -1292,20 +1312,18 @@ export function SettingsPage() {
         mqtt_password: localSettings!.mqtt_password,
         mqtt_topic_prefix: localSettings!.mqtt_topic_prefix,
         mqtt_use_tls: localSettings!.mqtt_use_tls,
-        external_url: localSettings!.external_url,
         ha_enabled: localSettings!.ha_enabled,
-        ha_url: localSettings!.ha_url,
-        ha_token: localSettings!.ha_token,
-        library_archive_mode: localSettings!.library_archive_mode,
+        ...(localSettings!.ha_url_from_env ? {} : { ha_url: localSettings!.ha_url }),
+        ...(localSettings!.ha_token_from_env ? {} : { ha_token: localSettings!.ha_token }),
         library_disk_warning_gb: localSettings!.library_disk_warning_gb,
         camera_view_mode: localSettings!.camera_view_mode,
+        camera_light_mode: localSettings!.camera_light_mode,
+        camera_light_delay: localSettings!.camera_light_delay,
         preferred_slicer: localSettings!.preferred_slicer,
         open_in_slicer: localSettings!.open_in_slicer,
         use_slicer_api: localSettings!.use_slicer_api,
         orcaslicer_api_url: localSettings!.orcaslicer_api_url,
         bambu_studio_api_url: localSettings!.bambu_studio_api_url,
-        prometheus_enabled: localSettings!.prometheus_enabled,
-        prometheus_token: localSettings!.prometheus_token,
         user_notifications_enabled: localSettings!.user_notifications_enabled,
         default_bed_levelling: localSettings!.default_bed_levelling,
         default_flow_cali: localSettings!.default_flow_cali,
@@ -1327,24 +1345,33 @@ export function SettingsPage() {
         bed_temp_presets: localSettings!.bed_temp_presets,
         chamber_temp_presets: localSettings!.chamber_temp_presets,
         fan_speed_presets: localSettings!.fan_speed_presets,
-        session_max_hours: localSettings!.session_max_hours,
+        ...(isAdmin && {
+          local_login_enabled: localSettings!.local_login_enabled,
+          external_url: localSettings!.external_url,
+          prometheus_enabled: localSettings!.prometheus_enabled,
+          prometheus_token: localSettings!.prometheus_token,
+          session_max_hours: localSettings!.session_max_hours,
+        }),
       } : null;
 
   const saveSettingsDraft = useCallback(
     (draft: AppSettingsUpdate, signal: AbortSignal) => api.updateSettings(draft, signal),
     [],
   );
-  const handleSettingsConfirmed = useCallback((data: AppSettings) => {
+  const handleSettingsConfirmed = useCallback((data: AppSettings, submitted: AppSettingsUpdate) => {
+    setLocalSettings(current => adoptConfirmedSettingsSecrets(current, submitted, data));
     serverBaselineRef.current = data;
     queryClient.setQueryData(['settings'], data);
+    void queryClient.invalidateQueries({ queryKey: ['settings', 'ui-flags'] });
     queryClient.invalidateQueries({ queryKey: ['archiveStats'] });
     showToast(t('settings.toast.settingsSaved'), 'success');
   }, [queryClient, showToast, t]);
+  const secretsPendingReentry = settingsSecretsToReenter(settings, localSettings);
   const settingsAutosave = useAutosaveDraft({
     draft: settingsToSave ?? {},
     enabled:
       settingsToSave !== null &&
-      hasSettingsChanges &&
+      hasSettingsChanges && secretsPendingReentry.length === 0 &&
       (!authEnabled || hasPermission('settings:update')),
     fingerprint: draft => JSON.stringify(draft),
     adapter: saveSettingsDraft,
@@ -1379,11 +1406,7 @@ export function SettingsPage() {
     try {
       const result = await api.testExternalCamera(printerId, url, cameraType);
       setExtCameraTestResults(prev => ({ ...prev, [printerId]: result }));
-      if (result.success) {
-        showToast(t('settings.toast.cameraConnected', { resolution: result.resolution || '' }), 'success');
-      } else {
-        showToast(result.error || t('settings.toast.connectionFailed'), 'error');
-      }
+      showToast(cameraTestMessage(result, t), result.success ? 'success' : 'error');
     } catch (error) {
       const message = error instanceof Error ? error.message : t('settings.toast.testFailed');
       setExtCameraTestResults(prev => ({ ...prev, [printerId]: { success: false, error: message } }));
@@ -1663,25 +1686,6 @@ export function SettingsPage() {
       <CardContent className="space-y-3">
         <div>
           <label className="block text-sm text-bambu-gray mb-1">
-            {t('settings.createArchiveEntry')}
-          </label>
-          <Select
-            ariaLabel={t('settings.createArchiveEntry')}
-            value={localSettings.library_archive_mode ?? 'ask'}
-            onValueChange={(value) => updateSetting('library_archive_mode', value as 'always' | 'never' | 'ask')}
-            options={[
-              { value: 'always', label: t('settings.archiveMode.always') },
-              { value: 'never', label: t('settings.archiveMode.never') },
-              { value: 'ask', label: t('settings.archiveMode.ask') },
-            ]}
-          />
-          <p className="text-xs text-bambu-gray mt-1">
-            {t('settings.createArchiveEntryDescription')}
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm text-bambu-gray mb-1">
             {t('settings.lowDiskSpaceWarning')}
           </label>
           <div className="flex items-center gap-2">
@@ -1770,20 +1774,6 @@ export function SettingsPage() {
             <Switch
               checked={localSettings.auto_archive}
               onChange={(e) => updateSetting('auto_archive', e.target.checked)}
-            />
-          </label>
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-white">{t('settings.saveThumbnails')}</p>
-            <p className="text-sm text-bambu-gray">
-              {t('settings.saveThumbnailsDescription')}
-            </p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.save_thumbnails}
-              onChange={(e) => updateSetting('save_thumbnails', e.target.checked)}
             />
           </label>
         </div>
@@ -1903,6 +1893,12 @@ export function SettingsPage() {
           </p>
         </div>
 
+        <CameraLightingSettings mode={localSettings.camera_light_mode ?? 'off'} delay={localSettings.camera_light_delay ?? 2}
+          printers={printers} printerChangesDisabled={!hasPermission('printers:update') || updatePrinterMutation.isPending}
+          onModeChange={(value) => updateSetting('camera_light_mode', value)}
+          onDelayChange={(value) => updateSetting('camera_light_delay', value)}
+          onPrinterChange={(id, enabled) => updatePrinterMutation.mutate({ id, data: { camera_light_auto: enabled } })} />
+
         {/* External Cameras Section */}
         <div className="border-t border-bambu-dark-tertiary pt-4 mt-4">
           <h3 className="text-sm font-medium text-white mb-2">{t('settings.externalCameras')}</h3>
@@ -1957,21 +1953,7 @@ export function SettingsPage() {
                           )}
                         </Button>
                       </div>
-                      {extCameraTestResults[printer.id] && (
-                        <div className={`text-xs flex items-center gap-1 ${extCameraTestResults[printer.id]?.success ? 'text-green-500' : 'text-red-500'}`}>
-                          {extCameraTestResults[printer.id]?.success ? (
-                            <>
-                              <CheckCircle className="w-3 h-3" />
-                              {t('settings.connected')}{extCameraTestResults[printer.id]?.resolution && ` (${extCameraTestResults[printer.id]?.resolution})`}
-                            </>
-                          ) : (
-                            <>
-                              <XCircle className="w-3 h-3" />
-                              {extCameraTestResults[printer.id]?.error || t('settings.toast.connectionFailed')}
-                            </>
-                          )}
-                        </div>
-                      )}
+                      <ExternalCameraTestFeedback result={extCameraTestResults[printer.id]} />
                       {(printer.external_camera_type === 'mjpeg' || printer.external_camera_type === 'rtsp' || printer.external_camera_type === 'usb') && (
                         <div className="space-y-1">
                           <label className="text-xs text-bambu-gray">{t('settings.cameraSnapshotUrl', 'Snapshot URL (optional)')}</label>
@@ -2773,7 +2755,7 @@ export function SettingsPage() {
     </Card>
   ) : null;
 
-  const prometheusCard = localSettings ? (
+  const prometheusCard = localSettings && isAdmin ? (
     <Card id="card-prometheus">
       <CardHeader>
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -2808,6 +2790,7 @@ export function SettingsPage() {
               <TextField
                 type="password"
                 value={localSettings.prometheus_token ?? ''}
+                onFocus={selectPlaceholderOnFocus}
                 onChange={(e) => updateSetting('prometheus_token', e.target.value)}
                 placeholder={t('settings.leaveEmptyForNoAuth')}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -2835,50 +2818,7 @@ export function SettingsPage() {
     </Card>
   ) : null;
 
-  const webhookDocumentationCard = hasPermission('api_keys:read') ? (
-    <Card>
-      <CardHeader>
-        <h3 className="text-base font-semibold text-white" id="card-webhooks">{t('settings.webhookEndpoints')}</h3>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <p className="text-bambu-gray">
-          {t('settings.webhookApiKeyHint')}
-        </p>
-        <div className="space-y-2 font-mono text-xs">
-          <div className="p-2 bg-bambu-dark rounded">
-            <span className="text-blue-700 dark:text-blue-400">GET</span>{' '}
-            <span className="text-white">/api/v1/webhook/status</span>
-            <span className="text-bambu-gray"> - {t('settings.webhook.getAllStatus')}</span>
-          </div>
-          <div className="p-2 bg-bambu-dark rounded">
-            <span className="text-blue-700 dark:text-blue-400">GET</span>{' '}
-            <span className="text-white">/api/v1/webhook/status/:id</span>
-            <span className="text-bambu-gray"> - {t('settings.webhook.getSpecificStatus')}</span>
-          </div>
-          <div className="p-2 bg-bambu-dark rounded">
-            <span className="text-green-700 dark:text-green-400">POST</span>{' '}
-            <span className="text-white">/api/v1/webhook/queue</span>
-            <span className="text-bambu-gray"> - {t('settings.webhook.addToQueue')}</span>
-          </div>
-          <div className="p-2 bg-bambu-dark rounded">
-            <span className="text-orange-700 dark:text-orange-400">POST</span>{' '}
-            <span className="text-white">/api/v1/webhook/printer/:id/pause</span>
-            <span className="text-bambu-gray"> - {t('settings.webhook.pausePrint')}</span>
-          </div>
-          <div className="p-2 bg-bambu-dark rounded">
-            <span className="text-orange-700 dark:text-orange-400">POST</span>{' '}
-            <span className="text-white">/api/v1/webhook/printer/:id/resume</span>
-            <span className="text-bambu-gray"> - {t('settings.webhook.resumePrint')}</span>
-          </div>
-          <div className="p-2 bg-bambu-dark rounded">
-            <span className="text-red-700 dark:text-red-400">POST</span>{' '}
-            <span className="text-white">/api/v1/webhook/printer/:id/stop</span>
-            <span className="text-bambu-gray"> - {t('settings.webhook.stopPrint')}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  ) : null;
+  const webhookDocumentationCard = hasPermission('api_keys:read') ? <WebhookEndpoints /> : null;
 
   const apiBrowserCard = hasPermission('api_keys:read') ? (
     <div>
@@ -2948,7 +2888,7 @@ export function SettingsPage() {
     localizedHeaderLabel(ORDER_MANAGEMENT_SUB_TABS[subTab]);
   const activeSettingsHeaderMeta =
     activeTab === 'users-security'
-      ? USER_SECURITY_SUB_TABS[usersSubTab]
+      ? USER_SECURITY_SUB_TABS[shownUsersSubTab]
       : activeTab === 'printers-production'
         ? PRINTER_PRODUCTION_SUB_TABS[printerProductionSubTab]
         : activeTab === 'projects-files'
@@ -2970,7 +2910,7 @@ export function SettingsPage() {
     activeTab === 'users-security' ? (
       <Tabs<UsersSubTab>
         ariaLabel={t('settings.tabs.usersSecurity', 'Users & Security')}
-        value={usersSubTab}
+        value={shownUsersSubTab}
         onValueChange={setUsersSubTab}
         renderPanel={false}
         className="mb-5"
@@ -2980,16 +2920,18 @@ export function SettingsPage() {
             label: <span className="flex items-center gap-2"><Users className="h-4 w-4" />{t('settings.tabs.users')}</span>,
             content: null,
           },
-          {
-            value: 'email',
-            label: <span className="flex items-center gap-2"><Mail className="h-4 w-4" />{t('settings.tabs.emailAuth') || 'Email Authentication'}{advancedAuthStatus?.advanced_auth_enabled ? <span className="h-2 w-2 rounded-full bg-green-400" /> : null}</span>,
-            content: null,
-          },
-          {
-            value: 'ldap',
-            label: <span className="flex items-center gap-2"><Shield className="h-4 w-4" />{t('settings.tabs.ldap') || 'LDAP'}{ldapStatus?.ldap_enabled ? <span className="h-2 w-2 rounded-full bg-green-400" /> : null}</span>,
-            content: null,
-          },
+          ...(isAdmin ? [
+            {
+              value: 'email' as UsersSubTab,
+              label: <span className="flex items-center gap-2"><Mail className="h-4 w-4" />{t('settings.tabs.emailAuth') || 'Email Authentication'}{advancedAuthStatus?.advanced_auth_enabled ? <span className="h-2 w-2 rounded-full bg-green-400" /> : null}</span>,
+              content: null,
+            },
+            {
+              value: 'ldap' as UsersSubTab,
+              label: <span className="flex items-center gap-2"><Shield className="h-4 w-4" />{t('settings.tabs.ldap') || 'LDAP'}{ldapStatus?.ldap_enabled ? <span className="h-2 w-2 rounded-full bg-green-400" /> : null}</span>,
+              content: null,
+            },
+          ] : []),
           {
             value: 'twofa',
             label: <span className="flex items-center gap-2"><Shield className="h-4 w-4" />{t('settings.tabs.twoFa')}<span className={twoFAStatus?.totp_enabled || twoFAStatus?.email_otp_enabled ? 'h-2 w-2 rounded-full bg-green-400' : 'h-2 w-2 rounded-full bg-bambu-gray/40'} /></span>,
@@ -3446,6 +3388,12 @@ export function SettingsPage() {
                   }}
                 />
               </div>
+              {progressInTitle && <Select ariaLabel={t('settings.tabDisplay')} value={tabPrintDisplay}
+                onValueChange={(value) => setTabPrintDisplay(value === 'time' ? 'time' : 'percentage')}
+                options={[
+                  { value: 'percentage', label: t('settings.tabDisplayPercentage') },
+                  { value: 'time', label: t('settings.tabDisplayTime') },
+                ]} />}
             </CardContent>
           </Card>
 
@@ -3509,6 +3457,7 @@ export function SettingsPage() {
                   type="text"
                   value={localSettings.external_url ?? ''}
                   onChange={(e) => updateSetting('external_url', e.target.value)}
+                  disabled={!isAdmin}
                   placeholder="http://192.168.1.100:8000"
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 />
@@ -3585,18 +3534,18 @@ export function SettingsPage() {
                         value={localSettings.ha_url ?? ''}
                         onChange={(e) => updateSetting('ha_url', e.target.value)}
                         placeholder="http://192.168.1.100:8123"
-                        disabled={localSettings.ha_url_from_env}
+                        disabled={localSettings.ha_url_from_env || localSettings.ha_token_from_env}
                         className={`w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none ${
-                          localSettings.ha_url_from_env ? 'opacity-60 cursor-not-allowed' : ''
+                          localSettings.ha_url_from_env || localSettings.ha_token_from_env ? 'opacity-60 cursor-not-allowed' : ''
                         }`}
                       />
                       {localSettings.ha_url_from_env && (
                         <Lock className="absolute right-3 top-2.5 w-4 h-4 text-bambu-gray" />
                       )}
                     </div>
-                    {localSettings.ha_url_from_env && (
+                    {(localSettings.ha_url_from_env || localSettings.ha_token_from_env) && (
                       <p className="text-xs text-bambu-gray mt-1">
-                        {t('settings.urlFromEnvReadOnly')}
+                        {t(localSettings.ha_url_from_env ? 'settings.urlFromEnvReadOnly' : 'settings.haUrlEnvRequired')}
                       </p>
                     )}
                   </div>
@@ -3614,6 +3563,7 @@ export function SettingsPage() {
                       <TextField
                         type="password"
                         value={localSettings.ha_token ?? ''}
+                        onFocus={selectPlaceholderOnFocus}
                         onChange={(e) => updateSetting('ha_token', e.target.value)}
                         placeholder="eyJ0eXAiOiJKV1QiLC..."
                         disabled={localSettings.ha_token_from_env}
@@ -3631,7 +3581,7 @@ export function SettingsPage() {
                       </p>
                     ) : (
                       <p className="text-xs text-bambu-gray mt-1">
-                        {t('settings.haTokenHint')}
+                        {t(secretsPendingReentry.includes('ha_token') ? 'common.secretReenter' : 'settings.haTokenHint')}
                       </p>
                     )}
                   </div>
@@ -3767,11 +3717,12 @@ export function SettingsPage() {
 
                   <div>
                     <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.passwordOptional')}
+                      {t(secretsPendingReentry.includes('mqtt_password') ? 'common.secretReenter' : 'settings.passwordOptional')}
                     </label>
                     <TextField
                       type="password"
                       value={localSettings.mqtt_password ?? ''}
+                      onFocus={selectPlaceholderOnFocus}
                       onChange={(e) => updateSetting('mqtt_password', e.target.value)}
                       placeholder={t('settings.leaveEmptyForAnonymous')}
                       className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
@@ -4175,27 +4126,10 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* Notification Language Setting */}
-            <Card className="mb-4">
-              <CardContent className="py-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white text-sm font-medium">{t('settings.notificationLanguage')}</p>
-                    <p className="text-xs text-bambu-gray">{t('settings.notificationLanguageDescription')}</p>
-                  </div>
-                  <Select
-                    ariaLabel={t('settings.notificationLanguage')}
-                    value={localSettings.notification_language || 'en'}
-                    onValueChange={(value) => updateSetting('notification_language', value)}
-                    className="w-48"
-                    options={availableLanguages.map((lang) => ({
-                      value: lang.code,
-                      label: lang.nativeName,
-                    }))}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <PrintNotificationSettings
+              pauseWarningMinutes={localSettings.pause_warning_minutes ?? 5}
+              onPauseWarningMinutesChange={(value) => updateSetting('pause_warning_minutes', value)}
+            />
 
             {/* User Notifications Toggle */}
             <Card className="mb-4">
@@ -4756,17 +4690,6 @@ export function SettingsPage() {
 
             </>}
             <ConnectedAppsSettings />
-            <Card>
-              <CardHeader>
-                <h3 className="text-base font-semibold text-white flex items-center gap-2" id="card-camera-tokens">
-                  <Video className="w-4 h-4 text-bambu-green" />
-                  {t('cameraTokens.title', 'Camera API Tokens')}
-                </h3>
-              </CardHeader>
-              <CardContent>
-              <CameraTokensSection />
-            </CardContent>
-          </Card>
             {prometheusCard}
           </div>
 
@@ -4811,13 +4734,23 @@ export function SettingsPage() {
             >
               <DryerManagementCard locale={i18n.resolvedLanguage ?? 'en'} />
             </div>
-            <div
-              data-testid="device-layout-camera"
-              className="order-5 xl:order-none"
-            >
-              {cameraSettingsCard}
-            </div>
+
           </div>
+        </div>
+      )}
+
+      {activeTab === 'printers-production' && printerProductionSubTab === 'cameras' && (
+        <div className="space-y-4">
+          {cameraSettingsCard}
+          <Card id="card-camera-tokens">
+            <CardHeader>
+              <h2 className="flex items-center gap-2 font-semibold">
+                <Video className="h-4 w-4 text-bambu-green" />
+                {t('cameraTokens.title', 'Camera API Tokens')}
+              </h2>
+            </CardHeader>
+            <CardContent><CameraTokensSection /></CardContent>
+          </Card>
         </div>
       )}
 
@@ -5570,21 +5503,7 @@ export function SettingsPage() {
                     <Database className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                     <span className="font-medium">{t('settings.historyRetention')}</span>
                   </div>
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.keepSensorHistory')}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <NumberField
-                        min="1"
-                        max="365"
-                        value={localSettings.ams_history_retention_days ?? 30}
-                        onChange={(e) => updateSetting('ams_history_retention_days', parseInt(e.target.value) || 30)}
-                        className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                      />
-                      <span className="text-bambu-gray">{t('common.days')}</span>
-                    </div>
-                  </div>
+                  <SensorHistoryRetentionFields settings={localSettings} update={updateSetting} />
                   <p className="text-xs text-bambu-gray">
                     {t('settings.historyRetentionDescription')}
                   </p>
@@ -5608,6 +5527,7 @@ export function SettingsPage() {
         <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2 2xl:items-start">
           <SpoolCatalogSettings />
           <ColorCatalogSettings />
+          <FilamentProfileDefaults key={String(localSettings?.spoolman_enabled)} spoolman={localSettings?.spoolman_enabled ?? false} />
         </div>
       )}
 
@@ -5785,7 +5705,7 @@ export function SettingsPage() {
       {activeTab === 'users-security' && (
         <div className="space-y-3">
           {/* Users Sub-tab */}
-          {usersSubTab === 'users' && (
+          {shownUsersSubTab === 'users' && (
           <div id="card-users" className="space-y-3">
           {/* Auth Toggle Header */}
           <Card>
@@ -5871,7 +5791,7 @@ export function SettingsPage() {
                             key={preset.hours}
                             type="button"
                             onClick={() => updateSetting('session_max_hours', preset.hours)}
-                            disabled={authEnabled && !hasPermission('settings:update')}
+                            disabled={!isAdmin}
                             className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-bambu-green text-white'
@@ -5892,7 +5812,7 @@ export function SettingsPage() {
                             if (Number.isNaN(raw)) return;
                             updateSetting('session_max_hours', Math.max(1, Math.min(720, raw)));
                           }}
-                          disabled={authEnabled && !hasPermission('settings:update')}
+                          disabled={!isAdmin}
                           aria-label={t('settings.sessionPolicy.customHoursLabel')}
                           className="w-20 px-2 py-2 bg-bambu-dark-tertiary text-white text-sm rounded-lg border border-bambu-dark-tertiary focus:border-bambu-green focus:outline-none disabled:opacity-50"
                         />
@@ -6166,25 +6086,25 @@ export function SettingsPage() {
           )}
 
           {/* Email Auth Sub-tab */}
-          {usersSubTab === 'email' && (
+          {shownUsersSubTab === 'email' && (
             <div className="max-w-5xl" id="card-smtp">
               <EmailSettings />
             </div>
           )}
 
-          {usersSubTab === 'ldap' && (
+          {shownUsersSubTab === 'ldap' && (
             <div className="max-w-5xl" id="card-ldap">
               <LDAPSettings />
             </div>
           )}
 
-          {usersSubTab === 'twofa' && (
+          {shownUsersSubTab === 'twofa' && (
             <div className="max-w-2xl">
               <TwoFactorSettings />
             </div>
           )}
 
-          {usersSubTab === 'oidc' && isAdmin && (
+          {shownUsersSubTab === 'oidc' && isAdmin && (
             <div className="max-w-3xl space-y-4">
               <Card>
                 <CardContent className="space-y-3 p-4">
@@ -6204,7 +6124,7 @@ export function SettingsPage() {
             </div>
           )}
 
-          {usersSubTab === 'security' && isAdmin && (
+          {shownUsersSubTab === 'security' && isAdmin && (
             <div className="max-w-3xl">
               <SecurityStatusCard />
             </div>
@@ -6564,7 +6484,7 @@ export function SettingsPage() {
                 {advancedAuthStatus?.advanced_auth_enabled && (
                   <div className="bg-bambu-dark-secondary/50 border border-bambu-green/20 rounded-lg p-3 space-y-3">
                     <p className="text-sm text-bambu-gray">
-                      {t('users.form.passwordManagedByAdvancedAuth') || 'Password is managed by Advanced Authentication. Use "Reset Password" to send a new password to the user via email.'}
+                      {t('users.form.passwordManagedByAdvancedAuth')}
                     </p>
                     <Button
                       variant="secondary"
@@ -6634,6 +6554,7 @@ export function SettingsPage() {
                   </div>
                 </div>
               </div>
+              <AdminTwoFactorReset key={editingUserId} userId={editingUserId} />
               <div className="mt-6 flex justify-end gap-3">
                 <Button
                   variant="secondary"

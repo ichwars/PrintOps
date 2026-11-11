@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, Loader2, Package, Search } from 'lucide-react';
+import { X, Loader2, Package, Search, ScanLine } from 'lucide-react';
 import { api } from '../api/client';
 import type { InventorySpool, SpoolAssignment } from '../api/client';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
+import { QrAssignTargetModal } from './QrAssignTargetModal';
+import { useAuth } from '../contexts/AuthContext';
+import { formatSlotLabel } from '../utils/amsHelpers';
 import { useToast } from '../contexts/ToastContext';
-import { filterSpoolsByQuery } from '../utils/inventorySearch';
+import { exactSpoolIdQuery, filterSpoolsByQuery } from '../utils/inventorySearch';
 import { getSwatchStyle } from '../utils/colors';
 import { Checkbox, TextField } from './ui';
 
@@ -32,6 +35,10 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { hasPermission, loading: authLoading } = useAuth();
+  const canScan = !authLoading && hasPermission('inventory:read') && hasPermission('inventory:update')
+    && hasPermission('printers:read') && (!spoolmanEnabled || hasPermission('printers:ams_rfid'));
+  const [scanOpen, setScanOpen] = useState(false);
   const [disableFiltering, setDisableFiltering] = useState(false);
   const [selectedSpoolId, setSelectedSpoolId] = useState<number | null>(null);
   const [selectedSpoolmanSpoolId, setSelectedSpoolmanSpoolId] = useState<number | null>(null);
@@ -61,6 +68,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   useEffect(() => {
     if (isOpen) {
       setDisableFiltering(false);
+      setScanOpen(false);
     }
   }, [isOpen]);
 
@@ -90,8 +98,8 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.getSettings(),
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: () => api.getUiFlags(),
     enabled: isOpen,
   });
 
@@ -107,7 +115,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   // in the x1c-2 assign list), and assigning would silently steal it from
   // the other printer's slot.
   const { data: allSpoolmanAssignments } = useQuery({
-    queryKey: ['spoolman-slot-assignments-all'],
+    queryKey: ['spoolman-slot-assignments', 'all'],
     queryFn: () => api.getSpoolmanSlotAssignments(),
     enabled: isOpen && !!spoolmanEnabled,
   });
@@ -185,6 +193,8 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['spoolman-inventory-spools'] });
+      // Prefix match: also the all-printers list this dialog filters
+      // "assigned elsewhere" by.
       queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
       nudgePrinterRepublish();
       showToast(t('inventory.assignSuccess'), 'success');
@@ -234,6 +244,11 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   };
 
   if (!isOpen) return null;
+  if (scanOpen && canScan) {
+    const label = trayInfo?.location || formatSlotLabel(amsId, trayId, amsId >= 128, amsId >= 254);
+    return <QrAssignTargetModal spoolmanMode={!!spoolmanEnabled} onClose={() => setScanOpen(false)} onAssigned={onClose}
+      fixedSlot={{ printerId, amsId, trayId, label, material: trayInfo?.material || trayInfo?.type || null }} />;
+  }
 
   // Filter out spools already assigned to other slots
   const assignedSpoolIds = new Set(
@@ -269,8 +284,9 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   // tray's material (partial-match both directions — "PLA" spool accepts a "PLA Basic" slot and
   // vice versa). Manually-added inventory spools typically have no slicer_filament_name; gating
   // on strict profile equality alone hid them even when the material matched (#1047).
+  const exactId = exactSpoolIdQuery(searchFilter);
   let filteredSpools = availableSpools;
-  if (!disableFiltering) {
+  if (!disableFiltering && exactId === null) {
     const trayProfile = stripProfileQualifier(normalizeValue(trayInfo?.profile));
     const trayMaterial = normalizeValue(trayInfo?.material || trayInfo?.type);
     if (trayProfile || trayMaterial) {
@@ -293,6 +309,14 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   if (searchFilter && filteredSpools) {
     filteredSpools = filterSpoolsByQuery(filteredSpools, searchFilter);
   }
+
+  const searchSpools = spoolmanEnabled ? spoolmanSpools : spools;
+  const exactMatch = exactId === null ? undefined : searchSpools?.find(spool => spool.id === exactId);
+  const exactMiss = exactId === null || !searchSpools ? null : !exactMatch ? 'inventory.spoolIdNotFound'
+    : exactMatch.archived_at ? 'inventory.spoolIdArchived' : null;
+  const exactInUse = exactId !== null && exactMatch && !exactMatch.archived_at
+    && (spoolmanEnabled ? assignedSpoolmanSpoolIds.has(exactId) : !disableFiltering && assignedSpoolIds.has(exactId));
+  const exactError = exactInUse ? 'inventory.spoolIdInOtherSlot' : exactMiss;
 
   const handleAssign = () => {
     if (selectedSpoolmanSpoolId !== null) {
@@ -375,6 +399,9 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
 
         {/* Content */}
         <div className="p-4 space-y-4 overflow-y-auto">
+          {canScan && <Button variant="secondary" onClick={() => setScanOpen(true)}>
+            <ScanLine className="w-4 h-4" />{t('inventory.qrAssign.title')}
+          </Button>}
           {/* Tray info */}
           {trayInfo && (
             <div className="p-3 bg-bambu-dark rounded-lg border border-bambu-dark-tertiary">
@@ -398,7 +425,13 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
             <TextField
               type="text"
               value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
+              onChange={(e) => {
+                setSearchFilter(e.target.value);
+                if (exactSpoolIdQuery(e.target.value) !== null) {
+                  setSelectedSpoolId(null);
+                  setSelectedSpoolmanSpoolId(null);
+                }
+              }}
               placeholder={t('inventory.searchSpools')}
               className="w-full pl-9 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray focus:outline-none focus:border-bambu-green"
             />
@@ -406,7 +439,10 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
 
           {/* Spool list */}
           <div className="space-y-3">
-            {!spoolmanEnabled && (isLoading ? (
+            {exactError && !(spoolmanEnabled ? spoolmanLoading : isLoading) && (
+              <p role="status" className="py-4 text-center text-sm text-bambu-gray">{t(exactError, { id: exactId })}</p>
+            )}
+            {!exactError && !spoolmanEnabled && (isLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
               </div>
@@ -476,7 +512,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
               </div>
             ))}
 
-            {spoolmanEnabled && (
+            {!exactError && spoolmanEnabled && (
               <>
                 {spoolmanLoading ? (
                   <div className="flex justify-center py-4">

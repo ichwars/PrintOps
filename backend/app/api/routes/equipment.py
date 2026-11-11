@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.smart_plug import SmartPlug
 from backend.app.models.user import User
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/equipment", tags=["equipment"])
 @router.get("/", response_model=list[EquipmentRead])
 async def list_equipment(
     active_only: bool = Query(default=False),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
 ) -> list[EquipmentRead]:
     return [
@@ -28,7 +28,7 @@ async def list_equipment(
 @router.post("/", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)
 async def create_equipment(
     data: EquipmentCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
 ) -> EquipmentRead:
     item = await equipment_service.create_equipment(db, data)
@@ -40,7 +40,7 @@ async def create_equipment(
 async def update_equipment(
     equipment_id: int,
     data: EquipmentUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
 ) -> EquipmentRead:
     item = await equipment_service.get_equipment(db, equipment_id)
@@ -54,7 +54,7 @@ async def update_equipment(
 @router.delete("/{equipment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_equipment(
     equipment_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
 ) -> None:
     item = await equipment_service.get_equipment(db, equipment_id)

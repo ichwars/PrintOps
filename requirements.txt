@@ -10,7 +10,7 @@
 # practice, but pip-audit flags the package itself and breaks CI.
 # Hold to 0.135.x (which has all features we use, including SSE)
 # until upstream removes the dep or explains the rationale.
-fastapi>=0.109.0,<0.136.0
+fastapi>=0.135.4,<0.136.0
 uvicorn[standard]>=0.27.0
 
 # Database
@@ -131,6 +131,9 @@ tzdata>=2024.1; sys_platform == "win32"
 PyJWT>=2.15.1
 passlib[bcrypt]>=1.7.4
 ldap3>=2.9.0
+# LDAP ASN.1 decoding: 0.6.5 fixes the four quadratic-work advisories
+# CVE-2026-119194 through CVE-2026-119197.
+pyasn1>=0.6.5
 pyotp>=2.9.0
 
 # Transitive dep pin: idna<3.15 has CVE-2026-45409 (ReDoS on encode() with

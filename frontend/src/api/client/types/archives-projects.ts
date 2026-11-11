@@ -6,6 +6,23 @@ export interface ArchiveDuplicate {
   match_type: 'exact' | 'similar';  // 'exact' = hash match, 'similar' = name match
 }
 
+export interface TimelapseEditJob {
+  job_id: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number | null;
+  output_path: string | null;
+  message: string | null;
+}
+
+export interface PrinterLastPrint {
+  printer_id: number;
+  archive_id: number;
+  run_id: number | null;
+  filename: string;
+  print_name: string | null;
+  completed_at: string | null;
+}
+
 export interface Archive {
   confirm_requested?: boolean;
   user_verdict?: 'good' | 'reject' | 'mixed' | null;
@@ -13,6 +30,9 @@ export interface Archive {
   reject_quantity?: number | null;
   user_verdict_source?: string | null;
   user_verdict_at?: string | null;
+  latest_run_id?: number | null;
+  run_id?: number | null;
+  timelapse_count?: number;
   outcome_run_id?: number | null;
   outcome_expected_parts?: number | null;
   outcome_batch_id?: number | null;
@@ -38,6 +58,7 @@ export interface Archive {
   print_time_seconds: number | null;
   actual_time_seconds: number | null;  // Computed from started_at/completed_at
   time_accuracy: number | null;  // Percentage: 100 = perfect, >100 = faster than estimated
+  time_estimate_seconds?: number | null;
   filament_used_grams: number | null;
   filament_type: string | null;
   filament_color: string | null;
@@ -108,10 +129,15 @@ export interface PrintLogEntry {
   print_name: string | null;
   printer_name: string | null;
   printer_id: number | null;
+  plate_id?: number | null;
   status: string;
   started_at: string | null;
   completed_at: string | null;
   duration_seconds: number | null;
+  estimate_seconds?: number | null;
+  estimate_grams?: number | null;
+  photos?: string[] | null;
+  has_timelapse?: boolean;
   filament_type: string | null;
   filament_color: string | null;
   filament_used_grams: number | null;
@@ -196,8 +222,8 @@ export interface FailureAnalysis {
 export interface BulkUploadResult {
   uploaded: number;
   failed: number;
-  results: Array<{ filename: string; id: number; status: string }>;
-  errors: Array<{ filename: string; error: string }>;
+  results: Array<{ index: number; filename: string; id: number; status: string }>;
+  errors: Array<{ index: number; filename: string; error: string }>;
 }
 
 // Archive Comparison types

@@ -51,7 +51,7 @@ describe('FileManagerPage - STEP files and server-side slicing', () => {
           disk_total_bytes: 107374182400,
         }),
       ),
-      http.get('/api/v1/settings/', () =>
+      http.get('/api/v1/settings/ui-flags', () =>
         HttpResponse.json({
           check_updates: false,
           check_printer_firmware: false,
@@ -79,7 +79,7 @@ describe('FileManagerPage - STEP files and server-side slicing', () => {
   });
 
   it('offers desktop OrcaSlicer handoff for STEP when the sidecar is off', async () => {
-    server.use(http.get('/api/v1/settings/', () => HttpResponse.json({
+    server.use(http.get('/api/v1/settings/ui-flags', () => HttpResponse.json({
       use_slicer_api: false, open_in_slicer: 'orcaslicer', preferred_slicer: 'bambu_studio',
     })));
     render(<FileManagerPage />);

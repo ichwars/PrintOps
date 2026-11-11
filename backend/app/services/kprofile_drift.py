@@ -19,6 +19,7 @@ from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.ams_slot_presence import spool_present
 from backend.app.services.calibration_context import resolve_spool_calibration
+from backend.app.services.drift_filament_presets import spoolman_drift_preset_hints
 from backend.app.services.inventory_mode import spoolman_owns_assignments
 from backend.app.services.printer_manager import printer_manager
 from backend.app.utils.color_utils import colors_similar
@@ -69,10 +70,12 @@ def default_chosen(printer_id: int, ams_id: int, tray_id: int) -> bool:
     return (printer_id, ams_id, tray_id) in _default_chosen
 
 
-def forget_printer(printer_id: int) -> None:
+def forget_printer(printer_id: int, *, deleted: bool = False) -> None:
     """Reconnect starts a fresh retry budget, preserving deliberate Default."""
     for key in [key for key in _watches if key[0] == printer_id]:
         _watches.pop(key, None)
+    if deleted:
+        _default_chosen.difference_update([key for key in _default_chosen if key[0] == printer_id])
 
 
 def dispatch_trays(mapping: list[int] | None, use_ams: bool) -> set[int] | None:
@@ -263,6 +266,14 @@ async def reapply_lost_kprofiles(
             return 0
         _running.add(printer_id)
         try:
+            candidates = {
+                (ams_id, tray_id)
+                for ams_id, tray_id, global_id, tray in _loaded_trays(state)
+                if _settle((printer_id, ams_id, tray_id), tray)
+                and (global_trays is None or global_id in global_trays)
+                and (not throttle or _due((printer_id, ams_id, tray_id), _now()))
+            }
+            preset_hints = await spoolman_drift_preset_hints(printer_id, state, candidates)
             async with async_session() as db:
                 mode = await spoolman_owns_assignments(db)
                 for ams_id, tray_id, global_id, tray in _loaded_trays(state):
@@ -320,7 +331,9 @@ async def reapply_lost_kprofiles(
                     filament_id = live.filament_id if live is not None else ""
                     if not filament_id and stored.setting_id:
                         filament_id = normalize_slicer_filament(stored.setting_id)[0] or stored.setting_id
-                    filament_id = filament_id or latest_tray.get("tray_info_idx", "")
+                    filament_id = (
+                        filament_id or preset_hints.get(tuple(assignment), "") or latest_tray.get("tray_info_idx", "")
+                    )
                     watch.attempts += 1
                     sent = client.extrusion_cali_sel(
                         ams_id=ams_id,

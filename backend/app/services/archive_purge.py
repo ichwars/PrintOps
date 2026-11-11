@@ -18,11 +18,12 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from backend.app.core import database as _database
 from backend.app.models.archive import PrintArchive
 from backend.app.models.settings import Settings
-from backend.app.services.archive import ArchiveService
+from backend.app.services.archive import ArchiveService, lock_archive_queue_for_deletion
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +185,7 @@ class ArchivePurgeService:
         sample_limit: int = 5,
         *,
         purge_stats: bool = False,
+        visible: tuple[ColumnElement[bool], ...] = (),
     ) -> dict:
         """Count + size of archives eligible for purge. Read-only.
 
@@ -204,9 +206,9 @@ class ArchivePurgeService:
         last_activity = _last_activity_expr()
         clause = last_activity < cutoff
 
-        count_stmt = select(func.count(PrintArchive.id)).where(clause)
-        size_stmt = select(func.coalesce(func.sum(PrintArchive.file_size), 0)).where(clause)
-        sample_stmt = select(PrintArchive.filename).where(clause).order_by(last_activity).limit(sample_limit)
+        count_stmt = select(func.count(PrintArchive.id)).where(clause, *visible)
+        size_stmt = select(func.coalesce(func.sum(PrintArchive.file_size), 0)).where(clause, *visible)
+        sample_stmt = select(PrintArchive.filename).where(clause, *visible).order_by(last_activity).limit(sample_limit)
         if not purge_stats:
             count_stmt = count_stmt.where(PrintArchive.deleted_at.is_(None))
             size_stmt = size_stmt.where(PrintArchive.deleted_at.is_(None))
@@ -234,6 +236,7 @@ class ArchivePurgeService:
         older_than_days: int,
         *,
         purge_stats: bool = False,
+        visible: tuple[ColumnElement[bool], ...] = (),
     ) -> int:
         """Bulk-delete archives older than ``older_than_days``. Returns count.
 
@@ -262,7 +265,7 @@ class ArchivePurgeService:
         # a repeat sweeper run keeps re-touching the same rows. Hard-delete
         # mode doesn't filter — already-soft-deleted rows are eligible for
         # promotion to hard-delete when the user opts in.
-        select_stmt = select(PrintArchive.id).where(_last_activity_expr() < cutoff)
+        select_stmt = select(PrintArchive.id).where(_last_activity_expr() < cutoff, *visible)
         if not purge_stats:
             select_stmt = select_stmt.where(PrintArchive.deleted_at.is_(None))
         id_result = await db.execute(select_stmt)
@@ -273,24 +276,20 @@ class ArchivePurgeService:
         deleted = 0
         for archive_id in ids:
             async with _database.async_session() as delete_db:
+                if (
+                    visible
+                    and await delete_db.scalar(select(PrintArchive.id).where(PrintArchive.id == archive_id, *visible))
+                    is None
+                ):
+                    continue
                 service = ArchiveService(delete_db)
+                if await lock_archive_queue_for_deletion(delete_db, PrintArchive.id == archive_id):
+                    continue
                 if purge_stats:
-                    # Hard-delete linked PrintLogEntry rows first so their
-                    # filament / cost contributions stop counting in /stats.
-                    # FK is ON DELETE SET NULL, so without this they'd
-                    # survive the archive row and keep showing up in totals
-                    # (#1343 / #1378 / #1390).
-                    from sqlalchemy import delete as sa_delete
-
-                    from backend.app.models.print_log import PrintLogEntry
-
-                    await delete_db.execute(sa_delete(PrintLogEntry).where(PrintLogEntry.archive_id == archive_id))
-                    await delete_db.commit()
-                    if await service.delete_archive(archive_id):
-                        deleted += 1
+                    removed = await service.delete_archive(archive_id, purge_stats=True)
                 else:
-                    if await service.soft_delete_archive(archive_id):
-                        deleted += 1
+                    removed = await service.soft_delete_archive(archive_id)
+                deleted += int(removed)
         if deleted:
             logger.info(
                 "Archive purge: %s %d archive(s) (older_than_days=%d, purge_stats=%s)",

@@ -389,3 +389,21 @@ async def test_queue_removed_during_soak_stops_heat(queue_factory):
         await asyncio.wait_for(task, 1)
     ctx.pm.start_print.assert_not_called()
     ctx.client.set_bed_temperature.assert_called_with(0)
+
+
+@pytest.mark.asyncio
+async def test_explicit_cancel_interrupts_preheat_without_waiting_for_poll(queue_factory):
+    ctx = await queue_factory()
+    task = asyncio.create_task(dispatch(ctx, soak=300, poll_seconds=3600))
+    while not hasattr(ctx, "heated"):
+        await asyncio.sleep(0)
+    await asyncio.wait_for(ctx.heated.wait(), 1)
+    async with ctx.session_maker() as db:
+        (await db.get(PrintQueueItem, ctx.queue_item_id)).status = "cancelled"
+        await db.commit()
+    ctx.owner.cancel_dispatch(ctx.queue_item_id)
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 1)
+    ctx.pm.start_print.assert_not_called()
+    ctx.client.set_bed_temperature.assert_called_with(0)
+    assert not ctx.owner.blocks_power_off(ctx.printer_id)

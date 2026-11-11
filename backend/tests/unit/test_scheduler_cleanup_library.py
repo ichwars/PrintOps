@@ -140,7 +140,15 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
     scheduler = PrintScheduler()
 
     async def archive_print(
-        self, *, printer_id, source_file, original_filename, created_by_id=None, project_id=None, plate_id=None
+        self,
+        *,
+        printer_id,
+        source_file,
+        original_filename,
+        created_by_id=None,
+        project_id=None,
+        plate_id=None,
+        source_library_file_id=None,
     ):
         if archive_failure:
             raise RuntimeError("archive copy failed")
@@ -163,6 +171,7 @@ async def _dispatch_library_item(ctx, *, archive_failure=False, unlink_side_effe
             project_id=project_id,
             created_by_id=created_by_id,
             plate_id=plate_id,
+            source_library_file_id=source_library_file_id,
         )
         self.db.add(archive)
         await self.db.flush()
@@ -345,7 +354,7 @@ async def test_upload_failure_surfaces_recorded_network_cause(queue_factory, cap
 
 
 @pytest.mark.asyncio
-async def test_persistent_storage_upload_failure_remains_terminal(queue_factory):
+async def test_storage_refusal_keeps_library_job_for_retry(queue_factory):
     from backend.app.services.bambu_ftp import FtpFailure, FtpFailureKind
 
     ctx = await queue_factory(cleanup=False)
@@ -358,11 +367,11 @@ async def test_persistent_storage_upload_failure_remains_terminal(queue_factory)
     scheduler = await _dispatch_library_item(ctx)
 
     item, library_file, archive = await _queue_snapshot(ctx)
-    assert item.status == "failed"
-    assert item.completed_at is not None
-    assert "SD card" in item.error_message
+    assert item.status == "pending"
+    assert item.completed_at is None
+    assert item.error_message is None
     assert item.dispatch_attempts == 0
-    assert ctx.printer_id not in scheduler._upload_backoff
+    assert ctx.printer_id in scheduler._upload_backoff
     ctx.start_print.assert_not_called()
     assert library_file is not None
     assert archive is not None

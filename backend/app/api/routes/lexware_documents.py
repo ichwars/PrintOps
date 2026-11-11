@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled, caller_is_api_key
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.commercial_document import CommercialDocument
 from backend.app.models.lexware import LexwareConnection
@@ -117,7 +117,7 @@ async def list_documents(
     voucher_type: str | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(READ),
     api_key: bool = Depends(caller_is_api_key),
 ):
@@ -148,7 +148,7 @@ async def list_documents(
 async def finance(
     connection_id: int | None = None,
     business_profile_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(READ, FINANCE),
 ):
     rows = (
@@ -194,7 +194,7 @@ async def finance(
 @router.get("/documents/{document_id}", response_model=LexwareDocumentRead, response_model_exclude_unset=True)
 async def document_detail(
     document_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(READ),
     api_key: bool = Depends(caller_is_api_key),
 ):
@@ -219,7 +219,7 @@ _LOCAL_TYPES = {
 async def link_document(
     document_id: int,
     command: LexwareLinkCommand,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(READ, FINANCE, Permission.COMMERCIAL_DOCUMENTS_DRAFT),
 ):
     # Serialize with the scheduler and downloads in the same connection-then-document lock order.
@@ -269,7 +269,7 @@ async def link_document(
 async def original_file(
     document_id: int,
     file_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(READ, FINANCE),
 ):
     document, connection = await _load(db, document_id)

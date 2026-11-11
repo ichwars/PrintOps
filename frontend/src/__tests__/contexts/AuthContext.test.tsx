@@ -11,7 +11,7 @@ import { server } from '../mocks/server';
 import { AuthProvider, useAuth } from '../../contexts/AuthContext';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { ToastProvider } from '../../contexts/ToastContext';
-import { getAuthToken, setAuthToken, type Permission } from '../../api/client';
+import { api, getAuthToken, setAuthToken, type LoginResponse, type Permission } from '../../api/client';
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -425,6 +425,178 @@ describe('AuthContext', () => {
       await waitFor(() => expect(result.current.user).not.toBeNull());
       expect(result.current.user?.username).toBe('alice');
       expect(getAuthToken()).toBe('valid-token');
+    });
+  });
+
+  it('confirms and persists a new kiosk key after the auth status endpoint recovers', async () => {
+    setAuthToken(null);
+    vi.mocked(localStorage.setItem).mockClear();
+    window.history.replaceState({}, '', '/spoolbuddy?token=bb_new_kiosk');
+    let statusAvailable = false;
+    server.use(
+      http.get('/api/v1/auth/status', () => statusAvailable
+        ? HttpResponse.json({ auth_enabled: true, requires_setup: false })
+        : HttpResponse.json({ detail: 'Temporary outage' }, { status: 503 })),
+      http.get('/api/v1/auth/me', () => HttpResponse.json({
+        id: 0, username: 'api-key', is_active: true, permissions: [], groups: [],
+      })),
+    );
+    try {
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.authRetrying).toBe(true));
+      expect(result.current.authStatusVerified).toBe(false);
+      expect(getAuthToken()).toBe('bb_new_kiosk');
+      expect(localStorage.setItem).not.toHaveBeenCalledWith('auth_token', 'bb_new_kiosk');
+      expect(window.location.search).toBe('');
+
+      statusAvailable = true;
+      await waitFor(() => expect(result.current.user?.username).toBe('api-key'), { timeout: 4000 });
+      expect(result.current.authRetrying).toBe(false);
+      expect(result.current.authStatusVerified).toBe(true);
+      expect(localStorage.setItem).toHaveBeenCalledWith('auth_token', 'bb_new_kiosk');
+    } finally {
+      window.history.replaceState({}, '', '/');
+      setAuthToken(null);
+    }
+  });
+
+  it('waits without opening an anonymous dashboard when authentication discovery fails', async () => {
+    setAuthToken(null);
+    let statusAvailable = false;
+    server.use(http.get('/api/v1/auth/status', () => statusAvailable
+      ? HttpResponse.json({ auth_enabled: true, requires_setup: false })
+      : HttpResponse.json({}, { status: 503 })));
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.authRetrying).toBe(true));
+    expect(result.current.authStatusVerified).toBe(false);
+
+    statusAvailable = true;
+    await waitFor(() => expect(result.current.authRetrying).toBe(false), { timeout: 4000 });
+    expect(result.current.authEnabled).toBe(true);
+    expect(result.current.user).toBeNull();
+  });
+
+  it('uses the renewed JWT when a live socket closes during silent renewal', async () => {
+    const initialJwt = `fixture.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 }))}.signature`;
+    const replacementJwt = 'renewed-session';
+    setAuthToken(initialJwt);
+    const status = vi.fn(() => HttpResponse.json({ auth_enabled: true, requires_setup: false }));
+    const currentUser = vi.fn(({ request }: { request: Request }) => {
+      const authorization = request.headers.get('Authorization');
+      return HttpResponse.json({ id: 1, username: authorization === `Bearer ${initialJwt}` ? 'original' : 'renewed', is_active: true });
+    });
+    let finishRenewal!: (value: LoginResponse) => void;
+    const pending = new Promise<LoginResponse>(resolve => { finishRenewal = resolve; });
+    const refresh = vi.spyOn(api, 'refreshToken').mockReturnValue(pending);
+    const timers = vi.spyOn(globalThis, 'setTimeout');
+    server.use(http.get('/api/v1/auth/status', status), http.get('/api/v1/auth/me', currentUser));
+    try {
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.user?.username).toBe('original'));
+      const scheduled = timers.mock.calls.find(([callback, delay]) => typeof callback === 'function' && delay === 5000);
+      expect(scheduled).toBeDefined();
+      act(() => { (scheduled![0] as () => void)(); });
+      expect(refresh).toHaveBeenCalledTimes(1);
+
+      await act(async () => { window.dispatchEvent(new Event('auth:recheck')); });
+      expect(status).toHaveBeenCalledTimes(1);
+      finishRenewal({ access_token: replacementJwt });
+      await waitFor(() => expect(result.current.user?.username).toBe('renewed'));
+      expect(getAuthToken()).toBe(replacementJwt);
+      expect(status).toHaveBeenCalledTimes(2);
+    } finally {
+      timers.mockRestore();
+      refresh.mockRestore();
+      setAuthToken(null);
+    }
+  });
+
+  it('sends the issuing JWT for revocation before clearing the browser session', async () => {
+    setAuthToken('session-to-revoke');
+    const revoke = vi.fn(({ request }: { request: Request }) => {
+      expect(request.headers.get('Authorization')).toBe('Bearer session-to-revoke');
+      expect(request.keepalive).toBe(true);
+      return HttpResponse.json({ message: 'Logged out' });
+    });
+    server.use(
+      http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+      http.get('/api/v1/auth/me', () => HttpResponse.json({
+        id: 1, username: 'alice', is_active: true, permissions: [], groups: [],
+      })),
+      http.post('/api/v1/auth/logout', revoke),
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.user?.username).toBe('alice'));
+    act(() => result.current.logout());
+    expect(getAuthToken()).toBeNull();
+    expect(result.current.user).toBeNull();
+    await waitFor(() => expect(revoke).toHaveBeenCalledTimes(1));
+  });
+
+  describe('live connection auth recheck', () => {
+    const user = { id: 1, username: 'alice', sub: 'alice-sub', is_active: true, permissions: [], groups: [] };
+
+    afterEach(() => setAuthToken(null));
+
+    it('updates an open anonymous tab when the server enables login', async () => {
+      let enabled = false;
+      setAuthToken(null);
+      server.use(http.get('/api/v1/auth/status', () =>
+        HttpResponse.json({ auth_enabled: enabled, requires_setup: false })));
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.authStatusVerified).toBe(true));
+      expect(result.current.authEnabled).toBe(false);
+
+      enabled = true;
+      act(() => { window.dispatchEvent(new Event('auth:recheck')); });
+      await waitFor(() => expect(result.current.authEnabled).toBe(true));
+      expect(result.current.user).toBeNull();
+      expect(result.current.authStatusVerified).toBe(true);
+    });
+
+    it.each([401, 403])('clears the active user after a definitive %s from the server', async (status) => {
+      let denied = false;
+      const token = status === 403 ? 'bb_kiosk' : 'valid-token';
+      setAuthToken(token, 'persistent');
+      server.use(
+        http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+        http.get('/api/v1/auth/me', () => denied
+          ? HttpResponse.json({ detail: 'Token has been revoked' }, { status })
+          : HttpResponse.json(user)),
+      );
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.user?.username).toBe('alice'));
+
+      denied = true;
+      act(() => { window.dispatchEvent(new Event('auth:recheck')); });
+      await waitFor(() => expect(result.current.user).toBeNull());
+      expect(result.current.authEnabled).toBe(true);
+      expect(result.current.preferenceSubject).toBeNull();
+      expect(getAuthToken()).toBe(status === 403 ? token : null);
+    });
+
+    it('keeps the active session during a failed status probe and retries when the server returns', async () => {
+      setAuthToken('valid-token', 'persistent');
+      const statusReply = vi.fn(() => HttpResponse.json({ auth_enabled: true, requires_setup: false }));
+      server.use(
+        http.get('/api/v1/auth/status', statusReply),
+        http.get('/api/v1/auth/me', () => HttpResponse.json(user)),
+      );
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+      await waitFor(() => expect(result.current.user?.username).toBe('alice'));
+
+      statusReply.mockClear();
+      statusReply.mockImplementationOnce(() => HttpResponse.json({}, { status: 503 }));
+      statusReply.mockImplementationOnce(() => HttpResponse.json({ auth_enabled: false, requires_setup: false }));
+      act(() => { window.dispatchEvent(new Event('auth:recheck')); });
+      await waitFor(() => expect(statusReply).toHaveBeenCalledTimes(1));
+      expect(result.current.authEnabled).toBe(true);
+      expect(result.current.user?.username).toBe('alice');
+      expect(getAuthToken()).toBe('valid-token');
+
+      await waitFor(() => expect(result.current.authEnabled).toBe(false), { timeout: 4000 });
+      expect(statusReply).toHaveBeenCalledTimes(2);
+      expect(result.current.authStatusVerified).toBe(true);
     });
   });
 });

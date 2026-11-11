@@ -10,6 +10,7 @@ class Spool(Base):
     """Spool inventory item for tracking filament spools and their properties."""
 
     __tablename__ = "spool"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     material: Mapped[str] = mapped_column(String(50))  # PLA, PETG, ABS, etc.
@@ -36,7 +37,7 @@ class Spool(Base):
     # usage to 0" action stamps baseline = weight_used so the counter zeroes
     # without disturbing remaining (= label_weight - weight_used). Matches
     # Spoolman's split between used_weight and remaining_weight (#1390).
-    weight_used_baseline: Mapped[float] = mapped_column(Float, default=0)
+    weight_used_baseline: Mapped[float] = mapped_column(Float, default=0, server_default="0")
     weight_locked: Mapped[bool] = mapped_column(Boolean, default=False)  # Lock weight from AMS auto-sync
     last_scale_weight: Mapped[int | None] = mapped_column(Integer)  # Last gross weight from scale (g)
     last_weighed_at: Mapped[datetime | None] = mapped_column(DateTime)  # When last weighed
@@ -63,6 +64,9 @@ class Spool(Base):
     storage_location: Mapped[str | None] = mapped_column(String(255))  # User-editable storage location
     location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), index=True)
 
+    last_dried_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_dried_temp: Mapped[int | None] = mapped_column(Integer)
+    last_dried_hours: Mapped[float | None] = mapped_column(Float)
     last_used: Mapped[datetime | None] = mapped_column(DateTime)  # Last time this spool was used in a print
     encode_time: Mapped[datetime | None] = mapped_column(DateTime)  # When spool was encoded/written to tag
     tag_uid: Mapped[str | None] = mapped_column(String(32))  # RFID tag UID (up to 32 hex chars)

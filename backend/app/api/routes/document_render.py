@@ -7,14 +7,14 @@ from pathlib import Path
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.paths import resolve_data_dir, safe_join
 from backend.app.core.permissions import Permission
 from backend.app.models.commercial_document import (
@@ -128,7 +128,7 @@ async def runtime_readiness(
 async def render_document(
     command: ExternalRenderRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_EXPORT),
 ):
     correlation_id = _correlation_id(request)
@@ -274,7 +274,7 @@ async def render_document(
 async def download_artifact(
     artifact_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_EXPORT),
 ):
     artifact = await db.get(DocumentArtifact, artifact_id)

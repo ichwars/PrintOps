@@ -6,6 +6,7 @@ type ThemeMode = 'light' | 'dark' | 'system';
 type ThemeStyle = 'classic' | 'glow' | 'vibrant';
 type DarkBackground = 'neutral' | 'warm' | 'cool' | 'oled' | 'slate' | 'forest';
 type LightBackground = 'neutral' | 'warm' | 'cool';
+type TabPrintDisplay = 'percentage' | 'time';
 type ThemeAccent = 'green' | 'teal' | 'blue' | 'orange' | 'purple' | 'red';
 
 interface ThemeContextType {
@@ -20,6 +21,7 @@ interface ThemeContextType {
   lightBackground: LightBackground;
   lightAccent: ThemeAccent;
   progressInTitle: boolean;
+  tabPrintDisplay: TabPrintDisplay;
   // Actions
   toggleMode: () => void;
   setMode: (mode: ThemeMode) => void;
@@ -30,6 +32,7 @@ interface ThemeContextType {
   setLightBackground: (background: LightBackground) => void;
   setLightAccent: (accent: ThemeAccent) => void;
   setProgressInTitle: (enabled: boolean) => void;
+  setTabPrintDisplay: (mode: TabPrintDisplay) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -41,7 +44,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // and returns 401 — harmless (the catch swallows it) but noisy in the
   // network panel and wasteful. ThemeProvider is mounted inside
   // AuthProvider in App.tsx specifically so this hook is callable.
-  const { authEnabled, user, hasPermission, loading: authLoading } = useAuth();
+  const { authEnabled, user, loading: authLoading } = useAuth();
 
   // Mode
   const [mode, setModeState] = useState<ThemeMode>(() => {
@@ -91,15 +94,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [progressInTitle, setProgressInTitleState] = useState<boolean>(() => {
     return localStorage.getItem('progress-in-title') === 'true';
   });
+  const [tabPrintDisplay, setTabPrintDisplayState] = useState<TabPrintDisplay>(() =>
+    localStorage.getItem('tab-display') === 'time' ? 'time' : 'percentage',
+  );
 
   // Sync from API once auth state is known. Same gate shape as
   // useStreamTokenSync / ColorCatalogProvider: wait for AuthContext to
   // settle, then only fetch when we can actually expect a 200 (auth
-  // disabled, or a logged-in user with settings:read).
+  // disabled, or a logged-in user).
   useEffect(() => {
     if (authLoading) return;
-    if (authEnabled && (user === null || !hasPermission('settings:read'))) return;
-    api.getSettings().then((settings) => {
+    if (authEnabled && user === null) return;
+    api.getUiFlags().then((settings) => {
       // Dark settings
       if (settings.dark_style) {
         setDarkStyleState(settings.dark_style as ThemeStyle);
@@ -130,7 +136,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Re-fetch when auth state transitions (e.g. login completes); the
     // gate above short-circuits subsequent calls once we already have a
     // valid sync.
-  }, [authLoading, authEnabled, user, hasPermission]);
+  }, [authLoading, authEnabled, user]);
 
   // Apply theme classes based on current mode
   useEffect(() => {
@@ -205,17 +211,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('progress-in-title', String(enabled));
   };
 
+  const setTabPrintDisplay = (display: TabPrintDisplay) => {
+    setTabPrintDisplayState(display);
+    localStorage.setItem('tab-display', display);
+  };
+
   return (
     <ThemeContext.Provider value={{
       mode,
       resolvedMode,
       darkStyle, darkBackground, darkAccent,
       lightStyle, lightBackground, lightAccent,
-      progressInTitle,
+      progressInTitle, tabPrintDisplay,
       toggleMode, setMode,
       setDarkStyle, setDarkBackground, setDarkAccent,
       setLightStyle, setLightBackground, setLightAccent,
-      setProgressInTitle,
+      setProgressInTitle, setTabPrintDisplay,
     }}>
       {children}
     </ThemeContext.Provider>

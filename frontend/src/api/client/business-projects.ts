@@ -200,19 +200,19 @@ export const businessProjectsMethods = {
     request<Archive[]>(`/projects/${id}/archives?limit=${limit}&offset=${offset}`),
 
   addArchivesToProject: (projectId: number, archiveIds: number[]) =>
-    request<{ message: string }>(`/projects/${projectId}/add-archives`, {
+    request<{ message: string; count: number }>(`/projects/${projectId}/add-archives`, {
       method: 'POST',
       body: JSON.stringify({ archive_ids: archiveIds }),
     }),
 
   removeArchivesFromProject: (projectId: number, archiveIds: number[]) =>
-    request<{ message: string }>(`/projects/${projectId}/remove-archives`, {
+    request<{ message: string; count: number }>(`/projects/${projectId}/remove-archives`, {
       method: 'POST',
       body: JSON.stringify({ archive_ids: archiveIds }),
     }),
 
   addQueueItemsToProject: (projectId: number, queueItemIds: number[]) =>
-    request<{ message: string }>(`/projects/${projectId}/add-queue`, {
+    request<{ message: string; count: number }>(`/projects/${projectId}/add-queue`, {
       method: 'POST',
       body: JSON.stringify({ queue_item_ids: queueItemIds }),
     }),

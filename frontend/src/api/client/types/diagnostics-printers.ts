@@ -17,6 +17,7 @@ export interface SlotMaterial {
   /** Opaque backend identity; matching keys and extruders may be pooled. */
   material_key: string;
   remaining_g: number;
+  cost_per_kg?: number | null;
   /** 0 = right/single nozzle, 1 = left. */
   extruder: number;
 }
@@ -195,6 +196,7 @@ export interface Printer {
   external_camera_url: string | null;
   external_camera_type: string | null;  // "mjpeg", "rtsp", "snapshot"
   external_camera_enabled: boolean;
+  camera_light_auto?: boolean;
   external_camera_snapshot_url: string | null;  // optional single-frame override (#1177)
   camera_rotation: number;  // 0, 90, 180, 270 degrees
   plate_detection_enabled: boolean;  // Check plate before print
@@ -242,6 +244,7 @@ export interface AMSTray {
   remain: number;
   k: number | null;  // Pressure advance value (from tray or K-profile lookup)
   cali_idx: number | null;  // Calibration index for K-profile lookup
+  calibration_context?: {extruder: number; diameter: string; flow: string | null} | null;
   tag_uid: string | null;  // RFID tag UID (any tag)
   tray_uuid: string | null;  // Bambu Lab spool UUID (32-char hex, only valid for Bambu Lab spools)
   nozzle_temp_min: number | null;  // Min nozzle temperature
@@ -325,6 +328,8 @@ export interface PrinterStatus {
   current_print: string | null;
   subtask_name: string | null;
   current_archive_id: number | null;
+  current_run_id?: number | null;
+  next_pause?: { layer: number; minutes: number | null } | null;
   current_plate_id: number | null;
   gcode_file: string | null;
   progress: number | null;
@@ -349,6 +354,7 @@ export interface PrinterStatus {
   hms_errors: HMSError[];
   ams: AMSUnit[];
   ams_exists: boolean;
+  extruder_slots?: Record<string, {ams_id: number | null; has_filament: boolean}>;
   vt_tray: AMSTray[];  // Virtual tray / external spool(s)
   store_to_sdcard: boolean;  // Store sent files on SD card
   timelapse: boolean;  // Timelapse recording active
@@ -374,6 +380,7 @@ export interface PrinterStatus {
   // AMS mapping - which AMS is connected to which nozzle
   // Format: [ams_id_for_nozzle0, ams_id_for_nozzle1, ...] where -1 means no AMS
   ams_mapping: number[];
+  print_ams_mapping?: number[] | null;
   // Per-AMS extruder mapping - extracted from each AMS unit's info field
   // Format: {ams_id: extruder_id} where extruder 0=right, 1=left
   // Note: JSON keys are always strings
@@ -384,6 +391,7 @@ export interface PrinterStatus {
   fila_switch: FilaSwitchState | null;
   // Currently loaded tray (global tray ID, 255 = no filament loaded, 254 = external spool)
   tray_now: number;
+  current_backup_trays?: Record<number, number>;
   expected_tray: number | null;
   previous_tray: number | null;
   // AMS status for filament change tracking (0=idle, 1=filament_change, 2=rfid_identifying, 3=assist, 4=calibration)
@@ -401,6 +409,8 @@ export interface PrinterStatus {
   big_fan1_speed: number | null;     // Auxiliary fan
   big_fan2_speed: number | null;     // Chamber/exhaust fan
   heatbreak_fan_speed: number | null; // Hotend heatbreak fan
+  left_aux_fan_speed?: number | null; // Part 10, right on X2D
+  exhaust_fan_present?: boolean | null;
   firmware_version: string | null;   // Firmware version from MQTT
   // Developer LAN mode: true = enabled, false = disabled, null = unknown
   developer_mode: boolean | null;
@@ -441,6 +451,7 @@ export interface PrinterCreate {
   external_camera_url?: string | null;
   external_camera_type?: string | null;
   external_camera_enabled?: boolean;
+  camera_light_auto?: boolean;
   external_camera_snapshot_url?: string | null;
   camera_rotation?: number;
   plate_detection_enabled?: boolean;
@@ -488,6 +499,7 @@ export interface PlateDetectionResult {
   has_debug_image: boolean;
   debug_image_url?: string;
   needs_calibration: boolean;
+  failure_reason?: string | null;
   light_warning?: boolean;
   reference_count?: number;
   max_references?: number;

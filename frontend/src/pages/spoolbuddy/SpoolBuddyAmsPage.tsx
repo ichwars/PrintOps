@@ -60,8 +60,8 @@ export function SpoolBuddyAmsPage() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.getSettings(),
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: () => api.getUiFlags(),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -89,7 +89,7 @@ export function SpoolBuddyAmsPage() {
   // Without these, AmsUnitCard shows an empty fill bar and the Link button
   // stays active even though the slot is occupied.
   const { data: spoolmanSlotAssignmentsAll = [] } = useQuery({
-    queryKey: ['spoolman-slot-assignments-all'],
+    queryKey: ['spoolman-slot-assignments', 'all'],
     queryFn: () => api.getSpoolmanSlotAssignments(),
     enabled: spoolmanMode,
     staleTime: 30 * 1000,
@@ -112,7 +112,7 @@ export function SpoolBuddyAmsPage() {
   // Key: "amsId-trayId", Value: fill percentage (0-100)
   const fillOverrides = useMemo(() => {
     const map: Record<string, number> = {};
-    if (!assignments) return map;
+    if (!assignments || spoolmanMode) return map;
     for (const a of assignments) {
       const sp = a.spool;
       if (sp && sp.label_weight > 0 && sp.weight_used != null) {
@@ -121,7 +121,7 @@ export function SpoolBuddyAmsPage() {
       }
     }
     return map;
-  }, [assignments]);
+  }, [assignments, spoolmanMode]);
 
   // Look up Spoolman fill level for a given tray
   const printerSerial = printer?.serial_number ?? '';
@@ -313,7 +313,7 @@ export function SpoolBuddyAmsPage() {
       // these PrintersPage / InventoryPage / SpoolBuddyDashboard keep showing
       // the spool as still assigned for ~30s until refetchInterval kicks in.
       queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments-all'] });
+      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments', 'all'] });
       queryClient.invalidateQueries({ queryKey: ['spoolman-inventory-spools'] });
       setSlotActionPicker(null);
     },
@@ -336,7 +336,7 @@ export function SpoolBuddyAmsPage() {
       // unlinkSpoolMutation does the same set — keep them aligned so both
       // unbind paths refresh the same caches.
       queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments-all'] });
+      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments', 'all'] });
       queryClient.invalidateQueries({ queryKey: ['spoolman-inventory-spools'] });
       queryClient.invalidateQueries({ queryKey: ['unlinked-spools'] });
       queryClient.invalidateQueries({ queryKey: ['linked-spools'] });
@@ -674,6 +674,7 @@ export function SpoolBuddyAmsPage() {
           onClose={() => setConfigureSlotModal(null)}
           printerId={selectedPrinterId}
           slotInfo={configureSlotModal}
+          printerState={status?.state ?? null}
           printerModel={mapModelCode(printer?.model ?? null) || undefined}
           fullScreen
           onSuccess={() => {

@@ -271,6 +271,19 @@ async def test_registry_replaces_stopped_broadcaster():
     await shutdown_broadcaster("p1")
 
 
+async def test_idle_shutdown_spares_a_viewer_joining_during_the_stop():
+    broadcaster = await get_or_create_broadcaster("p1", _make_factory([b"frame"] * 3))
+    async with broadcaster._lock:
+        joining = asyncio.create_task(broadcaster.subscribe())
+        await asyncio.sleep(0)
+        stopping = asyncio.create_task(shutdown_broadcaster("p1", only_if_idle=True))
+        await asyncio.sleep(0)
+
+    queue = await joining
+    assert await stopping is None
+    assert await asyncio.wait_for(queue.get(), timeout=1) == b"frame"
+
+
 # ---------------------------------------------------------------------------
 # Audit findings: subscribe-after-grace-stops contract + unsubscribe count
 # ---------------------------------------------------------------------------

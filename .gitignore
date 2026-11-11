@@ -35,6 +35,7 @@ coverage.xml
 
 # Node
 frontend/node_modules/
+/tools/backend-typecheck/node_modules/
 frontend/coverage/
 npm-debug.log*
 

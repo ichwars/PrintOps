@@ -4,6 +4,234 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+### Security
+
+- Mask authentication tokens in HTTP and WebSocket log entries, including the log viewer and support exports.
+
+- Redact HTTP client errors that quote refused headers and close camera RTSP relays before forwarding redirects.
+- Drop undecodable external camera snapshots and prevent provisional HTTP replies from bypassing camera redirect checks.
+- Limit Git settings backups to known editable keys and omit credentials and URLs with embedded logins.
+- Block additional cloud metadata endpoints and IPv4 link-local addresses in outbound URL validation.
+- Reject ambiguous numeric IPv4 encodings and Unicode host spellings in outbound URL validation.
+- Validate Git-restored settings with the settings editors and preserve instance-specific destinations.
+- Restrict REST plug configuration to editors and redact device URLs in log views and support bundles.
+- Mask printer connection credentials in Bambu Cloud presets exported to Git backups.
+- Redact camera logins in printer read responses and hide legacy camera test URLs in logs.
+- Mask saved integration credentials and require re-entry when their destination changes.
+- Add welcome credentials in the email renderer and keep passwords out of editable templates.
+- Use the configured password-reset template and append the reset link outside the editable text.
+
+- Validate Git repository destinations before testing or saving backup credentials.
+
+- Require administrators for LDAP directory search and provisioning. Reject two-factor resets for unknown users.
+
+- Require administrators for sign-in configuration and full backups. Keep protected settings out of delegated Git restores.
+
+- Preserve custom group permission removals across restarts by applying legacy grants only once.
+
+- Enforce API key owner and printer limits in queue targets, library writes, statistics and pipeline assignments. Require an authorized identity for cloud presets.
+
+- Validate archive printer and project targets, including printer scope for single and bulk uploads.
+
+- Apply the selected credential to archive links in project bills of materials and normalize empty links.
+
+- Apply queue creation, source visibility and archive reprint permissions to queue requests and webhooks.
+
+- Validate archive and library sources before starting pipelines or creating print batches.
+
+- Require archive reprint permission for server-side reslicing.
+
+- Require write permissions for printer calibration, history deletion, diagnostics and discovery controls.
+
+- Apply printer and ownership visibility to archive suggestions, bulk actions and live updates.
+
+- Scope print batch operations and project archive previews to the caller's printers.
+
+- Limit notification providers, logs and app-message channels to the caller's printers.
+
+- Enforce printer scope on Home Assistant sensors, readings and interlock controls.
+
+- Scope system and virtual-printer information and restrict support logs and bundles to settings editors.
+
+- Isolate project import files and apply library permissions to project exports.
+
+- Invalidate private cloud filament data when the account or restored database changes.
+
+- Apply the selected credential's printer scope to archive and printer media requests.
+
+- Protect archive cost and filament weight from changes by callers limited to their own archives.
+- Enforce archive, queue, library and printer permissions through project links, imports, slicing, pipeline runs and webhooks. Keep local ownership separate from cloud credentials.
+- Store authentication timestamps consistently in UTC. Require fresh user sessions after the legacy PostgreSQL migration or a restore, retaining logout revocations.
+- Retire deleted accounts from pending work and email two-factor settings, preserve print and commercial history, and stop imports before saving under a retired account. Hold model-based jobs when removing a restricted owner.
+- Keep scoped API keys and Obico printer lists restricted after printer deletion and restart. Retire printer-bound notification providers, smart plugs and virtual printers when their printer is deleted.
+- Prevent reuse of retired user, API key, printer, archive and camera share IDs in SQLite. Preserve historical ID floors when restoring a SQLite backup into PostgreSQL.
+- Reject JWTs issued before the current account existed, including when a username has been reassigned.
+- Remove retired API keys' camera and WebSocket credentials and close their dashboard connections after deletion.
+- Close live dashboard connections immediately when their session ends. Reconcile remaining API key connections with the restored database after a backup restore.
+- Keep live dashboard events within each user's or API key's current printer scope. Close open connections after their live permission is revoked.
+- Reject password reset, OIDC exchange and two-factor login steps when the account or its security state has changed since issuance.
+- Bind short-lived dashboard and media tokens, connected-app codes and email two-factor setup to the issuing session. Request new credentials for sessions that were open during the upgrade.
+- Bind browser camera tokens to the issuing session or API key, and close live MJPEG and MSE feeds when periodic permission checks detect revoked access.
+- Update runtime/development pyasn1 to 0.6.5 for CVE-2026-119194 through CVE-2026-119197, preserving renderer pins and Windows dependency markers. Bound hostile ASN.1 decoder work and verify legitimate LDAP responses.
+- Update affected frontend-development and native-slicer minimatch copies to 11.0.1 and native-slicer glob to 14.0.2 for CVE-2026-118764 and CVE-2026-118773. Verify cancellation, pattern matching and recursive profile ZIP contents before and after production pruning; keep the native wrapper and OrcaSlicer source pins unchanged. Third-party sidecar images are unaffected.
+
+### Fixed
+
+- Keep independent print runs when two printers share an archive. Use each run's plate, consumption, energy, inspection and recording in its history and exports.
+- Compare measured print duration with the estimate for the printed plate. Refresh estimates when rescanning the archive.
+- Apply printer scope to archive history, files and media. Keep quality links bound to the print they ask about.
+- Keep the newest recording of each plate. Show the available videos and print photos in the run history.
+- Preserve archives shared with another printer during printer deletion. Discard late print-start state and uncommitted archive files for the removed printer.
+- Apply interface preferences for operators and viewers without granting access to full settings.
+- Refresh virtual printer proxies when their name or target address changes. Stop listeners before restoring a backup.
+- Keep slicer options and external spool selections for compatible plates. Late options leave claimed jobs alone and preserve the original printer’s selection for reprints.
+- Send daily digests at their scheduled time and retain failed deliveries for the next digest. Keep print and queue notifications scoped to the correct job and printer.
+- Allow drying before future scheduled prints while keeping a printer available for jobs that can start now. Show when drying holds a model-based job.
+- Use configured print options for queue entries created without explicit options. Announce committed jobs from all entry points.
+- Run linked Home Assistant scripts after scheduled power changes. Check power alerts in the background and send one alert per threshold crossing.
+- Publish printer connectivity, low filament, maintenance values, and smart plug energy through the MQTT relay.
+- Make webhook stop and cancel work for running and paused prints. Record user-initiated stops from the HMS dialog and debounce recurring HMS faults.
+- Keep Obico detection state through pauses and reconnects. Compare frames against each camera baseline and use a stronger signal for automatic pausing.
+
+- Restrict firmware uploads and AMS resets during prints, and keep the print queue on hold during firmware uploads.
+- Test unsaved SMTP and LDAP settings while keeping saved passwords bound to their configured destinations.
+- Confirm destructive list, history, and SSO actions, protect the last sign-in link, and report local backup deletion errors.
+- Allow clearing optional user email addresses from the settings form.
+- Report unavailable build-plate checks, verify unconfirmed FTP uploads, and allow longer recovery transfers for known large archives.
+- Reject malformed MakerWorld archives, report queue bulk-edit outcomes, and encode CallMeBot query values.
+- Keep painted filament slots and their colours when slicing multicolour 3MF projects.
+- Send the correct SuperTack and Smooth PEI build-plate identifiers when slicing or using saved pipelines.
+- Resolve missing cloud filament materials for the H2C when OrcaSlicer is preferred.
+- Detect printable G-code in 3MF contents, including projects saved with a compound .gcode.3mf filename.
+- Resolve MakerWorld downloads through the selected instance with a profile fallback.
+
+- Keep already-applied PostgreSQL migrations out of the server error log on restart.
+
+- Keep intentionally unlinked print history unlinked on restart and restore missing PostgreSQL print-log foreign keys.
+
+- Upgrade old PostgreSQL tray snapshots and floating-point inventory fields to their model types.
+
+- Repair PostgreSQL defaults and required fields during upgrades while preserving existing permissions and device actions.
+
+- Repair unsupported project statuses and priorities so older projects can be edited and imported.
+
+- Restore legacy SQLite projects with invalid or missing status and priority values into PostgreSQL.
+
+- Commit database writes before sending HTTP success and release request sessions before streaming responses.
+
+- Reduce peak SQLite file descriptor usage and report process descriptor limits in support bundles.
+
+- Preserve SQLite relationships and history when deleting print archives, library files, queues, batches, and projects. Protect active prints and inventory or project records referenced by orders.
+
+- Retain spool usage when deleting print archives and calculate costs from linked usage so a same-named print does not inherit a deleted run’s cost.
+
+- Keep filament consumption and print costs when a spool is deleted, and prevent SQLite from reusing spool IDs.
+
+- Use the configured Home Assistant environment values for live energy totals.
+
+- Report actual project batch assignment counts after filtering archives and queue entries by access.
+
+- Validate project links before archiving pending uploads.
+
+- Treat zero queue source and project parent IDs as absent when creating records.
+
+- Distinguish invalid credentials from database outages. Log Uvicorn route failures in printops.log and keep their normal HTTP error status.
+
+- Clear camera feeds, plate calibration, and in-progress print state when deleting a printer while preserving retained archives and other printers.
+
+- Recover kiosk sign-in and camera wall views after a temporary database outage. Rate-limit credential usage writes, with access still subject to a successful credential check.
+- Recover dashboard live updates after a temporary connection failure and reconcile the session when the server closes an authenticated connection.
+- Reopen camera wall and overlay feeds after a picture error, releasing the old connection before retrying.
+- Keep sideways camera feeds inside their viewports. Release the camera connection when a view closes or minimizes, while other viewers keep watching.
+- Share the chamber light between the automatic plate check and live viewers. Reuse the active camera source for plate checks, Obico, finish photos and layer timelapses.
+- Reuse recent live camera frames for snapshots and external camera tests, and retry a snapshot once while the shared camera starts.
+- Reap camera processes owned by this PrintOps instance, reconnect frozen external RTSP pictures with a longer interval for still scenes, and share a USB camera across concurrent viewers.
+- Bound timelapse encoding resources, release interrupted camera captures, and keep portrait videos and their playback controls within the archive dialog.
+- Normalize fallback archive and print-log colors, map AMS HT correctly, estimate spool costs after recovering a running print's 3MF, and use the printed plate's filament for nozzle temperature.
+- Offer a SpoolBuddy daemon restart after a configuration save. Wait for the device's acknowledgment and protect the pending configuration against system commands. Normalize legacy offline-stop reasons.
+- Bound native update steps and reap stalled subprocesses. Give long layer timelapses a frame-based deadline, retain failed encodes' frames for a day, and preserve videos from other plates of a shared archive.
+
+- Preserve a proven FINISH/FAILED outcome after restart and estimate an offline completion from the printed plate. Mark inferred durations as unmeasured and exclude them from timing accuracy. Log offline queue stops, merge later outcomes into the same identified run, preserve production snapshots, and match untracked completions without substring confusion.
+- Use the current printer's queue/session plate for run grams and fallback costs, including cancelled jobs. Infer plate numbers from reported filenames only when the sliced file contains that plate. Keep other printers' active archive bindings during completion.
+
+- Avoid downloading a failed print-start path again during directory search, prefer exact names and reject ambiguous lookalikes. Reuse a proven earlier 3MF for touchscreen repeats with matching printer, title, plate and known layer count; preserve metadata-only fallback when transfer or copying fails. Release database reads before file I/O and use isolated temporary filenames.
+
+- Link LAN and touchscreen prints to their running archive, reuse safe local files for covers and proven object reloads, and restore objects after restart without clearing skip telemetry. Reject reloads across print changes and record the detected start before downloading.
+
+- Try the exact full 3MF filename first for touchscreen-started prints and match an existing live archive, while retaining suffixes for model titles that merely end in .3mf.
+
+- Keep currently used SD-card files during delayed post-print cleanup, including a new print starting between delete retries. Preserve the existing cleanup time budget and missing-file behavior.
+
+- Separate a new printer job from an unfinished archive of the same file, retain current dispatch/queue reprints, and avoid reopening terminal runs. Keep other printers' active identities and localize missing completion status; editing a cancelled archive preserves its status and reason.
+
+- Clear the previous failure and completion time when an archive prints again, preserving prior run history. Archive a dispatched print anew if its expected source was deleted and auto-archive is enabled.
+
+- Bind delayed timelapse downloads, file writes and camera stitches to their original print run. Preserve referenced videos, avoid filename collisions, keep obsolete conversions from replacing newer recordings, exclude claimed videos from automatic matching and refresh Archives after every timelapse change. Normalize baseline recovery timestamps to UTC.
+
+- Preselect the recorded plate when reprinting archives, replacing an inspected run or re-queueing history. Show the chosen plates beside the actions, reveal the initial selection and fall back when a plate is no longer present. Label the mobile archive print controls.
+
+- Keep unread printer cards from becoming trusted empty timelapse baselines, recover snapshots only during the same active recording and back off background scans against stalled file services. Diagnose exhausted FTP sessions separately.
+- Recognize the A1/P1 bare calibration name while archiving explicitly dispatched production jobs that share calibration names. Keep firmware-owned /usr files internal.
+
+- Share printer-file downloads across plate and thumbnail previews, bound the preview cache, and invalidate it on deletion, replacement or printer connection changes. Reject incomplete FTP downloads, stop overdue transfers cooperatively and distinguish missing files, cooldowns and transfer failures.
+
+- Join slow printer-directory listings across refreshes, preserve file selection and distinguish timeout, unavailability and an empty folder. Keep FTP cooldown/strict-read behavior and date yearless listings against UTC. Wrap the file-manager header on narrow screens.
+
+- Give large timelapse attachments a size-based transfer budget and release the caller database connection before downloading, preserving the existing transfer gate and streaming-download controls.
+
+- Keep entered used spool weights across single/bulk/CSV creation and reserve Spoolman last_used for print use. Distinguish K-profile flow and hotend identities without inferring uncertain calibration contexts. Name slightly different printer colors within their product line and order X2D auxiliary fans by their actual side.
+- Preserve regular AMS identity and tray positions in sparse reports, narrow runout hints only with known nozzle wiring, retain both external feeds without AMS, and block drying rotation for either loaded nozzle feed.
+
+- Distinguish unreadable K-profile tables from empty ones, show unconfirmed writes, read edits back, and preserve deliberate calibrations across AMS changes. Correlate object-skip refusals and later telemetry, and report drying stops as sent commands. Pool backup spools by the firmware-reported identity while preserving loaded-slot and nozzle boundaries.
+
+- Keep idle Stop requests from misclassifying a later failed print, report unsent manual K values, and release diagnostic/object-read DB connections before printer I/O. Use safe generated local object filenames and address AMS-HT/Lite load and unload commands by their actual units.
+
+- Keep SUNLU and variant-specific filament IDs consistent across slot configuration and preset pickers; translate known Orca system IDs. Share REST/WebSocket AMS serialization, preserve legacy AMS Lite labels, follow unplugged units and legacy backup toggles, and resolve H2 trays from current nozzle evidence. Restore print mappings after restart without replacing newer captures.
+- Confirm slot configuration from later printer telemetry, distinguish unconfirmed calibration, retain delayed K-profile reports, and show the result across clients. Keep the existing scoped drift recovery, use model/Spoolman presets only as safe fallbacks, release local DB sessions before remote preset reads, and keep refused preconfiguration publications retryable.
+- Preserve spool assignments changed during Spoolman sync, keep active archived spools until usage booking completes, and refresh slot/tag views across clients. Keep inventory modes separate, retain Bambu and model-specific filament presets, and identify both external holders from actual tray evidence. Show pending slot configuration, restore grouped archived spools, include archived Spoolman labels, and report partial counter-reset failures.
+- Keep partial filament usage within slicer totals, subtract relative-extrusion retractions, and ignore the previous print's stale layer. Split backup trays and manual spool replacements, retain their history across restarts, and keep concurrent copies scoped to their own printer and plate.
+- Book inventory consumption atomically and hold automatic weight estimates off throughout completion. Preserve manually weighed values; let explicit idle-printer recovery release weight locks and explain skipped active printers. Release and announce slots when spools are archived or deleted.
+- Price archive cards as one full print, retain actual run costs separately, preserve durable Spoolman cost provenance, and keep unambiguous legacy usage matching within the same printer. Mark running estimates and cancel them before final booking; attach later recovered 3MF usage without replacing start snapshots.
+- Share cloud filament-map requests per account, preserve login authentication sources, reject metadata-only moves across external library boundaries, expire old H2D load hints, deduplicate HMS faults, and retain filament-write refusal diagnostics.
+- Revalidate queued AMS mappings on the selected printer, preserve valid manual slots, and hold unmapped requirements for an explicit acknowledgement. Keep manual mappings and filament confirmations scoped to their printer; enforce forced colour and variant choices, nozzle routing and distinct spools per required slot.
+- Choose model-job printers that can map the selected source and have enough recorded filament. Check each model variant without overwriting the queued source; move low-filament holds only to a positively qualified printer within the creator's current grants.
+- Keep external-spool-only plates independent of AMS trays used by other plates, preserve bound virtual-printer choices, and ignore AMS selections made against a model-only virtual printer. Respect filament finishes during slot preset reuse and generic fallback without replacing explicit PrintOps calibration and preset identities.
+- Apply automatic-drying queue holds and scheduled pre-drying to model jobs as well as pinned jobs. Recognize parked timers only from repeated fresh inactive reports; retain durable daily-drying reservations and existing stop-ownership limits.
+- Preserve concurrent queue edits and cancellations, prevent stale start attribution, and recognize explicit start refusals in both watchdog phases. Reconnect without replaying the previous connection's MQTT commands; retry refused uploads with printer-level backoff.
+- Refresh batch rollups after cancellation, deletion and terminal dispatch failures; distinguish failed run groupings from production orders with outstanding quantities. Resume model-specific predecessor-failure gates within user and API-key printer grants.
+- Exclude observed connection gaps from maintenance runtime, retain maintenance history when repairing duplicate assignments, and use the configured interval after recording maintenance.
+
+- Render STL previews in a background worker and bundle printer card reads within the caller's permissions.
+- Load queue history in pages and clear matching entries in one request, preserving the source needed to clone a batch.
+- Read the last completed archive per printer in one request and defer offscreen thumbnails.
+- Cache and compress versioned frontend assets, and recover missing page files after the server returns from a restart.
+
+- Restore the last-used date and the consumption reset point of backed-up spools.
+- Preserve local print outcomes when restoring a snapshot captured during a print, and use UTC for missing timestamps when restoring SQLite data to PostgreSQL.
+- Remove the unused thumbnail and notification language controls.
+- Distinguish disabled auto-archive settings, Home Assistant certificate errors, Bambu Cloud outages and container LAN modes in diagnostics.
+- Add standard delivery headers to SMTP messages and log firmware outages once per host.
+- Validate smart plug edits before saving and show the available webhook routes in Settings.
+- Review and send a bug report in a separate step after collecting logs.
+
+### Added
+
+- Let administrators reset a user's two-factor authentication from the user editor.
+- Preview and merge selected duplicate archives from Archives and after Git restore. Preserve print runs, media, references and existing link access.
+- Add reusable product and colour profile defaults for native inventory and Spoolman, including printer calibration permissions and Silk+ RFID names.
+- Record Spoolman usage separately from native inventory, include it in stock forecasts and repricing, and show the dispatched spool price and remaining grams in the print dialog.
+- Use the selected time zone for archive dates and exports, include queued work in project timelines, and expose printer temperature history retention.
+- Print custom A4 and US Letter label sheets and share saved templates across native inventory, Spoolman and material labels.
+- Scan spool labels to assign a structured storage location or move an AMS slot assignment in PrintOps or SpoolBuddy.
+- Move managed folders by menu or drag and drop and browse large tag catalogs without crowding the file list.
+- Open queued library files and project archives by ID, improve narrow slot and file lists, and report each archive upload separately.
+- Search and sort slicer profiles, use inherited printer compatibility, and select a filament profile and colour from loaded spools on accessible online printers.
+- Save exact filament colour requirements for fixed-printer queue jobs and show dispatch colour differences and active AMS backup spools.
+- Open camera overlays across the app, resize Cam Wall tiles, discover USB cameras and configure automatic chamber lighting in Cameras settings.
+- Edit timelapses in cancellable background jobs and check the source version before replacing a video.
+- Show print time remaining in the browser tab, preview the next scheduled slicer pause and enable an advance warning per notification provider.
+- Record observed AMS drying per spool in native inventory or Spoolman and allow manual entries for external drying.
+
 ## [1.2.8.2] - 2026-10-29
 
 ### Security

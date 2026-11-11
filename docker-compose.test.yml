@@ -6,8 +6,11 @@ services:
       dockerfile: Dockerfile.test
       target: backend-test
     container_name: printops-backend-test
+    init: true
     volumes:
       - ./backend:/app/backend:ro
+      - ./frontend/src:/app/frontend/src:ro
+      - ./scripts:/app/scripts:ro
     environment:
       - TESTING=1
       - PYTHONUNBUFFERED=1
@@ -64,6 +67,7 @@ services:
       dockerfile: Dockerfile.test
       target: backend-test
     container_name: printops-integration-runner
+    init: true
     depends_on:
       integration:
         condition: service_healthy
@@ -72,9 +76,11 @@ services:
       - TESTING=1
     # -v dropped + -n auto so integration tests inherit the same noise /
     # parallelism profile as the backend-test image (see Dockerfile.test CMD).
-    command: ["pytest", "backend/tests/integration/", "--tb=short", "-p", "no:cacheprovider", "-n", "auto"]
+    command: ["pytest", "backend/tests/integration/", "--tb=short", "--timeout=60", "--timeout-method=thread", "-p", "no:cacheprovider", "-n", "auto"]
     volumes:
       - ./backend:/app/backend:ro
+      - ./frontend/src:/app/frontend/src:ro
+      - ./scripts:/app/scripts:ro
 
 volumes:
   integration_test_data:

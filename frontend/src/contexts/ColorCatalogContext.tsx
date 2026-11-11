@@ -26,7 +26,7 @@ export function ColorCatalogProvider({ children }: { children: ReactNode }) {
     queryKey: ['color-catalog-map'],
     queryFn: async () => {
       const response = await api.getColorNameMap();
-      return response.colors;
+      return response;
     },
     // Catalog rarely changes during a session; no background refetch needed.
     staleTime: Infinity,
@@ -37,7 +37,7 @@ export function ColorCatalogProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (data) {
-      setColorCatalog(data);
+      setColorCatalog(data.colors, data.by_material, data.bambu, data.preset_materials);
     }
   }, [data]);
 

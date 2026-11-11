@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useLocation, useSearchParams } from 'react-router';
+import { useMemo, useState } from 'react';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
 import { CameraWall, type CameraWallStatus } from '../components/CameraWall';
 import { type CameraTileStatusMode } from '../components/CameraTile';
-import { api, getStreamToken, setStreamToken } from '../api/client';
+import { ApiError, api } from '../api/client';
+import { AuthRetrying } from '../components/AuthRetrying';
 import { useAuth } from '../contexts/AuthContext';
+import { isIosHomeScreenApp, openCameraWindow } from '../utils/cameraWindow';
+import { readCameraWallSize } from '../utils/cameraWallSize';
 
 const KIOSK_POLL_MS = 5000;
+
+function retryableKioskError(error: unknown): boolean {
+  return !(error instanceof ApiError) || error.status >= 500 || error.status === 408 || error.status === 429;
+}
 const DEFAULT_MAX_LIVE = 4;
 const DEFAULT_SNAPSHOT_SEC = 8;
 const MIN_MAX_LIVE = 1;
@@ -37,7 +44,8 @@ function fromUrlOrStorage(
 export function CamWallPage() {
   const { t } = useTranslation();
   const location = useLocation();
-  const { authEnabled, loading: authLoading, user } = useAuth();
+  const navigate = useNavigate();
+  const { authEnabled, loading: authLoading, authRetrying, user } = useAuth();
   const [searchParams] = useSearchParams();
 
   const token = searchParams.get('token');
@@ -64,24 +72,18 @@ export function CamWallPage() {
       : 'compact';
   });
 
-  useEffect(() => {
-    if (!kiosk) return;
-    const previousToken = getStreamToken();
-    setStreamToken(token);
-    return () => setStreamToken(previousToken);
-  }, [kiosk, token]);
-
   const kioskQuery = useQuery({
     queryKey: ['camwall-printers', token],
     queryFn: () => api.getCamWallPrinters(token ?? undefined),
     enabled: kiosk,
-    refetchInterval: KIOSK_POLL_MS,
+    retry: false,
+    refetchInterval: query => retryableKioskError(query.state.error) ? KIOSK_POLL_MS : false,
   });
 
   const printersQuery = useQuery({
     queryKey: ['printers'],
     queryFn: () => api.getPrinters(),
-    enabled: !kiosk && !authLoading && (!authEnabled || user !== null),
+    enabled: !kiosk && !authLoading && !authRetrying && (!authEnabled || user !== null),
     refetchInterval: KIOSK_POLL_MS,
   });
 
@@ -100,6 +102,10 @@ export function CamWallPage() {
     }
     return map;
   }, [kioskQuery.data]);
+
+  if ((!kiosk && authRetrying) || (kiosk && kioskQuery.isError && retryableKioskError(kioskQuery.error))) {
+    return <AuthRetrying />;
+  }
 
   if (!kiosk && authLoading) {
     return (
@@ -129,13 +135,18 @@ export function CamWallPage() {
   return (
     <div className="min-h-screen bg-bambu-dark p-4">
       <CameraWall
+        cameraToken={token}
+        tileSize={readCameraWallSize(searchParams.get('size'))}
         printers={printers}
         maxLive={maxLive}
         snapshotIntervalSec={snapshotIntervalSec}
         statusMode={statusMode}
         statuses={kiosk ? kioskStatuses : undefined}
         showSettings={!kiosk}
-        onTileClick={kiosk ? undefined : (id) => window.open(`/camera/${id}`, `camera-${id}`)}
+        onTileClick={kiosk ? undefined : (id) => {
+          if (isIosHomeScreenApp()) navigate(`/camera/${id}`, { state: { fromCamWall: true } });
+          else openCameraWindow(id);
+        }}
         onChangeMaxLive={(next) => {
           setMaxLive(next);
           localStorage.setItem('camWallMaxLive', String(next));

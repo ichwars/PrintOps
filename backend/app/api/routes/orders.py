@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled, allowed_printer_ids_for_user, resolve_optional_api_key
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.api_key import APIKey
 from backend.app.models.user import User
@@ -23,7 +23,7 @@ def _raise(error: OrderDomainError):
 
 @router.get("", response_model=list[OrderRead])
 async def list_orders(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDERS_READ),
 ) -> list[OrderRead]:
     return [OrderRead.model_validate(item) for item in await stock_reservations.list_orders(db)]
@@ -32,7 +32,7 @@ async def list_orders(
 @router.get("/{order_id}", response_model=OrderRead)
 async def get_order(
     order_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDERS_READ),
 ) -> OrderRead:
     try:
@@ -44,7 +44,7 @@ async def get_order(
 @router.get("/{order_id}/production")
 async def order_production(
     order_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.ORDERS_READ),
     api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
@@ -64,7 +64,7 @@ async def order_production(
 async def cancel_order(
     order_id: int,
     data: ReservationCommand,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.ORDERS_CANCEL),
 ) -> OrderRead:
     try:
@@ -83,7 +83,7 @@ async def issue_small_part(
     order_id: int,
     allocation_id: int,
     data: ReservationQuantityCommand,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.ORDERS_MANAGE_PRODUCTION),
 ) -> OrderRead:
     try:
@@ -107,7 +107,7 @@ async def reconcile_filament(
     order_id: int,
     allocation_id: int,
     data: ReservationQuantityCommand,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDERS_MANAGE_PRODUCTION),
 ) -> OrderRead:
     try:

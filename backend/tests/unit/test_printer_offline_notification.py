@@ -21,32 +21,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from backend.app import main as main_module
+from backend.app.services.bambu_mqtt import PrinterState
 
 
-def _state(connected: bool, state: str = "IDLE") -> SimpleNamespace:
-    """Minimal PrinterState stub. `state="IDLE"` keeps the reconcile-edge
-    branch quiescent (it only fires on `connected=True` with a non-unknown
-    state-string, which we exercise separately) but otherwise lets the
-    handler thread through without doing extra DB / WS work."""
-    return SimpleNamespace(
-        connected=connected,
-        state=state,
-        progress=0,
-        layer_num=0,
-        temperatures={},
-        raw_data={},
-        stg_cur=0,
-        cooling_fan_speed=0,
-        big_fan1_speed=0,
-        big_fan2_speed=0,
-        chamber_light="",
-        active_extruder=0,
-        tray_now=0,
-        door_open=False,
-        subtask_name="",
-        firmware_version=None,
-        ams_filament_backup=None,
-    )
+def _state(connected: bool, state: str = "IDLE") -> PrinterState:
+    return PrinterState(connected=connected, state=state)
 
 
 @pytest.fixture(autouse=True)
@@ -257,3 +236,41 @@ class TestOfflineEdgeDetection:
         assert first_task is second_task
         if first_task is not None:
             first_task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_relay_pairs_debounced_offline_with_a_successful_reconnect(monkeypatch):
+    printer = SimpleNamespace(id=1, name="Workshop", serial_number="fixture-serial")
+    session = AsyncMock()
+    session.execute.return_value = MagicMock(scalar_one_or_none=lambda: printer)
+    sessions = MagicMock()
+    sessions.return_value.__aenter__.return_value = session
+    relay = SimpleNamespace(
+        enabled=True,
+        connected=True,
+        on_printer_offline=AsyncMock(return_value=True),
+        on_printer_online=AsyncMock(side_effect=[False, True]),
+    )
+    monkeypatch.setattr(main_module, "async_session", sessions)
+    monkeypatch.setattr(main_module, "mqtt_relay", relay)
+    monkeypatch.setattr(main_module, "_printer_offline_published", set())
+    monkeypatch.setattr(main_module, "_PRINTER_OFFLINE_NOTIFY_DEBOUNCE_SECONDS", 0)
+    monkeypatch.setattr(main_module.printer_manager, "is_connected", lambda _: False)
+    monkeypatch.setattr(main_module.printer_manager, "get_printer", lambda _: printer)
+    monkeypatch.setattr(
+        main_module.notification_service, "on_printer_offline", AsyncMock(side_effect=OSError("fixture"))
+    )
+
+    await main_module._maybe_notify_printer_offline(1)
+    relay.on_printer_offline.assert_awaited_once_with(1, "Workshop", "fixture-serial")
+    relay.connected = False
+    await main_module._relay_printer_reconnect(1)
+    relay.on_printer_online.assert_not_awaited()
+
+    relay.connected = True
+    await main_module._relay_printer_reconnect(1)
+    assert 1 in main_module._printer_offline_published
+    await main_module._relay_printer_reconnect(1)
+    assert 1 not in main_module._printer_offline_published
+    await main_module._relay_printer_reconnect(1)
+    assert relay.on_printer_online.await_count == 2

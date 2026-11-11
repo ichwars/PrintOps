@@ -426,12 +426,13 @@ class TestJWTRevocation:
         recent_iat = now.timestamp()
         assert _is_token_fresh(recent_iat, user) is True
 
-    def test_is_token_fresh_returns_true_when_no_password_change(self):
-        """_is_token_fresh returns True when password_changed_at is None (I2 migration not yet run)."""
+    def test_is_token_fresh_uses_account_creation_when_no_password_change(self):
         from backend.app.core.auth import _is_token_fresh
 
         user = MagicMock()
         user.password_changed_at = None
+        user.created_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        assert _is_token_fresh(user.created_at.timestamp() - 1, user) is False
         assert _is_token_fresh(time.time(), user) is True
 
     @pytest.mark.asyncio
@@ -465,6 +466,10 @@ class TestOIDCExchangeReplay:
     @pytest.mark.integration
     async def test_exchange_token_is_single_use(self, async_client: AsyncClient, db_session: AsyncSession):
         """The second call to /oidc/exchange with the same token returns 401."""
+        from backend.app.core.auth import get_password_hash
+
+        db_session.add(User(username="oidc_replay_user", password_hash=get_password_hash("pw"), is_active=True))
+        await db_session.flush()
         exchange_token = secrets.token_urlsafe(32)
         db_session.add(
             AuthEphemeralToken(
@@ -475,22 +480,6 @@ class TestOIDCExchangeReplay:
             )
         )
         await db_session.commit()
-
-        # Seed the user so the exchange can resolve it
-        from backend.app.core.auth import get_password_hash
-        from backend.app.core.database import async_session, seed_default_groups
-
-        async with async_session() as db:
-            result = await db.execute(__import__("sqlalchemy").select(User).where(User.username == "oidc_replay_user"))
-            if result.scalar_one_or_none() is None:
-                db.add(
-                    User(
-                        username="oidc_replay_user",
-                        password_hash=get_password_hash("pw"),
-                        is_active=True,
-                    )
-                )
-                await db.commit()
 
         first = await async_client.post("/api/v1/auth/oidc/exchange", json={"oidc_token": exchange_token})
         assert first.status_code == 200
@@ -663,20 +652,11 @@ class TestEmailOTPMaxAttempts:
         user.email = "otpmax@example.com"
         await db_session.commit()
 
-        setup_code = "123456"
-        from backend.app.models.auth_ephemeral import AuthEphemeralToken as AET
+        from backend.tests.integration.test_mfa_api import seed_email_otp_setup
 
+        setup_code = "123456"
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AET(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="otp_max_admin",
-                nonce=_pwd_ctx.hash(setup_code),
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, admin_token, "otp_max_admin", setup_token, _pwd_ctx.hash(setup_code))
         await async_client.post(
             "/api/v1/auth/2fa/email/enable/confirm",
             json={"setup_token": setup_token, "code": setup_code},
@@ -2008,6 +1988,7 @@ class TestBackupKeyFiles:
             patch("backend.app.core.database.close_all_connections", new_callable=AsyncMock),
             patch("backend.app.core.database.reinitialize_database", new_callable=AsyncMock),
             patch("backend.app.core.database.init_db", new_callable=AsyncMock),
+            patch("backend.app.core.auth_sessions.handle_restored_sessions", new_callable=AsyncMock),
         ):
             resp = await async_client.post(
                 "/api/v1/settings/restore",
@@ -2048,6 +2029,7 @@ class TestBackupKeyFiles:
             patch("backend.app.core.database.close_all_connections", new_callable=AsyncMock),
             patch("backend.app.core.database.reinitialize_database", new_callable=AsyncMock),
             patch("backend.app.core.database.init_db", new_callable=AsyncMock),
+            patch("backend.app.core.auth_sessions.handle_restored_sessions", new_callable=AsyncMock),
         ):
             resp = await async_client.post(
                 "/api/v1/settings/restore",
@@ -2105,6 +2087,7 @@ class TestBackupKeyFiles:
             patch("backend.app.core.database.close_all_connections", new_callable=AsyncMock),
             patch("backend.app.core.database.reinitialize_database", reinit_mock),
             patch("backend.app.core.database.init_db", init_mock),
+            patch("backend.app.core.auth_sessions.handle_restored_sessions", new_callable=AsyncMock),
         ):
             monkeypatch.setattr(os, "open", _key_write_fails)
             resp = await async_client.post(
@@ -2169,6 +2152,7 @@ class TestBackupKeyFiles:
             patch("backend.app.core.database.close_all_connections", new_callable=AsyncMock),
             patch("backend.app.core.database.reinitialize_database", new_callable=AsyncMock),
             patch("backend.app.core.database.init_db", new_callable=AsyncMock),
+            patch("backend.app.core.auth_sessions.handle_restored_sessions", new_callable=AsyncMock),
         ):
             resp = await async_client.post(
                 "/api/v1/settings/restore",
@@ -2383,6 +2367,7 @@ class TestBackupKeyFiles:
                 patch("backend.app.core.database.close_all_connections", new_callable=AsyncMock),
                 patch("backend.app.core.database.reinitialize_database", new_callable=AsyncMock),
                 patch("backend.app.core.database.init_db", new_callable=AsyncMock),
+                patch("backend.app.core.auth_sessions.handle_restored_sessions", new_callable=AsyncMock),
                 open(zip_path, "rb") as f,
             ):
                 resp = await async_client.post(

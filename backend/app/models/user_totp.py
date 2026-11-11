@@ -4,8 +4,10 @@ import json
 from datetime import datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, func, or_, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm.attributes import set_committed_value
 
 from backend.app.core.database import Base
 from backend.app.core.encryption import mfa_decrypt, mfa_encrypt
@@ -63,22 +65,26 @@ class UserTOTP(Base):
         """Persist backup-code hashes as a JSON array."""
         self.backup_codes_json = json.dumps(hashes)
 
-    def accept_counter(self, new_counter: int) -> None:
-        """T4: Record an accepted TOTP time-step counter, rejecting backward movement.
-
-        Raises ``HTTPException(400)`` if ``new_counter`` is not strictly greater
-        than ``last_totp_counter``, preventing counter roll-back attacks (e.g. an
-        attacker who replays a previously accepted code after the counter wraps or
-        the clock is skewed backward).
-
-        The caller is responsible for flushing/committing the change to the DB.
-        """
-        if self.last_totp_counter is not None and new_counter <= self.last_totp_counter:
+    async def accept_counter(self, db: AsyncSession, new_counter: int) -> None:
+        """Reserve this counter once, in the caller's transaction."""
+        result = await db.scalar(
+            update(UserTOTP)
+            .where(
+                UserTOTP.id == self.id,
+                UserTOTP.is_enabled.is_(True),
+                UserTOTP._secret_enc == self._secret_enc,
+                or_(UserTOTP.last_totp_counter.is_(None), UserTOTP.last_totp_counter < new_counter),
+            )
+            .values(last_totp_counter=new_counter)
+            .returning(UserTOTP.id)
+            .execution_options(synchronize_session=False)
+        )
+        if result is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="TOTP code already used",
             )
-        self.last_totp_counter = new_counter
+        set_committed_value(self, "last_totp_counter", new_counter)
 
     def __repr__(self) -> str:
         return f"<UserTOTP user_id={self.user_id} enabled={self.is_enabled}>"

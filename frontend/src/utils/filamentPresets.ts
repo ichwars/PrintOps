@@ -13,7 +13,8 @@
 import genericCatalog from '../../../backend/app/resources/filaments/generic_ids.json';
 
 import type { BuiltinFilament, LocalPreset, OrcaProfileMeta, SlicerSetting } from '../api/client';
-import { parsePresetName, toFilamentId } from '../components/spool-form/utils';
+import { parsePresetName } from '../components/spool-form/utils';
+import { cloudPresetFilamentId, filamentIdToSettingId } from './filamentIds';
 
 export type FilamentPresetSource = 'local' | 'orca_cloud' | 'cloud' | 'builtin';
 
@@ -175,16 +176,19 @@ export function buildFilamentPresetOptions(sources: FilamentPresetSources): Fila
     });
   }
 
-  // 3. Bambu Cloud. Official presets (GFS…) carry their filament id in the
-  // setting_id itself; user presets (PFUS… / PFCN…) do not, and toFilamentId
-  // would hand back the raw cloud id, which the printer rejects. Leave those
-  // empty here and let resolveFilamentId fetch the detail on selection.
+  // 3. Bambu Cloud. Bambu's list carries each preset's filament id; without
+  // it, official presets (GFS…) give theirs by their setting_id. User presets
+  // (PFUS… / PFCN…) do not, and the rule would hand back the raw cloud id,
+  // which the printer rejects. Leave those empty here and let
+  // resolveFilamentId fetch the detail on selection. These options are picked
+  // by Bambu's name, so a bare official id that could name two filaments is
+  // the one Bambu's list says (see cloudPresetFilamentId, #3387).
   for (const cp of cloudSettings ?? []) {
     const name = presetDisplayName(cp.name);
     // Cloud setting_ids carry a variant suffix ("GFSA00_01"); claim the bare
     // filament id as well, or the built-in tier won't recognise the filament
     // as covered and will list it again under its own heading.
-    const filamentId = cp.setting_id.startsWith('GFS') ? toFilamentId(cp.setting_id) : '';
+    const filamentId = cp.setting_id.startsWith('GFS') ? cloudPresetFilamentId(cp, { pickedFromList: true }) : '';
     if (!take('cloud', name, cp.setting_id, filamentId || undefined)) continue;
     options.push({
       id: cp.setting_id,
@@ -202,7 +206,7 @@ export function buildFilamentPresetOptions(sources: FilamentPresetSources): Fila
     // Cloud setting_ids insert an "S" after "GF" ("GFA00" → "GFSA00"); check
     // both spellings so a filament a cloud tier already offered isn't listed
     // a second time under a slightly different id.
-    const asSettingId = bf.filament_id.startsWith('GF') ? `GFS${bf.filament_id.slice(2)}` : bf.filament_id;
+    const asSettingId = filamentIdToSettingId(bf.filament_id);
     // Unlike the tiers above, a name match is enough to skip: this table is a
     // static copy of the same catalogue, not a library of its own.
     if (namesOffered.has(nameKey(bf.name))) continue;

@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
+from xml.etree.ElementTree import Element as XmlElement
 
 import defusedxml.ElementTree as ET
 
@@ -57,6 +58,7 @@ _BED_TEMPERATURE_KEYS: dict[str, tuple[str, str]] = {
     "smooth pei plate": ("hot_plate_temp_initial_layer", "hot_plate_temp"),
     "textured pei": ("textured_plate_temp_initial_layer", "textured_plate_temp"),
     "textured pei plate": ("textured_plate_temp_initial_layer", "textured_plate_temp"),
+    "textured cool plate": ("textured_cool_plate_temp_initial_layer", "textured_cool_plate_temp"),
     "supertack plate": ("supertack_plate_temp_initial_layer", "supertack_plate_temp"),
     "cool plate supertack": ("supertack_plate_temp_initial_layer", "supertack_plate_temp"),
 }
@@ -165,7 +167,7 @@ def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, 
                                 raise ArchiveBudgetError("embedded G-code exceeds the snapshot-count budget")
                             if snapshot_entries > MAX_GCODE_SNAPSHOT_ENTRIES:
                                 raise ArchiveBudgetError("embedded G-code exceeds the snapshot-entry budget")
-                            layer_filaments[current_layer] = cumulative_extrusion.copy()
+                            layer_filaments[current_layer] = _snapshot(cumulative_extrusion)
                         current_layer = new_layer
                     except ArchiveBudgetError:
                         raise
@@ -207,10 +209,16 @@ def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, 
                 if part_upper.startswith("E"):
                     try:
                         extrusion = float(part[1:])
-                        # Only count positive extrusion (not retractions)
-                        if extrusion > 0:
-                            current = cumulative_extrusion.get(active_filament, 0)
-                            cumulative_extrusion[active_filament] = current + extrusion
+                        # Retraction and un-retraction cancel in relative E.
+                        if not math.isfinite(extrusion):
+                            continue
+                        current = cumulative_extrusion.get(active_filament, 0)
+                        updated = current + extrusion
+                        if not math.isfinite(updated):
+                            raise ArchiveBudgetError("embedded G-code extrusion total is not finite")
+                        cumulative_extrusion[active_filament] = updated
+                    except ArchiveBudgetError:
+                        raise
                     except ValueError:
                         pass  # Skip G-code lines with unparseable extrusion values
 
@@ -222,9 +230,13 @@ def parse_gcode_layer_filament_usage(gcode_content: str) -> dict[int, dict[int, 
             raise ArchiveBudgetError("embedded G-code exceeds the snapshot-count budget")
         if snapshot_entries > MAX_GCODE_SNAPSHOT_ENTRIES:
             raise ArchiveBudgetError("embedded G-code exceeds the snapshot-entry budget")
-        layer_filaments[current_layer] = cumulative_extrusion.copy()
+        layer_filaments[current_layer] = _snapshot(cumulative_extrusion)
 
     return layer_filaments
+
+
+def _snapshot(cumulative_extrusion: dict[int, float]) -> dict[int, float]:
+    return {filament: max(mm, 0.0) for filament, mm in cumulative_extrusion.items()}
 
 
 def mm_to_grams(
@@ -305,17 +317,18 @@ def names_carry_gcode(names: list[str]) -> bool:
     return any(re.fullmatch(r"Metadata/plate_[1-9]\d*\.gcode", name) for name in names)
 
 
-def carries_gcode(file_path: Path | str) -> bool:
-    """Inspect a 3MF central directory without extracting its members.
-
-    Missing, unreadable, or malformed files are treated as not carrying
-    G-code so classification remains fail-safe for imports and migrations.
-    """
+def inspect_3mf_gcode(file_path: Path | str) -> bool | None:
+    """Read the central directory, returning None when the ZIP cannot be opened."""
     try:
         with zipfile.ZipFile(file_path, "r") as archive:
             return names_carry_gcode(archive.namelist())
-    except (OSError, zipfile.BadZipFile):
-        return False
+    except (OSError, ValueError, zipfile.BadZipFile):
+        return None
+
+
+def carries_gcode(file_path: Path | str) -> bool:
+    """Return whether a readable 3MF contains a dispatchable plate."""
+    return inspect_3mf_gcode(file_path) is True
 
 
 def extract_layer_filament_usage_from_3mf(
@@ -372,6 +385,42 @@ def get_cumulative_usage_at_layer(
 
     max_layer = max(relevant_layers)
     return layer_usage.get(max_layer, {})
+
+
+def slicer_grams_at_layer(
+    layer_usage: dict[int, dict[int, float]],
+    target_layer: int,
+    filament_usage: list[dict],
+) -> dict[int, float]:
+    """Grams per 1-based slot for a print stopped at ``target_layer`` (#3317).
+
+    The slicer's weight for each filament, times the share of that filament's
+    whole-print feed the G-code has done by ``target_layer``. A finished print
+    is charged the slicer's weight, and the G-code feeds more than the slicer
+    counts (the start sequence, the purge at a filament change) and ahead of
+    the layers it serves, so its grams on their own charged a print cancelled
+    near the end more than the same print finished.
+
+    Only slots the slicer weighed and the G-code fed by then; the caller
+    converts the others from millimetres.
+    """
+    if not layer_usage:
+        return {}
+    final = layer_usage[max(layer_usage)]
+    at_layer = get_cumulative_usage_at_layer(layer_usage, target_layer)
+    slicer_grams: dict[int, float] = {}
+    for usage in filament_usage:
+        slot_id, used_g = usage.get("slot_id"), usage.get("used_g") or 0
+        if isinstance(slot_id, int) and used_g > 0:
+            slicer_grams.setdefault(slot_id, used_g)
+    grams: dict[int, float] = {}
+    for filament_id, mm in at_layer.items():
+        slot_id = filament_id + 1
+        total_mm = final.get(filament_id, 0)
+        if slot_id in slicer_grams and total_mm > 0:
+            # The end sequence can retract a little after the last snapshot.
+            grams[slot_id] = slicer_grams[slot_id] * min(mm / total_mm, 1.0)
+    return grams
 
 
 def extract_filament_properties_from_3mf(file_path: Path) -> dict[int, dict]:
@@ -469,7 +518,21 @@ def extract_embedded_presets_from_3mf(zf: zipfile.ZipFile) -> dict[str, str | No
     return result
 
 
-def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | None:
+def _nozzle_plate_filaments(root: XmlElement, plate_id: int | None) -> list[XmlElement]:
+    if plate_id is None:
+        return root.findall(".//filament")
+    for plate in root.findall(".//plate"):
+        for metadata in plate.findall("metadata"):
+            if metadata.get("key") == "index":
+                try:
+                    if int(metadata.get("value", "")) == plate_id:
+                        return plate.findall(".//filament")
+                except (TypeError, ValueError):
+                    pass
+    return []
+
+
+def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile, plate_id: int | None = None) -> dict[int, int] | None:
     """Extract per-slot nozzle/extruder mapping from a 3MF file.
 
     On dual-nozzle printers (H2D, H2D Pro), each filament slot is assigned to a
@@ -485,6 +548,7 @@ def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | Non
 
     Args:
         zf: An open ZipFile of the 3MF archive
+        plate_id: Optional selected plate; an unknown plate has no mapping.
 
     Returns:
         Dictionary mapping {slot_id: extruder_id} for dual-nozzle files,
@@ -515,10 +579,14 @@ def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | Non
         # Parse slice_info once: needed by both the single-active shortcut
         # (to verify the slice is actually single-group, #1825) and Priority 1.
         si_root: ET.Element | None = None
+        filament_elems = []
         distinct_group_ids: set[int] = set()
         if "Metadata/slice_info.config" in zf.namelist():
             si_root = read_xml_member(zf, "Metadata/slice_info.config")
-            for filament_elem in si_root.findall(".//filament"):
+            filament_elems = _nozzle_plate_filaments(si_root, plate_id)
+            if plate_id is not None and not filament_elems:
+                return None
+            for filament_elem in filament_elems:
                 gid = filament_elem.get("group_id")
                 if gid is not None:
                     try:
@@ -537,7 +605,7 @@ def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | Non
             active_idx = active_extruders.index(1)
             target_extruder = int(physical_extruder_map[active_idx])
             if si_root is not None:
-                for filament_elem in si_root.findall(".//filament"):
+                for filament_elem in filament_elems:
                     try:
                         nozzle_mapping[int(filament_elem.get("id"))] = target_extruder
                     except (ValueError, TypeError):
@@ -548,7 +616,7 @@ def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | Non
         # This reflects the actual slicer assignment (respects "Auto For Flush").
         nozzle_mapping: dict[int, int] = {}
         if si_root is not None:
-            for filament_elem in si_root.findall(".//filament"):
+            for filament_elem in filament_elems:
                 group_id_str = filament_elem.get("group_id")
                 filament_id_str = filament_elem.get("id")
                 if group_id_str is not None and filament_id_str:
@@ -570,8 +638,11 @@ def extract_nozzle_mapping_from_3mf(zf: zipfile.ZipFile) -> dict[int, int] | Non
         if not filament_nozzle_map:
             return None
 
+        printed_slots = {int(elem.get("id")) for elem in filament_elems if elem.get("id")}
         for i, slicer_ext_str in enumerate(filament_nozzle_map):
             slot_id = i + 1
+            if plate_id is not None and slot_id not in printed_slots:
+                continue
             try:
                 slicer_ext = int(slicer_ext_str)
                 if slicer_ext < len(physical_extruder_map):
@@ -660,6 +731,49 @@ def extract_filament_usage_from_3mf(file_path: Path, plate_id: int | None = None
         pass  # Return whatever usage data was collected before the error
 
     return filament_usage
+
+
+def extract_plate_estimates_from_3mf(file_path: Path) -> dict[str, dict] | None:
+    """Read each sliced plate's prediction and filament weight in one pass."""
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            validate_zip_archive(zf)
+            names = zf.namelist()
+            estimates = {
+                str(int(match.group(1))): {"seconds": None, "grams": None}
+                for name in names
+                if (match := re.fullmatch(r"Metadata/plate_(\d{1,9})\.gcode", name)) and int(match.group(1)) > 0
+            }
+            if "Metadata/slice_info.config" not in names:
+                return estimates
+            root = read_xml_member(zf, "Metadata/slice_info.config")
+    except Exception as exc:
+        logger.debug("Could not read 3MF plate estimates: %s", type(exc).__name__)
+        return None
+
+    for plate in root.findall(".//plate"):
+        metadata = {m.get("key"): m.get("value") for m in plate.findall("metadata")}
+        try:
+            index = int(metadata.get("index") or 0)
+        except ValueError:
+            continue
+        if index <= 0:
+            continue
+        try:
+            prediction = int(metadata.get("prediction") or 0)
+            seconds = prediction if 0 < prediction <= 2**31 - 1 else None
+        except ValueError:
+            seconds = None
+        grams = 0.0
+        for filament in plate.findall("filament"):
+            try:
+                weight = float(filament.get("used_g") or 0)
+            except ValueError:
+                continue
+            if math.isfinite(weight) and 0 < weight <= 100_000:
+                grams += weight
+        estimates[str(index)] = {"seconds": seconds, "grams": round(grams, 2) if 0 < grams <= 100_000 else None}
+    return estimates
 
 
 def extract_print_time_from_3mf(file_path: Path, plate_id: int | None = None) -> int | None:
@@ -802,8 +916,7 @@ def bed_temperature_from_config(
 
     Bambu stores temperatures for every supported plate in one project config.
     Reading the first generic-looking key therefore selects the wrong plate.
-    Unknown/Orca plate names may use only the generic keys; we deliberately do
-    not guess from another named plate's value.
+    Unknown plate names may use the generic keys.
     """
     selected_type = bed_type if bed_type is not None else data.get("curr_bed_type")
     specific_keys = _BED_TEMPERATURE_KEYS.get(_normalized_bed_type(selected_type), ())
@@ -1225,18 +1338,38 @@ def extract_support_filament_slots_from_3mf(zf: zipfile.ZipFile) -> set[int]:
 
 _PAINT_COLOR_ATTR_RE = re.compile(rb'paint_color="([0-9A-Fa-f]+)"')
 
-# Painted-face quadtree leaves include both real filament assignments and
-# tiny edit artifacts (single-leaf accidents from "tried a colour, undid,
-# repainted with a different one"). The threshold's only job is dropping
-# accidents — anything the user spent meaningful effort on must survive.
-# 5% of an object's painted triangles is well below any 60/40 / 70/30 /
-# 33/33/33 split a real two- or three-colour print would hit, so all
-# intentional colours are kept; one-off single-leaf paints (typically
-# 0.1-1.5% in observed projects) are filtered. Note that this fallback
-# path runs ONLY when the preview-slice path can't reach the sidecar; in
-# the normal flow the slicer's own pruning produces the canonical list and
-# this threshold isn't reached.
-_PAINT_NOISE_THRESHOLD = 0.05
+_HEX_PAINT_NIBBLE = bytes.maketrans(b"0123456789ABCDEFabcdef", bytes(range(16)) + bytes(range(10, 16)))
+
+
+def _painted_states(paint: bytes) -> set[int]:
+    """Decode TriangleSelector's reversed hexadecimal tree for one triangle.
+
+    The low two bits give the number of split sides. A split has one more
+    child than split sides. A leaf stores its filament in the high bits.
+    State 3 and above use another digit, with a second extension at 18.
+    State 0 uses the object or part's existing filament.
+    """
+    nibbles = (_HEX_PAINT_NIBBLE[char] for char in reversed(paint))
+    states: set[int] = set()
+    pending = 1
+    try:
+        while pending:
+            code = next(nibbles)
+            split_sides = code & 0b11
+            if split_sides:
+                pending += split_sides
+                continue
+            pending -= 1
+            state = code >> 2
+            if state == 3:
+                extension = next(nibbles)
+                state = 18 + next(nibbles) if extension == 15 else 3 + extension
+            if state:
+                states.add(state)
+    except StopIteration:
+        # Keep the states decoded before a truncated attribute.
+        pass
+    return states
 
 
 def extract_plate_extruder_set_from_3mf(zf: zipfile.ZipFile, plate_id: int) -> set[int]:
@@ -1252,12 +1385,8 @@ def extract_plate_extruder_set_from_3mf(zf: zipfile.ZipFile, plate_id: int) -> s
        with distinct filaments).
     3. ``3D/Objects/object_*.model`` — ``paint_color`` attributes on
        individual ``<triangle>`` elements (used when the user "painted" a
-       face with a different filament). The encoding is a hex string where
-       each nibble is a TriangleSelector tree node: ``0`` = unpainted leaf,
-       ``F`` = branch (4 children follow), ``1``..``E`` = leaf painted with
-       extruder N. We don't decode the tree — every leaf-paint nibble in
-       the string IS the extruder number, so a flat scan over hex chars
-       yields the correct set without recursive parsing.
+       face with a different filament). TriangleSelector trees keep
+       every painted filament, including small regions of a triangle.
 
     Without (3) the painted-face data is invisible: model_settings says
     every object on a multi-color plate uses extruder 1 by default but the
@@ -1347,33 +1476,15 @@ def extract_plate_extruder_set_from_3mf(zf: zipfile.ZipFile, plate_id: int) -> s
         except OSError:
             paint_cache[path] = out
             return out
-        # Per-extruder triangle coverage. Each painted triangle may have
-        # multiple leaf nibbles (the quadtree subdivides the face into
-        # painted regions); we count one triangle per unique extruder per
-        # match so the resulting fraction is "what share of painted
-        # triangles include at least one leaf with extruder N". Noise from
-        # one-off edit artifacts is filtered out at the threshold below.
-        extruder_triangles: dict[int, int] = {}
-        total_painted = 0
+        # Cache whole-triangle paints and compact trees, whose codes often repeat.
+        short_paints: set[bytes] = set()
         for match in _PAINT_COLOR_ATTR_RE.finditer(data):
-            total_painted += 1
-            seen: set[int] = set()
-            for ch in match.group(1):
-                # Hex digit → 4-bit value. 0 = unpainted leaf, F = branch
-                # (decoded recursively but children are encoded inline, so
-                # we'll see them on later iterations). 1-E = leaf painted
-                # with extruder N.
-                if ch in b"123456789":
-                    seen.add(ch - 0x30)
-                elif ch in b"ABCDEabcde":
-                    seen.add((ch & 0x4F) - 0x37)
-            for e in seen:
-                extruder_triangles[e] = extruder_triangles.get(e, 0) + 1
-        if total_painted > 0:
-            cutoff = max(1, int(total_painted * _PAINT_NOISE_THRESHOLD))
-            for ext, count in extruder_triangles.items():
-                if count >= cutoff:
-                    out.add(ext)
+            paint = match[1]
+            if paint in short_paints:
+                continue
+            if len(paint) <= 3:
+                short_paints.add(paint)
+            out.update(_painted_states(paint))
         paint_cache[path] = out
         return out
 

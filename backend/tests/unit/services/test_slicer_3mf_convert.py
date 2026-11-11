@@ -441,6 +441,34 @@ class TestSubstituteUnusedPlateFilaments:
 
         assert result == ["slot2.json", "slot2.json", "slot2.json", "slot4.json"]
 
+    def test_painted_slots_and_unused_slot_colours_survive_substitution(self):
+        zip_bytes = _make_3mf(
+            {
+                "Metadata/model_settings.config": self._model_settings_xml([(1, [3])]),
+                "3D/3dmodel.model": (
+                    b'<model xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">'
+                    b'<resources><object id="1"><components>'
+                    b'<component p:path="/3D/Objects/painted.model" objectid="2"/>'
+                    b"</components></object></resources></model>"
+                ),
+                "3D/Objects/painted.model": b'<mesh><triangle paint_color="4"/><triangle paint_color="8"/></mesh>',
+            }
+        )
+        items = [
+            json.dumps({"name": name, "filament_colour": [colour]})
+            for name, colour in [
+                ("PLA Black", "#000000"),
+                ("PLA White", "#FFFFFF"),
+                ("PLA Green", "#00AE42"),
+                ("ABS Red", "#FF0000"),
+            ]
+        ]
+
+        result = substitute_unused_plate_filaments(zip_bytes, plate_id=1, items=items)
+
+        assert result[:3] == items[:3]
+        assert json.loads(result[3]) == {"name": "PLA Black", "filament_colour": ["#FF0000"]}
+
     def test_no_op_when_every_used_slot_is_outside_the_submitted_list(self):
         """A plate referencing only slots beyond the picked list leaves nothing
         trustworthy to copy from — keep the user's picks rather than invent a

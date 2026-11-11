@@ -38,10 +38,10 @@ from typing import Literal
 
 import qrcode
 from reportlab.lib.colors import Color, HexColor, black
-from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as rl_canvas
 
+from backend.app.services.label_sheet_layout import SheetLayout
 from backend.app.services.pdf_render import pdf_to_pngs as pdf_to_pngs
 
 TemplateName = Literal[
@@ -494,13 +494,16 @@ _SINGLE_LABEL_SIZES_MM: dict[str, tuple[float, float]] = {
     "box_62x29": (62.0, 29.0),
 }
 
-# Sheet template parameters: (page_size, label_w_mm, label_h_mm,
-#                              cols, rows, top_margin_mm, left_margin_mm,
-#                              col_gap_mm, row_gap_mm)
-_SHEET_TEMPLATES: dict[str, tuple] = {
-    "avery_5160": (letter, 66.675, 25.4, 3, 10, 12.7, 4.76, 3.175, 0.0),
-    "avery_l7160": (A4, 63.5, 38.1, 3, 7, 15.15, 7.0, 2.5, 0.0),
+LabelLayout = TemplateName | SheetLayout
+
+_SHEET_TEMPLATES = {
+    "avery_5160": SheetLayout("letter", 66.675, 25.4, 3, 10, 12.7, 4.76, 3.175),
+    "avery_l7160": SheetLayout("a4", 63.5, 38.1, 3, 7, 15.15, 7.0, 2.5),
 }
+
+
+def _sheet_layout(template: LabelLayout) -> SheetLayout | None:
+    return template if isinstance(template, SheetLayout) else _SHEET_TEMPLATES.get(template)
 
 
 def _render_single_label_pdf(
@@ -524,44 +527,45 @@ def _render_single_label_pdf(
     return buf.getvalue()
 
 
-def validate_start_position(template: TemplateName, start_position: int) -> None:
-    """Positions are one-based, left-to-right, and apply to the first sheet only."""
-    if template in _SHEET_TEMPLATES:
-        cols, rows = _SHEET_TEMPLATES[template][3:5]
-        maximum = cols * rows
+def validate_start_position(template: LabelLayout, start_position: int) -> None:
+    """Positions are one-based and apply only to the first sheet."""
+    layout = _sheet_layout(template)
+    if layout is not None:
+        layout.validate()
+        maximum = layout.capacity
     elif template in _SINGLE_LABEL_SIZES_MM:
         maximum = 1
     else:
         raise ValueError(f"Unknown label template: {template!r}")
     if type(start_position) is not int or not 1 <= start_position <= maximum:
-        raise ValueError(f"start_position must be an integer from 1 to {maximum} for {template}")
+        raise ValueError(f"start_position must be an integer from 1 to {maximum}")
 
 
 def _render_sheet_pdf(
-    template: TemplateName,
+    template: LabelLayout,
     data_list: list[LabelData],
     monochrome: bool = False,
     start_position: int = 1,
     fields: frozenset[LabelField] = DEFAULT_LABEL_FIELDS,
 ) -> bytes:
-    page_size, w_mm, h_mm, cols, rows, top_mm, left_mm, col_gap_mm, row_gap_mm = _SHEET_TEMPLATES[template]
-    page_w, page_h = page_size
-
-    label_w = w_mm * mm
-    label_h = h_mm * mm
-    top_margin = top_mm * mm
-    left_margin = left_mm * mm
-    col_gap = col_gap_mm * mm
-    row_gap = row_gap_mm * mm
+    layout = _sheet_layout(template)
+    if layout is None:
+        raise ValueError("A sheet layout is required")
+    page_size = layout.page_size
+    page_h = page_size[1]
+    label_w, label_h = layout.label_w_mm * mm, layout.label_h_mm * mm
+    top_margin, left_margin = layout.top_mm * mm, layout.left_mm * mm
+    col_gap, row_gap = layout.col_gap_mm * mm, layout.row_gap_mm * mm
 
     buf = io.BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=page_size)
-    c.setTitle(f"PrintOps spool labels ({template})")
+    name = "custom" if isinstance(template, SheetLayout) else template
+    c.setTitle(f"PrintOps spool labels ({name})")
 
-    per_page = cols * rows
+    per_page = layout.capacity
     for index, data in enumerate(data_list):
         slot = (index + start_position - 1) % per_page
-        row, col = divmod(slot, cols)
+        row, col = divmod(slot, layout.cols)
         x = left_margin + col * (label_w + col_gap)
         y = page_h - top_margin - (row + 1) * label_h - row * row_gap
         _draw_label(c, x, y, label_w, label_h, data, monochrome, fields)
@@ -575,7 +579,7 @@ def _render_sheet_pdf(
 
 
 def render_labels(
-    template: TemplateName,
+    template: LabelLayout,
     data_list: list[LabelData],
     *,
     monochrome: bool = False,
@@ -595,33 +599,28 @@ def render_labels(
     Later sheets start at position 1. Single-label formats accept only 1.
     """
     validate_start_position(template, start_position)
-    if template in _SINGLE_LABEL_SIZES_MM:
-        return _render_single_label_pdf(template, data_list, monochrome, fields)
-    if template in _SHEET_TEMPLATES:
+    if _sheet_layout(template) is not None:
         return _render_sheet_pdf(template, data_list, monochrome, start_position, fields)
-    raise ValueError(f"Unknown label template: {template!r}")
+    return _render_single_label_pdf(template, data_list, monochrome, fields)
 
 
-def label_size_mm(template: TemplateName) -> tuple[float, float]:
-    """(width, height) of one label of ``template`` — a sheet's cell size."""
+def label_size_mm(template: LabelLayout) -> tuple[float, float]:
+    layout = _sheet_layout(template)
+    if layout is not None:
+        layout.validate()
+        return layout.label_w_mm, layout.label_h_mm
     if template in _SINGLE_LABEL_SIZES_MM:
         return _SINGLE_LABEL_SIZES_MM[template]
-    if template in _SHEET_TEMPLATES:
-        layout = _SHEET_TEMPLATES[template]
-        return layout[1], layout[2]
     raise ValueError(f"Unknown label template: {template!r}")
 
 
-def get_sheet_capacity(template: TemplateName) -> int | None:
-    """Return the number of slots on a sheet template, or ``None`` for roll labels."""
-    layout = _SHEET_TEMPLATES.get(template)
-    if layout is None:
-        return None
-    return layout[3] * layout[4]
+def get_sheet_capacity(template: LabelLayout) -> int | None:
+    layout = _sheet_layout(template)
+    return layout.capacity if layout is not None else None
 
 
 def render_label_preview_pdf(
-    template: TemplateName,
+    template: LabelLayout,
     data: LabelData,
     *,
     monochrome: bool = False,

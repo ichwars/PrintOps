@@ -174,6 +174,26 @@ describe('API Client Auth Header', () => {
     expect(sessionStorageMock.removeItem).toHaveBeenCalledWith('auth_token');
   });
 
+  it('keeps a replacement session when an older request returns an invalid-token response', async () => {
+    setAuthToken('previous-session');
+    let started!: () => void;
+    let release!: () => void;
+    const requestStarted = new Promise<void>(resolve => { started = resolve; });
+    const responseReady = new Promise<void>(resolve => { release = resolve; });
+    server.use(http.get('/api/v1/settings/spoolman', async () => {
+      started();
+      await responseReady;
+      return HttpResponse.json({ detail: 'Could not validate credentials' }, { status: 401 });
+    }));
+
+    const pending = expect(api.getSpoolmanSettings()).rejects.toMatchObject({ status: 401 });
+    await requestStarted;
+    setAuthToken('replacement-session');
+    release();
+    await pending;
+    expect(getAuthToken()).toBe('replacement-session');
+  });
+
   it('does not clear token on 401 with generic auth error', async () => {
     server.use(
       http.get('/api/v1/settings/spoolman', () => {
@@ -422,4 +442,18 @@ describe('media URL boundary', () => {
     }
     expect(new URL(api.getProjectCoverImageUrl(1, 99), window.location.origin).searchParams.get('v')).toBe('99');
   });
+});
+
+
+it('sends the external camera URL in the JSON body', async () => {
+  const cameraUrl = 'rtsp://user:fixture-password@camera.example.test/live';
+  server.use(
+    http.post('*/api/v1/printers/12/camera/external/test', async ({ request }) => {
+      expect(new URL(request.url).search).toBe('');
+      expect(await request.json()).toEqual({ url: cameraUrl, camera_type: 'rtsp' });
+      return HttpResponse.json({ success: true });
+    }),
+  );
+
+  await expect(api.testExternalCamera(12, cameraUrl, 'rtsp')).resolves.toEqual({ success: true });
 });

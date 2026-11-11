@@ -6,12 +6,14 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from backend.app.core.auth import create_access_token
+from backend.app.core.auth import create_access_token, generate_api_key
 from backend.app.core.permissions import Permission
+from backend.app.models.api_key import APIKey
 from backend.app.models.group import Group
 from backend.app.models.printer_ha_sensor import PrinterHAInterlockAudit
 from backend.app.models.user import User
 from backend.app.services.ha_sensor_manager import SensorReading, ha_sensor_manager
+from backend.tests.integration.test_long_lived_tokens_api import _setup_admin
 
 DOOR = {
     "name": "Enclosure Door",
@@ -44,9 +46,9 @@ def _clean_cache():
     ha_sensor_manager._overrides.clear()
 
 
-async def _permission_token(db_session, *, username: str, permissions: list[str]) -> str:
+async def _permission_token(db_session, *, username: str, permissions: list[str], printer_ids=None) -> str:
     group = Group(name=f"{username}-permissions", permissions=permissions)
-    user = User(username=username, password_hash="unused", role="user")
+    user = User(username=username, password_hash="unused", role="user", allowed_printer_ids=printer_ids)
     user.groups.append(group)
     db_session.add_all([group, user])
     await db_session.commit()
@@ -496,3 +498,62 @@ class TestInterlockOverride:
         events = list((await db_session.execute(select(PrinterHAInterlockAudit))).scalars().all())
         assert [event.action for event in events] == ["enabled", "cleared"]
         assert "sensor updated" in events[-1].reason
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_ha_sensor_and_interlock_routes_respect_printer_scope(async_client, db_session, printer_factory):
+    admin = {"Authorization": f"Bearer {await _setup_admin(async_client)}"}
+    visible, hidden = await printer_factory(), await printer_factory()
+    token = await _permission_token(
+        db_session,
+        username="ha_scoped",
+        permissions=[
+            Permission.SMART_PLUGS_READ.value,
+            Permission.SMART_PLUGS_CREATE.value,
+            Permission.SMART_PLUGS_UPDATE.value,
+            Permission.SMART_PLUGS_DELETE.value,
+            Permission.QUEUE_UPDATE_ALL.value,
+        ],
+        printer_ids=[visible.id],
+    )
+    user = {"Authorization": f"Bearer {token}"}
+    raw_key, key_hash, prefix = generate_api_key()
+    db_session.add(APIKey(name="Sensor reader", key_hash=key_hash, key_prefix=prefix, printer_ids=[visible.id]))
+    await db_session.commit()
+    key = {"X-API-Key": raw_key}
+
+    base = "/api/v1/ha-sensors"
+    visible_sensor = await async_client.post(f"{base}/", headers=user, json={**DOOR, "printer_id": visible.id})
+    hidden_sensor = await async_client.post(f"{base}/", headers=admin, json={**DOOR, "printer_id": hidden.id})
+    assert visible_sensor.status_code == hidden_sensor.status_code == 200
+    sensor_id = visible_sensor.json()["id"]
+    hidden_sensor_url = f"{base}/{hidden_sensor.json()['id']}"
+    override_url = f"{base}/printers/{hidden.id}/interlock-override"
+    ha_sensor_manager.set_interlock_override(hidden.id, username="admin", reason="Fixture")
+    for headers in (user, key):
+        listing = await async_client.get(f"{base}/", headers=headers)
+        assert listing.status_code == 200
+        assert [row["id"] for row in listing.json()] == [sensor_id]
+        filtered = await async_client.get(f"{base}/", headers=headers, params={"printer_id": hidden.id})
+        assert filtered.json() == []
+        assert (await async_client.get(hidden_sensor_url, headers=headers)).status_code == 404
+        assert (await async_client.get(override_url, headers=headers)).status_code == 404
+        assert (await async_client.get(f"{base}/by-printer/{hidden.id}/readings", headers=headers)).status_code == 404
+        allowed = await async_client.get(f"{base}/by-printer/{visible.id}/readings", headers=headers)
+        assert [row["id"] for row in allowed.json()] == [sensor_id]
+
+    assert (
+        await async_client.post(f"{base}/", headers=user, json={**TEMP, "printer_id": hidden.id})
+    ).status_code == 404
+    assert (
+        await async_client.patch(hidden_sensor_url, headers=user, json={"name": "Forbidden edit"})
+    ).status_code == 404
+    assert (await async_client.delete(hidden_sensor_url, headers=user)).status_code == 404
+    assert (await async_client.get(f"{base}/printers/{hidden.id}/interlock-audit", headers=user)).status_code == 404
+    assert (
+        await async_client.post(override_url, headers=user, json={"reason": "Forbidden override"})
+    ).status_code == 404
+    assert (await async_client.delete(override_url, headers=user)).status_code == 404
+    assert ha_sensor_manager.get_interlock_override(hidden.id).reason == "Fixture"
+    assert (await async_client.get(hidden_sensor_url, headers=admin)).status_code == 200

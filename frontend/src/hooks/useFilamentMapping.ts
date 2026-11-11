@@ -6,6 +6,7 @@ import {
   colorsAreSimilar,
   formatSlotLabel,
   getGlobalTrayId,
+  isAmsHtUnit,
   preferLowestSortKey,
   compareSortKeys,
 } from '../utils/amsHelpers';
@@ -34,14 +35,14 @@ export function buildLoadedFilaments(printerStatus: PrinterStatus | undefined): 
 
   // Add filaments from all AMS units (regular and HT)
   printerStatus?.ams?.forEach((amsUnit) => {
-    const isHt = amsUnit.tray.length === 1; // AMS-HT has single tray
+    const isHt = isAmsHtUnit(amsUnit.id);
     amsUnit.tray.forEach((tray) => {
       if (tray.tray_type) {
         const color = normalizeColor(tray.tray_color);
         filaments.push({
           type: tray.tray_type,
           color,
-          colorName: getColorName(color),
+          colorName: getColorName(color, tray.tray_sub_brands, tray.tray_info_idx),
           amsId: amsUnit.id,
           trayId: tray.id,
           isHt,
@@ -66,7 +67,7 @@ export function buildLoadedFilaments(printerStatus: PrinterStatus | undefined): 
       filaments.push({
         type: extTray.tray_type,
         color,
-        colorName: getColorName(color),
+        colorName: getColorName(color, extTray.tray_sub_brands, extTray.tray_info_idx),
         amsId: -1,
         trayId: trayId - 254,
         isHt: false,

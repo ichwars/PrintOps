@@ -8,12 +8,7 @@ import os
 import uuid
 from pathlib import Path
 
-from backend.app.services.thumbnail_lighting import (
-    VIEW_AZIMUTH,
-    VIEW_ELEVATION,
-    thumbnail_faces,
-    thumbnail_shading,
-)
+from backend.app.services.thumbnail_lighting import BACKGROUND_COLOR as BACKGROUND_COLOR, BAMBU_GREEN as BAMBU_GREEN
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +52,6 @@ def _configure_matplotlib_cache() -> None:
         logger.debug("Could not configure MPLCONFIGDIR: %s", exc)
 
 
-# Bambu green color for rendering
-BAMBU_GREEN = "#00AE42"
-BACKGROUND_COLOR = "#1a1a1a"
-
 # Maximum vertices before simplification
 MAX_VERTICES = 100000
 
@@ -99,14 +90,9 @@ def generate_stl_thumbnail(
         # matplotlib import time, not on subsequent attribute access.
         _configure_matplotlib_cache()
 
-        import matplotlib
         import trimesh
 
-        # Use Agg backend for headless rendering
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-        from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+        from backend.app.services.plate_thumbnail import render_mesh_png
 
         # Load the STL file
         mesh = trimesh.load(str(stl_path), force="mesh")
@@ -137,72 +123,10 @@ def generate_stl_thumbnail(
             except Exception as e:
                 logger.warning("Mesh simplification failed, using original: %s", e)
 
-        faces = thumbnail_faces(mesh, trimesh)
-
-        # Get mesh bounds and center it
-        vertices = mesh.vertices
-        bounds_min = vertices.min(axis=0)
-        bounds_max = vertices.max(axis=0)
-        center = (bounds_min + bounds_max) / 2
-        vertices_centered = vertices - center
-
-        # Scale to fit in view
-        max_extent = (bounds_max - bounds_min).max()
-        if max_extent > 0:
-            scale = 1.0 / max_extent
-            vertices_scaled = vertices_centered * scale
-        else:
-            vertices_scaled = vertices_centered
-
-        # Create figure with dark background
-        fig = plt.figure(figsize=(size / 100, size / 100), dpi=100)
-        fig.patch.set_facecolor(BACKGROUND_COLOR)
-
-        ax = fig.add_subplot(111, projection="3d")
-        ax.set_facecolor(BACKGROUND_COLOR)
-
-        # Create polygon collection from mesh faces
-        poly3d = vertices_scaled[faces]
-
-        collection = Poly3DCollection(
-            poly3d,
-            facecolors=BAMBU_GREEN,
-            edgecolors=BAMBU_GREEN,
-            linewidths=0.1,
-            alpha=0.9,
-            **thumbnail_shading(poly3d),
-        )
-        ax.add_collection3d(collection)
-
-        # Set axis limits
-        ax.set_xlim(-0.6, 0.6)
-        ax.set_ylim(-0.6, 0.6)
-        ax.set_zlim(-0.6, 0.6)
-
-        # Set view angle (isometric-ish)
-        ax.view_init(elev=VIEW_ELEVATION, azim=VIEW_AZIMUTH)
-
-        # Remove axes and grid
-        ax.set_axis_off()
-        ax.grid(False)
-
-        # Remove margins
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-        # Save thumbnail
+        png = render_mesh_png(mesh, size=size, label=stl_path.name)
         thumb_filename = f"{uuid.uuid4().hex}.png"
         thumb_path = thumbnails_dir / thumb_filename  # SEC-PATH-OK: thumb_filename = uuid.uuid4().hex + ".png"
-
-        fig.savefig(
-            thumb_path,
-            format="png",
-            facecolor=BACKGROUND_COLOR,
-            edgecolor="none",
-            bbox_inches="tight",
-            pad_inches=0.05,
-            dpi=100,
-        )
-        plt.close(fig)
+        thumb_path.write_bytes(png)
 
         logger.info("Generated STL thumbnail: %s", thumb_path)
         return str(thumb_path)

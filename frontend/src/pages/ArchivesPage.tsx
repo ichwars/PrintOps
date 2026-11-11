@@ -1,4 +1,9 @@
+import { splitFilamentTypes } from '../utils/filamentTypes';
 import { ColumnConfigModal, type ColumnConfig } from '../components/ColumnConfigModal';
+import { ArchiveMergeButton } from '../components/ArchiveMergeButton';
+import { useArchiveHighlight } from './archives/useArchiveHighlight';
+import { unfinishedArchiveStatus } from './archives/unfinishedArchiveStatus';
+import { ArchiveVideosButton } from './archives/ArchiveVideosButton';
 import { ArchiveLogCell } from './archives/ArchiveLogCell';
 import { ArchivePaginationBar } from './archives/ArchivePaginationBar';
 import { DEFAULT_LOG_COLUMNS, LOG_COLUMN_LABEL_KEYS, SORTABLE_LOG_COLUMNS, loadLogColumnConfig,
@@ -74,7 +79,7 @@ import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import type { Archive, PrintLogEntry, ProjectListItem } from '../api/client';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
-import { PrintModal } from '../components/PrintModal';
+import { ArchiveReprintModal } from '../components/ReprintModal';
 import { UploadModal } from '../components/UploadModal';
 import { PurgeArchivesModal } from '../components/PurgeArchivesModal';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -178,7 +183,7 @@ function ArchiveCard({
   t: TFunction;
   onNavigateToArchive?: (archiveId: number) => void;
 }) {
-  // Debug: log when card is highlighted
+  const timeEstimate = archive.time_estimate_seconds === undefined ? archive.print_time_seconds : archive.time_estimate_seconds;
   if (isHighlighted) {
     console.log('ArchiveCard isHighlighted=true for archive:', archive.id);
   }
@@ -205,6 +210,11 @@ function ArchiveCard({
   });
   const [showEdit, setShowEdit] = useState(false);
   const [showPrintLog, setShowPrintLog] = useState(false);
+  const videoCount = archive.timelapse_count ?? Number(Boolean(archive.timelapse_path));
+  const openArchiveVideos = () => {
+    if (videoCount > 1 || !archive.timelapse_path) setShowPrintLog(true);
+    else setShowTimelapse(true);
+  };
   const [showTimelapse, setShowTimelapse] = useState(false);
   const [showTimelapseSelect, setShowTimelapseSelect] = useState(false);
   const [availableTimelapses, setAvailableTimelapses] = useState<Array<{ name: string; path: string; size: number; mtime: string | null }>>([]);
@@ -404,10 +414,9 @@ function ArchiveCard({
   };
 
   const isGcodeFile = isSlicedFile(archive);
+  const canSliceArchive = !useSlicerApi || canModify('archives', 'reprint', archive.created_by_id);
 
   const contextMenuItems: ContextMenuItem[] = [
-    // For gcode files: show Print option
-    // For source files: show Slice as the primary action
     ...(isGcodeFile ? [
       {
         label: t('common.print'),
@@ -444,18 +453,18 @@ function ArchiveCard({
             openInSlicerWithToken(archive.id, filename, 'file', preferredSlicer);
           }
         },
+        disabled: !canSliceArchive,
+        title: !canSliceArchive ? t('archives.permission.noReprint') : undefined,
       },
-      // Run-with-pipeline (#1425 PR B follow-up). Sources from archive's
-      // source 3MF (or file_path fallback). Only when slicer-api is on.
       ...(useSlicerApi
         ? [{
             label: t('library.runWithPipeline.actionLabel'),
             icon: <Play className="w-4 h-4" />,
             onClick: () => setShowRunPipeline(true),
-            disabled: !hasPermission('pipelines:run'),
+            disabled: !hasPermission('pipelines:run') || !canSliceArchive,
             title: !hasPermission('pipelines:run')
               ? t('library.runWithPipeline.noPermission')
-              : undefined,
+              : !canSliceArchive ? t('archives.permission.noReprint') : undefined,
           }]
         : []),
     ]),
@@ -477,8 +486,8 @@ function ArchiveCard({
     {
       label: t('archives.menu.viewTimelapse'),
       icon: <Film className="w-4 h-4" />,
-      onClick: () => setShowTimelapse(true),
-      disabled: !archive.timelapse_path,
+      onClick: openArchiveVideos,
+      disabled: videoCount === 0,
     },
     {
       label: t('archives.menu.scanForTimelapse'),
@@ -732,6 +741,7 @@ function ArchiveCard({
                 ? api.getArchivePlateThumbnail(archive.id, plates[displayPlateIndex]?.index ?? 0)
                 : api.getArchiveThumbnail(archive.id)
             }
+            loading="lazy"
             alt={archive.print_name || archive.filename}
             className="w-full h-full object-cover"
           />
@@ -825,9 +835,9 @@ function ArchiveCard({
           />
         </button>
         <div className="absolute bottom-2 left-2"><ArchiveOutcomeBadge archive={archive} /></div>
-        {(archive.status === 'failed' || archive.status === 'aborted') && (
+        {unfinishedArchiveStatus(archive.status) && (
           <div className="absolute top-2 left-12 px-2 py-1 rounded text-xs bg-status-error/80 text-white">
-            {archive.status === 'aborted' ? t('archives.card.cancelled') : t('archives.card.failed')}
+            {t(`archives.card.${unfinishedArchiveStatus(archive.status)}`)}
           </div>
         )}
         {/* Duplicate badge */}
@@ -895,23 +905,11 @@ function ArchiveCard({
         >
           <Layers className="w-4 h-4 text-white" />
         </button>
-        {/* Timelapse badge */}
-        {archive.timelapse_path && (
-          <button
-            className="absolute bottom-2 right-12 p-1.5 rounded bg-black/60 hover:bg-black/80 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowTimelapse(true);
-            }}
-            title={t('archives.card.viewTimelapse')}
-          >
-            <Film className="w-4 h-4 text-bambu-green" />
-          </button>
-        )}
+        <ArchiveVideosButton count={videoCount} onOpen={openArchiveVideos} />
         {/* Photos badge */}
         {archive.photos && archive.photos.length > 0 && (
           <button
-            className={`absolute bottom-2 ${archive.timelapse_path ? 'right-[5.5rem]' : 'right-12'} p-1.5 rounded bg-black/60 hover:bg-black/80 transition-colors`}
+            className={`absolute bottom-2 ${videoCount > 0 ? 'right-[5.5rem]' : 'right-12'} p-1.5 rounded bg-black/60 hover:bg-black/80 transition-colors`}
             onClick={(e) => {
               e.stopPropagation();
               setShowPhotos(true);
@@ -1024,16 +1022,16 @@ function ArchiveCard({
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-2 text-xs mb-4 min-h-[48px]">
-          {(archive.print_time_seconds || archive.actual_time_seconds) && (
+          {(timeEstimate || archive.actual_time_seconds) && (
             <div className="flex items-center gap-1.5 text-bambu-gray" title={
               archive.time_accuracy
-                ? `Estimated: ${formatDuration(archive.print_time_seconds || 0)}\nActual: ${formatDuration(archive.actual_time_seconds || 0)}\nAccuracy: ${archive.time_accuracy.toFixed(0)}%`
+                ? [t('archives.card.estimated', { time: formatDuration(timeEstimate || 0) }), t('archives.card.actual', { time: formatDuration(archive.actual_time_seconds || 0) }), t('archives.card.accuracy', { percent: archive.time_accuracy.toFixed(0) })].join('\n')
                 : archive.actual_time_seconds
-                  ? `Actual: ${formatDuration(archive.actual_time_seconds)}`
-                  : `Estimated: ${formatDuration(archive.print_time_seconds || 0)}`
+                  ? t('archives.card.actual', { time: formatDuration(archive.actual_time_seconds) })
+                  : t('archives.card.estimated', { time: formatDuration(timeEstimate || 0) })
             }>
               <Clock className="w-3 h-3" />
-              {formatDuration(archive.actual_time_seconds || archive.print_time_seconds || 0)}
+              {formatDuration(archive.actual_time_seconds || timeEstimate || 0)}
               {archive.time_accuracy && (
                 <span className={`text-[10px] px-1 rounded ${
                   archive.time_accuracy >= 95 && archive.time_accuracy <= 105
@@ -1056,9 +1054,9 @@ function ArchiveCard({
           {(archive.cost != null || archive.energy_cost != null) && (
             <div className="flex items-center gap-3 text-bambu-gray">
               {archive.cost != null && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" title={archive.status === 'printing' ? t('archives.card.costEstimate') : unfinishedArchiveStatus(archive.status) ? t('archives.card.costFullPrint') : undefined} data-testid="archive-cost">
                   <Coins className="w-3 h-3" />
-                  {currency}{archive.cost.toFixed(2)}
+                  {archive.status === 'printing' && '~'}{currency}{archive.cost.toFixed(2)}
                 </div>
               )}
                 {archive.energy_cost != null && (
@@ -1157,6 +1155,7 @@ function ArchiveCard({
                 size="sm"
                 className="flex-1 min-w-0 overflow-hidden"
                 onClick={() => setShowReprint(true)}
+                aria-label={t('common.print')}
                 disabled={!archive.file_path || !hasPermission('queue:create') || !canModify('archives', 'reprint', archive.created_by_id)}
                 title={!archive.file_path ? t('archives.card.noFileForReprint') : !hasPermission('queue:create') ? t('archives.permission.noAddToQueue') : !canModify('archives', 'reprint', archive.created_by_id) ? t('archives.card.noPermissionReprint') : undefined}
               >
@@ -1177,7 +1176,6 @@ function ArchiveCard({
               </Button>
             </>
           ) : (
-            // Source file only - "Slice" action
             <Button
               variant="primary"
               size="sm"
@@ -1190,7 +1188,12 @@ function ArchiveCard({
                   openInSlicerWithToken(archive.id, filename, 'file', preferredSlicer);
                 }
               }}
-              title={useSlicerApi ? t('slice.title') : t('archives.card.openInBambuStudioToSlice')}
+              disabled={!canSliceArchive}
+              title={
+                !canSliceArchive
+                  ? t('archives.permission.noReprint')
+                  : useSlicerApi ? t('slice.title') : t('archives.card.openInBambuStudioToSlice')
+              }
             >
               {useSlicerApi ? (
                 <Cog className="w-3 h-3 flex-shrink-0" />
@@ -1276,12 +1279,7 @@ function ArchiveCard({
 
       {/* Reprint Modal */}
       {showReprint && (
-        <PrintModal
-          mode="create"
-          archiveId={archive.id}
-          archiveName={archive.print_name || archive.filename}
-          onClose={() => setShowReprint(false)}
-        />
+        <ArchiveReprintModal archive={archive} onClose={() => setShowReprint(false)} />
       )}
 
       {/* Slice Modal */}
@@ -1586,6 +1584,11 @@ function ArchiveListRow({
   const { hasPermission, canModify } = useAuth();
   const [showEdit, setShowEdit] = useState(false);
   const [showPrintLog, setShowPrintLog] = useState(false);
+  const videoCount = archive.timelapse_count ?? Number(Boolean(archive.timelapse_path));
+  const openArchiveVideos = () => {
+    if (videoCount > 1 || !archive.timelapse_path) setShowPrintLog(true);
+    else setShowTimelapse(true);
+  };
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // #1343: opt-in "Also remove from statistics" checkbox state. Default off
   // — soft delete keeps the archive's contribution to Quick Stats.
@@ -1778,6 +1781,7 @@ function ArchiveListRow({
   };
 
   const isGcodeFile = isSlicedFile(archive);
+  const canSliceArchive = !useSlicerApi || canModify('archives', 'reprint', archive.created_by_id);
 
   const contextMenuItems: ContextMenuItem[] = [
     ...(isGcodeFile ? [
@@ -1816,18 +1820,18 @@ function ArchiveListRow({
             openInSlicerWithToken(archive.id, filename, 'file', preferredSlicer);
           }
         },
+        disabled: !canSliceArchive,
+        title: !canSliceArchive ? t('archives.permission.noReprint') : undefined,
       },
-      // Run-with-pipeline (#1425 PR B follow-up). Sources from archive's
-      // source 3MF (or file_path fallback). Only when slicer-api is on.
       ...(useSlicerApi
         ? [{
             label: t('library.runWithPipeline.actionLabel'),
             icon: <Play className="w-4 h-4" />,
             onClick: () => setShowRunPipeline(true),
-            disabled: !hasPermission('pipelines:run'),
+            disabled: !hasPermission('pipelines:run') || !canSliceArchive,
             title: !hasPermission('pipelines:run')
               ? t('library.runWithPipeline.noPermission')
-              : undefined,
+              : !canSliceArchive ? t('archives.permission.noReprint') : undefined,
           }]
         : []),
     ]),
@@ -1849,8 +1853,8 @@ function ArchiveListRow({
     {
       label: t('archives.menu.viewTimelapse'),
       icon: <Film className="w-4 h-4" />,
-      onClick: () => setShowTimelapse(true),
-      disabled: !archive.timelapse_path,
+      onClick: openArchiveVideos,
+      disabled: videoCount === 0,
     },
     {
       label: t('archives.menu.scanForTimelapse'),
@@ -2083,6 +2087,7 @@ function ArchiveListRow({
           {archive.thumbnail_path ? (
             <img
               src={api.getArchiveThumbnail(archive.id)}
+              loading="lazy"
               alt=""
               className="w-10 h-10 object-cover rounded"
             />
@@ -2096,9 +2101,9 @@ function ArchiveListRow({
           <div className="flex items-center gap-2">
             <p className="text-white text-sm truncate">{archiveDisplayName(archive, t)}</p>
             <ArchiveOutcomeBadge archive={archive} />
-            {(archive.status === 'failed' || archive.status === 'aborted') && (
+            {unfinishedArchiveStatus(archive.status) && (
               <span className="px-1.5 py-0.5 rounded text-[10px] leading-tight bg-status-error/80 text-white flex-shrink-0">
-                {archive.status === 'aborted' ? t('archives.card.cancelled') : t('archives.card.failed')}
+                {t(`archives.card.${unfinishedArchiveStatus(archive.status)}`)}
               </span>
             )}
             {archive.duplicate_count > 0 && duplicateSequence > 0 && originalArchiveId && (
@@ -2123,11 +2128,7 @@ function ArchiveListRow({
                 +{archive.duplicate_count}
               </span>
             )}
-            {archive.timelapse_path && (
-              <span title={t('archives.list.hasTimelapse')}>
-                <Film className="w-3.5 h-3.5 text-bambu-green flex-shrink-0" />
-              </span>
-            )}
+            <ArchiveVideosButton compact count={videoCount} onOpen={openArchiveVideos} />
             {linkedFolders && linkedFolders.length > 0 && (
               <Link
                 to={`/files?folder=${linkedFolders[0].id}`}
@@ -2195,6 +2196,7 @@ function ArchiveListRow({
               variant="ghost"
               size="sm"
               onClick={() => setShowReprint(true)}
+              aria-label={t('common.print')}
               disabled={!archive.file_path || !hasPermission('queue:create') || !canModify('archives', 'reprint', archive.created_by_id)}
               title={!archive.file_path ? t('archives.card.noFileForReprint') : !hasPermission('queue:create') ? t('archives.permission.noAddToQueue') : !canModify('archives', 'reprint', archive.created_by_id) ? t('archives.card.noPermissionReprint') : t('common.print')}
               className="text-bambu-green hover:text-bambu-green-light hover:bg-bambu-green/10"
@@ -2298,12 +2300,7 @@ function ArchiveListRow({
 
       {/* Reprint Modal */}
       {showReprint && (
-        <PrintModal
-          mode="create"
-          archiveId={archive.id}
-          archiveName={archive.print_name || archive.filename}
-          onClose={() => setShowReprint(false)}
-        />
+        <ArchiveReprintModal archive={archive} onClose={() => setShowReprint(false)} />
       )}
 
       {/* Slice Modal */}
@@ -2764,10 +2761,6 @@ export function ArchivesPage() {
     [logColumns],
   );
 
-  const handleNavigateToArchive = useCallback((archiveId: number) => {
-    setPendingNavigationArchiveId(archiveId);
-    setHighlightedArchiveId(archiveId);
-  }, []);
 
   // Clear highlight after 5 seconds and scroll to highlighted element
   useEffect(() => {
@@ -2799,6 +2792,9 @@ export function ArchivesPage() {
     queryFn: () => api.getArchives(filterPrinter || undefined),
   });
 
+  const handleNavigateToArchive = useArchiveHighlight(archives, searchParams.get('highlight'),
+    setPendingNavigationArchiveId, setHighlightedArchiveId, handleViewModeChange);
+
   const { data: printers } = useQuery({
     queryKey: ['printers'],
     queryFn: api.getPrinters,
@@ -2810,8 +2806,8 @@ export function ArchivesPage() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const { data: users } = useQuery({
@@ -3067,7 +3063,7 @@ export function ArchivesPage() {
 
   // Extract unique materials and colors from archives
   const uniqueMaterials = [...new Set(
-    archives?.flatMap(a => a.filament_type?.split(', ') || []).filter(Boolean) || []
+    archives?.flatMap(a => splitFilamentTypes(a.filament_type)) || []
   )].sort();
 
   const uniqueColors = [...new Set(
@@ -3105,7 +3101,7 @@ export function ArchivesPage() {
           matchesCollection = (PRINTED_STATUSES as readonly string[]).includes(a.status);
           break;
         case 'failed':
-          matchesCollection = a.status === 'failed' || a.status === 'aborted';
+          matchesCollection = Boolean(unfinishedArchiveStatus(a.status));
           break;
         case 'duplicates':
           matchesCollection = a.duplicate_count > 0;
@@ -3117,7 +3113,7 @@ export function ArchivesPage() {
 
       // Material filter
       const matchesMaterial = !filterMaterial ||
-        (a.filament_type?.split(', ').includes(filterMaterial));
+        splitFilamentTypes(a.filament_type).includes(filterMaterial);
 
       // Color filter (AND: must have all selected colors, OR: must have any selected color)
       const archiveColors = a.filament_color?.split(',') || [];
@@ -3130,7 +3126,7 @@ export function ArchivesPage() {
       const matchesFavorites = collection === 'favorites' || !filterFavorites || a.is_favorite;
 
       // Hide failed filter (don't apply when viewing failed collection)
-      const matchesHideFailed = collection === 'failed' || !hideFailed || (a.status !== 'failed' && a.status !== 'aborted');
+      const matchesHideFailed = collection === 'failed' || !hideFailed || !unfinishedArchiveStatus(a.status);
 
       // Hide duplicates filter (don't apply when viewing duplicates collection)
       const matchesHideDuplicates =
@@ -3467,7 +3463,7 @@ export function ArchivesPage() {
                       const { blob, filename } = await api.exportArchives({
                         format: 'csv',
                         printerId: filterPrinter || undefined,
-                        status: collection === 'failed' ? 'failed' : undefined,
+                        status: collection === 'failed' ? 'failed,aborted,cancelled,stopped' : undefined,
                         search: search || undefined,
                       });
                       const url = URL.createObjectURL(blob);
@@ -3496,7 +3492,7 @@ export function ArchivesPage() {
                       const { blob, filename } = await api.exportArchives({
                         format: 'xlsx',
                         printerId: filterPrinter || undefined,
-                        status: collection === 'failed' ? 'failed' : undefined,
+                        status: collection === 'failed' ? 'failed,aborted,cancelled,stopped' : undefined,
                         search: search || undefined,
                       });
                       const url = URL.createObjectURL(blob);
@@ -3543,6 +3539,7 @@ export function ArchivesPage() {
             <Upload className="w-4 h-4" />
             {t("orders.runtimeInterface.upload3MF")}
           </Button>
+          <ArchiveMergeButton />
           {hasPermission('archives:purge') && (
             <Button
               variant="secondary"

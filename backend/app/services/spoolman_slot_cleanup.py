@@ -1,13 +1,15 @@
 """Local Spoolman assignment cleanup shared by MQTT and manual sync routes."""
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services import slot_unlink_grace
 from backend.app.services.ams_slot_presence import spool_present
 
 
-async def expire_empty_slots(db, printer_id: int, ams_data: list, printing_now: bool) -> list[tuple[int, int]]:
+async def expire_empty_slots(
+    db, printer_id: int, ams_data: list, printing_now: bool, *, delete_rows: bool = True
+) -> list[tuple[int, int]]:
     """Delete only linked slots whose empty evidence survives the grace period."""
     trays = {
         (int(unit.get("id", 0)), int(tray.get("id", 0))): tray
@@ -33,8 +35,18 @@ async def expire_empty_slots(db, printer_id: int, ams_data: list, printing_now: 
         if spool_present(tray) is True:
             continue
         if slot_unlink_grace.removal_confirmed(printer_id, key):
+            if delete_rows:
+                result = await db.execute(
+                    delete(SpoolmanSlotAssignment)
+                    .where(
+                        SpoolmanSlotAssignment.id == row.id,
+                        SpoolmanSlotAssignment.spoolman_spool_id == row.spoolman_spool_id,
+                    )
+                    .execution_options(synchronize_session=False)
+                )
+                if not result.rowcount:
+                    continue
             expired.append((row.ams_id, row.tray_id))
-            await db.delete(row)
         else:
             held.add(key)
     slot_unlink_grace.settle(printer_id, "spoolman", held)

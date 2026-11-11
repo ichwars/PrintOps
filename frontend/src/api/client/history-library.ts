@@ -1,3 +1,4 @@
+import { batchedRecord } from '../batch';
 import type { SliceJobProgress, SystemHealthResult } from './types';
 import type {
   AMSHistoryResponse,
@@ -35,6 +36,11 @@ import {
   request,
   withMediaToken,
 } from './core';
+
+const archiveFoldersBatch = batchedRecord(
+  (id) => request<LibraryFolder[]>(`/library/folders/by-archive/${id}`),
+  '/bulk/archive-folders',
+);
 
 export const historyLibraryMethods = {
   // AMS History
@@ -94,8 +100,7 @@ export const historyLibraryMethods = {
   getLibraryFoldersByProject: (projectId: number) =>
     request<LibraryFolder[]>(`/library/folders/by-project/${projectId}`),
 
-  getLibraryFoldersByArchive: (archiveId: number) =>
-    request<LibraryFolder[]>(`/library/folders/by-archive/${archiveId}`),
+  getLibraryFoldersByArchive: archiveFoldersBatch,
 
   getLibraryFiles: (
     folderId?: number | null,

@@ -63,6 +63,7 @@ async def test_upload_reader_stops_after_limit() -> None:
 @pytest.mark.asyncio
 async def test_timelapse_upload_uses_video_specific_limit(monkeypatch) -> None:
     from backend.app.api.routes import archives as archive_routes
+    from backend.app.core.auth import OwnershipAccess
     from backend.app.utils.archive_budget import MAX_TIMELAPSE_UPLOAD_BYTES, MAX_UPLOAD_BYTES
 
     assert MAX_TIMELAPSE_UPLOAD_BYTES > MAX_UPLOAD_BYTES
@@ -77,9 +78,12 @@ async def test_timelapse_upload_uses_video_specific_limit(monkeypatch) -> None:
 
         async def get_archive(self, archive_id: int):
             assert archive_id == 7
-            return object()
+            return SimpleNamespace(started_at=None, deleted_at=None, printer_id=None)
 
-        async def attach_timelapse(self, archive_id: int, content: bytes, filename: str) -> bool:
+        async def attach_timelapse(
+            self, archive_id: int, content: bytes, filename: str, *, expected_started_at
+        ) -> bool:
+            assert expected_started_at is None
             observed.update(archive_id=archive_id, content=content, filename=filename)
             return True
 
@@ -90,7 +94,7 @@ async def test_timelapse_upload_uses_video_specific_limit(monkeypatch) -> None:
     monkeypatch.setattr(archive_routes, "ArchiveService", Service)
     monkeypatch.setattr(archive_routes, "read_upload_limited", read_video_upload)
 
-    result = await archive_routes.upload_timelapse(7, Upload(), db=object(), _=None)
+    result = await archive_routes.upload_timelapse(7, Upload(), db=object(), access=OwnershipAccess(None, True))
 
     assert observed["max_bytes"] == MAX_TIMELAPSE_UPLOAD_BYTES
     assert observed["filename"] == "long-print.mp4"
@@ -159,7 +163,11 @@ async def test_slice_jobs_are_owned_and_cross_user_polling_is_hidden() -> None:
     routes.slice_dispatch = service
     try:
         with pytest.raises(HTTPException) as exc:
-            await get_slice_job(job.id, auth_result=(SimpleNamespace(id=8), False))
+            await get_slice_job(
+                job.id,
+                auth_result=(SimpleNamespace(id=8, has_permission=lambda value: value == "library:read_own"), False),
+                api_key=None,
+            )
         assert exc.value.status_code == 404
     finally:
         routes.slice_dispatch = previous
@@ -168,6 +176,7 @@ async def test_slice_jobs_are_owned_and_cross_user_polling_is_hidden() -> None:
 @pytest.mark.asyncio
 async def test_archive_mutation_route_applies_ownership_gate() -> None:
     from backend.app.api.routes.archives import delete_timelapse
+    from backend.app.core.auth import OwnershipAccess
 
     archive = SimpleNamespace(id=1, deleted_at=None, created_by_id=7, timelapse_path="timelapse.mp4")
 
@@ -180,7 +189,7 @@ async def test_archive_mutation_route_applies_ownership_gate() -> None:
             return Result()
 
     with pytest.raises(HTTPException) as exc:
-        await delete_timelapse(1, db=DB(), auth_result=(SimpleNamespace(id=8), False))
+        await delete_timelapse(1, db=DB(), auth_result=OwnershipAccess(SimpleNamespace(id=8), False))
     assert exc.value.status_code == 404
 
 

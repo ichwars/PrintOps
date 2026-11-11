@@ -7,6 +7,7 @@ import type { NotificationProvider, NotificationProviderCreate, NotificationProv
 import { Button } from './Button';
 import { Checkbox, LegacySelect, NumberField, TextField , TimeField} from './ui';
 import { Toggle } from './Toggle';
+import { SECRET_PLACEHOLDER, selectPlaceholderOnFocus } from '../utils/secrets';
 
 interface AddNotificationModalProps {
   provider?: NotificationProvider | null;
@@ -39,6 +40,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
   const [onPrintComplete, setOnPrintComplete] = useState(provider?.on_print_complete ?? true);
   const [onPrintFailed, setOnPrintFailed] = useState(provider?.on_print_failed ?? true);
   const [onPrintStopped, setOnPrintStopped] = useState(provider?.on_print_stopped ?? true);
+  const [onPrintPauseUpcoming, setOnPrintPauseUpcoming] = useState(provider?.on_print_pause_upcoming ?? false);
   const [onPrintProgress, setOnPrintProgress] = useState(provider?.on_print_progress ?? false);
   const [onPrinterOffline, setOnPrinterOffline] = useState(provider?.on_printer_offline ?? false);
   const [onPrinterError, setOnPrinterError] = useState(provider?.on_printer_error ?? false);
@@ -60,7 +62,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       ? Object.fromEntries(
           Object.entries(provider.config)
             .filter(([k]) => k !== 'event_priorities')
-            .map(([k, v]) => [k, String(v)]),
+            .map(([k, v]) => [k, v == null ? '' : String(v)]),
         )
       : {},
   );
@@ -99,7 +101,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
   // Test configuration mutation
   const testMutation = useMutation({
-    mutationFn: () => api.testNotificationConfig({ provider_type: providerType, config }),
+    mutationFn: () => api.testNotificationConfig({ provider_type: providerType, config, provider_id: provider?.id }),
     onSuccess: (result) => {
       setTestResult(result);
       setError(null);
@@ -182,6 +184,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       on_print_failed: onPrintFailed,
       on_print_stopped: onPrintStopped,
       on_print_progress: onPrintProgress,
+      on_print_pause_upcoming: onPrintPauseUpcoming,
       on_printer_offline: onPrinterOffline,
       on_printer_error: onPrinterError,
       on_ai_failure_detection: onAiFailureDetection,
@@ -211,7 +214,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
       case 'callmebot':
         return [
           { key: 'phone', label: 'Phone Number', placeholder: '+1234567890', type: 'text', required: true },
-          { key: 'apikey', label: 'API Key', placeholder: 'Your CallMeBot API key', type: 'text', required: true },
+          { key: 'apikey', label: 'API Key', placeholder: 'Your CallMeBot API key', type: 'password', required: true },
         ];
       case 'ntfy':
         return [
@@ -221,8 +224,8 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
         ];
       case 'pushover':
         return [
-          { key: 'user_key', label: 'User Key', placeholder: 'Your Pushover user key', type: 'text', required: true },
-          { key: 'app_token', label: 'App Token', placeholder: 'Your Pushover app token', type: 'text', required: true },
+          { key: 'user_key', label: 'User Key', placeholder: 'Your Pushover user key', type: 'password', required: true },
+          { key: 'app_token', label: 'App Token', placeholder: 'Your Pushover app token', type: 'password', required: true },
           { key: 'priority', label: 'Priority', placeholder: '0 (normal)', type: 'number', required: false },
           {
             key: 'retry',
@@ -287,11 +290,11 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
         ];
       case 'discord':
         return [
-          { key: 'webhook_url', label: 'Webhook URL', placeholder: 'https://discord.com/api/webhooks/...', type: 'text', required: true },
+          { key: 'webhook_url', label: 'Webhook URL', placeholder: 'https://discord.com/api/webhooks/...', type: 'password', required: true },
         ];
       case 'webhook':
         return [
-          { key: 'webhook_url', label: 'Webhook URL', placeholder: 'https://example.com/webhook', type: 'text', required: true },
+          { key: 'webhook_url', label: 'Webhook URL', placeholder: 'https://example.com/webhook', type: 'password', required: true },
           { key: 'payload_format', label: 'Payload Format', type: 'select', required: false, options: [
             { value: 'generic', label: 'Generic JSON' },
             { value: 'slack', label: 'Slack / Mattermost' },
@@ -418,8 +421,9 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                   />
                 ) : (
                   <TextField
-                    type={field.type}
+                    type={config[field.key] === SECRET_PLACEHOLDER ? 'password' : field.type}
                     value={config[field.key] || ''}
+                    onFocus={selectPlaceholderOnFocus}
                     onChange={(e) => {
                       setConfig({ ...config, [field.key]: e.target.value });
                       setTestResult(null);
@@ -427,6 +431,9 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                     placeholder={field.placeholder}
                     className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                   />
+                )}
+                {config[field.key] === SECRET_PLACEHOLDER && (
+                  <p className="text-xs text-bambu-gray mt-1">{t('common.secretKept')}</p>
                 )}
               </div>
             ))}
@@ -596,6 +603,10 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                   <Toggle checked={onPrintProgress} onChange={setOnPrintProgress} />
                 </div>
                 <div className="flex items-center justify-between col-span-2">
+                  <span className="text-sm text-white">{t('notifications.pauseUpcoming')}</span>
+                  <Toggle ariaLabel={t('notifications.pauseUpcoming')} checked={onPrintPauseUpcoming} onChange={setOnPrintPauseUpcoming} />
+                </div>
+                <div className="flex items-center justify-between col-span-2">
                   <div>
                     <span className="text-sm text-white">{t('notifications.bedCooled')}</span>
                     <span className="text-xs text-bambu-gray ml-1">{t('notifications.bedCooledAfterPrint')}</span>
@@ -684,6 +695,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
               if (onPrintComplete) enabledEvents.push({ key: 'on_print_complete', label: t('notifications.complete') });
               if (onPrintFailed) enabledEvents.push({ key: 'on_print_failed', label: t('notifications.failed') });
               if (onPrintStopped) enabledEvents.push({ key: 'on_print_stopped', label: t('notifications.stopped') });
+              if (onPrintPauseUpcoming) enabledEvents.push({ key: 'on_print_pause_upcoming', label: t('notifications.pauseUpcoming') });
               if (onPrintProgress) enabledEvents.push({ key: 'on_print_progress', label: t('notifications.progress') });
               if (onBedCooled) enabledEvents.push({ key: 'on_bed_cooled', label: t('notifications.bedCooled') });
               if (onFirstLayerComplete) enabledEvents.push({ key: 'on_first_layer_complete', label: t('notifications.firstLayerCompleteLabel') });

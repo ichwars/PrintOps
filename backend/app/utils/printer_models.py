@@ -417,3 +417,13 @@ def uses_legacy_rfid_refresh(model: str | None) -> bool:
         return False
     short = normalize_printer_model_id(model) or model
     return short.strip().upper().replace(" ", "") in LEGACY_RFID_REFRESH_MODELS
+
+
+def aux_fan_sides(model: str | None) -> tuple[str, str]:
+    """Part 2 is left on X2D; part 10 is left on P2S."""
+    normalized = (model or "").strip().upper().replace(" ", "").replace("-", "")
+    return ("left", "right") if normalized in {"X2D", "N6"} else ("right", "left")
+
+
+def uses_exhaust_fan_label(model: str | None) -> bool:
+    return (model or "").strip().upper().replace(" ", "").replace("-", "") in {"P2S", "X2D", "N6", "N7"}

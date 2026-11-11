@@ -2,15 +2,26 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, ScanEye, Check, X, AlertTriangle, Info } from 'lucide-react';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
 import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
 import { Toggle } from './Toggle';
 import { useToast } from '../contexts/ToastContext';
 import { aiDetectionClass, hasAiVerdict } from '../utils/aiDetection';
+import { SECRET_PLACEHOLDER, selectPlaceholderOnFocus } from '../utils/secrets';
 
 type TestResult = { ok: boolean; message: string } | null;
+
+function readPrinterList(raw: string | null | undefined): number[] | null {
+  if (!raw) return null;
+  try {
+    const ids: unknown = JSON.parse(raw);
+    return Array.isArray(ids) ? ids.filter((id): id is number => Number.isInteger(id)) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function FailureDetectionSettings() {
   const { t } = useTranslation();
@@ -52,29 +63,41 @@ export function FailureDetectionSettings() {
     setSensitivity(settings.obico_sensitivity ?? 'medium');
     setAction(settings.obico_action ?? 'notify');
     setPollInterval(settings.obico_poll_interval ?? 10);
-    try {
-      const list = settings.obico_enabled_printers
-        ? (JSON.parse(settings.obico_enabled_printers) as number[])
-        : null;
-      setEnabledPrinters(Array.isArray(list) ? list : null);
-    } catch {
-      setEnabledPrinters(null);
-    }
+    setEnabledPrinters(readPrinterList(settings.obico_enabled_printers));
     setInitialized(true);
   }, [settings]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (token: string) =>
       api.updateSettings({
         obico_enabled: enabled,
         obico_ml_url: mlUrl,
-        obico_ml_token: mlToken,
+        obico_ml_token: token,
         obico_sensitivity: sensitivity,
         obico_action: action,
         obico_poll_interval: pollInterval,
         obico_enabled_printers: enabledPrinters === null ? '' : JSON.stringify(enabledPrinters),
       }),
-    onSuccess: () => {
+    onError: async (error: Error) => {
+      if (error instanceof ApiError && error.status === 400) {
+        queryClient.invalidateQueries({ queryKey: ['printers'] });
+        try {
+          const stored = await api.getSettings();
+          const updatedScope = readPrinterList(stored.obico_enabled_printers);
+          if (JSON.stringify(updatedScope) !== JSON.stringify(enabledPrinters)) {
+            setEnabledPrinters(current => current === enabledPrinters ? updatedScope : current);
+            return;
+          }
+        } catch {
+          // Keep the pending edit when the server cannot provide the current scope.
+        }
+      }
+      showToast(t('settings.toast.saveFailed'), 'error');
+    },
+    onSuccess: (saved, submittedToken) => {
+      if (saved?.obico_ml_token === SECRET_PLACEHOLDER) {
+        setMlToken(current => current === submittedToken ? SECRET_PLACEHOLDER : current);
+      }
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['obico-status'] });
       showToast(t('settings.toast.settingsSaved'));
@@ -90,28 +113,26 @@ export function FailureDetectionSettings() {
       settings.obico_sensitivity !== sensitivity ||
       settings.obico_action !== action ||
       settings.obico_poll_interval !== pollInterval ||
-      settings.obico_enabled_printers !== (enabledPrinters === null ? '' : JSON.stringify(enabledPrinters))
+      JSON.stringify(readPrinterList(settings.obico_enabled_printers)) !== JSON.stringify(enabledPrinters)
     );
   }, [settings, initialized, enabled, mlUrl, mlToken, sensitivity, action, pollInterval, enabledPrinters]);
 
+  const tokenNeedsReentry = mlToken === SECRET_PLACEHOLDER && mlUrl !== (settings?.obico_ml_url ?? '');
+
   // Auto-save on change (debounced)
   useEffect(() => {
-    if (!hasUnsavedChanges) return;
-    autoSaveTimer.current = setTimeout(() => saveMutation.mutate(), 500);
+    if (!hasUnsavedChanges || tokenNeedsReentry) return;
+    autoSaveTimer.current = setTimeout(() => saveMutation.mutate(mlToken), 500);
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasUnsavedChanges, enabled, mlUrl, mlToken, sensitivity, action, pollInterval, enabledPrinters]);
+  }, [hasUnsavedChanges, tokenNeedsReentry, enabled, mlUrl, mlToken, sensitivity, action, pollInterval, enabledPrinters]);
 
   const handleTest = async () => {
     setTestResult(null);
     try {
-      if (hasUnsavedChanges) {
-        if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-        await saveMutation.mutateAsync();
-      }
-      const res = await api.testObicoConnection();
+      const res = await api.testObicoConnection(mlUrl, mlToken);
       if (res.ok) {
         setTestResult({
           ok: true,
@@ -176,7 +197,7 @@ export function FailureDetectionSettings() {
                 />
                 <Button
                   onClick={handleTest}
-                  disabled={!mlUrl || saveMutation.isPending}
+                  disabled={!mlUrl || tokenNeedsReentry || saveMutation.isPending}
                   variant="secondary"
                 >
                   {t('failureDetection.test')}
@@ -202,12 +223,13 @@ export function FailureDetectionSettings() {
               <TextField
                 type="password"
                 value={mlToken}
+                onFocus={selectPlaceholderOnFocus}
                 onChange={(e) => setMlToken(e.target.value)}
                 placeholder={t('failureDetection.mlTokenPlaceholder')}
                 className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm"
                 disabled={!enabled}
               />
-              <p className="text-xs text-bambu-gray mt-1">{t('failureDetection.mlTokenHint')}</p>
+              <p className="text-xs text-bambu-gray mt-1">{t(tokenNeedsReentry ? 'common.secretReenter' : 'failureDetection.mlTokenHint')}</p>
             </div>
 
             <div>
@@ -327,6 +349,12 @@ export function FailureDetectionSettings() {
                     {status.thresholds.low.toFixed(2)} / {status.thresholds.high.toFixed(2)}
                   </span>
                 </div>
+                {status.thresholds.pause != null && (
+                  <div className="flex justify-between">
+                    <span className="text-bambu-gray">{t('failureDetection.pauseThreshold')}</span>
+                    <span className="text-white font-mono">{status.thresholds.pause.toFixed(2)}</span>
+                  </div>
+                )}
                 {status.last_error && (
                   <div className="flex items-start gap-2 text-red-700 dark:text-red-400">
                     <X className="w-4 h-4 mt-0.5 flex-shrink-0" />

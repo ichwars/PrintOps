@@ -203,11 +203,11 @@ EXPECTED = {
     },
     "J": {
         "remaining_g": 1500,
-        "daily_rate_g": 1.25,
+        "daily_rate_g": 2.111111111111111,
         "effective_lead_time_days": 10,
-        "reorder_point_g": 31.304439534819455,
-        "days_remaining": 1200,
-        "days_until_reorder_point": 1174,
+        "reorder_point_g": 52.86972010325064,
+        "days_remaining": 710,
+        "days_until_reorder_point": 685,
         "stock_break_alert": False,
         "reorder_alert": False,
     },
@@ -232,3 +232,17 @@ def test_the_scenarios_cover_both_alerts_and_neither():
     """The pin means little if no scenario ever alerts."""
     flags = {(e["reorder_alert"], e["stock_break_alert"]) for e in EXPECTED.values()}
     assert flags == {(False, False), (True, False), (False, True)}
+
+
+def test_recent_archived_spool_contributes_to_rate_without_remaining_stock():
+    from dataclasses import replace
+
+    active = _spool(1, used=16, age_days=20)
+    used_up = replace(_spool(2, used=900, age_days=100), archived_at=_ago(10))
+    stale = replace(_spool(3, used=1000, age_days=200), archived_at=_ago(91))
+    other_material = replace(used_up, id=4, material="PETG")
+    forecasts = forecast_all([active, used_up, stale, other_material], {}, {}, 0, NOW)
+    assert set(forecasts) == {active.key}
+    forecast, _ = forecasts[active.key]
+    assert forecast.remaining_g == 984
+    assert forecast.daily_rate_g == pytest.approx(816 / 90)

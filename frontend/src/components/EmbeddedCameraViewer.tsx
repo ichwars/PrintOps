@@ -1,18 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, RefreshCw, AlertTriangle, Maximize2, Minimize2, GripVertical, WifiOff, ZoomIn, ZoomOut, Fullscreen, Minimize, Stethoscope } from 'lucide-react';
+import { X, RefreshCw, AlertTriangle, Maximize2, Minimize2, GripVertical, WifiOff, ZoomIn, ZoomOut, Fullscreen, Minimize, Stethoscope, ExternalLink } from 'lucide-react';
 import { api, getAuthToken, withStreamToken } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCameraStream } from '../hooks/useCameraStream';
+import { useStreamImgRef } from '../hooks/useStreamImgRef';
+import { useCameraViewport } from '../hooks/useCameraViewport';
 import { ChamberLight } from './icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from './SkipObjectsModal';
 import { CameraDiagnoseModal } from './CameraDiagnoseModal';
 import { useCameraViewPreference } from '../hooks/useCameraViewPreference';
 import { CameraViewPreferenceSelect } from './CameraViewPreferenceSelect';
+import { isIosHomeScreenApp, openCameraWindow } from '../utils/cameraWindow';
 
-interface EmbeddedCameraViewerProps {
+export interface EmbeddedCameraViewerProps {
   printerId: number;
   printerName: string;
   viewerIndex?: number;  // Used to offset multiple viewers
@@ -108,8 +111,12 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   // 'unsupported' we fall back permanently for this component's lifetime —
   // no flip-flopping between players on a flaky connection.
   const [mseGaveUp, setMseGaveUp] = useState(false);
+  const useMjpeg = mseGaveUp || printer?.external_camera_enabled === true;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const frameBounds = useCameraViewport(viewportRef, printer?.camera_rotation ?? 0, !isMinimized);
+  const frameLimits = frameBounds && { maxWidth: frameBounds.width, maxHeight: frameBounds.height, flexShrink: 0 };
   const imgRef = useRef<HTMLImageElement>(null);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -131,7 +138,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
 
   const { videoRef: mseVideoRef, status: mseStatus, reconnect: mseReconnect } = useCameraStream({
     printerId,
-    enabled: preferenceReady && streamMode === 'stream' && printerId > 0 && !!printer && !printer.external_camera_enabled && !mseGaveUp,
+    enabled: preferenceReady && !isMinimized && streamMode === 'stream' && printerId > 0 && !!printer && !useMjpeg,
     onPlaying: () => {
       setStreamLoading(false);
       setStreamError(false);
@@ -188,12 +195,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
       }
     };
 
-    const imgElement = imgRef.current;
-
     return () => {
-      if (imgElement) {
-        imgElement.src = '';
-      }
       sendStopOnce();
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -223,11 +225,11 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
 
   // Auto-hide loading after timeout
   useEffect(() => {
-    if (streamLoading) {
+    if (streamLoading && !isMinimized) {
       const timer = setTimeout(() => setStreamLoading(false), streamMode === 'stream' ? 3000 : 20000);
       return () => clearTimeout(timer);
     }
-  }, [streamMode, streamLoading, imageKey]);
+  }, [streamMode, streamLoading, imageKey, isMinimized]);
 
   // Auto-reconnect logic
   const attemptReconnect = useCallback(() => {
@@ -260,7 +262,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
       setIsReconnecting(false);
       setStreamLoading(true);
       setStreamError(false);
-      if (imgRef.current) imgRef.current.src = '';
+      imgRef.current?.removeAttribute('src');
       setImageKey(Date.now());
     }, delay);
   }, [reconnectAttempts]);
@@ -271,7 +273,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   // while MSE is still playing would see active=false and trigger a
   // needless reconnect on a perfectly healthy MSE stream.
   useEffect(() => {
-    if (streamMode !== 'stream' || !mseGaveUp || streamLoading || isReconnecting || isMinimized) {
+    if (streamMode !== 'stream' || !useMjpeg || streamLoading || isReconnecting || isMinimized) {
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
         stallCheckIntervalRef.current = null;
@@ -301,7 +303,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
         stallCheckIntervalRef.current = null;
       }
     };
-  }, [streamMode, mseGaveUp, streamLoading, streamError, isReconnecting, isMinimized, printerId, attemptReconnect]);
+  }, [streamMode, useMjpeg, streamLoading, streamError, isReconnecting, isMinimized, printerId, attemptReconnect]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -507,9 +509,19 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
       fetch(`/api/v1/printers/${printerId}/camera/stop`, { method: 'POST', headers: stopHeaders }).catch(() => {});
     }
 
-    if (imgRef.current) imgRef.current.src = '';
-    setTimeout(() => setImageKey(Date.now()), 100);
-    if (streamMode === 'stream' && !mseGaveUp) mseReconnect();
+    imgRef.current?.removeAttribute('src');
+    reconnectTimerRef.current = setTimeout(() => setImageKey(Date.now()), 100);
+    if (streamMode === 'stream' && !useMjpeg) mseReconnect();
+  };
+
+  const toggleMinimized = () => {
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    setIsReconnecting(false);
+    setReconnectAttempts(0);
+    setStreamError(false);
+    setStreamLoading(isMinimized);
+    setIsMinimized(!isMinimized);
   };
 
   // Drag handlers
@@ -605,6 +617,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   const streamUrl = !preferenceReady ? '' : withStreamToken(streamMode === 'stream'
     ? `/api/v1/printers/${printerId}/camera/stream?fps=15&t=${imageKey}`
     : `/api/v1/printers/${printerId}/camera/snapshot?t=${imageKey}`);
+  const attachImage = useStreamImgRef(streamUrl, imgRef);
 
   return (
     <div
@@ -677,8 +690,15 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
               <Fullscreen className="w-3.5 h-3.5 text-bambu-gray" />
             )}
           </button>
+          {!isIosHomeScreenApp() && (
+            <button type="button" title={t('printers.openCameraWindow')} aria-label={t('printers.openCameraWindow')}
+              className="rounded p-1 hover:bg-bambu-dark-tertiary"
+              onClick={() => { if (openCameraWindow(printerId, streamMode)) onClose(); }}>
+              <ExternalLink className="h-3.5 w-3.5 text-bambu-gray" />
+            </button>
+          )}
           <button
-            onClick={() => setIsMinimized(!isMinimized)}
+            onClick={toggleMinimized}
             className="p-1 hover:bg-bambu-dark-tertiary rounded"
             title={isMinimized ? t('common.expand') : t('orders.runtimeDomain.cameraControls.minimize')}
           >
@@ -701,6 +721,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
       {/* Video area */}
       {!isMinimized && (
         <div
+          ref={viewportRef}
           className={`relative w-full bg-black flex items-center justify-center overflow-hidden ${isFullscreen ? 'h-[calc(100%-40px)]' : 'h-[calc(100%-40px)]'}`}
           onWheel={handleWheel}
           onMouseMove={handleImageMouseMove}
@@ -755,13 +776,13 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
               </div>
             </div>
           )}
-          {streamMode === 'stream' && !mseGaveUp && (
+          {streamMode === 'stream' && !useMjpeg && (
             <video
               ref={mseVideoRef}
               className="max-w-full max-h-full object-contain select-none"
               style={{
                 transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px) rotate(${printer?.camera_rotation || 0}deg)`,
-                ...(printer?.camera_rotation === 90 || printer?.camera_rotation === 270 ? { maxWidth: '100%', maxHeight: '100%' } : {}),
+                ...frameLimits,
                 cursor: zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
                 display: mseStatus === 'playing' ? undefined : 'none',
               }}
@@ -771,19 +792,20 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
               onMouseDown={handleImageMouseDown}
             />
           )}
-          {(streamMode === 'snapshot' || mseGaveUp) && (
+          {(streamMode === 'snapshot' || useMjpeg) && (
           <img
-            ref={imgRef}
+            ref={attachImage}
             key={imageKey}
-            src={streamUrl}
             alt={t('camera.cameraStream')}
             className="max-w-full max-h-full object-contain select-none"
             style={{
               transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px) rotate(${printer?.camera_rotation || 0}deg)`,
-              ...(printer?.camera_rotation === 90 || printer?.camera_rotation === 270 ? { maxWidth: '100%', maxHeight: '100%' } : {}),
+              ...frameLimits,
               cursor: zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
             }}
-            onError={handleStreamError}
+            onError={(event) => {
+              if (event.currentTarget.getAttribute('src')) handleStreamError();
+            }}
             onLoad={handleStreamLoad}
             onMouseDown={handleImageMouseDown}
             draggable={false}
@@ -847,7 +869,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
         <CameraDiagnoseModal
           printerId={printerId}
           printerName={printer?.name || null}
-          activePlayer={mseGaveUp ? 'mjpeg' : mseStatus === 'playing' ? 'mse' : 'connecting'}
+          activePlayer={useMjpeg ? 'mjpeg' : mseStatus === 'playing' ? 'mse' : 'connecting'}
           onClose={() => setShowDiagnoseModal(false)}
         />
       )}

@@ -10,14 +10,16 @@ describe('FolderActions permissions (tree and mobile selector)', () => {
   for (const granted of [[], ['library:update_all'], ['library:delete_all']]) {
     it(`retains permission checks for ${granted.join(',') || 'read only'}`, async () => {
       const onRename = vi.fn();
+      const onMove = vi.fn();
       const onLink = vi.fn();
       const onDelete = vi.fn();
       const user = userEvent.setup();
       render(<FolderActions folder={folder} t={key => key}
         hasPermission={(permission: Permission) => granted.includes(permission)}
-        onRename={onRename} onLink={onLink} onDelete={onDelete} />);
+        onRename={onRename} onMove={onMove} onLink={onLink} onDelete={onDelete} />);
       for (const [label, permission, callback, argument] of [
         ['common.rename', 'library:update_all', onRename, folder],
+        ['fileManager.folderMove.action', 'library:update_all', onMove, folder],
         ['fileManager.changeLink', 'library:update_all', onLink, folder],
         ['common.delete', 'library:delete_all', onDelete, 42],
       ] as const) {

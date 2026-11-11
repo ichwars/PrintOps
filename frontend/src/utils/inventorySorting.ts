@@ -1,6 +1,8 @@
 import type { InventorySpool } from '../api/client';
 import { formatSlotLabel } from './amsHelpers';
 import { compareInventoryColors } from './inventoryColorSort';
+import { shownCostPerKg } from './spoolCost';
+import { parseUTCDate } from './date';
 
 export type SortState = { column: string; direction: 'asc' | 'desc' } | null;
 
@@ -19,6 +21,7 @@ const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Re
   added_time: (s) => s.created_at || '',
   encode_time: (s) => s.encode_time || '',
   last_used_time: (s) => s.last_used || '',
+  last_dried: (s) => parseUTCDate(s.last_dried_at)?.getTime() || 0,
   material: (s) => (s.material || '').toLowerCase(),
   material_number: (s) => s.material_number || '',
   subtype: (s) => (s.subtype || '').toLowerCase(),
@@ -44,7 +47,7 @@ const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Re
   tag_type: (s) => (s.tag_type || '').toLowerCase(),
   stock: (s) => s.slicer_filament ? 1 : 0,
   spool_name: (s) => s.core_weight_catalog_id ?? 0,
-  cost_per_kg: (s) => s.cost_per_kg ?? 0,
+  cost_per_kg: (s) => shownCostPerKg(s) ?? 0,
   weight_check: (s) => {
     if (s.last_scale_weight == null) return -1;
     const expectedGross = Math.max(0, s.label_weight - s.weight_used) + s.core_weight;

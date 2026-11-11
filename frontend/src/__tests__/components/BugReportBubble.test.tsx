@@ -2,7 +2,7 @@
  * Tests for the BugReportBubble component.
  */
 
-import { beforeEach, describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '../utils';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -157,6 +157,46 @@ describe('BugReportBubble', () => {
     });
   });
 
+  it('holds recorded logs until explicit submission, even when the report is reopened', async () => {
+    setupLoggingEndpoints();
+    const submitted = vi.fn(async ({ request }: { request: Request }) => {
+      expect(await request.json()).toMatchObject({ debug_logs: 'test debug logs' });
+      return HttpResponse.json({ success: true, issue_number: 42 });
+    });
+    server.use(http.post('*/bug-report/submit', submitted));
+    const user = userEvent.setup();
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+    await user.type(getDescriptionTextarea(), 'Report draft');
+    await user.click(getSubmitButton()!);
+    await user.click(await screen.findByRole('button', { name: 'Stop logging' }));
+    expect(await screen.findByRole('heading', { name: 'Review bug report' })).toBeInTheDocument();
+    expect(submitted).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByText('Report draft')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Submit', exact: true }));
+    await waitFor(() => expect(submitted).toHaveBeenCalledOnce());
+  });
+
+  it('offers review without submitting when debug logging is forbidden', async () => {
+    const submitted = vi.fn(() => HttpResponse.json({ success: true }));
+    server.use(
+      http.post('*/bug-report/start-logging', () => new HttpResponse(null, { status: 403 })),
+      http.post('*/bug-report/submit', submitted),
+    );
+    const user = userEvent.setup();
+    render(<BugReportBubble />);
+    await user.click(screen.getByRole('button'));
+    await user.type(getDescriptionTextarea(), 'Report without logs');
+    await user.click(getSubmitButton()!);
+    expect(await screen.findByRole('heading', { name: 'Review bug report' })).toBeInTheDocument();
+    expect(submitted).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.queryByRole('heading', { name: 'Review bug report' })).not.toBeInTheDocument();
+  });
+
   it('shows success state after successful submission in the PrintOps fork', async () => {
     const user = userEvent.setup();
 
@@ -184,10 +224,8 @@ describe('BugReportBubble', () => {
       expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
     });
 
-    const stopBtn = screen.getAllByRole('button').find(
-      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
-    );
-    if (stopBtn) await user.click(stopBtn);
+    await user.click(await screen.findByRole('button', { name: 'Stop logging' }));
+    await user.click(await screen.findByRole('button', { name: 'Submit', exact: true }));
 
     await waitFor(
       () => {
@@ -228,10 +266,8 @@ describe('BugReportBubble', () => {
       expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
     });
 
-    const stopBtn = screen.getAllByRole('button').find(
-      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
-    );
-    if (stopBtn) await user.click(stopBtn);
+    await user.click(await screen.findByRole('button', { name: 'Stop logging' }));
+    await user.click(await screen.findByRole('button', { name: 'Submit', exact: true }));
 
     await waitFor(
       () => {
@@ -261,10 +297,8 @@ describe('BugReportBubble', () => {
       expect(screen.queryByText(/reproduce|Reproduce|reproduzieren|reproduire|riproduci|再現|reproduza|重现/i)).toBeInTheDocument();
     });
 
-    const stopBtn = screen.getAllByRole('button').find(
-      (b) => b.className.includes('bg-red-500') && !b.className.includes('rounded-full')
-    );
-    if (stopBtn) await user.click(stopBtn);
+    await user.click(await screen.findByRole('button', { name: 'Stop logging' }));
+    await user.click(await screen.findByRole('button', { name: 'Submit', exact: true }));
 
     await waitFor(
       () => {

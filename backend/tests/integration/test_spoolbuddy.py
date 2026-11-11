@@ -1414,6 +1414,25 @@ class TestSystemCommandEndpoints:
         assert device.pending_command == "restart_daemon"
 
     @pytest.mark.asyncio
+    async def test_restart_waits_for_system_config_acknowledgment(self, async_client, device_factory, db_session):
+        device = await device_factory(device_id="sb-apply")
+        device.pending_command = "apply_system_config"
+        device.pending_system_payload = '{"backend_url":"https://example.test"}'
+        await db_session.commit()
+        command = f"{API}/devices/sb-apply/system/command"
+        response = await async_client.post(command, json={"command": "restart_daemon"})
+        assert response.status_code == 409
+        await db_session.refresh(device)
+        assert device.pending_command == "apply_system_config"
+        assert device.pending_system_payload
+        response = await async_client.post(
+            f"{command}-result", json={"command": "apply_system_config", "success": True}
+        )
+        assert response.status_code == 200, response.text
+        response = await async_client.post(command, json={"command": "restart_daemon"})
+        assert response.status_code == 200, response.text
+
+    @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_heartbeat_clears_system_command(self, async_client: AsyncClient, device_factory):
         """System commands (reboot/shutdown/restart_*) are fire-and-forget — heartbeat clears them."""

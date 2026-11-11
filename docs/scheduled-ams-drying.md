@@ -45,6 +45,22 @@ Trockner wird durch diese Funktion weder gesteuert noch als AMS ausgegeben.
 Mit nicht erreichbaren Geräten bleibt eine Aktivierung gesperrt. Die Softwaretests
 ersetzen keine Prüfung der realen Trocknung auf der jeweiligen Hardware.
 
+## Letzte Trocknung im Spulenbestand
+
+Die Spaltenansicht und die Spulenkarte zeigen **Zuletzt getrocknet**. PrintOps
+übernimmt das Datum aus einem beobachteten AMS-Trocknungszyklus. Die Dauer und
+die eingestellte Temperatur erscheinen, soweit sie bekannt sind. Frühe
+Abbrüche lassen den vorherigen Eintrag bestehen. Ein Teilzyklus zählt, wenn
+mindestens die Hälfte der geplanten beziehungsweise beobachteten Dauer
+verstrichen ist. Das AMS meldet den Countdown in ganzen Minuten.
+
+Spulen werden nur berücksichtigt, wenn die Zuordnung zum AMS-Slot seit der
+ersten Beobachtung des Zyklus besteht. Beobachtete Spulenwechsel oder leere
+Slots werden ausgenommen. Die Funktion verwendet den aktiven Bestand
+(PrintOps oder Spoolman). Beim Bearbeiten einer Spule kann das Datum für eine
+externe Trocknung nachgetragen oder gelöscht werden. Eine manuelle Änderung
+löscht die Temperatur und Dauer des vorherigen AMS-Eintrags.
+
 ## Zeitzone, Zeitumstellung und verpasste Termine
 
 Die Uhrzeit gilt in der gespeicherten IANA-Zeitzone, etwa `Europe/Berlin`, unabhängig
@@ -106,6 +122,11 @@ werden, sobald frische Meldungen Druckerleerlauf und gestoppte AMS bestätigen.
 Diese Freigabe sendet keinen Gerätebefehl und zeichnet keinen erfolgreichen
 Trocknungsabschluss auf. Ein aktueller Nullwert ohne vorher beobachteten Start
 wird nur durch diese ausdrückliche Freigabe aufgelöst.
+
+Die automatische Trocknung vor Warteschlangenaufträgen berücksichtigt auch
+Modellaufträge und deren zulässige Drucker. Ihre Sperren und die Erkennung
+geparkter Timer ändern keine dauerhafte Reservierung eines Tagesplans.
+Details: [Druckwarteschlange und Filamentzuordnung](print-queue-dispatch.md).
 
 ## Stromversorgung und Grenzen der Koordination
 

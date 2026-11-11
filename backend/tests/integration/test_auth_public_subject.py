@@ -1,4 +1,4 @@
-"""A browser preference must not follow a reused SQLite numeric user ID."""
+"""Browser preference subjects stay stable across login and change on user recreation."""
 
 import pytest
 from sqlalchemy import select
@@ -75,7 +75,7 @@ async def test_public_subject_survives_login_but_not_user_recreation(async_clien
     assert deleted.status_code == 204, deleted.text
     db_session.expunge_all()
     replacement = await create_and_login()
-    assert replacement["id"] == original["id"], "fixture must exercise actual SQLite ID reuse"
+    assert replacement["id"] > original["id"]
     assert replacement["sub"] != original["sub"]
 
 

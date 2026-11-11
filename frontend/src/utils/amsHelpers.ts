@@ -1,3 +1,4 @@
+import { settingIdToFilamentId } from './filamentIds';
 /**
  * AMS (Automatic Material System) helper utilities for Bambu Lab printers.
  * These functions handle color normalization, slot labeling, and tray ID calculations
@@ -34,15 +35,14 @@ export function normalizeColorForCompare(color: string | undefined): string {
 /**
  * AMS unit label using the codebase convention: "AMS-A / AMS-B / ..." for
  * regular AMS, "HT-A / HT-B / ..." for AMS-HT (single-tray modules with
- * IDs starting at 128). `trayCount` is required because the type can't be
- * inferred from the id alone — regular AMS IDs 0-3 can collide with the
- * normalized HT range otherwise.
+ * IDs 128-135). The unit id decides; a regular AMS can report one tray.
  */
-export function getAmsLabel(amsId: number | string, trayCount: number): string {
+export function getAmsLabel(amsId: number | string): string {
   const id = typeof amsId === 'string' ? parseInt(amsId, 10) : amsId;
   const safeId = isNaN(id) ? 0 : id;
   if (safeId === 255) return 'External';
-  const isHt = trayCount === 1;
+  if (safeId === 6) return 'AMS Lite';
+  const isHt = isAmsHtUnit(safeId);
   const normalizedId = safeId >= 128 ? safeId - 128 : safeId;
   const letter = String.fromCharCode(65 + normalizedId);
   return isHt ? `HT-${letter}` : `AMS-${letter}`;
@@ -521,12 +521,51 @@ export function slotPresetDescribesTray(
   trayInfoIdx: string | null | undefined,
   presetTrayInfoIdx?: string | null,
 ): boolean {
-  const preset = (presetId || '').split('_')[0].toUpperCase();
+  const preset = settingIdToFilamentId((presetId || '').toUpperCase());
   const tray = (trayInfoIdx || '').split('_')[0].toUpperCase();
   const recorded = (presetTrayInfoIdx || '').split('_')[0].toUpperCase();
   if (recorded && tray) return recorded === tray;
-  if (!/^GF[A-Z]\d+$/.test(tray)) return true;
-  if (/^GFS[A-Z]\d+$/.test(preset)) return `GF${preset.slice(3)}` === tray;
-  if (/^GF[A-Z]\d+$/.test(preset)) return preset === tray;
+  if (!/^(?:GF[A-Z]\d+|GFSNL\d+)$/.test(tray)) return true;
+  if (/^(?:GF[A-Z]\d+|GFSNL\d+)$/.test(preset)) return preset === tray;
   return true;
+}
+
+
+/** A locally assigned spool still awaiting the printer's filament configuration. */
+export function pendingSlotSpool(
+  emptyKind: 'physical' | 'reset' | null,
+  spool: { brand?: string | null; material?: string | null; subtype?: string | null; color_name?: string | null; rgba?: string | null } | null | undefined,
+  onUnassign: (() => void) | undefined,
+): { label: string; colorHex: string | null; material: string; onUnassign?: () => void } | null {
+  if (emptyKind !== 'reset' || !spool) return null;
+  const name = [spool.brand, spool.material, spool.subtype].filter(Boolean).join(' ');
+  return {
+    label: spool.color_name ? `${name} (${spool.color_name})` : name,
+    colorHex: spool.rgba ?? null,
+    material: spool.material ?? '',
+    onUnassign,
+  };
+}
+
+
+/** A partial one-tray report does not turn a regular AMS into an HT. */
+export function isAmsHtUnit(amsId: number): boolean {
+  return amsId >= 128 && amsId <= 135;
+}
+
+export function trayForSlot<T extends { id: number }>(trays: T[], slot: number): T | undefined {
+  const usableIds = new Set(trays.map(tray => tray.id)).size === trays.length;
+  return usableIds ? trays.find(tray => tray.id === slot) : trays[slot];
+}
+
+/** A loaded feed tube prevents the AMS spool rotation while drying. */
+export function amsHasLoadedTray(
+  ams: {id: number; tray: {id: number; state?: number | null}[]} | undefined,
+  trayNow: number | null | undefined,
+  extruderSlots: Record<string, {ams_id: number | null; has_filament: boolean}> | null | undefined,
+): boolean {
+  if (!ams) return false;
+  return ams.tray.some(tray => tray.state === 11)
+    || (trayNow != null && ams.tray.some(tray => getGlobalTrayId(ams.id, tray.id, false) === trayNow))
+    || Object.values(extruderSlots ?? {}).some(slot => slot.ams_id === ams.id && slot.has_filament);
 }

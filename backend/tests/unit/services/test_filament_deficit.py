@@ -218,6 +218,95 @@ class TestFilamentDeficit:
         assert deficit == []
 
     @pytest.mark.asyncio
+    async def test_checks_a_printer_the_item_is_not_assigned_to(self, db_session, printer_factory, tmp_path):
+        """The model-based matcher asks before assigning (#3137): the printer
+        and mapping it passes are read, not the item's empty columns."""
+        light = await printer_factory()
+        full = await printer_factory()
+        archive = await _setup_archive_3mf(
+            db_session,
+            tmp_path,
+            [{"id": "1", "type": "PLA", "color": "#FFFFFF", "used_g": "100.0"}],
+        )
+        short_spool = await _spool(db_session, label_weight=1000, weight_used=970.0)  # 30g left
+        await _assign(db_session, printer_id=light.id, spool_id=short_spool.id, ams_id=0, tray_id=1)
+        full_spool = await _spool(db_session, label_weight=1000, weight_used=200.0)  # 800g left
+        await _assign(db_session, printer_id=full.id, spool_id=full_spool.id, ams_id=0, tray_id=1)
+        item = await _queue_item(db_session, printer_id=None, archive=archive, ams_mapping=None)
+
+        with patch("backend.app.services.filament_deficit.app_settings.base_dir", Path("/")):
+            on_light = await compute_deficit_for_queue_item(db_session, item, printer_id=light.id, ams_mapping=[1])
+            on_full = await compute_deficit_for_queue_item(db_session, item, printer_id=full.id, ams_mapping=[1])
+
+        assert [d.remaining_grams for d in on_light] == [30.0]
+        assert on_full == []
+
+    @pytest.mark.asyncio
+    async def test_passed_mapping_wins_over_the_stored_one(self, db_session, printer_factory, tmp_path):
+        printer = await printer_factory()
+        archive = await _setup_archive_3mf(
+            db_session,
+            tmp_path,
+            [{"id": "1", "type": "PLA", "color": "#FFFFFF", "used_g": "100.0"}],
+        )
+        short_spool = await _spool(db_session, label_weight=1000, weight_used=970.0)
+        await _assign(db_session, printer_id=printer.id, spool_id=short_spool.id, ams_id=0, tray_id=0)
+        full_spool = await _spool(db_session, label_weight=1000, weight_used=200.0)
+        await _assign(db_session, printer_id=printer.id, spool_id=full_spool.id, ams_id=0, tray_id=1)
+        item = await _queue_item(db_session, printer_id=printer.id, archive=archive, ams_mapping=[0])
+
+        with patch("backend.app.services.filament_deficit.app_settings.base_dir", Path("/")):
+            stored = await compute_deficit_for_queue_item(db_session, item)
+            passed = await compute_deficit_for_queue_item(db_session, item, ams_mapping=[1])
+
+        assert len(stored) == 1
+        assert passed == []
+
+    @pytest.mark.asyncio
+    async def test_require_known_reports_slots_it_cannot_measure(self, db_session, printer_factory, tmp_path):
+        """Unknown amounts let a print through, except where the caller asks for
+        them on record (#3137): a slot with no spool, and a slot with no tray."""
+        printer = await printer_factory()
+        archive = await _setup_archive_3mf(
+            db_session,
+            tmp_path,
+            [
+                {"id": "1", "type": "PLA", "color": "#FFFFFF", "used_g": "100.0"},
+                {"id": "2", "type": "PLA", "color": "#000000", "used_g": "50.0"},
+                {"id": "3", "type": "PLA", "color": "#FF0000", "used_g": "20.0"},
+            ],
+        )
+        spool = await _spool(db_session, label_weight=1000, weight_used=200.0)
+        await _assign(db_session, printer_id=printer.id, spool_id=spool.id, ams_id=0, tray_id=0)
+        item = await _queue_item(db_session, printer_id=printer.id, archive=archive, ams_mapping=None)
+
+        with patch("backend.app.services.filament_deficit.app_settings.base_dir", Path("/")):
+            lenient = await compute_deficit_for_queue_item(db_session, item, ams_mapping=[0, 1, -1])
+            strict = await compute_deficit_for_queue_item(db_session, item, ams_mapping=[0, 1, -1], require_known=True)
+
+        assert lenient == []
+        assert sorted((d.slot_id, d.remaining_grams) for d in strict) == [(2, None), (3, None)]
+
+    @pytest.mark.asyncio
+    async def test_require_known_passes_a_printer_with_everything_on_record(
+        self, db_session, printer_factory, tmp_path
+    ):
+        printer = await printer_factory()
+        archive = await _setup_archive_3mf(
+            db_session,
+            tmp_path,
+            [{"id": "1", "type": "PLA", "color": "#FFFFFF", "used_g": "100.0"}],
+        )
+        spool = await _spool(db_session, label_weight=1000, weight_used=200.0)
+        await _assign(db_session, printer_id=printer.id, spool_id=spool.id, ams_id=0, tray_id=0)
+        item = await _queue_item(db_session, printer_id=printer.id, archive=archive, ams_mapping=[0])
+
+        with patch("backend.app.services.filament_deficit.app_settings.base_dir", Path("/")):
+            strict = await compute_deficit_for_queue_item(db_session, item, require_known=True)
+
+        assert strict == []
+
+    @pytest.mark.asyncio
     async def test_returns_empty_when_warnings_disabled(self, db_session, printer_factory, tmp_path):
         """Honour the disable_filament_warnings setting (#720 toggle)."""
         printer = await printer_factory()
@@ -456,6 +545,7 @@ class TestFilamentDeficitBackupAware:
         )
 
         return [
+            _patch("backend.app.services.filament_deficit._live_tray_keys", return_value={}),
             _patch(
                 "backend.app.services.printer_manager.printer_manager.get_status",
                 lambda pid: fake_state if pid == printer_id else None,
@@ -902,3 +992,15 @@ class TestBuildSlotMaterials:
         assert [slot.global_tray_id for slot in slots] == [2, 3]
         assert len({slot.material_key for slot in slots}) == 1
         assert sum(slot.remaining_grams for slot in slots) == 1500
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_loaded_internal_slots_accepts_both_mqtt_ams_envelopes(wrapped):
+    from types import SimpleNamespace
+
+    from backend.app.services.filament_deficit import _loaded_internal_slots
+
+    units = [{"id": 0, "tray": [{"id": 1, "tray_type": "PLA"}, {"id": 2, "tray_type": ""}]}]
+    state = SimpleNamespace(raw_data={"ams": {"ams": units} if wrapped else units})
+    with patch("backend.app.services.printer_manager.printer_manager.get_status", return_value=state):
+        assert _loaded_internal_slots(1) == {(0, 1)}

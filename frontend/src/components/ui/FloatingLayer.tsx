@@ -66,10 +66,13 @@ export function FloatingLayer({
           shift({ padding: 8 }),
           size({
             padding: 8,
-            apply({ availableHeight, rects, elements }) {
+            apply({ availableHeight, availableWidth, rects, elements }) {
+              const width = Math.max(0, availableWidth);
               Object.assign(elements.floating.style, {
                 maxHeight: `${Math.max(120, availableHeight)}px`,
-                minWidth: matchAnchorWidth ? `${rects.reference.width}px` : '',
+                maxWidth: `${width}px`,
+                width: matchAnchorWidth ? 'max-content' : '',
+                minWidth: matchAnchorWidth ? `${Math.min(rects.reference.width, width)}px` : '',
               });
             },
           }),

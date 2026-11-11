@@ -6,7 +6,6 @@ import logging
 import math
 import weakref
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Literal
 
 import httpx
@@ -100,6 +99,30 @@ def _filament_subtype_part(name: str, material: str) -> str:
     if m and s.upper().startswith(m.upper() + " "):
         return s[len(m) + 1 :].strip().lower()
     return s.lower()
+
+
+def _tray_preset_extra(tray: AMSTray) -> dict:
+    """The tray's filament preset as Spoolman spool ``extra`` fields, or {}.
+
+    Same values an internal RFID spool gets (``spool_tag_matcher``): the
+    tray's filament id, named from the built-in table, else by the tray's
+    sub-brand.
+    """
+    preset = (tray.tray_info_idx or "").strip()
+    if not preset:
+        return {}
+    name = None
+    try:
+        from backend.app.api.routes.cloud import _BUILTIN_FILAMENT_NAMES
+
+        name = _BUILTIN_FILAMENT_NAMES.get(preset)
+    except Exception:  # noqa: BLE001 - a display name; the preset is what counts
+        name = None
+    name = name or (tray.tray_sub_brands or "").strip() or None
+    fields = {"bambu_slicer_filament": json.dumps(preset)}
+    if name:
+        fields["bambu_slicer_filament_name"] = json.dumps(name)
+    return fields
 
 
 def _extra_string_value(extra: dict, key: str) -> str:
@@ -478,7 +501,7 @@ class SpoolmanClient:
         clear_location: bool = False,
         extra: dict | None = None,
     ) -> dict:
-        """Update an existing spool in Spoolman, always setting last_used."""
+        """Update metadata/weight without changing last_used; only print use does that."""
         data: dict = {}
         if remaining_weight is not None:
             data["remaining_weight"] = remaining_weight
@@ -488,7 +511,6 @@ class SpoolmanClient:
             data["location"] = location
         if extra:
             data["extra"] = extra
-        data["last_used"] = datetime.now(timezone.utc).isoformat()
 
         response = await self._request_spool("PATCH", spool_id, json_body=data, operation="update")
         return response.json()
@@ -735,7 +757,7 @@ class SpoolmanClient:
         clear_spool_weight: bool = False,
         initial_weight: float | None = None,
     ) -> dict:
-        """Update a spool with full field support; unlike update_spool, does not auto-set last_used."""
+        """Update a spool with full field support; like update_spool, leaves last_used unchanged."""
         data: dict = {}
         if filament_id is not None:
             data["filament_id"] = filament_id
@@ -771,11 +793,43 @@ class SpoolmanClient:
             self._extra_locks[spool_id] = lock
         return lock
 
-    async def merge_spool_extra(self, spool_id: int, new_fields: dict) -> dict:
+    async def _fill_missing_tray_preset(self, spool: dict, tray: AMSTray) -> None:
+        """Give a tag-matched Bambu spool the tray's preset when it has none (#3433).
+
+        Spools the AMS sync created before it stored the preset have none, as do
+        ones linked to a tag some other way. As an internal spool gets one when
+        its tag is linked. A preset already set, by hand or otherwise, stays.
+        Best effort: the sync goes on without it.
+        """
+        fields = _tray_preset_extra(tray)
+        if not fields:
+            return
+        extra = spool.get("extra") or {}
+        current = extra.get("bambu_slicer_filament") if isinstance(extra, dict) else None
+        try:
+            if isinstance(current, str) and json.loads(current):
+                return
+        except (ValueError, TypeError):
+            return  # something is there; not ours to replace
+        try:
+            await self.merge_spool_extra(spool["id"], fields, only_if_missing="bambu_slicer_filament")
+            logger.info("Stored the tray's preset %s on Spoolman spool %s", tray.tray_info_idx, spool["id"])
+        except (SpoolmanNotFoundError, SpoolmanUnavailableError, SpoolmanClientError) as e:
+            logger.warning("Could not store the tray's preset on Spoolman spool %s: %s", spool["id"], e)
+
+    async def merge_spool_extra(self, spool_id: int, new_fields: dict, *, only_if_missing: str | None = None) -> dict:
         """Fetch the spool's extra dict, merge new_fields into it, then PATCH back — serialised per spool."""
         async with self.extra_lock(spool_id):
             current = await self.get_spool(spool_id)  # raises on error
             current_extra: dict = current.get("extra") or {}
+            if only_if_missing:
+                raw = current_extra.get(only_if_missing)
+                try:
+                    present = json.loads(raw) if isinstance(raw, str) else raw
+                except (ValueError, TypeError):
+                    return current
+                if present:
+                    return current
             merged = {**current_extra, **new_fields}
             return await self.update_spool_full(spool_id=spool_id, extra=merged)
 
@@ -1179,6 +1233,8 @@ class SpoolmanClient:
             existing = await self.find_spool_by_tag(spool_tag, cached_spools=cached_spools)
             if existing:
                 logger.info("Updating existing spool %s for tag %s...", existing["id"], spool_tag[:16])
+                if self.is_bambu_lab_spool(tray.tray_uuid, tray.tag_uid, tray.tray_info_idx):
+                    await self._fill_missing_tray_preset(existing, tray)
                 own_weight = spoolman_net_weight(existing)
                 if 0 <= tray.remain <= 100 and own_weight is not None and own_weight > 0:
                     remaining = self.calculate_remaining_weight(tray.remain, own_weight)
@@ -1229,13 +1285,26 @@ class SpoolmanClient:
             if catalog_color:
                 await self.ensure_extra_field("bambu_color_name")
                 extra["bambu_color_name"] = json.dumps(catalog_color.name)
-            return await self.create_spool(
+            if self.is_bambu_lab_spool(tray.tray_uuid, tray.tag_uid, tray.tray_info_idx):
+                extra.update(_tray_preset_extra(tray))
+            spool = await self.create_spool(
                 filament_id=filament_id,
                 remaining_weight=remaining,
                 comment="Created by PrintOps",
                 extra=extra,
                 initial_weight=tray.tray_weight if tray.tray_weight > 0 else None,
             )
+
+            if spool and db is not None:
+                from backend.app.api.routes._spoolman_helpers import _map_spoolman_spool
+                from backend.app.services.filament_profile_defaults import apply_product_defaults
+
+                try:
+                    async with db.begin_nested():
+                        await apply_product_defaults(db, _map_spoolman_spool(spool), client=self)
+                except Exception:
+                    logger.warning("Could not apply defaults to a new Spoolman RFID spool", exc_info=True)
+            return spool
 
         # No-RFID fallback: use the spool ID resolved from the local slot-assignment table.
         # Never create new spools without a tag to avoid duplicates.

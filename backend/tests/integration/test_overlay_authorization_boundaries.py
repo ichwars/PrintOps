@@ -38,7 +38,7 @@ async def test_overlay_camera_http_scope_tracks_owner_changes(async_client, prin
     uid, headers, params = await mint(async_client, [allowed.id])
     with (
         patch("backend.app.api.routes.camera.get_camera_source", return_value=None),
-        patch("backend.app.services.external_camera.generate_mjpeg_stream", software_camera),
+        patch("backend.app.api.routes.camera.generate_mjpeg_stream", software_camera),
     ):
         response = await async_client.get(f"/api/v1/printers/{allowed.id}/camera/stream", params=params)
         assert response.status_code == 200
@@ -71,7 +71,7 @@ async def test_other_camera_scope_contracts_remain_unchanged(async_client, print
     writer.write.assert_not_called()
     with (
         patch("backend.app.api.routes.camera.get_camera_source", return_value=None),
-        patch("backend.app.services.external_camera.generate_mjpeg_stream", software_camera),
+        patch("backend.app.api.routes.camera.generate_mjpeg_stream", software_camera),
     ):
         assert (await async_client.get(f"/api/v1/printers/{other.id}/camera/stream", params=params)).status_code == 200
 
@@ -141,8 +141,8 @@ async def test_delete_recreate_restart_and_api_roundtrip_do_not_transfer_grant(
         json={"username": "staleviewer", "password": "ValidPassword123!", "allowed_printer_ids": [original_id]},
     )
     assert stale_create.status_code == 400
-    replacement = await printer_factory(name="Unrelated replacement")
-    assert replacement.id == original_id  # Exercise actual SQLite reuse.
+    replacement = await printer_factory(id=original_id, name="Unrelated replacement")
+    assert replacement.id == original_id  # Simulate a restored duplicate ID.
     response = await async_client.get(f"/api/v1/users/{uid}", headers=headers)
     assert response.json()["allowed_printer_ids"] == []
     updated = await async_client.patch(f"/api/v1/users/{uid}", headers=headers, json={"allowed_printer_ids": []})

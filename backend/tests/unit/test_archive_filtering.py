@@ -6,11 +6,14 @@ Tests:
 2. Timelapse snapshot-diff — _list_timelapse_videos and _scan_for_timelapse_with_retries
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 # Patch paths for lazy imports inside functions
+from backend.app.core.auth import OwnershipAccess
+
 _FTP_MODULE = "backend.app.services.bambu_ftp"
 
 
@@ -272,7 +275,7 @@ class TestScanForTimelapseWithRetries:
 
     def _make_mocks(self, archive_filename="benchy.gcode.3mf", timelapse_path=None):
         """Create standard mock archive and printer."""
-        mock_archive = MagicMock()
+        mock_archive = MagicMock(deleted_at=None)
         mock_archive.id = 1
         mock_archive.timelapse_path = timelapse_path
         mock_archive.printer_id = 1
@@ -289,6 +292,7 @@ class TestScanForTimelapseWithRetries:
     def _make_session_mock(self, mock_printer):
         """Create a mock async session that returns the given printer."""
         mock_session = AsyncMock()
+        mock_session.scalars.return_value = []
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock()
         mock_session.execute = AsyncMock(
@@ -557,7 +561,7 @@ class TestListTimelapseVideosAvi:
     @pytest.mark.asyncio
     async def test_scan_detects_new_avi_file(self):
         """Snapshot-diff should detect new AVI files just like MP4."""
-        mock_archive = MagicMock()
+        mock_archive = MagicMock(deleted_at=None)
         mock_archive.id = 1
         mock_archive.timelapse_path = None
         mock_archive.printer_id = 1
@@ -593,6 +597,7 @@ class TestListTimelapseVideosAvi:
         mock_service.attach_timelapse = AsyncMock(return_value=True)
 
         mock_session = AsyncMock()
+        mock_session.scalars.return_value = []
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock()
         mock_session.execute = AsyncMock(
@@ -633,7 +638,7 @@ class TestConvertTimelapseToMp4:
         mock_process.communicate = AsyncMock(return_value=(b"", b""))
         mock_process.returncode = 0
 
-        mock_archive = MagicMock()
+        mock_archive = MagicMock(deleted_at=None)
         mock_archive.id = 42
         mock_archive.timelapse_path = "archives/42/video.avi"
 
@@ -641,9 +646,10 @@ class TestConvertTimelapseToMp4:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock()
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = mock_archive
+        mock_result.rowcount = 1
         mock_session.execute = AsyncMock(return_value=mock_result)
         mock_session.commit = AsyncMock()
+        mock_session.scalar = AsyncMock(return_value=None)
 
         with (
             patch("backend.app.services.camera.get_ffmpeg_path", return_value="/usr/bin/ffmpeg"),
@@ -653,6 +659,12 @@ class TestConvertTimelapseToMp4:
         ):
             mock_settings.base_dir = tmp_path
             mock_exec.return_value = mock_process
+
+            async def converted():
+                Path(mock_exec.call_args.args[-1]).write_bytes(b"new mp4 output")
+                return b"", b""
+
+            mock_process.communicate.side_effect = converted
             # Create the expected output file (as FFmpeg would)
             mp4_path.write_bytes(b"fake mp4 output")
 
@@ -669,7 +681,12 @@ class TestConvertTimelapseToMp4:
 
         # DB should have been updated to .mp4 path
         mock_session.commit.assert_called_once()
-        assert mock_archive.timelapse_path == "video.mp4"
+        statement = mock_session.execute.await_args.args[0]
+        parameters = statement.compile().params
+        assert parameters["timelapse_path_1"] == "video.avi"
+        assert parameters["timelapse_path"].endswith(".mp4")
+        assert parameters["timelapse_path"] != "video.mp4"
+        assert mp4_path.read_bytes() == b"fake mp4 output"
 
     @pytest.mark.asyncio
     async def test_skips_when_no_ffmpeg(self, tmp_path):
@@ -701,8 +718,6 @@ class TestConvertTimelapseToMp4:
             patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.return_value = mock_process
-            # Simulate partial output file
-            mp4_path.write_bytes(b"partial")
 
             from backend.app.services.archive import _convert_timelapse_to_mp4
 
@@ -722,7 +737,7 @@ class TestAttachTimelapseBackgroundConversion:
         """MP4 files should not trigger background conversion."""
         from backend.app.services.archive import ArchiveService
 
-        mock_archive = MagicMock()
+        mock_archive = MagicMock(deleted_at=None)
         mock_archive.file_path = "archives/1/file.3mf"
 
         mock_db = AsyncMock()
@@ -734,7 +749,7 @@ class TestAttachTimelapseBackgroundConversion:
 
         with (
             patch("backend.app.services.archive.settings") as mock_settings,
-            patch("asyncio.create_task") as mock_create_task,
+            patch("backend.app.services.archive.spawn_background_task") as mock_create_task,
         ):
             mock_settings.base_dir = tmp_path
 
@@ -748,7 +763,7 @@ class TestAttachTimelapseBackgroundConversion:
         """AVI files should trigger background conversion task."""
         from backend.app.services.archive import ArchiveService
 
-        mock_archive = MagicMock()
+        mock_archive = MagicMock(deleted_at=None)
         mock_archive.file_path = "archives/1/file.3mf"
 
         mock_db = AsyncMock()
@@ -760,7 +775,7 @@ class TestAttachTimelapseBackgroundConversion:
 
         with (
             patch("backend.app.services.archive.settings") as mock_settings,
-            patch("asyncio.create_task") as mock_create_task,
+            patch("backend.app.services.archive.spawn_background_task") as mock_create_task,
         ):
             mock_settings.base_dir = tmp_path
 
@@ -790,8 +805,10 @@ class TestDeleteTimelapse:
         mock_archive = MagicMock()
         mock_archive.deleted_at = None
         mock_archive.timelapse_path = "archives/1/timelapse.mp4"
+        mock_archive.file_path = "archives/1/model.3mf"
 
         mock_db = AsyncMock()
+        mock_db.scalar = AsyncMock(return_value=None)
         mock_db.execute = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_archive
@@ -799,7 +816,7 @@ class TestDeleteTimelapse:
 
         with patch("backend.app.api.routes.archives.settings") as mock_settings:
             mock_settings.base_dir = tmp_path
-            result = await delete_timelapse(archive_id=1, db=mock_db, auth_result=(None, True))
+            result = await delete_timelapse(archive_id=1, db=mock_db, auth_result=OwnershipAccess(None, True))
 
         assert result == {"status": "deleted"}
         assert mock_archive.timelapse_path is None
@@ -813,7 +830,7 @@ class TestDeleteTimelapse:
 
         from backend.app.api.routes.archives import delete_timelapse
 
-        mock_archive = MagicMock()
+        mock_archive = MagicMock(deleted_at=None)
         mock_archive.timelapse_path = None
 
         mock_db = AsyncMock()
@@ -822,7 +839,7 @@ class TestDeleteTimelapse:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         with pytest.raises(HTTPException) as exc_info:
-            await delete_timelapse(archive_id=1, db=mock_db, auth_result=(None, True))
+            await delete_timelapse(archive_id=1, db=mock_db, auth_result=OwnershipAccess(None, True))
 
         assert exc_info.value.status_code == 404
 
@@ -839,6 +856,6 @@ class TestDeleteTimelapse:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         with pytest.raises(HTTPException) as exc_info:
-            await delete_timelapse(archive_id=999, db=mock_db, auth_result=(None, True))
+            await delete_timelapse(archive_id=999, db=mock_db, auth_result=OwnershipAccess(None, True))
 
         assert exc_info.value.status_code == 404

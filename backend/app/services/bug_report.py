@@ -95,7 +95,6 @@ async def submit_report(
                 async with async_session() as db:
                     report = BugReport(
                         description=description,
-                        reporter_email=reporter_email,
                         status="failed",
                         error_message=error_msg,
                     )
@@ -113,7 +112,6 @@ async def submit_report(
         async with async_session() as db:
             report = BugReport(
                 description=description,
-                reporter_email=reporter_email,
                 status="failed",
                 error_message="Failed to reach bug report relay",
             )
@@ -131,9 +129,8 @@ async def submit_report(
         async with async_session() as db:
             report = BugReport(
                 description=description,
-                reporter_email=reporter_email,
                 status="failed",
-                error_message=relay_data.get("message", "Relay returned failure"),
+                error_message="Relay returned failure",
             )
             db.add(report)
             await db.commit()
@@ -157,7 +154,6 @@ async def submit_report(
         async with async_session() as db:
             report = BugReport(
                 description=description,
-                reporter_email=reporter_email,
                 status="failed",
                 error_message=error_message,
             )
@@ -175,7 +171,6 @@ async def submit_report(
     async with async_session() as db:
         report = BugReport(
             description=description,
-            reporter_email=reporter_email,
             github_issue_number=issue_number,
             github_issue_url=issue_url,
             status="submitted",

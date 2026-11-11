@@ -1,158 +1,71 @@
-"""GHSA-r2qv follow-up — WebSocket auth gate.
-
-Previously ``/api/v1/ws`` accepted *any* network client and immediately
-streamed every ``printer_status`` / ``print_start`` / ``print_complete``
-/ ``archive_*`` / ``inventory_changed`` broadcast back to it. That is
-the GHSA-gc24 shape on a different protocol — anyone who could reach
-the HTTP port could subscribe to every printer event in the system.
-
-This endpoint now validates a short-lived token (minted by
-``POST /api/v1/auth/ws-token`` behind ``Permission.WEBSOCKET_CONNECT``)
-*before* ``websocket.accept()``. When auth is disabled, no token is
-required (the legacy SPA-friendly path). The token is reused across
-reconnects within its 60-minute window so a brief network blip does
-not require a round-trip to the auth router.
-"""
+"""Authenticated dashboard events with current printer scope."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
 
-from backend.app.core.auth import is_auth_enabled, verify_websocket_token
-from backend.app.core.database import async_session
+from backend.app.core.auth_websocket import WS_CLOSE_UNAUTHORIZED, read_websocket_access
 from backend.app.core.websocket import ws_manager
-from backend.app.models.user import User
 from backend.app.services.printer_manager import printer_manager, printer_state_to_dict
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+_ACCESS_RECHECK_SECONDS = 30
 
-# 4401 mirrors the WebSocket "unauthorised" application close code
-# convention used by Sec-WebSocket-Protocol authors (private-use range
-# is 4000-4999 per RFC 6455). The SPA distinguishes 4401 from network
-# drops and refetches a token instead of retrying with the old one.
-_WS_CLOSE_UNAUTHORIZED = 4401
+
+async def _send_printer_status(websocket: WebSocket, printer_id: int, state) -> None:
+    await ws_manager.send_event(
+        websocket,
+        {
+            "type": "printer_status",
+            "printer_id": printer_id,
+            "data": printer_state_to_dict(
+                state, printer_id, printer_manager.get_model(printer_id), printer_manager.get_drying_targets(printer_id)
+            ),
+        },
+    )
 
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(default=None)) -> None:
-    """WebSocket endpoint for real-time updates.
-
-    Connection auth (GHSA-r2qv follow-up):
-
-    - Auth disabled  → connect without a token, identical to the prior
-      behaviour (single-user / local-network deployments).
-    - Auth enabled   → ``?token=<value>`` query param must hold an
-      unexpired token minted via ``POST /api/v1/auth/ws-token``.
-      Missing / invalid / expired token → ``close(code=4401)`` *before*
-      ``accept()`` so no ``ws_manager.broadcast`` ever reaches the
-      caller (broadcasts walk ``active_connections`` blindly — letting
-      an unauthenticated socket into that list is a fan-out leak).
-
-    The auth check is fail-closed at every error path: a DB exception
-    while reading the ``auth_enabled`` setting closes the connection
-    rather than admitting the caller.
-    """
-    # Authenticate before accept() so an unauth caller never lands in
-    # ws_manager.active_connections (where broadcasts blindly fan out).
-    try:
-        async with async_session() as db:
-            auth_required = await is_auth_enabled(db)
-    except Exception:  # SEC-AUTH-EXC: DB failure on auth probe → fail-closed (refuse connect), matches is_auth_enabled itself which returns True on error
-        logger.error("WebSocket auth probe failed; refusing connection", exc_info=True)
-        await websocket.close(code=_WS_CLOSE_UNAUTHORIZED)
+    access = await read_websocket_access(token)
+    if access is None:
+        await websocket.close(code=WS_CLOSE_UNAUTHORIZED)
+        return
+    if not await ws_manager.connect(websocket, access, token):
         return
 
-    principal: str | None = None
-    if auth_required:
-        if not token:
-            logger.info("WebSocket connect refused: no token (auth enabled)")
-            await websocket.close(code=_WS_CLOSE_UNAUTHORIZED)
-            return
-        principal = await verify_websocket_token(token)
-        if principal is None:
-            logger.info("WebSocket connect refused: invalid or expired token")
-            await websocket.close(code=_WS_CLOSE_UNAUTHORIZED)
-            return
-
-    # Token verified (or auth disabled); now safe to admit the connection.
-    logger.info("WebSocket client connecting (principal=%s)", principal if principal else "<anonymous>")
-    await ws_manager.connect(websocket)
-    # Stash on connection state for any future per-message permission
-    # logic; today the message handlers are read-only and only respond
-    # to the requesting socket, so the stash is informational. The
-    # explicit attribute (rather than a side dict) means a future
-    # ``broadcast_to_principal()`` helper can filter on it without
-    # touching every call site.
-    websocket.state.printops_principal = principal
-    # Resolve principal username → User.id once at connect so
-    # ``ws_manager.broadcast_to_user()`` can filter without re-querying
-    # per message. Auth-disabled path keeps None (broadcast_to_user fans
-    # out to all when target is None — matches the legacy single-user
-    # toast behaviour). API-keyed principal is empty string → None.
-    principal_user_id: int | None = None
-    if principal:
-        try:
-            async with async_session() as db:
-                row = await db.execute(select(User.id).where(User.username == principal))
-                principal_user_id = row.scalar_one_or_none()
-        except Exception:  # SEC-AUTH-EXC: resolution failure is non-fatal — degrades to no per-user routing
-            logger.warning("WebSocket principal resolve failed for %s", principal, exc_info=True)
-    websocket.state.printops_principal_user_id = principal_user_id
-    logger.info("WebSocket client connected")
-
     try:
-        # Send initial status of all printers.
-        statuses = printer_manager.get_all_statuses()
-        for printer_id, state in statuses.items():
-            await websocket.send_json(
-                {
-                    "type": "printer_status",
-                    "printer_id": printer_id,
-                    "data": printer_state_to_dict(
-                        state,
-                        printer_id,
-                        printer_manager.get_model(printer_id),
-                        printer_manager.get_drying_targets(printer_id),
-                    ),
-                }
-            )
+        for printer_id, state in printer_manager.get_all_statuses().items():
+            await _send_printer_status(websocket, printer_id, state)
 
-        logger.info("Sent initial status for %s printers", len(statuses))
-
-        # Keep connection alive and handle incoming messages.
+        clock = asyncio.get_running_loop().time
+        recheck_at = clock() + _ACCESS_RECHECK_SECONDS
         while True:
-            data = await websocket.receive_json()
+            if clock() >= recheck_at:
+                if not await ws_manager.refresh_connection(websocket):
+                    return
+                recheck_at = clock() + _ACCESS_RECHECK_SECONDS
+            try:
+                async with asyncio.timeout_at(recheck_at):
+                    data = await websocket.receive_json()
+            except TimeoutError:
+                continue
 
-            # Handle ping/pong for keepalive
             if data.get("type") == "ping":
-                await websocket.send_json({"type": "pong"})
-
-            # Handle status request
+                await ws_manager.send_event(websocket, {"type": "pong"})
             elif data.get("type") == "get_status":
                 printer_id = data.get("printer_id")
-                if printer_id:
+                if type(printer_id) is int and printer_id > 0:
                     state = printer_manager.get_status(printer_id)
                     if state:
-                        await websocket.send_json(
-                            {
-                                "type": "printer_status",
-                                "printer_id": printer_id,
-                                "data": printer_state_to_dict(
-                                    state,
-                                    printer_id,
-                                    printer_manager.get_model(printer_id),
-                                    printer_manager.get_drying_targets(printer_id),
-                                ),
-                            }
-                        )
-
+                        await _send_printer_status(websocket, printer_id, state)
     except WebSocketDisconnect:
-        logger.info("WebSocket client disconnected normally")
-        await ws_manager.disconnect(websocket)
-    except Exception as e:
-        logger.error("WebSocket error: %s", e, exc_info=True)
+        pass
+    except Exception:
+        logger.exception("WebSocket connection failed")
+    finally:
         await ws_manager.disconnect(websocket)

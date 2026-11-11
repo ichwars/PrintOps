@@ -723,8 +723,7 @@ class TestSnapshotTranscode:
     broke the browser MJPEG stream, because every multipart part is hard-labelled
     ``Content-Type: image/jpeg`` — the browser rejected the non-JPEG payload and
     dropped the whole stream ("connection lost"). ``_capture_snapshot`` now
-    transcodes non-JPEG stills to JPEG; only genuinely undecodable payloads fall
-    through to the raw bytes (unchanged last-resort behaviour)."""
+    transcodes non-JPEG stills to JPEG and drops undecodable responses."""
 
     def test_transcode_png_to_jpeg(self):
         from backend.app.services.external_camera import _transcode_to_jpeg
@@ -743,8 +742,7 @@ class TestSnapshotTranscode:
         assert out is not None and out.startswith(JPEG_START)
 
     def test_transcode_returns_none_for_non_image(self):
-        """HTML error pages / auth redirects / empty bodies aren't images —
-        transcode returns None so the caller can log and fall back."""
+        """HTML error pages and empty bodies cannot become frames."""
         from backend.app.services.external_camera import _transcode_to_jpeg
 
         assert _transcode_to_jpeg(b"<html><body>404 Not Found</body></html>") is None
@@ -773,15 +771,19 @@ class TestSnapshotTranscode:
         assert out == jpeg  # identical object bytes — proves no transcode ran
 
     @pytest.mark.asyncio
-    async def test_capture_snapshot_non_image_falls_back_to_raw(self):
-        """Undecodable (non-image) responses return the raw bytes unchanged, so
-        behaviour is never worse than before the fix."""
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b"<html><body>unauthorized</body></html>",
+            JPEG_START + b"not a JPEG" + JPEG_END,
+        ],
+    )
+    async def test_capture_snapshot_discards_non_images(self, body):
         from backend.app.services import external_camera as ec
 
-        html = b"<html><body>unauthorized</body></html>"
-        with patch.object(ec.aiohttp, "ClientSession", _fake_snapshot_session(html)):
+        with patch.object(ec.aiohttp, "ClientSession", _fake_snapshot_session(body)):
             out = await ec._capture_snapshot("http://192.168.50.50/snapshot", 10)
-        assert out == html
+        assert out is None
 
     @pytest.mark.asyncio
     async def test_capture_snapshot_rejects_oversized_body(self):

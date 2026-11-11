@@ -42,7 +42,7 @@ describe('NotificationsPage', () => {
         const body = await request.json();
         return HttpResponse.json(body);
       }),
-      http.get('/api/v1/settings/', () => {
+      http.get('/api/v1/settings/ui-flags', () => {
         return HttpResponse.json(mockSettingsWithNotifications);
       }),
       http.get('*/api/v1/auth/status', () => {

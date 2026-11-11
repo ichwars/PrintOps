@@ -56,6 +56,13 @@ def test_source_only_and_malformed_3mf_stay_unprintable(tmp_path):
     assert classify_file_type(malformed.name, malformed) == "3mf"
 
 
+def test_compound_filename_does_not_override_source_content(tmp_path):
+    source = _write_3mf(tmp_path / "source.GCODE.3MF", ["3D/3dmodel.model"])
+    assert classify_file_type(source.name, source) == "3mf"
+    assert not is_sliced_file(source.name, "3mf")
+    assert is_sliced_file(source.name)
+
+
 def test_explicit_sliced_filename_does_not_require_readable_bytes(tmp_path):
     assert classify_file_type("plate.GCODE.3MF", tmp_path / "missing.3mf") == "gcode.3mf"
 

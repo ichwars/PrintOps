@@ -1,3 +1,4 @@
+import { batchedList } from '../batch';
 import { API_BASE, authToken, parseContentDispositionFilename, request } from './core';
 
 // AMS History types
@@ -809,13 +810,18 @@ export interface FirmwareUploadStatus {
   firmware_version: string | null;
 }
 
+const firmwareUpdatesBatch = batchedList(
+  (id) => request<FirmwareUpdateInfo>(`/firmware/updates/${id}`),
+  '/bulk/firmware-updates',
+  (entry) => entry.printer_id,
+);
+
 // Firmware API
 export const firmwareApi = {
   checkUpdates: () =>
     request<{ updates: FirmwareUpdateInfo[]; updates_available: number }>('/firmware/updates'),
 
-  checkPrinterUpdate: (printerId: number) =>
-    request<FirmwareUpdateInfo>(`/firmware/updates/${printerId}`),
+  checkPrinterUpdate: firmwareUpdatesBatch,
 
   prepareUpload: (printerId: number, version?: string) =>
     request<FirmwareUploadPrepare>(

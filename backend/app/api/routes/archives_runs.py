@@ -1,72 +1,60 @@
 """Archive run aggregation, response assembly, and outcome confirmation."""
 
 from fastapi import HTTPException, Request
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.models.api_key import APIKey
+from backend.app.core.auth import OwnershipAccess
 from backend.app.models.archive import PrintArchive
-from backend.app.models.print_log import PrintLogEntry
-from backend.app.models.user import User
+from backend.app.models.print_log import INCLUDE_OPEN_RUNS, RUN_OPEN, PrintLogEntry
 from backend.app.schemas.archive import OutcomeConfirmation
+from backend.app.services.archive_plate_estimates import estimate_for_plate
+from backend.app.services.archive_scope import whole_archive_conditions
+from backend.app.services.print_log_run import run_visibility_conditions
 
 
 def compute_time_accuracy(archive: PrintArchive, run_aggregate: dict | None = None) -> dict:
-    """Compute actual print time and accuracy for an archive.
-
-    Returns dict with actual_time_seconds and time_accuracy.
-    time_accuracy = (estimated / actual) * 100
-    - 100% = perfect estimate
-    - >100% = print was faster than estimated
-    - <100% = print took longer than estimated
-
-    When ``run_aggregate`` indicates the archive has more than one logged
-    run (multi-plate file printed plate-by-plate, or reprints), both
-    fields are suppressed: ``archive.started_at / completed_at`` reflect
-    the LATEST run only, while ``archive.print_time_seconds`` is the
-    whole-file estimate (post-#1593 the parser sums across plates), so
-    comparing the two describes different scopes. The card-rendering
-    frontend falls through to ``archive.print_time_seconds`` for the
-    time display and hides the badge when ``time_accuracy`` is null —
-    that's the desired "show estimate, no badge" presentation for
-    multi-run archives (#1608). Single-run archives keep the original
-    badge behaviour verbatim.
-    """
-    result: dict[str, int | float | None] = {"actual_time_seconds": None, "time_accuracy": None}
-
-    # Multi-run archives: the per-run actual (started_at..completed_at on
-    # the archive row) is incommensurable with the whole-file estimate.
-    # Both fields are cleared so the card shows estimate + no badge.
-    if run_aggregate and (run_aggregate.get("run_count") or 0) > 1:
+    """Compare the latest completed print with the estimate of its own plate."""
+    runs = run_aggregate or {}
+    if runs.get("scoped") or "selected_run" in runs:
+        latest = runs.get("selected_run", runs.get("latest_visible"))
+        if latest is None:
+            return {"actual_time_seconds": None, "time_accuracy": None, "time_estimate_seconds": None}
+    else:
+        latest = runs.get("latest_finished") if archive.status != RUN_OPEN else None
+    plates = getattr(archive, "plate_estimates", None)
+    plate_id = latest.plate_id if latest is not None else getattr(archive, "plate_id", None)
+    estimate, _ = estimate_for_plate(plates, plate_id, archive.print_time_seconds)
+    result = {"actual_time_seconds": None, "time_accuracy": None, "time_estimate_seconds": estimate}
+    if not plates and (runs.get("run_count") or 0) > 1:
         return result
-
-    if archive.started_at and archive.completed_at and archive.status == "completed":
-        actual_seconds = int((archive.completed_at - archive.started_at).total_seconds())
-        if actual_seconds > 0:
-            result["actual_time_seconds"] = actual_seconds
-
-            if archive.print_time_seconds and archive.print_time_seconds > 0:
-                # Calculate accuracy as percentage
-                accuracy = (archive.print_time_seconds / actual_seconds) * 100
-                # Sanity check: skip unreasonable values (e.g., manually changed status)
-                # Valid range: 5% to 500% (print took 20x longer to 5x faster than estimated)
-                if 5 <= accuracy <= 500:
-                    result["time_accuracy"] = round(accuracy, 1)
-
+    source = latest if latest is not None else archive
+    unmeasured = latest.duration_unmeasured if latest is not None else runs.get("unmeasured_run_count")
+    if source.status == "completed" and not unmeasured:
+        actual = latest.duration_seconds if latest is not None else None
+        if not actual and source.started_at and source.completed_at:
+            actual = int((source.completed_at - source.started_at).total_seconds())
+        if actual and actual > 0:
+            result["actual_time_seconds"] = actual
+            if estimate and 5 <= (accuracy := 100 * estimate / actual) <= 500:
+                result["time_accuracy"] = round(accuracy, 1)
     return result
 
 
-async def _load_run_aggregates(db: AsyncSession, archive_ids: list[int]) -> dict[int, dict]:
+async def _load_run_aggregates(
+    db: AsyncSession, archive_ids: list[int], access: OwnershipAccess | None = None
+) -> dict[int, dict]:
     """Batch-load per-archive run aggregates from PrintLogEntry.
 
     Returns ``{archive_id: {run_count, last_run_at, total_filament_actual_grams,
     successful_run_count, failed_run_count}}``. Archives with no logged runs are
     absent from the map; callers should treat that as zero/none.
     """
-    from backend.app.models.print_log import PrintLogEntry
-
     if not archive_ids:
         return {}
+    filters = [PrintLogEntry.archive_id.in_(archive_ids)]
+    if access is not None:
+        filters.extend(run_visibility_conditions(access))
     rows = await db.execute(
         select(
             PrintLogEntry.archive_id,
@@ -75,41 +63,100 @@ async def _load_run_aggregates(db: AsyncSession, archive_ids: list[int]) -> dict
             func.coalesce(func.sum(PrintLogEntry.filament_used_grams), 0).label("total_filament"),
             func.sum(case((PrintLogEntry.status == "completed", 1), else_=0)).label("successful"),
             func.sum(case((PrintLogEntry.status == "failed", 1), else_=0)).label("failed"),
+            func.sum(case((PrintLogEntry.duration_unmeasured.is_(True), 1), else_=0)).label("unmeasured"),
         )
-        .where(PrintLogEntry.archive_id.in_(archive_ids))
+        .where(*filters)
         .group_by(PrintLogEntry.archive_id)
     )
     aggregates: dict[int, dict] = {}
-    for archive_id, run_count, last_run_at, total_filament, successful, failed in rows.all():
+    for archive_id, run_count, last_run_at, total_filament, successful, failed, unmeasured in rows.all():
         aggregates[archive_id] = {
             "run_count": int(run_count or 0),
             "last_run_at": last_run_at,
             "total_filament_actual_grams": float(total_filament) if total_filament else None,
             "successful_run_count": int(successful or 0),
             "failed_run_count": int(failed or 0),
+            "unmeasured_run_count": int(unmeasured or 0),
         }
     from backend.app.models.print_queue import PrintQueueItem
 
-    latest_ids = (
-        select(func.max(PrintLogEntry.id))
-        .where(PrintLogEntry.archive_id.in_(archive_ids))
-        .group_by(PrintLogEntry.archive_id)
-    )
-    current = (
-        await db.execute(
-            select(
-                PrintLogEntry.id,
-                PrintLogEntry.archive_id,
-                PrintLogEntry.quantity,
-                PrintQueueItem.batch_id,
+    ranked = (
+        select(
+            PrintLogEntry.id,
+            func.row_number()
+            .over(
+                partition_by=(PrintLogEntry.archive_id, PrintLogEntry.status == RUN_OPEN),
+                order_by=(PrintLogEntry.started_at.desc().nulls_last(), PrintLogEntry.id.desc()),
             )
-            .outerjoin(PrintQueueItem, PrintLogEntry.queue_item_id == PrintQueueItem.id)
-            .where(PrintLogEntry.id.in_(latest_ids))
+            .label("position"),
         )
-    ).all()
-    for run_id, archive_id, quantity, batch_id in current:
-        aggregates[archive_id].update(outcome_run_id=run_id, outcome_expected_parts=quantity, outcome_batch_id=batch_id)
+        .where(*filters)
+        .subquery()
+    )
+    current = await db.execute(
+        select(PrintLogEntry, PrintQueueItem.batch_id)
+        .join(ranked, ranked.c.id == PrintLogEntry.id)
+        .outerjoin(PrintQueueItem, PrintLogEntry.queue_item_id == PrintQueueItem.id)
+        .where(ranked.c.position == 1)
+        .order_by(PrintLogEntry.started_at.desc().nulls_last(), PrintLogEntry.id.desc())
+        .execution_options(**{INCLUDE_OPEN_RUNS: True})
+    )
+    for run, batch_id in current:
+        summary = aggregates.setdefault(run.archive_id, {})
+        summary.setdefault("latest_visible", run)
+        if run.status != RUN_OPEN:
+            summary.update(
+                outcome_run_id=run.id,
+                outcome_expected_parts=run.quantity,
+                outcome_batch_id=batch_id,
+                latest_finished=run,
+            )
+    whole = whole_archive_conditions(access) if access is not None else ()
+    if whole:
+        partial = await db.scalars(select(PrintArchive.id).where(PrintArchive.id.in_(archive_ids), ~and_(*whole)))
+        for archive_id in partial:
+            aggregates.setdefault(archive_id, {})["scoped"] = True
+    videos = await db.execute(
+        select(PrintLogEntry.archive_id, PrintLogEntry.timelapse_path)
+        .where(*filters, PrintLogEntry.timelapse_path.is_not(None))
+        .distinct()
+    )
+    for archive_id, path in videos:
+        aggregates.setdefault(archive_id, {}).setdefault("run_timelapses", set()).add(path)
     return aggregates
+
+
+def _apply_scoped_run(data, run):
+    fields = (
+        "printer_id",
+        "plate_id",
+        "started_at",
+        "completed_at",
+        "failure_reason",
+        "quantity",
+        "confirm_requested",
+        "user_verdict",
+        "good_quantity",
+        "reject_quantity",
+        "user_verdict_source",
+        "user_verdict_at",
+        "energy_kwh",
+        "energy_cost",
+    )
+    data.update({field: getattr(run, field, None) for field in fields})
+    data.update(
+        status=run.status if run is not None else "archived",
+        quantity=run.quantity if run is not None else 1,
+        confirm_requested=bool(run and run.confirm_requested),
+        timelapse_path=None,
+        photos=None,
+        extra_data=None,
+        cost=run.cost if run is not None else None,
+    )
+    # The storage path contains the printer that first archived the file.
+    data["file_path"] = ""
+    for field in ("thumbnail_path", "source_3mf_path", "f3d_path"):
+        data[field] = None
 
 
 def archive_to_response(
@@ -181,16 +228,48 @@ def archive_to_response(
         "created_by_username": archive.created_by.username if archive.created_by else None,
     }
 
-    # Add computed time accuracy fields. ``run_aggregate`` lets
-    # ``compute_time_accuracy`` suppress the badge for multi-run archives
-    # where the per-run actual / whole-file estimate scopes don't match
-    # (#1608).
+    summary = run_aggregate or {}
+    selected = summary.get("selected_run")
+    if summary.get("scoped"):
+        _apply_scoped_run(data, selected or summary.get("latest_visible"))
+    elif selected is not None:
+        for field in (
+            "printer_id",
+            "plate_id",
+            "status",
+            "started_at",
+            "completed_at",
+            "failure_reason",
+            "quantity",
+            "confirm_requested",
+            "user_verdict",
+            "good_quantity",
+            "reject_quantity",
+            "user_verdict_source",
+            "user_verdict_at",
+            "energy_kwh",
+            "energy_cost",
+            "photos",
+            "timelapse_path",
+        ):
+            data[field] = getattr(selected, field)
+    videos = set(summary.get("run_timelapses", ()))
+    if archive.timelapse_path and not summary.get("scoped"):
+        videos.add(archive.timelapse_path)
+    data["timelapse_count"] = len(videos)
+    if selected is not None:
+        data.update(run_id=selected.id, outcome_run_id=selected.id, outcome_expected_parts=selected.quantity)
+
+    # Compare the latest print with its selected plate.
     accuracy_data = archives.compute_time_accuracy(archive, run_aggregate)
     data.update(accuracy_data)
 
     if run_aggregate:
-        for field in ("outcome_run_id", "outcome_expected_parts", "outcome_batch_id"):
-            data[field] = run_aggregate.get(field)
+        latest = run_aggregate.get("latest_visible")
+        data["latest_run_id"] = latest.id if latest is not None else None
+        if selected is None:
+            for field in ("outcome_run_id", "outcome_expected_parts", "outcome_batch_id"):
+                data[field] = run_aggregate.get(field)
         data["run_count"] = run_aggregate.get("run_count", 0)
         data["last_run_at"] = run_aggregate.get("last_run_at")
         data["total_filament_actual_grams"] = run_aggregate.get("total_filament_actual_grams")
@@ -205,27 +284,27 @@ async def confirm_production_outcome(
     outcome: OutcomeConfirmation,
     run_id: int | None,
     db: AsyncSession,
-    api_key: APIKey | None,
-    auth_result: tuple[User | None, bool],
+    auth_result: OwnershipAccess,
 ):
     """Inspect or correct the current run with normal ownership and printer scopes."""
-    from backend.app.api.routes import archives
+    from backend.app.services.archive_scope import ensure_archive_owner
     from backend.app.services.print_confirmation import OutcomeConflict, outcome_lock, record_outcome
     from backend.app.services.quality_authorization import can_inspect_run
 
-    user, can_modify_all = auth_result
+    user, can_modify_all, api_key = auth_result
     if run_id is not None and outcome.run_id != run_id:
         raise HTTPException(409, "The selected run does not match the inspection")
     async with outcome_lock(db, archive_id, run_id):
-        archive = archives._ensure_archive_visible(await db.get(PrintArchive, archive_id), user, can_modify_all)
+        archive = ensure_archive_owner(await db.get(PrintArchive, archive_id), auth_result)
         selected = await db.get(PrintLogEntry, outcome.run_id)
-        if not can_inspect_run(user, can_modify_all, archive, selected):
+        historical = run_id is not None
+        if not can_inspect_run(user, can_modify_all, archive, selected, historical=historical):
             raise HTTPException(404, "Print run not found")
         if api_key is not None and api_key.printer_ids is not None:
-            if any(
-                printer_id is not None and printer_id not in api_key.printer_ids
-                for printer_id in (archive.printer_id, selected.printer_id)
-            ):
+            printers = [selected.printer_id]
+            if not historical or selected.started_at is None:
+                printers.append(archive.printer_id)
+            if any(printer_id is not None and printer_id not in api_key.printer_ids for printer_id in printers):
                 raise HTTPException(404, "Print run not found")
         try:
             run = await record_outcome(
@@ -271,7 +350,7 @@ async def confirm_production_outcome_link(request: Request, token: str, verdict:
     match = await find_token_run(db, token) if verdict in {"good", "reject"} else None
     if match is None:
         raise HTTPException(404, "Confirmation link is invalid or has expired")
-    async with outcome_lock(db, match[0].id):
+    async with outcome_lock(db, match[0].id, match[1].id):
         match = await find_token_run(db, token)
         if match is None:
             raise HTTPException(404, "Confirmation link is invalid or has expired")
@@ -285,6 +364,7 @@ async def confirm_production_outcome_link(request: Request, token: str, verdict:
                 run_id=run.id,
                 source="link",
                 token_hash=token_digest(token),
+                historical=bool(run.confirm_token_run_scoped),
                 good_quantity=run.quantity if verdict == "good" else 0,
                 reject_quantity=run.quantity if verdict == "reject" else 0,
             )

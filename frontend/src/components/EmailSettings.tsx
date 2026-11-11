@@ -148,6 +148,7 @@ export function EmailSettings() {
     }
     testMutation.mutate({
       test_recipient: testEmail,
+      smtp: smtpSettings,
     });
   };
 

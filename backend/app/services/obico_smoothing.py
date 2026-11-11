@@ -1,13 +1,8 @@
-"""Temporal smoothing for Obico ML detection scores.
+"""Obico frame smoothing with a background baseline per printer.
 
-Ports Obico's failure-detection math:
-- per-frame `current_p` = sum of detection confidences
-- `ewm_mean` = exponentially weighted mean (alpha = 2 / (span + 1), span = 12)
-- `rolling_mean_short` = ~310 frames of recent activity (≈52 min at 10s/frame)
-- `rolling_mean_long`  = ~7200 frames of long-term baseline noise
-- First `WARMUP_FRAMES` frames always report "safe" while the state settles
-- Final score = max(ewm_mean, rolling_mean_short - rolling_mean_long)
-- Thresholds: LOW < score < HIGH is "warning", >= HIGH is "failure"
+A running print has its own exponential and short rolling means. The
+long rolling mean follows the camera across jobs. Notifying uses the
+alert threshold. Pausing or cutting power requires the escalation level.
 """
 
 import math
@@ -19,6 +14,8 @@ EWM_ALPHA = 2.0 / (EWM_SPAN + 1)
 ROLLING_SHORT = 310
 ROLLING_LONG = 7200
 WARMUP_FRAMES = 30
+ESCALATING_FACTOR = 1.75
+_SHORT_RISE_MULTIPLIER = 3.8
 
 # Base thresholds; sensitivity multipliers adjust them
 BASE_LOW = 0.38
@@ -36,70 +33,100 @@ def thresholds(sensitivity: str) -> tuple[float, float]:
     return BASE_LOW * mult, BASE_HIGH * mult
 
 
+class _RollingMean:
+    def __init__(self, window: int):
+        self._values: deque[float] = deque(maxlen=window)
+        self._total = 0.0
+
+    def add(self, value: float) -> None:
+        if len(self._values) == self._values.maxlen:
+            self._total -= self._values[0]
+        self._values.append(value)
+        self._total += value
+
+    @property
+    def mean(self) -> float:
+        return self._total / len(self._values) if self._values else 0.0
+
+
+class Baseline(_RollingMean):
+    """The background score accumulated from one printer camera."""
+
+    def __init__(self):
+        super().__init__(ROLLING_LONG)
+
+
+@dataclass(frozen=True)
+class Reading:
+    score: float = 0.0
+    short_rise: float = 0.0
+    warmup: bool = True
+
+
 @dataclass
 class PrintState:
-    """Per-print smoothing state. Reset when a new print starts."""
-
+    baseline: Baseline = field(default_factory=Baseline)
     frame_count: int = 0
     ewm_mean: float = 0.0
-    short_sum: float = 0.0
-    long_sum: float = 0.0
-    short_buf: deque = field(default_factory=lambda: deque(maxlen=ROLLING_SHORT))
-    long_buf: deque = field(default_factory=lambda: deque(maxlen=ROLLING_LONG))
+    short: _RollingMean = field(default_factory=lambda: _RollingMean(ROLLING_SHORT))
+    last: Reading = field(default_factory=Reading)
 
-    def update(self, current_p: float) -> float:
-        """Feed a new per-frame score and return the smoothed score.
-
-        Returns 0.0 during warmup so early noise doesn't trigger actions.
-        """
+    def update(self, current_p: float) -> Reading:
         self.frame_count += 1
-
         if self.frame_count == 1:
             self.ewm_mean = current_p
         else:
-            self.ewm_mean = EWM_ALPHA * current_p + (1 - EWM_ALPHA) * self.ewm_mean
-
-        if len(self.short_buf) == self.short_buf.maxlen:
-            self.short_sum -= self.short_buf[0]
-        self.short_buf.append(current_p)
-        self.short_sum += current_p
-
-        if len(self.long_buf) == self.long_buf.maxlen:
-            self.long_sum -= self.long_buf[0]
-        self.long_buf.append(current_p)
-        self.long_sum += current_p
-
-        if self.frame_count <= WARMUP_FRAMES:
-            return 0.0
-
-        short_mean = self.short_sum / len(self.short_buf)
-        long_mean = self.long_sum / len(self.long_buf)
-        return max(self.ewm_mean, short_mean - long_mean)
+            self.ewm_mean += EWM_ALPHA * (current_p - self.ewm_mean)
+        self.short.add(current_p)
+        self.baseline.add(current_p)
+        background = self.baseline.mean
+        self.last = Reading(
+            score=self.ewm_mean - background,
+            short_rise=self.short.mean - background,
+            warmup=self.frame_count <= WARMUP_FRAMES,
+        )
+        return self.last
 
 
-def classify(score: float, sensitivity: str) -> str:
-    """Return 'safe', 'warning', or 'failure' for a smoothed score."""
+def _is_failing(reading: Reading, sensitivity: str, escalation: float) -> bool:
     low, high = thresholds(sensitivity)
-    if score >= high:
+    score = reading.score / escalation
+    if reading.warmup or score < low:
+        return False
+    mult = SENSITIVITY_MULT.get(sensitivity, 1.0)
+    return score > high or score > reading.short_rise * _SHORT_RISE_MULTIPLIER * mult
+
+
+def classify(reading: Reading, sensitivity: str) -> str:
+    """Return the notification or pause level reached by this reading."""
+    if _is_failing(reading, sensitivity, ESCALATING_FACTOR):
         return "failure"
-    if score >= low:
+    if _is_failing(reading, sensitivity, 1.0):
         return "warning"
     return "safe"
 
 
-def score_from_detections(detections: list) -> float:
-    """Sum confidences from the ML API `detections` array.
+def triggers_action(verdict: str, action: str) -> bool:
+    return verdict == "failure" or (action == "notify" and verdict == "warning")
 
-    Each detection is `[label, confidence, [x, y, w, h]]`. We only care about
-    the confidence column — label is always "failure" for the single-class model.
-    """
+
+def score_from_detections(detections: object) -> float | None:
+    """Sum finite confidences. A valid empty list is a clear frame."""
+    if not isinstance(detections, list):
+        return None
     total = 0.0
-    for det in detections or []:
+    valid = not detections
+    for detection in detections:
+        if not isinstance(detection, (list, tuple)) or len(detection) < 2:
+            continue
+        confidence = detection[1]
+        if isinstance(confidence, bool):
+            continue
         try:
-            value = float(det[1])
-        except (IndexError, TypeError, ValueError):
+            value = float(confidence)
+        except (TypeError, ValueError, OverflowError):
             continue
-        if math.isnan(value) or math.isinf(value):
-            continue
-        total += value
-    return total
+        if math.isfinite(value) and value >= 0:
+            valid = True
+            total += value
+    return total if valid and math.isfinite(total) else None

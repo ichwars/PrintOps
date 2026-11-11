@@ -672,3 +672,64 @@ class TestSettingsRestoreNeedsSettingsUpdate(TestOwnershipPermissionsSetup):
             )
 
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_editor_restore_passes_non_admin_policy_to_preview_and_apply(self, async_client, auth_setup):
+        token = await self._token_for(
+            async_client, auth_setup["admin_token"], "restore-editor", ["github:restore", "settings:update"]
+        )
+        await _create_config(async_client, auth_setup["admin_token"])
+        headers = {"Authorization": f"Bearer {token}"}
+        from backend.app.services.github_restore import github_restore_service
+
+        with (
+            patch.object(
+                github_restore_service,
+                "preview",
+                new=AsyncMock(return_value={"success": True, "message": "OK", "ref": "aaa1111", "categories": []}),
+            ) as preview,
+            patch.object(
+                github_restore_service,
+                "run_restore",
+                new=AsyncMock(return_value={"success": True, "message": "OK", "ref": "aaa1111", "results": {}}),
+            ) as apply,
+        ):
+            listed = await async_client.get("/api/v1/github-backup/restore/preview", headers=headers)
+            restored = await async_client.post(
+                "/api/v1/github-backup/restore", headers=headers, json={"categories": ["settings"]}
+            )
+
+        assert listed.status_code == restored.status_code == 200
+        assert preview.await_args.kwargs["as_admin"] is False
+        assert apply.await_args.kwargs["as_admin"] is False
+
+
+@pytest.mark.asyncio
+async def test_non_admin_settings_restore_keeps_local_auth_mail_and_backup_configuration(db_session):
+    from backend.app.models.settings import Settings
+    from backend.app.schemas.github_backup import RestoreCategory
+    from backend.app.services.github_restore import SETTINGS_PATH, GitHubRestoreService, _CategoryTally
+
+    values = {
+        "currency": "GBP",
+        "external_url": "https://untrusted.example.test",
+        "session_max_hours": "720",
+        "smtp_host": "untrusted.example.test",
+        "local_backup_path": "/changed",
+        "ldap_enabled": "true",
+        "prometheus_token": "private-fixture",
+        "_backfill_446_clear_plate_permission_done": "true",
+    }
+    payload = {"settings": values}
+    service = GitHubRestoreService()
+    count, _ = await service._count_items(
+        db_session, RestoreCategory.SETTINGS, {SETTINGS_PATH: payload}, as_admin=False
+    )
+    tally = _CategoryTally()
+    await service._restore_settings(db_session, payload, overwrite=True, tally=tally, as_admin=False)
+    await db_session.commit()
+
+    assert tally.restored == count == 1
+    rows = await db_session.execute(select(Settings.key, Settings.value))
+    assert dict(rows.all()) == {"currency": "GBP"}

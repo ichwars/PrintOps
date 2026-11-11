@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import func, select, update
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.small_part import SmallPart, SmallPartCategory, SmallPartLedgerEntry, SmallPartUnit
@@ -443,7 +443,7 @@ async def _preview_small_part_csv(db: AsyncSession, raw: bytes) -> dict:
 async def search_small_part_options(
     q: str = "",
     limit: int = Query(30, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> list[SmallPartOptionRead]:
     matches = await service.search_small_parts(db, query=q, active_only=True, limit=limit)
@@ -462,7 +462,7 @@ async def search_small_part_options(
 
 @router.get("/settings/categories", response_model=list[SmallPartCategoryRead])
 async def list_categories(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     return list(await db.scalars(select(SmallPartCategory).order_by(SmallPartCategory.name)))
@@ -471,7 +471,7 @@ async def list_categories(
 @router.post("/settings/categories", response_model=SmallPartCategoryRead, status_code=status.HTTP_201_CREATED)
 async def create_category(
     data: SmallPartCategoryCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ):
     category = SmallPartCategory(name=data.name, name_key=data.name.strip().casefold(), is_active=data.is_active)
@@ -489,7 +489,7 @@ async def create_category(
 async def update_category(
     category_id: int,
     data: SmallPartCategoryUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     category = await db.get(SmallPartCategory, category_id)
@@ -508,7 +508,7 @@ async def update_category(
 @router.delete("/settings/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(
     category_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE),
 ):
     category = await db.get(SmallPartCategory, category_id)
@@ -522,7 +522,7 @@ async def delete_category(
 
 @router.get("/settings/units", response_model=list[SmallPartUnitRead])
 async def list_units(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     return list(await db.scalars(select(SmallPartUnit).order_by(SmallPartUnit.label)))
@@ -531,7 +531,7 @@ async def list_units(
 @router.post("/settings/units", response_model=SmallPartUnitRead, status_code=status.HTTP_201_CREATED)
 async def create_unit(
     data: SmallPartUnitCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ):
     unit = SmallPartUnit(**data.model_dump())
@@ -549,7 +549,7 @@ async def create_unit(
 async def update_unit(
     unit_code: str,
     data: SmallPartUnitUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     await db.execute(
@@ -575,7 +575,7 @@ async def update_unit(
 @router.delete("/settings/units/{unit_code}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_unit(
     unit_code: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE),
 ):
     await db.execute(
@@ -594,7 +594,7 @@ async def delete_unit(
 
 @router.get("/export")
 async def export_small_parts_csv(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     parts = list(
@@ -653,7 +653,7 @@ async def export_small_parts_csv(
 async def import_small_parts_csv(
     dry_run: bool = False,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ):
     raw = await _read_csv_upload(file)
@@ -755,7 +755,7 @@ async def list_small_parts(
     low_stock: bool = False,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> SmallPartListResponse:
     matches = await service.search_small_parts(db, query=q, active_only=active is True, limit=10000)
@@ -772,7 +772,7 @@ async def list_small_parts(
 @router.post("", response_model=SmallPartRead, status_code=status.HTTP_201_CREATED)
 async def create_small_part(
     data: SmallPartCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ) -> SmallPartRead:
     payload = data.model_dump(exclude={"opening_quantity"})
@@ -825,7 +825,7 @@ async def create_small_part(
 @router.get("/{small_part_id}", response_model=SmallPartRead)
 async def get_small_part(
     small_part_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> SmallPartRead:
     return await _read_single_part(db, await _load_part(db, small_part_id))
@@ -835,7 +835,7 @@ async def get_small_part(
 async def update_small_part(
     small_part_id: int,
     data: SmallPartUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ) -> SmallPartRead:
     part = await _load_part(db, small_part_id)
@@ -857,7 +857,7 @@ async def update_small_part(
 @router.get("/{small_part_id}/ledger", response_model=list[SmallPartLedgerRead])
 async def list_small_part_ledger(
     small_part_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     await _load_part(db, small_part_id)
@@ -874,7 +874,7 @@ async def list_small_part_ledger(
 async def add_small_part_stock(
     small_part_id: int,
     data: SmallPartLedgerCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ) -> SmallPartLedgerRead:
     try:

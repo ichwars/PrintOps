@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,18 @@ def _get_calibration_dir() -> Path:
     return settings.plate_calibration_dir
 
 
+def remove_printer_references(printer_id: int) -> None:
+    prefix = f"printer_{printer_id}_"
+    for path in _get_calibration_dir().glob(prefix + "*"):
+        suffix = path.name.removeprefix(prefix)
+        if suffix != "metadata.json" and re.fullmatch(r"ref_[0-9]+\.jpg", suffix) is None:
+            continue
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as error:
+            logger.warning("Could not remove plate reference for printer %s: %s", printer_id, type(error).__name__)
+
+
 class PlateDetectionResult:
     """Result of plate detection analysis."""
 
@@ -42,6 +55,7 @@ class PlateDetectionResult:
         message: str,
         debug_image: bytes | None = None,
         needs_calibration: bool = False,
+        failure_reason: str | None = None,
     ):
         self.is_empty = is_empty
         self.confidence = confidence  # 0.0 to 1.0
@@ -49,6 +63,7 @@ class PlateDetectionResult:
         self.message = message
         self.debug_image = debug_image  # Optional annotated image for debugging
         self.needs_calibration = needs_calibration  # True if no reference image exists
+        self.failure_reason = failure_reason or ("not_calibrated" if needs_calibration else None)
 
     def to_dict(self) -> dict:
         return {
@@ -58,6 +73,7 @@ class PlateDetectionResult:
             "message": self.message,
             "has_debug_image": self.debug_image is not None,
             "needs_calibration": bool(self.needs_calibration),
+            "failure_reason": self.failure_reason,
         }
 
 
@@ -440,6 +456,7 @@ class PlateDetector:
                     confidence=0.0,
                     difference_percent=0.0,
                     message="Failed to decode current image",
+                    failure_reason="decode_failed",
                 )
 
             # Extract ROI from current frame
@@ -577,6 +594,7 @@ class PlateDetector:
                 confidence=0.0,
                 difference_percent=0.0,
                 message=f"Analysis error: {e!s}",
+                failure_reason="analysis_error",
             )
 
 
@@ -604,8 +622,15 @@ async def capture_camera_image(
     # Try external camera first if requested and available
     if use_external and external_camera_url and external_camera_type:
         try:
+            from backend.app.api.routes.camera import live_frame_for_capture
             from backend.app.services.external_camera import capture_frame
 
+            if not external_camera_snapshot_url:
+                watched, frame = await live_frame_for_capture(
+                    printer_id, external_source=(external_camera_type, external_camera_url)
+                )
+                if watched:
+                    return frame, "external (live)" if frame else "External live view has no recent frame"
             image_data = await capture_frame(
                 external_camera_url,
                 external_camera_type,
@@ -695,6 +720,7 @@ async def check_plate_empty(
             confidence=0.0,
             difference_percent=0.0,
             message="OpenCV not available - plate detection disabled",
+            failure_reason="opencv_missing",
         )
 
     image_data, camera_source = await capture_camera_image(
@@ -714,6 +740,7 @@ async def check_plate_empty(
             confidence=0.0,
             difference_percent=0.0,
             message="Failed to capture camera frame from any source",
+            failure_reason="no_camera_frame",
         )
 
     # Analyze the captured frame

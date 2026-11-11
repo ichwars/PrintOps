@@ -254,9 +254,12 @@ describe('card scale with real auth-status provenance', () => {
     await act(async () => { release({ access_token: 'renewed-token-a', token_type: 'bearer' }); });
     expect(getAuthSessionId()).toBeGreaterThan(sessionA);
     if (switchAccount) {
-      expectUnavailable();
+      expect(getAuthToken()).toBe('token-b');
+      expect(screen.getByTestId('scale')).toHaveTextContent('100');
+      expect(screen.getByTestId('ready')).toHaveTextContent('true');
       fireEvent.click(screen.getByText('Attempt preference write'));
       expect(storage.get(prefix + 'user:provider-account')).toBe('110');
+      expect(storage.get(prefix + 'user:account-b')).toBe('90');
     } else {
       expect(screen.getByTestId('scale')).toHaveTextContent('110');
       fireEvent.click(screen.getByText('Attempt preference write'));

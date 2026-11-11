@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isSliceableLibraryFile, isSlicedLibraryFile } from '../../utils/libraryFiles';
+import { isDesktopSliceableLibraryFile, isSliceableLibraryFile, isSlicedLibraryFile } from '../../utils/libraryFiles';
 
 describe('isSlicedLibraryFile', () => {
   it('prefers a content-detected sliced type over a plain 3MF filename', () => {
@@ -18,7 +18,7 @@ describe('isSlicedLibraryFile', () => {
   });
 
   it('keeps the legacy filename fallback for stale records', () => {
-    expect(isSlicedLibraryFile({ filename: 'benchy.gcode.3mf', file_type: '3mf' })).toBe(true);
+    expect(isSlicedLibraryFile({ filename: 'benchy.gcode.3mf' })).toBe(true);
     expect(isSlicedLibraryFile({ filename: 'benchy.gcode' })).toBe(true);
   });
 });
@@ -29,6 +29,14 @@ describe('isSliceableLibraryFile', () => {
     expect(
       isSliceableLibraryFile({ filename: 'Labyrinth - Plate 3.3mf', file_type: 'gcode.3mf' })
     ).toBe(false);
+  });
+
+  it('offers slicing for a source 3MF saved with a compound filename', () => {
+    const source = { filename: 'source.gcode.3mf', file_type: '3mf' };
+    expect(isSlicedLibraryFile(source)).toBe(false);
+    expect(isSliceableLibraryFile(source)).toBe(true);
+    expect(isDesktopSliceableLibraryFile(source, 'bambu_studio')).toBe(true);
+    expect(isDesktopSliceableLibraryFile(source, 'orcaslicer')).toBe(true);
   });
 
   it('keeps unsupported CAD files out of the slicer', () => {

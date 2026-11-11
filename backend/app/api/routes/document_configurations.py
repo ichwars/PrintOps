@@ -6,13 +6,13 @@ from dataclasses import asdict
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.document_audit import DocumentAuditEvent
 from backend.app.models.document_configuration import DocumentConfiguration
@@ -201,7 +201,7 @@ async def get_placeholders(
 @router.post("/effective", response_model=EffectiveDocumentPolicy)
 async def get_effective_policy(
     command: EffectivePolicyRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
 ) -> EffectiveDocumentPolicy:
     try:
@@ -223,7 +223,7 @@ async def list_configurations(
     document_type: DocumentType | None = None,
     language: str | None = None,
     configuration_status: str | None = Query(default=None, alias="status"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
 ) -> list[DocumentConfigurationSummary]:
     statement = select(DocumentConfiguration)
@@ -252,7 +252,7 @@ async def list_configurations(
 async def create_configuration(
     command: CreateConfigurationCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
@@ -275,7 +275,7 @@ async def create_configuration(
 @router.get("/{configuration_id}", response_model=DocumentConfigurationDetail)
 async def get_configuration(
     configuration_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
 ) -> DocumentConfigurationDetail:
     try:
@@ -289,7 +289,7 @@ async def patch_configuration(
     configuration_id: int,
     command: UpdateConfigurationCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
@@ -321,7 +321,7 @@ async def patch_configuration(
 async def clone_configuration(
     configuration_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
@@ -344,7 +344,7 @@ async def clone_configuration(
 @router.get("/{configuration_id}/readiness", response_model=ReadinessReport)
 async def get_readiness(
     configuration_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
 ) -> ReadinessReport:
     try:
@@ -358,7 +358,7 @@ async def publish_configuration(
     configuration_id: int,
     command: PublishConfigurationRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
@@ -397,7 +397,7 @@ async def withdraw_configuration(
     configuration_id: int,
     command: WithdrawConfigurationCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_MANAGE),
 ) -> DocumentConfigurationDetail:
     try:
@@ -426,7 +426,7 @@ async def withdraw_configuration(
 @router.get("/{configuration_id}/history", response_model=list[DocumentConfigurationSummary])
 async def get_history(
     configuration_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
 ) -> list[DocumentConfigurationSummary]:
     try:
@@ -451,7 +451,7 @@ async def get_history(
 @router.get("/{configuration_id}/audit", response_model=list[DocumentAuditEventRead])
 async def get_configuration_audit(
     configuration_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_TEMPLATES_READ),
 ) -> list[DocumentAuditEventRead]:
     try:

@@ -27,6 +27,7 @@ import pyotp
 import pytest
 from httpx import AsyncClient
 from passlib.context import CryptContext
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.auth_ephemeral import AuthEphemeralToken
@@ -40,6 +41,25 @@ _pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 AUTH_SETUP_URL = "/api/v1/auth/setup"
 LOGIN_URL = "/api/v1/auth/login"
+
+
+async def seed_email_otp_setup(db, bearer_token, username, setup_token, code_hash):
+    from fastapi import Request
+    from sqlalchemy import select
+
+    from backend.app.core.auth_issuers import bind_user_issuer
+
+    user = await db.scalar(select(User).where(User.username == username))
+    row = AuthEphemeralToken(
+        token=setup_token,
+        token_type="email_otp_setup",
+        nonce=code_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+    )
+    request = Request({"type": "http", "headers": [(b"authorization", f"Bearer {bearer_token}".encode())]})
+    bind_user_issuer(row, request, user)
+    db.add(row)
+    await db.commit()
 
 
 def _norm_pw(password: str) -> str:
@@ -298,16 +318,7 @@ class TestEmailOTP:
         code = "123456"
         code_hash = _pwd_context.hash(code)
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AuthEphemeralToken(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="confirmenable",
-                nonce=code_hash,
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, token, "confirmenable", setup_token, code_hash)
 
         resp = await async_client.post(
             "/api/v1/auth/2fa/email/enable/confirm",
@@ -324,19 +335,13 @@ class TestEmailOTP:
     async def test_confirm_enable_email_otp_wrong_code(self, async_client: AsyncClient, db_session: AsyncSession):
         """Wrong code on confirm step returns 400 and does not enable email OTP."""
         token = await _setup_and_login(async_client, "confirmwrong", "confirmwrong1")
+        user = await db_session.scalar(select(User).where(User.username == "confirmwrong"))
+        user.email = "confirmwrong@example.invalid"
+        await db_session.commit()
 
         code_hash = _pwd_context.hash("654321")
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AuthEphemeralToken(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="confirmwrong",
-                nonce=code_hash,
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, token, "confirmwrong", setup_token, code_hash)
 
         resp = await async_client.post(
             "/api/v1/auth/2fa/email/enable/confirm",
@@ -352,20 +357,14 @@ class TestEmailOTP:
     ):
         """Setup token is consumed on first use; replay returns 400."""
         token = await _setup_and_login(async_client, "confirmonce", "confirmonce1")
+        user = await db_session.scalar(select(User).where(User.username == "confirmonce"))
+        user.email = "confirmonce@example.invalid"
+        await db_session.commit()
 
         code = "111111"
         code_hash = _pwd_context.hash(code)
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AuthEphemeralToken(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="confirmonce",
-                nonce=code_hash,
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, token, "confirmonce", setup_token, code_hash)
 
         first = await async_client.post(
             "/api/v1/auth/2fa/email/enable/confirm",
@@ -403,16 +402,7 @@ class TestEmailOTP:
         # Enable email OTP via direct DB injection (no SMTP)
         code = "222222"
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AuthEphemeralToken(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="disemailpw",
-                nonce=_pwd_context.hash(code),
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, token, "disemailpw", setup_token, _pwd_context.hash(code))
         await async_client.post(
             "/api/v1/auth/2fa/email/enable/confirm",
             json={"setup_token": setup_token, "code": code},
@@ -654,19 +644,16 @@ class TestAdminDisable2FA:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_admin_disable_requires_admin(self, async_client: AsyncClient):
-        """Only admins can use the admin disable endpoint."""
-        # The only user in a fresh setup IS admin, so just check the 404 path
+    async def test_admin_disable_unknown_user_returns_404(self, async_client: AsyncClient):
         token = await _setup_and_login(async_client, "admincheck", "admincheck123")
-        # Try to disable for a non-existent user_id — should get 200 (no-op) or 404
         response = await async_client.request(
             "DELETE",
             "/api/v1/auth/2fa/admin/99999",
             json={"admin_password": _norm_pw("admincheck123")},
             headers=_auth_header(token),
         )
-        # Admin users succeed regardless (returns 200 even if user doesn't exist)
-        assert response.status_code == 200
+        assert response.status_code == 404
+        assert response.json()["detail"] == "User not found"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -1302,32 +1289,21 @@ async def _setup_totp_user(client: AsyncClient, username: str, password: str) ->
 class TestTOTPReplay:
     """The same TOTP code must not be accepted twice within one 30-second window."""
 
-    @pytest.mark.integration
-    def test_replay_helper_records_previous_window_counter(self):
-        """A previous-window code must be matched to its own counter, not now()."""
-        from fastapi import HTTPException
-
+    @pytest.mark.parametrize("offset", [-1, 0, 1])
+    def test_replay_helper_identifies_the_matching_window(self, offset):
         from backend.app.api.routes import mfa as mfa_routes
-        from backend.app.models.user_totp import UserTOTP
 
-        secret = pyotp.random_base32()
-        totp = pyotp.TOTP(secret)
-        accepted_counter = 60_000_000
-        code = totp.generate_otp(accepted_counter)
+        totp = pyotp.TOTP(pyotp.random_base32())
+        current = 60_000_000
 
         class FixedDateTime(datetime):
             @classmethod
             def now(cls, tz=None):
-                return cls.fromtimestamp((accepted_counter + 1) * totp.interval + 1, tz=tz)
+                return cls.fromtimestamp(current * totp.interval + 1, tz=tz)
 
-        record = UserTOTP(user_id=1, _secret_enc="unused", is_enabled=True)
-        record.last_totp_counter = accepted_counter
-
-        with patch.object(mfa_routes, "datetime", FixedDateTime), pytest.raises(HTTPException) as exc:
-            mfa_routes._assert_totp_not_replayed(totp, record, code)
-
-        assert exc.value.status_code == 400
-        assert exc.value.detail == "TOTP code already used"
+        code = totp.generate_otp(current + offset)
+        with patch.object(mfa_routes, "datetime", FixedDateTime):
+            assert mfa_routes._matched_totp_counter(totp, code) == current + offset
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -1449,16 +1425,7 @@ class TestEmailOTPSendVerify:
         # Enable email OTP via DB injection
         setup_code = "444444"
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AuthEphemeralToken(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="emailsendok",
-                nonce=_pwd_context.hash(setup_code),
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, token, "emailsendok", setup_token, _pwd_context.hash(setup_code))
         await async_client.post(
             "/api/v1/auth/2fa/email/enable/confirm",
             json={"setup_token": setup_token, "code": setup_code},
@@ -1517,16 +1484,7 @@ class TestEmailOTPSendVerify:
 
         setup_code = "555555"
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AuthEphemeralToken(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="emailwrongcode",
-                nonce=_pwd_context.hash(setup_code),
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, token, "emailwrongcode", setup_token, _pwd_context.hash(setup_code))
         await async_client.post(
             "/api/v1/auth/2fa/email/enable/confirm",
             json={"setup_token": setup_token, "code": setup_code},
@@ -1879,20 +1837,14 @@ class TestEmailOTPSetupTokenPreservedOnWrongCode:
     async def test_wrong_code_does_not_consume_setup_token(self, async_client: AsyncClient, db_session: AsyncSession):
         """Wrong code returns 400 but the setup token survives; correct code then works."""
         token = await _setup_and_login(async_client, "h2retryuser", "h2retrypass1")
+        user = await db_session.scalar(select(User).where(User.username == "h2retryuser"))
+        user.email = "h2retryuser@example.invalid"
+        await db_session.commit()
 
         code = "999999"
         code_hash = _pwd_context.hash(code)
         setup_token = secrets.token_urlsafe(32)
-        db_session.add(
-            AuthEphemeralToken(
-                token=setup_token,
-                token_type="email_otp_setup",
-                username="h2retryuser",
-                nonce=code_hash,
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
-            )
-        )
-        await db_session.commit()
+        await seed_email_otp_setup(db_session, token, "h2retryuser", setup_token, code_hash)
 
         # First attempt: wrong code → 400
         wrong = await async_client.post(

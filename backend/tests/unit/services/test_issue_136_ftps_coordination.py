@@ -133,6 +133,53 @@ async def test_timed_out_path_search_stops_worker_before_next_candidate(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_recovery_path_uses_size_extension_beyond_standard_deadline(tmp_path, monkeypatch):
+    class Client(_FakeClient):
+        def download_to_file(self, remote_path, local_path, *, cancel_event, size_callback):
+            size_callback(16 * 1024 * 1024)
+            if cancel_event.wait(0.12):
+                raise ftp_mod.DownloadCancelled(remote_path)
+            local_path.write_bytes(b"recovered")
+            return True
+
+    monkeypatch.setattr(ftp_mod, "BambuFTPClient", Client)
+    destination = tmp_path / "recovery.3mf"
+    assert await ftp_mod.download_file_try_paths_async(
+        "192.0.2.1",
+        "fixture",
+        ["/recovery.3mf"],
+        destination,
+        timeout=0.05,
+        max_total_timeout=0.4,
+    )
+    assert destination.read_bytes() == b"recovered"
+
+
+@pytest.mark.asyncio
+async def test_expired_recovery_deadline_cancels_without_checking_other_paths(tmp_path, monkeypatch):
+    visited = []
+
+    class Client(_FakeClient):
+        def download_to_file(self, remote_path, local_path, *, cancel_event, size_callback):
+            visited.append(remote_path)
+            size_callback(16 * 1024 * 1024)
+            assert cancel_event.wait(2)
+            raise ftp_mod.DownloadCancelled(remote_path)
+
+    monkeypatch.setattr(ftp_mod, "BambuFTPClient", Client)
+    with pytest.raises(ftp_mod.DownloadDeadlineExceeded):
+        await ftp_mod.download_file_try_paths_async(
+            "192.0.2.1",
+            "fixture",
+            ["/first.3mf", "/second.3mf"],
+            tmp_path / "recovery.3mf",
+            timeout=0.05,
+            max_total_timeout=0.1,
+        )
+    assert visited == ["/first.3mf"]
+
+
+@pytest.mark.asyncio
 async def test_late_path_search_error_is_consumed_after_timeout(tmp_path: Path):
     loop_errors: list[str] = []
     asyncio.get_running_loop().set_exception_handler(

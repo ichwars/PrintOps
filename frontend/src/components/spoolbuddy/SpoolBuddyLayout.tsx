@@ -35,8 +35,8 @@ export function SpoolBuddyLayout() {
 
   // Sync language from backend settings (kiosk has its own browser with empty localStorage)
   const { data: appSettings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
   useEffect(() => {
     if (appSettings?.language && appSettings.language !== i18n.language) {

@@ -14,15 +14,14 @@ import {
 } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { useToast } from '../contexts/ToastContext';
+import { findPreset } from '../utils/slicePresetPicker';
 
 // Resolve a PresetRef back to its pretty name via the unified-presets listing.
 // Returns null when the ref no longer points at a known preset — render a
 // "deleted" badge in that case so users can see what to fix.
 function resolveName(presets: UnifiedPresetsResponse | undefined, slot: 'printer' | 'process' | 'filament', ref: PresetRef): string | null {
   if (!presets) return null;
-  const list = presets[ref.source]?.[slot] ?? [];
-  const hit = list.find((p) => p.id === ref.id);
-  return hit ? hit.name : null;
+  return findPreset(presets, ref, slot)?.name ?? null;
 }
 
 const SOURCE_LABEL: Record<PresetSource, string> = {

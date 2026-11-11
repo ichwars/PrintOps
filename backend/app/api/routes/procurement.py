@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
 from backend.app.schemas.procurement import (
@@ -36,7 +36,7 @@ async def list_suppliers(
     active: bool | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> SupplierListResponse:
     page = await service.list_suppliers(db, q=q, active=active, limit=limit, offset=offset)
@@ -51,7 +51,7 @@ async def list_suppliers(
 @router.post("/suppliers", response_model=SupplierRead, status_code=status.HTTP_201_CREATED)
 async def create_supplier(
     data: SupplierCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE),
 ) -> SupplierRead:
     try:
@@ -67,7 +67,7 @@ async def create_supplier(
 @router.get("/suppliers/{supplier_id}", response_model=SupplierRead)
 async def get_supplier(
     supplier_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> SupplierRead:
     supplier = await service.get_supplier(db, supplier_id)
@@ -80,7 +80,7 @@ async def get_supplier(
 async def update_supplier(
     supplier_id: int,
     data: SupplierUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ) -> SupplierRead:
     try:
@@ -98,7 +98,7 @@ async def update_supplier(
 @router.delete("/suppliers/{supplier_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_supplier(
     supplier_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE),
 ) -> Response:
     try:
@@ -156,7 +156,7 @@ async def list_procurement_offers(
     brand: str | None = Query(default=None, max_length=100),
     color_name: str | None = Query(default=None, max_length=100),
     active: bool = True,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> list[ProcurementOfferRead]:
     resource = _resource_from_query(
@@ -177,7 +177,7 @@ async def list_procurement_offers(
 @router.put("/procurement-offers/resource", response_model=list[ProcurementOfferRead])
 async def replace_procurement_offers(
     data: ProcurementOffersReplace,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ) -> list[ProcurementOfferRead]:
     try:
@@ -208,7 +208,7 @@ async def replace_procurement_offers(
 )
 async def delete_procurement_offer(
     offer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE),
 ) -> Response:
     if not await service.deactivate_offer(db, offer_id):

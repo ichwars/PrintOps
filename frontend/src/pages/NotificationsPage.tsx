@@ -30,8 +30,8 @@ export function NotificationsPage() {
   });
 
   const { data: settings, isLoading: isSettingsLoading } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
     staleTime: 5 * 60 * 1000,
   });
 

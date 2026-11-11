@@ -1,17 +1,18 @@
 """Group management API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequireAdminIfAuthEnabled, RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import (
     ALL_PERMISSIONS,
     PERMISSION_CATEGORIES,
     Permission,
 )
+from backend.app.core.websocket import ws_manager
 from backend.app.models.group import Group
 from backend.app.models.user import User
 from backend.app.schemas.group import (
@@ -63,7 +64,7 @@ async def list_permissions(
 @router.get("/", response_model=list[GroupResponse])
 async def list_groups(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.GROUPS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """List all groups."""
     result = await db.execute(select(Group).options(selectinload(Group.users)).order_by(Group.name))
@@ -89,7 +90,7 @@ async def create_group(
     group_data: GroupCreate,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.GROUPS_CREATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Create a new group."""
     # Check if group name already exists
@@ -134,7 +135,7 @@ async def create_group(
 async def get_group(
     group_id: int,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.GROUPS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get a group by ID with user list. Read-only — gated on
     ``GROUPS_READ`` only."""
@@ -165,7 +166,7 @@ async def update_group(
     group_data: GroupUpdate,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.GROUPS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Update a group."""
     result = await db.execute(select(Group).where(Group.id == group_id).options(selectinload(Group.users)))
@@ -216,6 +217,8 @@ async def update_group(
         group.permissions = group_data.permissions
 
     await db.commit()
+    if group_data.permissions is not None:
+        await ws_manager.refresh_live_access()
     await db.refresh(group)
 
     return GroupResponse(
@@ -235,7 +238,7 @@ async def delete_group(
     group_id: int,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.GROUPS_DELETE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Delete a group (non-system groups only)."""
     result = await db.execute(select(Group).where(Group.id == group_id))
@@ -254,6 +257,7 @@ async def delete_group(
 
     await db.delete(group)
     await db.commit()
+    await ws_manager.refresh_live_access()
 
 
 @router.post("/{group_id}/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -262,7 +266,7 @@ async def add_user_to_group(
     user_id: int,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.GROUPS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Add a user to a group."""
     # Get group with users
@@ -292,6 +296,7 @@ async def add_user_to_group(
 
     group.users.append(user)
     await db.commit()
+    await ws_manager.refresh_live_access(user_id=user_id)
 
 
 @router.delete("/{group_id}/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -300,7 +305,7 @@ async def remove_user_from_group(
     user_id: int,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.GROUPS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Remove a user from a group."""
     # Get group with users
@@ -330,3 +335,4 @@ async def remove_user_from_group(
 
     group.users.remove(user)
     await db.commit()
+    await ws_manager.refresh_live_access(user_id=user_id)

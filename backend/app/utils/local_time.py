@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,46 @@ def local_zone() -> tzinfo:
         return ZoneInfo("UTC")
     except ZoneInfoNotFoundError:
         return timezone.utc
+
+
+def day_zone(name: str | None = None) -> tzinfo:
+    """Resolve a caller's IANA zone or use the appliance zone."""
+    if name:
+        try:
+            return ZoneInfo(name)
+        except (ValueError, ZoneInfoNotFoundError):
+            pass
+    return local_zone()
+
+
+def local_date_start(day: date, zone: tzinfo) -> datetime:
+    """Convert local midnight to the naive UTC used by persisted timestamps."""
+    if day == date.min:
+        return datetime.min
+    return datetime.combine(day, time.min, zone).astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def local_date_end(day: date, zone: tzinfo) -> datetime:
+    if day == date.max:
+        return datetime.max
+    return local_date_start(day + timedelta(days=1), zone) - timedelta(microseconds=1)
+
+
+def calendar_bounds(
+    date_from: date | None, date_to: date | None, tz: str | None = None
+) -> tuple[datetime | None, datetime | None]:
+    if not (date_from or date_to):
+        return None, None
+    zone = day_zone(tz)
+    return local_date_start(date_from, zone) if date_from else None, local_date_end(date_to, zone) if date_to else None
+
+
+def parse_calendar_bound(value: str, tz: str | None = None, *, end: bool = False) -> datetime:
+    """Date-only filters span local days. Explicit timestamps retain their offset."""
+    if len(value) == 10:
+        day = date.fromisoformat(value)
+        return (local_date_end if end else local_date_start)(day, day_zone(tz))
+    return datetime.fromisoformat(value)
 
 
 def utcnow_naive() -> datetime:

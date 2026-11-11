@@ -1,11 +1,11 @@
 """Printer-grant lifecycle: null is unrestricted; explicit empty is deny-all."""
 
-from fastapi import Depends, HTTPException
+from fastapi import HTTPException
 from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
 
@@ -64,7 +64,7 @@ async def prepare_printer_scope_write(db: AsyncSession) -> None:
         raise
 
 
-async def printer_scope_delete_db(db: AsyncSession = Depends(get_db)) -> AsyncSession:
+async def printer_scope_delete_db(db: AsyncSession = DB_SESSION) -> AsyncSession:
     """Reset deletion's read snapshot; let the guard acquire mutex then writer.
 
     Acquiring a DB writer here would invert other controls' lock order and can

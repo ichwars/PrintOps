@@ -1,3 +1,4 @@
+import { batchedList } from '../batch';
 import type {
   Equipment,
   EquipmentInput,
@@ -16,9 +17,23 @@ import {
   withMediaToken,
 } from './core';
 
+export interface ExternalCameraTestResult {
+  success: boolean;
+  error?: string;
+  resolution?: string | null;
+  live_view?: boolean;
+}
+
+const printerStatusBatch = batchedList(
+  (id) => request<PrinterStatus>(`/printers/${id}/status`),
+  '/bulk/printer-statuses',
+  (status) => status.id,
+);
+
 export const printersFilesMethods = {
   // Printers
   getPrinters: () => request<Printer[]>('/printers/'),
+  listUsbCameras: () => request<{ cameras: { device: string; name: string }[] }>('/printers/usb-cameras'),
 
   getPrinter: (id: number) => request<Printer>(`/printers/${id}`),
 
@@ -57,8 +72,7 @@ export const printersFilesMethods = {
     return request<Array<{ type: string; color: string; tray_info_idx: string; tray_sub_brands: string; extruder_id: number | null }>>(`/printers/available-filaments?${params}`);
   },
 
-  getPrinterStatus: (id: number) =>
-    request<PrinterStatus>(`/printers/${id}/status`),
+  getPrinterStatus: printerStatusBatch,
 
   refreshPrinterStatus: (id: number) =>
     request<{ status: string }>(`/printers/${id}/refresh-status`, {
@@ -76,9 +90,9 @@ export const printersFilesMethods = {
     }),
 
   testExternalCamera: (printerId: number, url: string, cameraType: string) =>
-    request<{ success: boolean; error?: string; resolution?: string }>(
-      `/printers/${printerId}/camera/external/test?url=${encodeURIComponent(url)}&camera_type=${encodeURIComponent(cameraType)}`,
-      { method: 'POST' }
+    request<ExternalCameraTestResult>(
+      `/printers/${printerId}/camera/external/test`,
+      { method: 'POST', body: JSON.stringify({ url, camera_type: cameraType }) }
     ),
 
   // Print Control
@@ -128,7 +142,7 @@ export const printersFilesMethods = {
       method: 'POST',
     }),
 
-  setFanSpeed: (printerId: number, fan: 'part' | 'aux' | 'chamber', speed: number) =>
+  setFanSpeed: (printerId: number, fan: 'part' | 'aux' | 'aux2' | 'chamber', speed: number) =>
     request<{ success: boolean; message: string }>(`/printers/${printerId}/fan-speed?fan=${fan}&speed=${speed}`, {
       method: 'POST',
     }),
@@ -278,6 +292,7 @@ export const printersFilesMethods = {
   getPrinterFiles: (printerId: number, path = '/') =>
     request<{
       path: string;
+      warnings?: Array<'printer_unavailable' | 'listing_timed_out'>;
       files: Array<{
         name: string;
         is_directory: boolean;

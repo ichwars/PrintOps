@@ -57,13 +57,13 @@ export function BatchProjectModal({ selectedIds, onClose }: BatchProjectModalPro
   // Assign to project mutation (uses bulk API)
   const assignMutation = useMutation({
     mutationFn: async (projectId: number) => {
-      await api.addArchivesToProject(projectId, selectedIds);
-      return projectId;
+      const { count } = await api.addArchivesToProject(projectId, selectedIds);
+      return { projectId, count };
     },
-    onSuccess: (projectId) => {
+    onSuccess: ({ projectId, count }) => {
       const project = projects?.find(p => p.id === projectId);
       invalidateProjectQueries();
-      showToast(translateInterface('orders.runtimeInterface.assignedArchivesToProject', { count: selectedIds.length, name: String(project?.name) }));
+      showToast(translateInterface('orders.runtimeInterface.assignedArchivesToProject', { count, name: String(project?.name) }));
       onClose();
     },
     onError: () => {

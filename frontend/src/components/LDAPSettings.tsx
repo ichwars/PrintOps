@@ -114,7 +114,14 @@ export function LDAPSettings() {
 
   // Test connection
   const testMutation = useMutation({
-    mutationFn: () => api.testLDAP(),
+    mutationFn: () => api.testLDAP({
+      ldap_server_url: form.ldap_server_url,
+      ldap_bind_dn: form.ldap_bind_dn,
+      ldap_bind_password: form.ldap_bind_password,
+      ldap_search_base: form.ldap_search_base,
+      ldap_user_filter: form.ldap_user_filter,
+      ldap_security: form.ldap_security,
+    }),
     onSuccess: (data: { success: boolean; message: string }) => {
       showToast(data.message, data.success ? 'success' : 'error');
     },

@@ -50,7 +50,7 @@ export function GCodeViewerPage() {
   return (
     // h-14 (3.5 rem) is the fixed header height defined in Layout.tsx.
     // Subtracting it prevents a double scrollbar inside the layout shell.
-    <div style={{ height: 'calc(100vh - 3.5rem)', display: 'flex', flexDirection: 'column' }}>
+    <div className="flex min-w-0 flex-col overflow-hidden" style={{ height: 'calc(100vh - 3.5rem)' }}>
       <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <button
           type="button"
@@ -64,12 +64,7 @@ export function GCodeViewerPage() {
       <iframe
         src={iframeSrc}
         title={translateInterface("orders.runtimeInterface.gCodeViewer")}
-        style={{
-          display: 'block',
-          width: '100%',
-          flex: 1,
-          border: 'none',
-        }}
+        className="block min-h-0 min-w-0 flex-1 w-full border-0"
       />
     </div>
   );

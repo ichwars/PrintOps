@@ -55,13 +55,12 @@ export function useUnknownTagPrompt() {
       if (!detail.tray_type) return null;
       const printers = queryClient.getQueryData<Printer[]>(['printers']);
       const printer = printers?.find(p => p.id === detail.printer_id);
-      const trayCount = detail.tray_count ?? 4;
       return {
         printer_id: detail.printer_id,
         ams_id: detail.ams_id,
         tray_id: detail.tray_id,
         printer_name: printer?.name ?? `Printer ${detail.printer_id}`,
-        ams_label: getAmsLabel(detail.ams_id, trayCount),
+        ams_label: getAmsLabel(detail.ams_id),
         slot_label: `${t('inventory.unknownSpoolSlot', 'Slot')} ${detail.tray_id + 1}`,
         material: detail.tray_type ?? null,
         color_hex: detail.tray_color ?? null,

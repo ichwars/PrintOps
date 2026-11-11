@@ -10,7 +10,7 @@ import { useToast } from '../contexts/ToastContext';
 import { formatDuration, parseUTCDate } from '../utils/date';
 import { getCurrencySymbol } from '../utils/currency';
 
-type StatusFilter = 'active' | 'completed' | 'cancelled' | 'all';
+type StatusFilter = 'active' | 'completed' | 'failed' | 'cancelled' | 'all';
 
 interface BatchOrdersViewProps {
   hasPermission: (p: Permission) => boolean;
@@ -32,7 +32,7 @@ export function BatchOrdersView({ hasPermission, t }: BatchOrdersViewProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [cancelTarget, setCancelTarget] = useState<PrintBatch | null>(null);
 
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const { data: settings } = useQuery({ queryKey: ['settings', 'ui-flags'], queryFn: api.getUiFlags });
   const currency = getCurrencySymbol(settings?.currency || 'USD');
 
   const { data: batches, isLoading } = useQuery({
@@ -68,7 +68,7 @@ export function BatchOrdersView({ hasPermission, t }: BatchOrdersViewProps) {
   const canDispatch = hasPermission('queue:create' as Permission);
   const canCancel = hasPermission('queue:delete_all' as Permission);
 
-  const filters: StatusFilter[] = ['active', 'completed', 'cancelled', 'all'];
+  const filters: StatusFilter[] = ['active', 'completed', 'failed', 'cancelled', 'all'];
 
   return (
     <div>
@@ -137,6 +137,7 @@ const STATUS_STYLES: Record<string, string> = {
   active: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
   completed: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300',
   cancelled: 'bg-bambu-dark-tertiary text-bambu-gray',
+  failed: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300',
 };
 
 function BatchOrderCard({
@@ -220,7 +221,7 @@ function BatchOrderCard({
         <div className="flex-1 h-2 bg-bambu-dark-tertiary rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
-              batch.status === 'completed' ? 'bg-bambu-green' : 'bg-blue-500'
+              batch.status === 'completed' ? 'bg-bambu-green' : batch.status === 'failed' ? 'bg-red-500' : 'bg-blue-500'
             }`}
             style={{ width: `${Math.min(100, percent)}%` }}
           />

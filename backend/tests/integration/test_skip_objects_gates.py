@@ -90,9 +90,7 @@ async def assert_scoped_request(http_client, printer_id, method, suffix, headers
     transport.state.state = "RUNNING"
     transport.state.printable_objects_bbox_all = None
     transport.skip_objects.return_value = True
-    with patch(
-        "backend.app.api.routes.printers_controls.printer_manager.get_client", return_value=transport
-    ) as get_client:
+    with patch("backend.app.api.routes.printers.printer_manager.get_client", return_value=transport) as get_client:
         response = await http_client.request(
             method,
             f"/api/v1/printers/{printer_id}/print/{suffix}",
@@ -145,6 +143,7 @@ async def test_skip_objects_checks_scope_before_durable_drying(async_client, db_
         group = Group(name="Denied picker", permissions=["printers:control"])
         user = User(username="denied-picker", groups=[group], allowed_printer_ids=[])
         db_session.add_all([user, Settings(key="auth_enabled", value="true")])
+        await db_session.flush()
         headers = {"Authorization": f"Bearer {create_access_token({'sub': user.username})}"}
     elif principal != "anonymous":
         full_key, key_hash, key_prefix = generate_api_key()
@@ -165,7 +164,7 @@ async def test_skip_objects_checks_scope_before_durable_drying(async_client, db_
             {"Authorization": f"Bearer {full_key}"} if principal == "bearer-key-denied" else {"X-API-Key": full_key}
         )
     await db_session.commit()
-    with patch("backend.app.api.routes.printers_controls.printer_manager.get_client") as get_client:
+    with patch("backend.app.api.routes.printers.printer_manager.get_client") as get_client:
         response = await async_client.post(
             f"/api/v1/printers/{printer.id}/print/skip-objects", json=[100], headers=headers
         )

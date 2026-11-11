@@ -1,6 +1,7 @@
 """Tests for the camera TLS proxy and RTSP URL rewriting."""
 
 import asyncio
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -189,15 +190,16 @@ class TestForwardersCatchRuntimeError:
             "asyncio.client_connected_cb's unhandled-exception logger."
         )
 
-    def test_fwd_to_client_catches_runtime_error(self):
-        import inspect
+    @pytest.mark.asyncio
+    async def test_fwd_to_client_catches_runtime_error(self):
+        from backend.app.services.rtsp_relay import forward_rtsp_responses
 
-        src = inspect.getsource(create_tls_proxy)
-        # Slice from `_fwd_to_client` to `await asyncio.gather` so we only
-        # inspect that closure's body.
-        fwd_section = src.split("async def _fwd_to_client")[1].split("await asyncio.gather")[0]
-        assert "RuntimeError" in fwd_section, (
-            "_fwd_to_client must catch RuntimeError — that's the actual frame "
-            "in the original bug report (camera.py:191 dst.write(data) under "
-            "uvloop)."
-        )
+        reader = asyncio.StreamReader()
+        reader.feed_data(b"RTSP/1.0 200 OK\r\nCSeq: 1\r\n\r\n")
+        reader.feed_eof()
+        writer = MagicMock()
+        writer.write.side_effect = RuntimeError("closed UV handle")
+
+        await forward_rtsp_responses(reader, writer)
+
+        writer.write.assert_called_once()

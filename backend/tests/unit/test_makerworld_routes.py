@@ -16,12 +16,14 @@ import pytest
 
 from backend.app.api.routes.makerworld import _canonical_url
 from backend.app.models.library import LibraryFile, LibraryFolder
+from backend.app.services.makerworld import MakerWorldService
 
 
 def _fake_service(**stubs):
-    """Build an AsyncMock MakerWorldService with the given async method stubs."""
-    svc = AsyncMock()
+    """Keep the real manifest resolution with the given async method stubs."""
+    svc = MakerWorldService(client=AsyncMock())
     svc.close = AsyncMock()
+    svc.get_design_instances = AsyncMock(return_value={"hits": []})
     for name, value in stubs.items():
         if callable(value) and not isinstance(value, AsyncMock):
             setattr(svc, name, AsyncMock(side_effect=value))
@@ -320,9 +322,10 @@ class TestImport:
     async def test_canonical_source_url_includes_profile_id(self, async_client, db_session):
         """The saved row's ``source_url`` must include ``#profileId-`` so two
         plates of the same model become two library rows (dedupe is per-plate)."""
+        manifest = _default_manifest()
         svc = _fake_service(
-            get_design=_default_design(),
-            get_profile_download=_default_manifest(),
+            get_design={"instances": [{"profileId": 298919107, "id": 4028000}]},
+            get_instance_download=manifest,
             download_3mf=(self._FAKE_3MF_BYTES, "benchy.3mf"),
         )
 
@@ -332,6 +335,8 @@ class TestImport:
                 json={"model_id": 1400373, "profile_id": 298919107},
             )
         assert resp.status_code == 200, resp.text
+        svc.get_instance_download.assert_awaited_once_with(4028000)
+        svc.download_3mf.assert_awaited_once_with(manifest["url"])
 
         from sqlalchemy import select
 

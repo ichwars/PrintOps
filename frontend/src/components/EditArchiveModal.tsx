@@ -8,6 +8,8 @@ import type { Archive } from '../api/client';
 import { Button } from './Button';
 import { PrintLogTable } from './PrintLogTable';
 
+const hasFailureReason = (status: string | undefined) => ['failed', 'aborted', 'cancelled'].includes(status ?? '');
+
 // Keys for failure reasons - translated at render time.
 // Exported so the Print Log per-row classification editor (#1687 part 4)
 // can share the same vocabulary as the Archive Edit modal — the backend
@@ -23,11 +25,12 @@ export const FAILURE_REASON_KEYS = [
   'underExtrusion',
   'powerFailure',
   'userCancelled',
+  'noStatusUpdate',
   'other',
 ] as const;
 
 // Keys for archive statuses - translated at render time
-const ARCHIVE_STATUS_KEYS = ['completed', 'failed', 'aborted', 'printing'] as const;
+const ARCHIVE_STATUS_KEYS: readonly string[] = ['completed', 'failed', 'aborted', 'cancelled'];
 
 interface EditArchiveModalProps {
   archive: Archive;
@@ -202,9 +205,9 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
     }
 
     // Handle failure_reason based on status
-    if (status === 'failed' || status === 'aborted') {
+    if (hasFailureReason(status)) {
       updateData.failure_reason = failureReason || undefined;
-    } else if (archive.status === 'failed' || archive.status === 'aborted') {
+    } else if (hasFailureReason(archive.status)) {
       // Clear failure_reason when changing from failed/aborted to another status
       updateData.failure_reason = null;
     }
@@ -418,6 +421,9 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
               }}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
             >
+              {!ARCHIVE_STATUS_KEYS.includes(status) && (
+                <option value={status} disabled>{t(`editArchive.statuses.${status}`, { defaultValue: status })}</option>
+              )}
               {ARCHIVE_STATUS_KEYS.map((statusKey) => (
                 <option key={statusKey} value={statusKey}>
                   {t(`editArchive.statuses.${statusKey}`)}
@@ -427,7 +433,7 @@ export function EditArchiveModal({ archive, onClose, existingTags = [] }: EditAr
           </div>
 
           {/* Failure Reason - only show for failed/aborted prints */}
-          {(status === 'failed' || status === 'aborted') && (
+          {hasFailureReason(status) && (
             <div>
               <label htmlFor="failure-reason-select" className="block text-sm text-bambu-gray mb-1">{t('editArchive.failureReason')}</label>
               <LegacySelect

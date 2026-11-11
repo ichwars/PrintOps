@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import { api } from '../../api/client';
 import type {
   GitHubBackupConfig,
   GitHubBackupStatus,
@@ -315,5 +316,25 @@ describe('GitHub Backup API Endpoints', () => {
     const data = await response.json();
     expect(data.success).toBe(false);
     expect(data.message).toBe('Authentication failed');
+  });
+
+  it('sends test credentials only in the JSON payload', async () => {
+    const requests: { url: URL; body: unknown }[] = [];
+    server.use(
+      http.post('*/api/v1/github-backup/test', async ({ request }) => {
+        requests.push({ url: new URL(request.url), body: await request.json() });
+        return HttpResponse.json({ success: true, message: 'OK', is_private: true });
+      }),
+    );
+
+    await api.testGitHubConnection('https://git.home.test/team/backup', 'connection-fixture', 'gitea');
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url.search).toBe('');
+    expect(requests[0].body).toEqual({
+      repo_url: 'https://git.home.test/team/backup',
+      token: 'connection-fixture',
+      provider: 'gitea',
+    });
   });
 });

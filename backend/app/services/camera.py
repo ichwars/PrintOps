@@ -16,6 +16,10 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from backend.app.core.logging_filters import redact_url_credentials
+from backend.app.services.rtsp_relay import forward_rtsp_responses
+from backend.app.utils.ffmpeg_limits import reap_ffmpeg
+
 logger = logging.getLogger(__name__)
 
 # JPEG markers
@@ -70,10 +74,6 @@ def parse_jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
 
 # Cached result of rtsp_socket_timeout_flag(); see that function for context.
 _rtsp_socket_timeout_flag: str | None = None
-
-# Track PIDs of ffmpeg processes spawned for one-shot frame capture (snapshot).
-# The cleanup task in routes/camera.py checks this set to avoid killing active captures.
-_active_capture_pids: set[int] = set()
 
 
 def get_ffmpeg_path() -> str | None:
@@ -302,16 +302,9 @@ async def create_tls_proxy(target_host: str, target_port: int) -> tuple[int, "as
                             pass
 
             async def _fwd_to_client(src: asyncio.StreamReader, dst: asyncio.StreamWriter):
-                """Forward server→client unchanged."""
+                """Forward server replies while refusing RTSP redirects."""
                 try:
-                    while True:
-                        data = await src.read(65536)
-                        if not data:
-                            break
-                        dst.write(data)
-                        await dst.drain()
-                except (ConnectionError, OSError, asyncio.CancelledError, RuntimeError):
-                    pass
+                    await forward_rtsp_responses(src, dst)
                 finally:
                     if not dst.is_closing():
                         try:
@@ -638,12 +631,9 @@ async def capture_camera_frame_bytes(
             stderr=asyncio.subprocess.PIPE,
         )
 
-        _active_capture_pids.add(process.pid)
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except TimeoutError:
-            process.kill()
-            await process.wait()
             logger.error("Camera frame bytes capture timed out after %ss", timeout)
             return None
 
@@ -651,7 +641,7 @@ async def capture_camera_frame_bytes(
             logger.info("Successfully captured camera frame bytes: %s bytes", len(stdout))
             return stdout
         else:
-            stderr_text = stderr.decode() if stderr else "Unknown error"
+            stderr_text = redact_url_credentials(stderr.decode(errors="replace")) or "Unknown error"
             logger.error("ffmpeg frame bytes capture failed (code %s): %s", process.returncode, stderr_text[:200])
             return None
 
@@ -662,8 +652,7 @@ async def capture_camera_frame_bytes(
         logger.exception("Camera frame bytes capture failed: %s", e)
         return None
     finally:
-        if process is not None:
-            _active_capture_pids.discard(process.pid)
+        await reap_ffmpeg(process)
         proxy_server.close()
         await proxy_server.wait_closed()
 
@@ -734,16 +723,12 @@ async def extract_video_last_frame(video_path: Path, output_path: Path) -> bool:
         return True
     except asyncio.TimeoutError:
         logger.warning("ffmpeg timed out extracting last frame from %s", video_path)
-        if process is not None:
-            try:
-                process.kill()
-                await process.wait()
-            except ProcessLookupError:
-                pass  # Already exited
         return False
     except OSError as e:
         logger.warning("ffmpeg subprocess error for %s: %s", video_path, e)
         return False
+    finally:
+        await reap_ffmpeg(process)
 
 
 def apply_camera_rotation(image_data: bytes, rotation: int, logger: logging.Logger) -> bytes:

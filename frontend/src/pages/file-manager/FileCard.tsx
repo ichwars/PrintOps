@@ -17,6 +17,7 @@ type TFunction = (key: string, options?: Record<string, unknown>) => string;
 interface FileCardProps {
   file: LibraryFileListItem;
   isSelected: boolean;
+  highlighted?: boolean;
   onSelect: (id: number) => void;
   onDelete: (id: number) => void;
   onDownload: (id: number) => void;
@@ -39,11 +40,15 @@ interface FileCardProps {
   t: TFunction;
 }
 
-export function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onDetails, onPrint, onSlice, onRunPipeline, useSlicerApi, desktopSlicer, onPreviewDocument, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
+export function FileCard({ file, isSelected, highlighted, onSelect, onDelete, onDownload, onDetails, onPrint, onSlice, onRunPipeline, useSlicerApi, desktopSlicer, onPreviewDocument, onPreview3d, onRename, onGenerateThumbnail, onTagClick, thumbnailVersion, hasPermission, canModify, authEnabled, showModified, t }: FileCardProps) {
   return (
     <div
+      data-library-file-id={file.id}
+      data-highlighted={highlighted || undefined}
       className={`group relative bg-bambu-dark-secondary rounded-lg border transition-all cursor-pointer overflow-hidden ${
-        isSelected
+        highlighted
+          ? 'border-bambu-green ring-2 ring-bambu-green'
+          : isSelected
           ? 'border-bambu-green ring-1 ring-bambu-green'
           : 'border-bambu-dark-tertiary hover:border-bambu-green/50'
       }`}
@@ -54,6 +59,7 @@ export function FileCard({ file, isSelected, onSelect, onDelete, onDownload, onD
         {file.thumbnail_path ? (
           <img
             src={`${api.getLibraryFileThumbnailUrl(file.id)}${thumbnailVersion ? ((api.getLibraryFileThumbnailUrl(file.id).includes('?') ? '&' : '?') + `v=${thumbnailVersion}`) : ''}`}
+            loading="lazy"
             alt={file.filename}
             className="w-full h-full object-cover"
           />

@@ -4,11 +4,56 @@ Tests for the layer timelapse service.
 These tests cover session management and pure logic functions.
 """
 
+import asyncio
+import os
+import time
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
+
+
+@pytest.mark.asyncio
+async def test_slow_failed_stitch_preserves_frames_and_the_next_print(monkeypatch, tmp_path):
+    from backend.app.services import layer_timelapse as service
+
+    monkeypatch.setattr(service.settings, "base_dir", tmp_path)
+    monkeypatch.setattr(service, "_active_sessions", {})
+    monkeypatch.setattr(service, "_finalizing_dirs", set())
+    old = service.start_session(1, 100, "http://test/", "mjpeg")
+    old.frame_count = 1
+    frame = old.frames_dir / "layer_00001.jpg"
+    frame.write_bytes(b"frame")
+    then = time.time() - 600
+    os.utime(old.frames_dir, (then, then))
+    entered, finish = asyncio.Event(), asyncio.Event()
+
+    async def stitch(output):
+        old.stitch_started = True
+        output.write_bytes(b"partial output")
+        os.utime(output, (then, then))
+        entered.set()
+        await finish.wait()
+        return False
+
+    monkeypatch.setattr(old, "stitch", stitch)
+    task = asyncio.create_task(service.on_print_complete(1, expected_session=old))
+    await asyncio.wait_for(entered.wait(), 1)
+    new = service.start_session(1, 101, "http://test/", "mjpeg")
+    assert new.session_id != old.session_id
+    assert service.cleanup_orphaned_timelapse_sessions() == 0
+    finish.set()
+    assert await task is None
+    service.cancel_session(1, expected_session=old)
+    assert service.get_session(1) is new
+    assert frame.exists() and not list(old.frames_dir.parent.glob("*.mp4"))
+    assert service.cleanup_orphaned_timelapse_sessions() == 0
+    expired = time.time() - service.KEEP_FAILED_FRAMES_SECONDS - 1
+    os.utime(old.frames_dir / service.KEPT_FRAMES_MARKER, (expired, expired))
+    assert service.cleanup_orphaned_timelapse_sessions() == 1
+    assert new.frames_dir.is_dir() and not old.frames_dir.exists()
 
 
 class TestTimelapseSessionManagement:
@@ -150,15 +195,9 @@ class TestTimelapseSession:
                 camera_type="mjpeg",
             )
 
-            # Session ID should be timestamp format YYYYMMDD_HHMMSS
-            assert len(session.session_id) == 15
-            assert session.session_id[8] == "_"
-
-            # Should be parseable as datetime
-            try:
-                datetime.strptime(session.session_id, "%Y%m%d_%H%M%S")
-            except ValueError:
-                pytest.fail("Session ID is not valid datetime format")
+            timestamp, _, identifier = session.session_id.rpartition("_")
+            datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
+            assert UUID(identifier).version == 4
 
     def test_frames_dir_path_structure(self):
         """Verify frames directory path is structured correctly."""

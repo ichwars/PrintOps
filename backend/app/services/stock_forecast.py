@@ -28,7 +28,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 # One-sided 95 % z-score, as in the panel.
 Z_95 = 1.65
@@ -42,6 +42,7 @@ DEFAULT_SAFETY_MARGIN_UNIT = "days"
 
 # With no measured spread the panel assumes 20 % of the rate, and with no rate at
 # all it assumes 5 g/day so a margin given in days still means something.
+ARCHIVED_RATE_WINDOW_DAYS = 90
 _FALLBACK_SIGMA_FRACTION = 0.2
 _FALLBACK_RATE_G_PER_DAY = 5
 
@@ -75,6 +76,10 @@ class StockSpool:
     # keeps it, as the panel does; anything shown to a person should not.
     color_name_is_synthesized: bool = False
     reserved_g: float = 0
+    archived_at: datetime | None = None
+    first_used_at: datetime | None = None
+    last_used_at: datetime | None = None
+    usage_reset_baseline: float | None = None
 
     @property
     def key(self) -> SkuKey:
@@ -167,28 +172,38 @@ def history_rate(records: Sequence[UsageRecord], now: datetime) -> tuple[float, 
     return mean, math.sqrt(variance)
 
 
-def delta_rate(spools: Sequence[StockSpool], now: datetime) -> float | None:
-    """Daily rate from consumption since baseline over the age of the oldest spool.
-
-    The fallback when there is not enough usage history, which is always the
-    case in Spoolman mode: Spoolman owns the usage there and PrintOps's own
-    ``spool_usage_history`` table holds nothing for those spools. Returns None
-    with nothing consumed, or with under a day of age to divide by.
-    """
-    total_used = sum(s.consumed_g for s in spools)
-    if total_used == 0:
-        return None
+def delta_rate(
+    spools: Sequence[StockSpool],
+    now: datetime,
+    first_use: Mapping[int, datetime] | None = None,
+    used_before: bool = False,
+) -> float | None:
+    """Estimate recent use from each spool's consumption and observed use interval."""
     now = _utc(now)
-    oldest = now
+    window_start = now - timedelta(days=ARCHIVED_RATE_WINDOW_DAYS)
+    spans = []
     for spool in spools:
-        if spool.created_at is not None:
-            created = _utc(spool.created_at)
-            if created < oldest:
-                oldest = created
-    age_days = (now - oldest).total_seconds() / _SECONDS_PER_DAY
-    if age_days < 1:
+        if spool.consumed_g <= 0:
+            continue
+        last_use = spool.last_used_at or spool.archived_at or now
+        end = min(_utc(last_use), now)
+        first = spool.first_used_at or (first_use or {}).get(spool.id) or spool.created_at
+        start = min(_utc(first), end) if first else end
+        spans.append((spool.consumed_g, start, end))
+    if not spans:
         return None
-    return total_used / age_days
+    observed_from = window_start if used_before else max(window_start, min(start for _, start, _ in spans))
+    days = (now - observed_from).total_seconds() / _SECONDS_PER_DAY
+    if days < 1:
+        return None
+    grams = 0.0
+    for consumed, start, end in spans:
+        if end < observed_from:
+            continue
+        span = (end - start).total_seconds()
+        overlap = (end - max(start, observed_from)).total_seconds()
+        grams += consumed if span < _SECONDS_PER_DAY else consumed * overlap / span
+    return grams / days
 
 
 def forecast_sku(
@@ -197,18 +212,29 @@ def forecast_sku(
     settings: SkuSettings,
     global_lead_time_days: int,
     now: datetime,
+    *,
+    recently_archived: Sequence[StockSpool] = (),
+    used_before: bool = False,
 ) -> SkuForecast:
     """Forecast one SKU from its spools. ``spools`` must be non-empty and share a key."""
     lead_time = max(global_lead_time_days, settings.lead_time_days)
     remaining = sum(s.remaining_g for s in spools)
+    rate_spools = [*spools, *recently_archived]
 
     # Only history from spools that were never reset: a reset spool's earlier
     # events have no anchor and would inflate the rate. A spool with no
     # baseline is clean and keeps its records.
     history: list[UsageRecord] = []
-    for spool in spools:
-        if spool.weight_used_baseline == 0:
-            history.extend(history_by_spool.get(spool.id, ()))
+    first_use = {}
+    for spool in rate_spools:
+        records = list(history_by_spool.get(spool.id, ()))
+        reset = spool.weight_used_baseline if spool.usage_reset_baseline is None else spool.usage_reset_baseline
+        if spool.usage_reset_baseline is not None and spool.created_at is not None:
+            records = [record for record in records if _utc(record.created_at) >= _utc(spool.created_at)]
+        if records:
+            first_use[spool.id] = min(_utc(record.created_at) for record in records)
+        if reset == 0:
+            history.extend(records)
 
     rate: float | None = None
     std_dev: float | None = None
@@ -216,7 +242,7 @@ def forecast_sku(
     if measured is not None:
         rate, std_dev = measured
     else:
-        rate = delta_rate(spools, now)
+        rate = delta_rate(rate_spools, now, first_use, used_before)
 
     sigma = std_dev if std_dev is not None else (rate * _FALLBACK_SIGMA_FRACTION if rate is not None else 0.0)
     statistical_safety_g = Z_95 * sigma * math.sqrt(lead_time)
@@ -267,16 +293,24 @@ def forecast_all(
 
     Returns each SKU's forecast with the first spool of its group, which is what
     a caller needs to name the SKU (material, subtype, brand, colour) without a
-    second lookup. The caller passes only spools that count as stock -- archived
-    ones excluded -- because what is archived differs by inventory mode.
+    second lookup. Recently archived spools contribute to consumption rates.
 
     A colour-specific SKU with no settings row of its own falls back to the
     colourless row, which is where settings saved before colour became part of
     the key still live.
     """
     groups: dict[SkuKey, list[StockSpool]] = {}
+    recently_archived: dict[SkuKey, list[StockSpool]] = {}
+    used_before: set[SkuKey] = set()
     for spool in spools:
-        groups.setdefault(spool.key, []).append(spool)
+        if spool.archived_at is None:
+            groups.setdefault(spool.key, []).append(spool)
+            continue
+        age_seconds = (_utc(now) - _utc(spool.archived_at)).total_seconds()
+        if 0 <= age_seconds <= ARCHIVED_RATE_WINDOW_DAYS * _SECONDS_PER_DAY:
+            recently_archived.setdefault(spool.key, []).append(spool)
+        elif age_seconds > 0 and spool.weight_used > 0:
+            used_before.add(spool.key)
 
     out: ForecastMap = {}
     for key, members in groups.items():
@@ -284,7 +318,15 @@ def forecast_all(
         if settings is None and key[3] != "":
             settings = sku_settings.get((key[0], key[1], key[2], ""))
         out[key] = (
-            forecast_sku(members, history_by_spool, settings or SkuSettings(), global_lead_time_days, now),
+            forecast_sku(
+                members,
+                history_by_spool,
+                settings or SkuSettings(),
+                global_lead_time_days,
+                now,
+                recently_archived=recently_archived.get(key, ()),
+                used_before=key in used_before,
+            ),
             members[0],
         )
     return out

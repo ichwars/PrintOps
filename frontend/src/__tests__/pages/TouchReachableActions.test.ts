@@ -10,7 +10,8 @@ const source = (path: string) => readFileSync(resolve(dirname(fileURLToPath(impo
 describe('touch/focus visibility contracts', () => {
   for (const [path, reveal] of [
     ['pages/ArchivesPage.tsx', 'focus-visible:opacity-100'],
-    ['pages/FileManagerPage.tsx', 'group-focus-within:opacity-100'],
+    ['pages/file-manager/FileCard.tsx', 'group-focus-within:opacity-100'],
+    ['pages/file-manager/FolderTreeItem.tsx', 'group-focus-within:opacity-100'],
     ['pages/ProjectsPage.tsx', 'focus-visible:opacity-100'],
     ['pages/ProfilesPage.tsx', 'focus-visible:opacity-100'],
     ['components/TagManagementModal.tsx', 'group-focus-within:opacity-100'],

@@ -13,9 +13,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequirePermissionIfAuthEnabled
+from backend.app.core.auth import OwnershipAccess, RequirePermissionIfAuthEnabled, require_permission_with_key
 from backend.app.core.config import APP_VERSION, settings
-from backend.app.core.database import get_db, get_pool_status
+from backend.app.core.database import DB_SESSION, get_pool_status
 from backend.app.core.local_config import read_local_toml, read_ntp_gate
 from backend.app.core.permissions import Permission
 from backend.app.models.archive import PrintArchive
@@ -407,14 +407,18 @@ async def _get_storage_usage_cached(refresh: bool, max_age_seconds: int) -> dict
 
 @router.get("/info")
 async def get_system_info(
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SYSTEM_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.SYSTEM_READ)),
 ):
     """Get comprehensive system information."""
 
     # Database stats
     archive_count = await db.scalar(select(func.count(PrintArchive.id)))
-    printer_count = await db.scalar(select(func.count(Printer.id)))
+    printer_scope = access.printer_ids
+    printer_count_query = select(func.count(Printer.id))
+    if printer_scope is not None:
+        printer_count_query = printer_count_query.where(Printer.id.in_(printer_scope))
+    printer_count = await db.scalar(printer_count_query)
     filament_count = await db.scalar(select(func.count(Filament.id)))
     project_count = await db.scalar(select(func.count(Project.id)))
     smart_plug_count = await db.scalar(select(func.count(SmartPlug.id)))
@@ -447,6 +451,8 @@ async def get_system_info(
     # Connected printers
     connected_printers = []
     for printer_id, client in printer_manager._clients.items():
+        if printer_scope is not None and printer_id not in printer_scope:
+            continue
         state = client.state
         if state and state.connected:
             # Get printer name and model from database
@@ -608,8 +614,8 @@ async def get_storage_usage(
 
 @router.get("/health", response_model=ScanResult)
 async def get_system_health(
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SYSTEM_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.SYSTEM_READ)),
 ):
     """Scan the recent application log against the known-issue catalog.
 
@@ -617,7 +623,10 @@ async def get_system_health(
     Sample lines are sanitized before they leave the process.
     """
     sensitive_strings = await collect_sensitive_strings(db)
-    return await asyncio.to_thread(scan_logs, sensitive_strings=sensitive_strings)
+    result = await asyncio.to_thread(scan_logs, sensitive_strings=sensitive_strings)
+    if access.printer_ids is not None:
+        result.findings = [finding.model_copy(update={"sample": ""}) for finding in result.findings]
+    return result
 
 
 @router.get("/appliance")

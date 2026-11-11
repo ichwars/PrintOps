@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '../utils';
 import { GitHubBackupSettings } from '../../components/GitHubBackupSettings';
 import { http, HttpResponse } from 'msw';
@@ -89,6 +89,26 @@ describe('GitHubBackupSettings - Scheduled Backups', () => {
     await waitFor(() => {
       expect(screen.getByText('printops-backup-20260412-120000.zip')).toBeInTheDocument();
     });
+  });
+
+  it.each([
+    { status: 200, body: { success: false, message: 'Backup volume is read-only' }, error: 'Backup volume is read-only' },
+    { status: 500, body: { detail: 'Could not reach backup volume' }, error: 'Could not reach backup volume' },
+  ])('shows deletion failure to the user (HTTP $status)', async ({ status, body, error }) => {
+    const filename = mockLocalBackups[0].filename;
+    server.use(
+      http.delete('/api/v1/local-backup/backups/:filename', () => HttpResponse.json(body, { status })),
+    );
+
+    render(<GitHubBackupSettings />);
+    await screen.findByText(filename);
+    fireEvent.click(screen.getByTitle('Delete'));
+    const dialog = screen.getByRole('dialog', { name: 'Delete' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText(error)).toBeInTheDocument();
+    expect(dialog).not.toBeInTheDocument();
+    expect(screen.getByText(filename)).toBeInTheDocument();
   });
 
   it('shows file size in MB', async () => {

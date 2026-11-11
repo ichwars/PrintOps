@@ -1,5 +1,6 @@
 """Integration tests for Library API endpoints."""
 
+import asyncio
 import io
 import tempfile
 import zipfile
@@ -153,6 +154,55 @@ class TestLibraryFoldersAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_move_folder_between_managed_folders_and_root(self, async_client, folder_factory):
+        old = await folder_factory()
+        target = await folder_factory()
+        child = await folder_factory(parent_id=old.id)
+        descendant = await folder_factory(parent_id=child.id)
+        url = f"/api/v1/library/folders/{child.id}"
+
+        for target_id, expected in ((target.id, target.id), (0, None)):
+            response = await async_client.put(url, json={"parent_id": target_id})
+            assert response.status_code == 200, response.text
+            assert response.json()["parent_id"] == expected
+            descendant_response = await async_client.get(f"/api/v1/library/folders/{descendant.id}")
+            assert descendant_response.json()["parent_id"] == child.id
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_move_folder_rejects_invalid_and_external_destinations(self, async_client, folder_factory):
+        folder = await folder_factory()
+        child = await folder_factory(parent_id=folder.id)
+        external = await folder_factory(is_external=True, external_path="/data/mount")
+        legacy_child = await folder_factory(parent_id=external.id)
+        url = f"/api/v1/library/folders/{folder.id}"
+        for target, status in (
+            (folder.id, 400),
+            (child.id, 400),
+            (external.id, 400),
+            (legacy_child.id, 400),
+            (99999, 404),
+        ):
+            response = await async_client.put(url, json={"parent_id": target})
+            assert response.status_code == status, response.text
+        assert (await async_client.get(url)).json()["parent_id"] is None
+        external_url = f"/api/v1/library/folders/{external.id}"
+        assert (await async_client.put(external_url, json={"parent_id": folder.id})).status_code == 400
+        assert (await async_client.put(external_url, json={"parent_id": 0})).status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_parallel_folder_moves_cannot_create_a_cycle(self, async_client, folder_factory):
+        first, second = await folder_factory(), await folder_factory()
+        requests = (
+            async_client.put(f"/api/v1/library/folders/{first.id}", json={"parent_id": second.id}),
+            async_client.put(f"/api/v1/library/folders/{second.id}", json={"parent_id": first.id}),
+        )
+        responses = await asyncio.gather(*requests)
+        assert sorted(response.status_code for response in responses) == [200, 400]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_delete_folder(self, async_client: AsyncClient, folder_factory, db_session):
         """Verify folder can be deleted."""
         folder = await folder_factory()
@@ -297,6 +347,60 @@ class TestLibraryFilesAPI:
         result = response.json()
         assert len(result) == 1
         assert result[0]["id"] == other_file.id
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.parametrize("direction", ["into", "out of"])
+    async def test_an_edit_does_not_move_a_file_across_the_external_boundary(
+        self, async_client: AsyncClient, folder_factory, file_factory, db_session, direction
+    ):
+        """F8: the edit route only changed folder_id -- no byte move, no
+        read-only check -- so the file showed in a folder its bytes are not
+        in. Such a move goes through POST /library/files/move."""
+        internal = await folder_factory(name="Mine")
+        nas = await folder_factory(name="NAS", is_external=True, external_path="/mnt/nas")
+        if direction == "into":
+            file = await file_factory(folder_id=internal.id, filename="a.3mf", is_external=False)
+            target = nas.id
+        else:
+            file = await file_factory(folder_id=nas.id, filename="a.3mf", is_external=True)
+            target = internal.id
+
+        response = await async_client.put(f"/api/v1/library/files/{file.id}", json={"folder_id": target})
+
+        assert response.status_code == 400
+        assert "/library/files/move" in response.json()["detail"]
+        await db_session.refresh(file)
+        assert file.folder_id != target
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_an_external_file_sent_with_its_own_folder_is_no_move(
+        self, async_client: AsyncClient, folder_factory, file_factory
+    ):
+        nas = await folder_factory(name="NAS", is_external=True, external_path="/mnt/nas")
+        file = await file_factory(folder_id=nas.id, filename="a.3mf", is_external=True)
+
+        response = await async_client.put(
+            f"/api/v1/library/files/{file.id}", json={"folder_id": nas.id, "notes": "kept"}
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_an_edit_still_moves_a_file_between_its_own_folders(
+        self, async_client: AsyncClient, folder_factory, file_factory, db_session
+    ):
+        first = await folder_factory(name="One")
+        second = await folder_factory(name="Two")
+        file = await file_factory(folder_id=first.id, filename="a.3mf", is_external=False)
+
+        response = await async_client.put(f"/api/v1/library/files/{file.id}", json={"folder_id": second.id})
+
+        assert response.status_code == 200
+        await db_session.refresh(file)
+        assert file.folder_id == second.id
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -714,8 +818,9 @@ class TestLibraryAddToQueueAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    @pytest.mark.parametrize("file_type", ["3mf", "gcode.3mf"])
     async def test_add_content_detected_plain_named_3mf_to_queue(
-        self, async_client: AsyncClient, printer_factory, library_file_factory, db_session, tmp_path
+        self, async_client: AsyncClient, printer_factory, library_file_factory, db_session, tmp_path, file_type
     ):
         await printer_factory()
         file_path = tmp_path / "Labyrinth - Plate 3.3mf"
@@ -724,7 +829,7 @@ class TestLibraryAddToQueueAPI:
         lib_file = await library_file_factory(
             filename="Labyrinth - Plate 3.3mf",
             file_path=str(file_path),
-            file_type="gcode.3mf",
+            file_type=file_type,
         )
 
         response = await async_client.post(
@@ -736,6 +841,24 @@ class TestLibraryAddToQueueAPI:
         result = response.json()
         assert [item["file_id"] for item in result["added"]] == [lib_file.id]
         assert result["errors"] == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_compound_3mf_source_is_rejected_by_bulk_and_direct_queue(
+        self, async_client, printer_factory, library_file_factory, tmp_path
+    ):
+        printer = await printer_factory()
+        file_path = tmp_path / "source.gcode.3mf"
+        with zipfile.ZipFile(file_path, "w") as archive:
+            archive.writestr("3D/3dmodel.model", "<model/>")
+        source = await library_file_factory(filename=file_path.name, file_path=str(file_path), file_type="gcode.3mf")
+        bulk = await async_client.post("/api/v1/library/files/add-to-queue", json={"file_ids": [source.id]})
+        single = await async_client.post(
+            "/api/v1/queue/", json={"library_file_id": source.id, "printer_id": printer.id}
+        )
+        assert bulk.status_code == single.status_code == 400
+        assert "isn't sliced yet" in single.json()["detail"]
+        assert bulk.json()["detail"]["errors"][0]["error"] == single.json()["detail"]
 
 
 class TestLibraryZipExtractAPI:

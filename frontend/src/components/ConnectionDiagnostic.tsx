@@ -44,7 +44,13 @@ export function DiagnosticChecklist({ result }: { result: PrinterDiagnosticResul
       check.id === 'port_rtsps'
         ? { protocol: 'RTSPS', port: 322, ...check.params }
         : check.params;
-    const detail = t(`diagnostic.check.${check.id}.${check.status}`, {
+    let detailKey: string = check.status;
+    if (check.id === 'network_mode') {
+      const mode = check.params?.mode;
+      if (mode === 'macvlan' || mode === 'ipvlan') detailKey = 'lan';
+      if (mode === 'ipvlan_l3' || mode === 'unknown') detailKey = mode;
+    }
+    const detail = t(`diagnostic.check.${check.id}.${detailKey}`, {
       ...params,
       defaultValue: '',
     });

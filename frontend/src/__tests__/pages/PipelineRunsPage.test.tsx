@@ -16,6 +16,7 @@ vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     listSlicerPipelines: vi.fn(),
     listAllPipelineRuns: vi.fn(),
     cancelPipelineRun: vi.fn(),

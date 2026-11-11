@@ -19,6 +19,7 @@ vi.mock('../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({}),
     getPrinters: vi.fn().mockResolvedValue([]),
