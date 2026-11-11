@@ -131,6 +131,7 @@ async def test_idle_mse_view_closes_after_revocation(async_client, printer_facto
     share = created.json()
     connected = asyncio.Event()
     idle = asyncio.Event()
+    revoked = asyncio.Event()
 
     async def idle_receive():
         await idle.wait()
@@ -145,7 +146,16 @@ async def test_idle_mse_view_closes_after_revocation(async_client, printer_facto
         connected.set()
         yield idle_upstream()
 
+    check_access = camera._stream_access_allowed
+
+    async def check_after_revocation(opener, printer_id):
+        # The in-memory SQLite fixture shares one connection. Keep a cancelled
+        # poll from invalidating the connection used to commit the revocation.
+        await revoked.wait()
+        return await check_access(opener, printer_id)
+
     websocket = SimpleNamespace(accept=AsyncMock(), close=AsyncMock(), receive=idle_receive)
+    monkeypatch.setattr(camera, "_stream_access_allowed", check_after_revocation)
     monkeypatch.setattr(camera, "async_session", auth.async_session)
     monkeypatch.setattr(camera, "_STREAM_RECHECK_SECONDS", 0.025)
     monkeypatch.setattr(camera.websockets, "connect", mock_connect)
@@ -165,6 +175,7 @@ async def test_idle_mse_view_closes_after_revocation(async_client, printer_facto
         path = f"/api/v1/auth/tokens/{share['id']}" if revoke_via == "share" else f"/api/v1/printers/{printer.id}"
         response = await async_client.delete(path, headers=headers)
         assert response.status_code in (200, 204)
+        revoked.set()
         await asyncio.wait_for(task, timeout=2)
         websocket.close.assert_awaited_once_with(code=4401 if revoke_via == "share" else 4404)
         release.assert_awaited_once_with(printer.id)
