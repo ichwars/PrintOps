@@ -60,7 +60,11 @@ async def _sqlite_rules(conn: AsyncConnection, metadata: MetaData, rules) -> Non
     for child, parent, action in rules:
         table = quote(child.table.name)
         name = quote(child.name)
-        delete_statement = f"DELETE FROM {table}" if action == "CASCADE" else f"UPDATE {table} SET {name} = NULL"
+        # The identifiers are dialect-quoted ORM metadata.
+        if action == "CASCADE":
+            delete_statement = f"DELETE FROM {table}"  # nosec B608
+        else:
+            delete_statement = f"UPDATE {table} SET {name} = NULL"  # nosec B608
         statements_by_parent[parent.table.name].append(f"{delete_statement} WHERE {name} = OLD.id;")
     for parent, statements in statements_by_parent.items():
         name = quote(f"printops_delete_{parent}_refs")

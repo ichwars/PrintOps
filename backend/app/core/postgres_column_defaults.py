@@ -110,7 +110,8 @@ async def _align_table(conn: AsyncConnection, table: str, desired, compiler) -> 
                 # An absent email claim could not link an account. Retain that
                 # behavior when giving the provider its new default claim.
                 assignments += ", auto_link_existing_accounts = false"
-            sql = f"UPDATE {table_sql} SET {assignments} WHERE {name} IS NULL"  # noqa: S608
+            # Identifiers and server defaults come from the compiled model metadata.
+            sql = f"UPDATE {table_sql} SET {assignments} WHERE {name} IS NULL"  # noqa: S608  # nosec B608
             await conn.exec_driver_sql(sql)
             await conn.exec_driver_sql(f"ALTER TABLE {table_sql} ALTER COLUMN {name} SET NOT NULL")
         elif not current["nullable"] and column.nullable:

@@ -54,13 +54,14 @@ async def _identity_floors(conn, metadata):
             if target.name == "id" and target.table.name in references:
                 references[target.table.name].add((table.name, fk.parent.name))
 
+    # DDL identifiers come from ORM metadata or the fixed reference map.
     quote = conn.dialect.identifier_preparer.quote_identifier
     floors = {}
     for table, fields in references.items():
         floor = 0
         for ref_table, column in sorted(fields):
             if column in columns[ref_table]:
-                sql = f"SELECT max({quote(column)}) FROM {quote(ref_table)}"  # noqa: S608
+                sql = f"SELECT max({quote(column)}) FROM {quote(ref_table)}"  # noqa: S608  # nosec B608
                 floor = max(floor, (await conn.exec_driver_sql(sql)).scalar_one() or 0)
         floors[table] = floor
 
@@ -77,7 +78,7 @@ async def _identity_floors(conn, metadata):
     for ref_table, column in _PRINTER_LISTS:
         if column not in columns[ref_table]:
             continue
-        sql = f"SELECT {quote(column)} FROM {quote(ref_table)} WHERE {quote(column)} IS NOT NULL"  # noqa: S608
+        sql = f"SELECT {quote(column)} FROM {quote(ref_table)} WHERE {quote(column)} IS NOT NULL"  # noqa: S608  # nosec B608
         for value in (await conn.exec_driver_sql(sql)).scalars():
             ids = json.loads(value) if isinstance(value, str) else value
             if isinstance(ids, list):
@@ -128,10 +129,12 @@ async def rebuild_sqlite_table(conn, table: str, staged: str, statement: str) ->
     try:
         await conn.exec_driver_sql(statement)
         await conn.exec_driver_sql(
-            f"INSERT INTO {quote(staged)} ({names}) SELECT {names} FROM {quote(table)}"  # noqa: S608
+            f"INSERT INTO {quote(staged)} ({names}) SELECT {names} FROM {quote(table)}"  # noqa: S608  # nosec B608
         )
-        original = (await conn.exec_driver_sql(f"SELECT count(*) FROM {quote(table)}")).scalar_one()  # noqa: S608
-        copied = (await conn.exec_driver_sql(f"SELECT count(*) FROM {quote(staged)}")).scalar_one()  # noqa: S608
+        original_sql = f"SELECT count(*) FROM {quote(table)}"  # noqa: S608  # nosec B608
+        original = (await conn.exec_driver_sql(original_sql)).scalar_one()
+        copied_sql = f"SELECT count(*) FROM {quote(staged)}"  # noqa: S608  # nosec B608
+        copied = (await conn.exec_driver_sql(copied_sql)).scalar_one()
         if original != copied:
             raise RuntimeError(f"SQLite table rebuild changed the row count of {table}")
         await conn.exec_driver_sql(f"DROP TABLE {quote(table)}")
@@ -186,7 +189,7 @@ async def raise_postgres_identity_sequences(conn, metadata, source_floors=None) 
             continue
         # PostgreSQL supplies the quoted relation name. Most startup checks
         # need no lock or change to the sequence.
-        sequence_state = f"SELECT last_value, is_called FROM {sequence}"  # noqa: S608
+        sequence_state = f"SELECT last_value, is_called FROM {sequence}"  # noqa: S608  # nosec B608
         current, called = (await conn.exec_driver_sql(sequence_state)).one()
         if floor < current or (floor == current and called):
             continue

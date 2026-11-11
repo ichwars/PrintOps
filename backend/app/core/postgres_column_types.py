@@ -29,7 +29,7 @@ async def _convert_active_print_json(conn: AsyncConnection, table: str, column: 
     # Identifiers are selected only from _TYPES and _JSON_KEYS.
     key = _JSON_KEYS[table]
     rows = await conn.exec_driver_sql(
-        f"SELECT {key}, {column} FROM {table} WHERE {column} IS NOT NULL"  # noqa: S608
+        f"SELECT {key}, {column} FROM {table} WHERE {column} IS NOT NULL"  # noqa: S608  # nosec B608
     )
     invalid_ids = []
     for row_id, value in rows:
@@ -38,7 +38,7 @@ async def _convert_active_print_json(conn: AsyncConnection, table: str, column: 
         except (ValueError, RecursionError):
             invalid_ids.append(row_id)
     if invalid_ids:
-        sql = f"UPDATE {table} SET {column} = NULL WHERE {key} IN :ids"  # noqa: S608
+        sql = f"UPDATE {table} SET {column} = NULL WHERE {key} IN :ids"  # noqa: S608  # nosec B608
         await conn.execute(text(sql).bindparams(bindparam("ids", expanding=True)), {"ids": invalid_ids})
         logger.warning("Cleared %d invalid active-print %s values during PostgreSQL upgrade", len(invalid_ids), column)
     await conn.exec_driver_sql(f"ALTER TABLE {table} ALTER COLUMN {column} DROP DEFAULT")

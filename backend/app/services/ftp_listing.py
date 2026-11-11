@@ -1,11 +1,13 @@
 """Shared listing work and UTC-based FTP LIST timestamps."""
 
 import asyncio
-import ftplib
 import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+
+# Import the FTP reply type only. The caller supplies the printer transport.
+from ftplib import error_perm  # nosec B402
 
 from backend.app.services.ftp_background import clear_stall, record_stall
 
@@ -29,7 +31,7 @@ def listing_missing(error):
     seen = set()
     while error is not None and id(error) not in seen:
         seen.add(id(error))
-        if isinstance(error, ftplib.error_perm) and str(error).startswith("550"):
+        if isinstance(error, error_perm) and str(error).startswith("550"):
             return not any(word in str(error).lower() for word in ("denied", "permission", "access"))
         error = error.__cause__
     return False

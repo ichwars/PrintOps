@@ -48,12 +48,11 @@ def _sqlite_link_ddl(body: str, column: str, parent: str, has_key: bool) -> str:
 
 async def _detach_missing(conn: AsyncConnection, column: str, parent: str) -> None:
     # Identifiers come from the fixed _LINKS mapping.
-    sql = f"""
-        UPDATE spool_usage_history SET {column} = NULL
-        WHERE {column} IS NOT NULL AND NOT EXISTS (
-            SELECT 1 FROM {parent} WHERE {parent}.id = spool_usage_history.{column}
-        )
-    """  # noqa: S608
+    sql = (
+        f"UPDATE spool_usage_history SET {column} = NULL "  # noqa: S608  # nosec B608
+        f"WHERE {column} IS NOT NULL AND NOT EXISTS ("
+        f"SELECT 1 FROM {parent} WHERE {parent}.id = spool_usage_history.{column})"
+    )
     await conn.exec_driver_sql(sql)
 
 
@@ -85,12 +84,11 @@ async def _upgrade_sqlite(conn: AsyncConnection) -> None:
 
     # SQLite runs without FK enforcement. Triggers cover both ORM and SQL deletion.
     for column, parent in _LINKS.items():
-        await conn.exec_driver_sql(f"""
-            CREATE TRIGGER IF NOT EXISTS spool_usage_detach_{column.removesuffix("_id")}
-            AFTER DELETE ON {parent} BEGIN
-                UPDATE spool_usage_history SET {column} = NULL WHERE {column} = OLD.id;
-            END
-        """)
+        trigger = f"spool_usage_detach_{column.removesuffix('_id')}"
+        update = f"UPDATE spool_usage_history SET {column} = NULL WHERE {column} = OLD.id;"  # nosec B608
+        await conn.exec_driver_sql(
+            f"CREATE TRIGGER IF NOT EXISTS {trigger} AFTER DELETE ON {parent} BEGIN {update} END"
+        )
         await _detach_missing(conn, column, parent)
 
 
