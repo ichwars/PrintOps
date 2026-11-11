@@ -1,5 +1,6 @@
 """Quality is per production run; machine completion alone is not acceptance."""
 
+import json
 import re
 
 import pytest
@@ -519,6 +520,11 @@ async def test_confirmation_event_reaches_http_actions_and_records_success(db_se
     assert "capability" not in log.message
 
 
+def _quality_hints(socket):
+    messages = (json.loads(call.args[0]) for call in socket.send_text.call_args_list)
+    return [message for message in messages if message.get("type") == "print_confirm_request"]
+
+
 @pytest.mark.parametrize(
     "blocked_work,next_copy,start_before_hint",
     [
@@ -533,7 +539,6 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
 ):
     """Catch a prompt deferred behind camera/provider work or rebound to the next run."""
     import asyncio
-    import json
     from datetime import datetime, timedelta, timezone
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -713,11 +718,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
             completed_run = await db_session.scalar(select(PrintLogEntry).where(PrintLogEntry.archive_id == archive.id))
             assert completed_run is not None and completed_run.status == "completed"
             assert completed_run.queue_item_id == item.id
-            early_hints = [
-                json.loads(call.args[0])
-                for call in sockets[0].send_text.call_args_list
-                if json.loads(call.args[0]).get("type") == "print_confirm_request"
-            ]
+            early_hints = _quality_hints(sockets[0])
             assert len(early_hints) == 1, "hint must be sent while optional finish work is still blocked"
             assert early_hints[0]["data"]["run_id"] == completed_run.id
             if not next_copy:
@@ -729,11 +730,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
                 assert (await async_client.post(f"/api/v1/archives/outcome-link/{token}/good")).status_code == 200
                 await db_session.refresh(completed_run)
                 assert (completed_run.good_quantity, completed_run.reject_quantity) == (4, 0)
-                hints = [
-                    json.loads(call.args[0])
-                    for call in sockets[0].send_text.call_args_list
-                    if json.loads(call.args[0]).get("type") == "print_confirm_request"
-                ]
+                hints = _quality_hints(sockets[0])
                 assert len(hints) == 1, "provider dispatch must not repeat the early UI hint"
                 return
             # This old capability must remain unusable after the archive is reused.
@@ -755,11 +752,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
             assert archive.status == "printing"
             release.set()
             await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
-            hints = [
-                json.loads(call.args[0])
-                for call in sockets[0].send_text.call_args_list
-                if json.loads(call.args[0]).get("type") == "print_confirm_request"
-            ]
+            hints = _quality_hints(sockets[0])
             if start_before_hint:
                 live_photo.assert_not_awaited()
             assert len(hints) == 1, "completed run's hint must precede optional camera/provider awaits"
@@ -768,10 +761,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
             if old_token:
                 assert old_token not in str(hints)
             for other in sockets[1:]:
-                assert not any(
-                    json.loads(call.args[0]).get("type") == "print_confirm_request"
-                    for call in other.send_text.call_args_list
-                )
+                assert not _quality_hints(other)
             app_url = f"https://printops.example/archives?confirm={archive.id}&confirm_run={completed_run.id}"
             quality_requests = [request for request in provider_requests if app_url.encode() in request.content]
             assert len(quality_requests) == 1, (
