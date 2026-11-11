@@ -264,3 +264,54 @@ async def test_cancel_while_restoring_kprofile_prevents_later_print_start(queue_
     # Abort cleans up the uploaded file and keeps the owned source available.
     assert ctx.delete_file.await_count >= 1
     assert ctx.archive_path.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_status", ["cancelled", "completed", "failed"])
+async def test_terminal_outcome_during_failed_start_cleanup_is_preserved(queue_factory, terminal_status):
+    """The cleanup await must not resurrect or replace a terminal print result."""
+    ctx = await queue_factory()
+    ctx.start_print.return_value = False
+    deletes = 0
+
+    async def end_during_cleanup(*args, **kwargs):
+        nonlocal deletes
+        deletes += 1
+        if deletes == 2:
+            async with ctx.session_maker() as other_db:
+                row = await other_db.get(PrintQueueItem, ctx.queue_item_id)
+                row.status = terminal_status
+                row.error_message = "Original outcome"
+                await other_db.commit()
+        return True
+
+    ctx.delete_file.side_effect = end_during_cleanup
+    await _dispatch(ctx)
+
+    async with ctx.session_maker() as db:
+        row = await db.get(PrintQueueItem, ctx.queue_item_id)
+        assert row.status == terminal_status
+        assert row.error_message == "Original outcome"
+
+
+@pytest.mark.asyncio
+async def test_busy_deferral_after_failed_send_preserves_concurrent_cancellation(queue_factory):
+    ctx = await queue_factory()
+    ctx.start_print.return_value = False
+    deletes = 0
+
+    async def cancel_during_cleanup(*args, **kwargs):
+        nonlocal deletes
+        deletes += 1
+        if deletes == 2:
+            async with ctx.session_maker() as other_db:
+                row = await other_db.get(PrintQueueItem, ctx.queue_item_id)
+                row.status = "cancelled"
+                await other_db.commit()
+            scheduler_module.printer_manager.get_status.return_value = SimpleNamespace(state="RUNNING")
+        return True
+
+    ctx.delete_file.side_effect = cancel_during_cleanup
+    await _dispatch(ctx)
+
+    assert (await _final_status(ctx))[0] == "cancelled"

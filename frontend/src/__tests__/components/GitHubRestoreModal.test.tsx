@@ -548,6 +548,23 @@ describe('GitHubRestoreModal', () => {
     expect(document.querySelector('svg.text-bambu-green')).not.toBeInTheDocument();
   });
 
+  it('offers a merge preview after restoring archive records', async () => {
+    server.use(
+      http.post('/api/v1/github-backup/restore', () => HttpResponse.json({ ...partialRestore, success: true })),
+      http.get('/api/v1/archives/merge-count', () => HttpResponse.json({ groups: 1 })),
+      http.get('/api/v1/archives/merge-preview', () => HttpResponse.json({ groups: [] })),
+    );
+    const close = vi.fn();
+    render(<GitHubRestoreModal onClose={close} />);
+
+    await runRestore();
+    await userEvent.click(await screen.findByRole('button', { name: 'Merge duplicates' }));
+    expect(await screen.findByText('No duplicate archive groups found.')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Merge duplicates' })).toBeNull();
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it('refreshes the data caches for a part-way failure, because rows landed', async () => {
     server.use(http.post('/api/v1/github-backup/restore', () => HttpResponse.json(partialRestore)));
     const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries');

@@ -3,6 +3,11 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from backend.app.services.camera_light import CameraLightMode, normalized_delay, normalized_mode
+
+DEFAULT_PAUSE_WARNING_MINUTES = 5
+MAX_PAUSE_WARNING_MINUTES = 120
+
 LAN_SERVICE_URL_SETTINGS = ("ha_url", "obico_ml_url", "orcaslicer_api_url", "bambu_studio_api_url")
 
 
@@ -75,6 +80,7 @@ class AppSettings(BaseModel):
     notification_language: str = Field(default="en", description="Language for push notifications (en, de, nl)")
 
     # Bed cooled notification threshold
+    pause_warning_minutes: int = Field(default=DEFAULT_PAUSE_WARNING_MINUTES, ge=1, le=MAX_PAUSE_WARNING_MINUTES)
     bed_cooled_threshold: float = Field(
         default=35.0, description="Bed temperature threshold for cooled notification (°C)"
     )
@@ -225,10 +231,6 @@ class AppSettings(BaseModel):
     )
 
     # File Manager / Library settings
-    library_archive_mode: str = Field(
-        default="ask",
-        description="When printing from File Manager, create archive entry: 'always', 'never', or 'ask'",
-    )
     library_disk_warning_gb: float = Field(
         default=5.0,
         description="Show warning when free disk space falls below this threshold (GB)",
@@ -239,6 +241,12 @@ class AppSettings(BaseModel):
         default="window",
         description="Camera view mode: 'window' opens in new browser window, 'embedded' shows overlay on main screen",
     )
+
+    camera_light_mode: CameraLightMode = "off"
+    camera_light_delay: float = 2.0
+
+    _read_camera_light_mode = field_validator("camera_light_mode", mode="before")(normalized_mode)
+    _read_camera_light_delay = field_validator("camera_light_delay", mode="before")(normalized_delay)
 
     # Preferred slicer application (server-side / API sidecar slicer)
     preferred_slicer: str = Field(
@@ -534,13 +542,14 @@ class AppSettingsUpdate(BaseModel):
     local_login_enabled: bool | None = None
     language: str | None = None
     notification_language: str | None = None
+    pause_warning_minutes: int | None = Field(default=None, ge=1, le=MAX_PAUSE_WARNING_MINUTES)
     bed_cooled_threshold: float | None = None
     ams_humidity_good: int | None = None
     ams_humidity_fair: int | None = None
     ams_temp_good: float | None = None
     ams_temp_fair: float | None = None
-    ams_history_retention_days: int | None = None
-    printer_sensor_history_retention_days: int | None = None
+    ams_history_retention_days: int | None = Field(default=None, ge=1)
+    printer_sensor_history_retention_days: int | None = Field(default=None, ge=1)
     queue_drying_enabled: bool | None = None
     queue_drying_block: bool | None = None
     ambient_drying_enabled: bool | None = None
@@ -578,9 +587,18 @@ class AppSettingsUpdate(BaseModel):
     ha_enabled: bool | None = None
     ha_url: str | None = None
     ha_token: str | None = None
-    library_archive_mode: str | None = None
     library_disk_warning_gb: float | None = None
     camera_view_mode: str | None = None
+    camera_light_mode: CameraLightMode | None = None
+    camera_light_delay: float | None = Field(default=None, ge=0, le=5, allow_inf_nan=False)
+
+    @field_validator("camera_light_mode", "camera_light_delay")
+    @classmethod
+    def _non_null_camera_light_setting(cls, value):
+        if value is None:
+            raise ValueError("Camera lighting settings cannot be null")
+        return value
+
     preferred_slicer: str | None = None
     open_in_slicer: str | None = None
     use_slicer_api: bool | None = None
@@ -772,3 +790,17 @@ class AppSettingsUpdate(BaseModel):
         if not isinstance(order, list) or not all(isinstance(item, str) for item in order):
             raise ValueError("sidebar order must be an array of strings")
         return v
+
+
+# These settings affect authentication, credential destinations or metrics exposure.
+ADMIN_ONLY_SETTING_KEYS = frozenset(
+    {key for key in AppSettingsUpdate.model_fields if key.startswith("ldap_")}
+    | {
+        "local_login_enabled",
+        "session_max_hours",
+        "external_url",
+        "prometheus_enabled",
+        "prometheus_token",
+        "local_backup_path",
+    }
+)

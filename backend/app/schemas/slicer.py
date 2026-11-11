@@ -3,9 +3,42 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _HEX_COLOUR = re.compile(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?")
+
+
+# The slicers' curr_bed_type keys. Default Plate is a per-plate inheritance
+# marker rather than a global override.
+BED_TYPES = frozenset(
+    {
+        "Cool Plate",
+        "Engineering Plate",
+        "High Temp Plate",
+        "Textured PEI Plate",
+        "Supertack Plate",
+        "Textured Cool Plate",
+    }
+)
+ORCA_ONLY_BED_TYPES = frozenset({"Textured Cool Plate"})
+_BED_TYPE_ALIASES = {
+    "Cool Plate (SuperTack)": "Supertack Plate",
+    "Smooth PEI Plate": "High Temp Plate",
+}
+
+
+def canonical_bed_type(value: str | None) -> str | None:
+    """Map names sent by older clients to the slicer's identifiers."""
+    if not value:
+        return None
+    return _BED_TYPE_ALIASES.get(value, value)
+
+
+def checked_bed_type(value: str | None) -> str | None:
+    value = canonical_bed_type(value)
+    if value is not None and value not in BED_TYPES:
+        raise ValueError(f"Unknown bed_type {value!r}. Choose one of: {', '.join(sorted(BED_TYPES))}")
+    return value
 
 
 class PresetRef(BaseModel):
@@ -103,11 +136,9 @@ class SliceRequest(BaseModel):
         default=None,
         max_length=64,
         description=(
-            "Override the process preset's curr_bed_type for this slice. Canonical "
-            "BambuStudio / OrcaSlicer values: 'Cool Plate', 'Engineering Plate', "
-            "'High Temp Plate', 'Textured PEI Plate', 'Smooth PEI Plate', "
-            "'Cool Plate (SuperTack)', 'Supertack Plate'. None ⇒ inherit from the "
-            "process preset unchanged (#1337)."
+            "Override curr_bed_type with Cool Plate, Engineering Plate, High Temp Plate (Smooth PEI), "
+            "Textured PEI Plate, Supertack Plate, or OrcaSlicer's Textured Cool Plate. "
+            "None inherits the process preset's setting."
         ),
     )
     auto_orient: bool = Field(
@@ -131,6 +162,11 @@ class SliceRequest(BaseModel):
             "embedded-settings path too (#2548)."
         ),
     )
+
+    @field_validator("bed_type")
+    @classmethod
+    def validate_bed_type(cls, value: str | None) -> str | None:
+        return checked_bed_type(value)
 
     @model_validator(mode="after")
     def normalise_preset_refs(self) -> "SliceRequest":

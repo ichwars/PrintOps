@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useEmbeddedCameraSelection } from '../../hooks/useEmbeddedCameraSelection';
+import { isIosHomeScreenApp, openCameraWindow } from '../../utils/cameraWindow';
+import { CAMERA_WALL_SIZE_KEY, CAMERA_WALL_SIZES, readCameraWallSize } from '../../utils/cameraWallSize';
 import { useAuth } from '../../contexts/AuthContext';
 import { TextField } from '../../components/ui';
 import { Plus, Power, ChevronDown, Filter, ArrowLeft, ArrowUp, ArrowDown, Search, X, CheckSquare, Printer as PrinterIcon, MoreHorizontal, SlidersHorizontal, LayoutGrid, MonitorPlay } from 'lucide-react';
@@ -131,6 +133,7 @@ export function PrintersPage() {
   });
   // Cam-wall settings — per-user, no backend write (a Pi 4 install caps the
   // live count lower than a NUC; default 4 is the documented Pi 4 ceiling).
+  const [camWallSize, setCamWallSize] = useState(readCameraWallSize);
   const [camWallMaxLive, setCamWallMaxLive] = useState<number>(() => {
     const saved = parseInt(localStorage.getItem('camWallMaxLive') || '', 10);
     return Number.isFinite(saved) && saved > 0 ? saved : 4;
@@ -262,24 +265,6 @@ export function PrintersPage() {
   const spoolmanEnabled = !!spoolmanStatus?.enabled;
   const spoolmanConnected = spoolmanEnabled && !!spoolmanStatus?.connected;
 
-  // Fetch Spoolman settings to get sync mode
-  const { data: spoolmanSettings } = useQuery({
-    queryKey: ['spoolman-settings'],
-    queryFn: api.getSpoolmanSettings,
-    enabled: spoolmanEnabled,
-    staleTime: 60 * 1000, // 1 minute
-  });
-  const spoolmanSyncMode = spoolmanSettings?.spoolman_sync_mode;
-
-  // Fetch unlinked spools to know if link button should be enabled
-  const { data: unlinkedSpools } = useQuery({
-    queryKey: ['unlinked-spools'],
-    queryFn: api.getUnlinkedSpools,
-    enabled: spoolmanConnected,
-    staleTime: 30 * 1000, // 30 seconds
-  });
-  const hasUnlinkedSpools = unlinkedSpools && unlinkedSpools.length > 0;
-
   // Fetch linked spools map (tag -> spool_id) to know which spools are already in Spoolman
   const { data: linkedSpoolsData } = useQuery({
     queryKey: ['linked-spools'],
@@ -303,6 +288,7 @@ export function PrintersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['spool-assignments'] });
     },
+    onError: error => showToast(error.message || t('spoolman.unlinkFailed'), 'error'),
   });
 
   const { data: spoolmanSpools, isLoading: spoolmanSpoolsLoading } = useQuery({
@@ -325,10 +311,12 @@ export function PrintersPage() {
       queryClient.invalidateQueries({ queryKey: ['spoolman-inventory-spools'] });
       queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
     },
+    onError: error => showToast(error.message || t('spoolman.unlinkFailed'), 'error'),
   });
 
   // Helper to find assignment for a specific slot
   const getAssignment = (printerId: number, amsId: number | string, trayId: number | string): SpoolAssignment | undefined => {
+    if (spoolmanEnabled) return undefined;
     return spoolAssignments?.find(
       (a) => a.printer_id === printerId && a.ams_id === Number(amsId) && a.tray_id === Number(trayId)
     );
@@ -511,7 +499,7 @@ export function PrintersPage() {
     }
   };
 
-  const cardSizeLabels = ['S', 'M', 'L', 'XL'];
+  const cardSizeLabels = CAMERA_WALL_SIZES;
 
   // Increment version counter whenever a printer status cache entry is updated so
   // filteredPrinters re-computes reactively on WebSocket-driven status changes.
@@ -883,14 +871,20 @@ export function PrintersPage() {
 
       <PrinterCardTextScaleControl disabled={pageView === 'camwall'} />
       {/* Card size selector */}
-      <div className={`flex h-8 items-center bg-bambu-dark rounded-lg border border-bambu-dark-tertiary ${pageView === 'camwall' ? 'opacity-40 pointer-events-none' : ''} ${inMenu ? 'w-full' : ''}`}>
+      <div className={`flex h-8 items-center bg-bambu-dark rounded-lg border border-bambu-dark-tertiary ${inMenu ? 'w-full' : ''}`}>
         {cardSizeLabels.map((label, index) => {
           const size = index + 1;
-          const isSelected = cardSize === size;
+          const isSelected = (pageView === 'camwall' ? camWallSize : cardSize) === size;
           return (
             <button
               key={label}
+              aria-pressed={isSelected}
               onClick={() => {
+                if (pageView === 'camwall') {
+                  setCamWallSize(size);
+                  localStorage.setItem(CAMERA_WALL_SIZE_KEY, String(size));
+                  return;
+                }
                 setCompactDrilldownPrinterId(null);
                 setCardSize(size);
                 localStorage.setItem('printerCardSize', String(size));
@@ -904,7 +898,9 @@ export function PrintersPage() {
                   ? 'bg-bambu-green text-white'
                   : 'text-white hover:bg-bambu-dark-tertiary'
               }`}
-              title={label === 'S' ? t('printers.cardSize.small') : label === 'M' ? t('printers.cardSize.medium') : label === 'L' ? t('printers.cardSize.large') : t('printers.cardSize.extraLarge')}
+              title={pageView === 'camwall'
+                ? `${t('printers.pageView.camWall')} · ${label}`
+                : t(`printers.cardSize.${['small', 'medium', 'large', 'extraLarge'][index]}`)}
             >
               {label}
             </button>
@@ -1091,22 +1087,14 @@ export function PrintersPage() {
         <CameraWall
           printers={sortedPrinters}
           maxLive={camWallMaxLive}
+          tileSize={camWallSize}
           snapshotIntervalSec={camWallSnapshotSec}
           launchDisabled={!cameraLaunchReady}
           onTileClick={(id) => {
             if (!cameraLaunchReady) return;
-            const cameraMode = settings?.camera_view_mode || 'window';
+            const cameraMode = isIosHomeScreenApp() ? 'embedded' : settings?.camera_view_mode ?? 'window';
             if (cameraMode === 'embedded' && openEmbeddedCamera(id)) return;
-            const saved = localStorage.getItem('cameraWindowState');
-            const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
-            const features = [
-              `width=${state.width}`,
-              `height=${state.height}`,
-              state.left !== undefined ? `left=${state.left}` : '',
-              state.top !== undefined ? `top=${state.top}` : '',
-              'menubar=no,toolbar=no,location=no,status=no',
-            ].filter(Boolean).join(',');
-            window.open(`/camera/${id}`, `camera-${id}`, features);
+            openCameraWindow(id);
           }}
           statusMode={camWallStatusMode}
           onChangeMaxLive={(next) => {
@@ -1188,10 +1176,8 @@ export function PrintersPage() {
                         tempFair: Number(settings.ams_temp_fair) || 35,
                       } : undefined}
                       spoolmanEnabled={spoolmanEnabled}
-                      hasUnlinkedSpools={hasUnlinkedSpools}
                       linkedSpools={linkedSpools}
                       spoolmanUrl={spoolmanStatus?.url}
-                      spoolmanSyncMode={spoolmanSyncMode}
                       onGetAssignment={getAssignment}
                       onUnassignSpool={(pid, aid, tid) => unassignMutation.mutate({ printerId: pid, amsId: aid, trayId: tid })}
                       spoolmanSpools={spoolmanSpools}
@@ -1231,10 +1217,8 @@ export function PrintersPage() {
               viewMode={viewMode}
               cardSize={cardSize}
               spoolmanEnabled={spoolmanEnabled}
-              hasUnlinkedSpools={hasUnlinkedSpools}
               linkedSpools={linkedSpools}
               spoolmanUrl={spoolmanStatus?.url}
-              spoolmanSyncMode={spoolmanSyncMode}
               onGetAssignment={getAssignment}
               onUnassignSpool={(pid, aid, tid) => unassignMutation.mutate({ printerId: pid, amsId: aid, trayId: tid })}
               spoolmanSpools={spoolmanSpools}

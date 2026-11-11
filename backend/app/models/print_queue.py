@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, false, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -81,24 +81,25 @@ class PrintQueueItem(Base):
     # load; never written to or read from.
     nozzle_mapping: Mapped[str | None] = mapped_column(Text, nullable=True)
     nozzles_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    color_substitutions: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Printer-card direct uploads create transient library rows. When this is
     # true, the scheduler deletes the source row/files after archiving a copy.
-    cleanup_library_after_dispatch: Mapped[bool] = mapped_column(Boolean, default=False)
+    cleanup_library_after_dispatch: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
-    confirm_outcome: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    confirm_outcome: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Explicit intended parts per run; NULL inherits the archive's quantity.
     expected_parts: Mapped[int | None] = mapped_column(Integer)
 
     # Print options
-    bed_levelling: Mapped[bool] = mapped_column(Boolean, default=True)
-    flow_cali: Mapped[bool] = mapped_column(Boolean, default=False)
+    bed_levelling: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    flow_cali: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     vibration_cali: Mapped[bool] = mapped_column(Boolean, default=True)
     layer_inspect: Mapped[bool] = mapped_column(Boolean, default=False)
     timelapse: Mapped[bool] = mapped_column(Boolean, default=False)
     use_ams: Mapped[bool] = mapped_column(Boolean, default=True)
     # Nozzle offset calibration — dual-nozzle printers only, MQTT-gated (#1682)
-    nozzle_offset_cali: Mapped[bool] = mapped_column(Boolean, default=True)
+    nozzle_offset_cali: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
     # Preheat / heat-soak override (#1468). 'inherit' uses the global
     # preheat_enabled setting; 'on' / 'off' force the per-item decision. The
@@ -106,7 +107,7 @@ class PrintQueueItem(Base):
     # tray type]) → 0 (skips chamber phase). 'inherit' + global off + override
     # null = no preheat. Default 'inherit' so existing queue items behave
     # exactly as before the migration.
-    preheat_override: Mapped[str] = mapped_column(String(10), default="inherit")
+    preheat_override: Mapped[str] = mapped_column(String(10), default="inherit", server_default="inherit")
     preheat_chamber_target_override: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Status: pending, printing, completed, failed, skipped, cancelled
@@ -125,14 +126,14 @@ class PrintQueueItem(Base):
     # lookback excluded `skipped` but had no way to dismiss the originating
     # failure. The flag is per-item, not per-printer, so a fresh failure
     # after a resume re-gates downstream items independently.
-    gate_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
+    gate_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     # Set by the dispatch scheduler when the assigned spool can't satisfy
     # this print's per-slot filament weight (#1496). Display-only flag — the
     # actual deficit is recomputed live every time the user clicks ▶, so
     # swapping a spool to a fuller one between flag and dispatch clears the
     # block automatically.
-    filament_short: Mapped[bool] = mapped_column(Boolean, default=False)
+    filament_short: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     # User has acknowledged the filament-shortage warning for this item
     # ("Print Anyway"). Set by the start route when the user passes
@@ -140,7 +141,7 @@ class PrintQueueItem(Base):
     # frontend deficit warning was acknowledged. Survives scheduler ticks so
     # the dispatch no longer bounces between "user said anyway" and
     # "scheduler re-flagged" (#1698-followup).
-    skip_filament_check: Mapped[bool] = mapped_column(Boolean, default=False)
+    skip_filament_check: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     # Tracking
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

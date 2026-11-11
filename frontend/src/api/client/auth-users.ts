@@ -11,6 +11,7 @@ import type {
   GroupUpdate,
   LDAPSearchResult,
   LDAPStatus,
+  LDAPTestRequest,
   LDAPTestResponse,
   LoginRequest,
   LoginResponse,
@@ -58,6 +59,7 @@ export const authUsersMethods = {
   logout: () =>
     request<{ message: string }>('/auth/logout', {
       method: 'POST',
+      keepalive: true,
     }),
 
   refreshToken: () =>
@@ -104,9 +106,10 @@ export const authUsersMethods = {
 
   getEncryptionStatus: () => request<EncryptionStatus>('/auth/encryption-status'),
 
-  testLDAP: () =>
+  testLDAP: (data?: LDAPTestRequest) =>
     request<LDAPTestResponse>('/auth/ldap/test', {
       method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
     }),
 
   searchLDAPDirectory: (q: string) =>
@@ -194,8 +197,11 @@ export const authUsersMethods = {
     }),
 
   // 2FA - admin
-  admin2FADisable: (userId: number) =>
-    request<{ message: string }>(`/auth/2fa/admin/${userId}`, { method: 'DELETE' }),
+  admin2FADisable: (userId: number, adminPassword: string | null = null) =>
+    request<{ message: string; had_2fa: boolean }>(`/auth/2fa/admin/${userId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ admin_password: adminPassword }),
+    }),
 
   // OIDC providers (public list)
   getOIDCProviders: () => request<OIDCProvider[]>('/auth/oidc/providers'),

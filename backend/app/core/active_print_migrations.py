@@ -34,13 +34,18 @@ async def migrate_active_print_spoolman(conn, safe_execute, sqlite: bool, logger
             slot_to_tray TEXT,
             layer_usage TEXT,
             filament_properties TEXT,
-            tray_remain_start TEXT,
+            tray_remain_start JSON,
             tray_now_at_start INTEGER,
             UNIQUE(printer_id, archive_id)
         )
         """,
     )
-    await safe_execute(conn, "ALTER TABLE active_print_spoolman ADD COLUMN tray_remain_start TEXT")
+    await safe_execute(
+        conn,
+        "ALTER TABLE active_print_spoolman ADD COLUMN tray_remain_start TEXT"
+        if sqlite
+        else "ALTER TABLE active_print_spoolman ADD COLUMN tray_remain_start JSON",
+    )
     await safe_execute(
         conn,
         "ALTER TABLE active_print_spoolman ADD COLUMN tray_now_at_start INTEGER"
@@ -62,6 +67,12 @@ async def migrate_active_print_spoolman(conn, safe_execute, sqlite: bool, logger
         "ALTER TABLE active_print_sessions ADD COLUMN spoolman_owns_usage BOOLEAN"
         if sqlite
         else "ALTER TABLE active_print_sessions ADD COLUMN IF NOT EXISTS spoolman_owns_usage BOOLEAN",
+    )
+    await safe_execute(
+        conn,
+        "ALTER TABLE active_print_sessions ADD COLUMN spool_change_log TEXT"
+        if sqlite
+        else "ALTER TABLE active_print_sessions ADD COLUMN IF NOT EXISTS spool_change_log JSON",
     )
 
 

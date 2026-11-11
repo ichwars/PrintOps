@@ -30,7 +30,7 @@ import json
 from dataclasses import dataclass
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.local_preset import LocalPreset
@@ -243,6 +243,7 @@ async def check_pipeline_eligibility(
     printer_raw_status: dict | None = None,
     *,
     status_lookup: object = None,
+    printer_ids: set[int] | None = None,
 ) -> EligibilityReport:
     """Build the eligibility report.
 
@@ -304,7 +305,10 @@ async def check_pipeline_eligibility(
             issues=(EligibilityIssue(kind="class_not_set"),),
         )
 
-    candidates = (await db.execute(select(Printer).where(Printer.model == pipeline.target_model_class))).scalars().all()
+    query = select(Printer).where(func.lower(Printer.model) == pipeline.target_model_class.lower())
+    if printer_ids is not None:
+        query = query.where(Printer.id.in_(printer_ids))
+    candidates = (await db.scalars(query)).all()
 
     if not candidates:
         return EligibilityReport(

@@ -14,10 +14,8 @@ export type PrinterCardProps = {
     tempFair: number;
   };
   spoolmanEnabled?: boolean;
-  hasUnlinkedSpools?: boolean;
   linkedSpools?: Record<string, LinkedSpoolInfo>;
   spoolmanUrl?: string | null;
-  spoolmanSyncMode?: string | null;
   spoolAssignments?: SpoolAssignment[];
   onGetAssignment?: (printerId: number, amsId: number, trayId: number) => SpoolAssignment | undefined;
   onUnassignSpool?: (printerId: number, amsId: number, trayId: number) => void;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { compareFwVersions } from '../../utils/firmwareVersion';
+import { IDLE_PRINTER_STATES } from '../../utils/printer';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,10 +14,12 @@ import { useToast } from '../../contexts/ToastContext';
 export function FirmwareUpdateModal({
   printer,
   firmwareInfo,
+  printerState,
   onClose,
 }: {
   printer: Printer;
   firmwareInfo: FirmwareUpdateInfo;
+  printerState: string | null;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -24,6 +27,7 @@ export function FirmwareUpdateModal({
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const canUpdate = hasPermission('firmware:update');
+  const printerIdle = printerState !== null && IDLE_PRINTER_STATES.has(printerState);
   const [uploadStatus, setUploadStatus] = useState<FirmwareUploadStatus | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
@@ -36,7 +40,7 @@ export function FirmwareUpdateModal({
     queryKey: ['firmwarePrepare', printer.id, selectedVersion],
     queryFn: () => firmwareApi.prepareUpload(printer.id, selectedVersion ?? undefined),
     staleTime: 30000,
-    enabled: !!selectedVersion && canUpdate && !isUploading,
+    enabled: !!selectedVersion && canUpdate && printerIdle && !isUploading,
   });
 
   // Start upload mutation
@@ -78,6 +82,7 @@ export function FirmwareUpdateModal({
   }, [pollInterval]);
 
   const handleStartUpload = () => {
+    if (!printerIdle) return;
     setUploadStatus(null);
     uploadMutation.mutate();
   };
@@ -194,7 +199,10 @@ export function FirmwareUpdateModal({
           )}
 
           {/* Status / Progress (only when a version is selected) */}
-          {!selectedVersion ? null : isPreparing ? (
+          {canUpdate && !printerIdle && !isUploading && uploadStatus?.status !== 'complete' && (
+            <p className="mb-4 text-sm text-bambu-gray">{t('printers.firmwareModal.idleRequired')}</p>
+          )}
+          {!printerIdle || !selectedVersion ? null : isPreparing ? (
             <div className="flex items-center gap-2 text-bambu-gray text-sm mb-4">
               <Loader2 className="w-4 h-4 animate-spin" />
               {t('printers.firmwareModal.checkingPrereqs')}
@@ -265,7 +273,7 @@ export function FirmwareUpdateModal({
             <Button variant="secondary" onClick={onClose}>
               {uploadStatus?.status === 'complete' ? t('printers.firmwareModal.done') : t('common.cancel')}
             </Button>
-            {prepareInfo?.can_proceed && !isUploading && uploadStatus?.status !== 'complete' && canUpdate && (
+            {printerIdle && prepareInfo?.can_proceed && !isUploading && uploadStatus?.status !== 'complete' && canUpdate && (
               <Button
                 onClick={handleStartUpload}
                 disabled={uploadMutation.isPending}

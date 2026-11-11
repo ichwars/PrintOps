@@ -60,7 +60,9 @@ def _result(*, row=None, count=None):
 
 @pytest.mark.asyncio
 async def test_first_run_stores_spoolman_actual_and_returns_run_cost():
-    archive = SimpleNamespace(cost=2.5, filament_used_grams=150.0, extra_data={"keep": "value"})
+    archive = SimpleNamespace(
+        id=7, printer_id=1, started_at=None, cost=2.5, filament_used_grams=150.0, extra_data={"keep": "value"}
+    )
     db = AsyncMock()
     db.execute = AsyncMock(side_effect=[_result(row=archive), _result(count=0)])
 
@@ -76,6 +78,9 @@ async def test_first_run_stores_spoolman_actual_and_returns_run_cost():
 @pytest.mark.asyncio
 async def test_reprint_returns_its_cost_without_overwriting_first_run():
     archive = SimpleNamespace(
+        id=7,
+        printer_id=1,
+        started_at=None,
         cost=4.0,
         filament_used_grams=50.0,
         extra_data={"cost_source": "spoolman"},
@@ -93,6 +98,9 @@ async def test_reprint_returns_its_cost_without_overwriting_first_run():
 @pytest.mark.asyncio
 async def test_reprint_plate_topup_uses_the_scoped_run_weight():
     archive = SimpleNamespace(
+        id=7,
+        printer_id=1,
+        started_at=None,
         cost=8.0,
         filament_used_grams=200.0,
         extra_data={"cost_source": "spoolman"},
@@ -115,7 +123,7 @@ async def test_reprint_plate_topup_uses_the_scoped_run_weight():
 
 @pytest.mark.asyncio
 async def test_invalid_default_rate_cannot_poison_partially_priced_total():
-    archive = SimpleNamespace(cost=2.5, filament_used_grams=150.0, extra_data=None)
+    archive = SimpleNamespace(id=7, printer_id=1, started_at=None, cost=2.5, filament_used_grams=150.0, extra_data=None)
     db = AsyncMock()
     db.execute = AsyncMock(side_effect=[_result(row=archive), _result(count=0)])
 
@@ -128,7 +136,7 @@ async def test_invalid_default_rate_cannot_poison_partially_priced_total():
 
 @pytest.mark.asyncio
 async def test_aggregate_overflow_does_not_create_an_infinite_cost():
-    archive = SimpleNamespace(cost=2.5, filament_used_grams=2.0, extra_data=None)
+    archive = SimpleNamespace(id=7, printer_id=1, started_at=None, cost=2.5, filament_used_grams=2.0, extra_data=None)
     db = AsyncMock()
     db.execute = AsyncMock(return_value=_result(row=archive))
 

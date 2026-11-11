@@ -53,7 +53,7 @@ async def test_scope_write_preparation_leaves_postgres_row_lock_order_unchanged(
     db.execute.assert_not_awaited()
 
 
-async def test_scope_migration_history_survives_git_settings_collect_and_restore(db_session):
+async def test_scope_migration_history_stays_local_during_git_settings_collect_and_restore(db_session):
     from sqlalchemy import select
 
     from backend.app.core.user_printer_scope import USER_PRINTER_SCOPE_MIGRATION_KEY
@@ -65,11 +65,13 @@ async def test_scope_migration_history_survives_git_settings_collect_and_restore
     await db_session.commit()
     files = {}
     await github_backup_service._collect_settings(db_session, files)
-    assert files[SETTINGS_PATH]["settings"][USER_PRINTER_SCOPE_MIGRATION_KEY] == "true"
-    # Category restore upserts supplied app settings, preserving local history
-    # even for older backups which omitted this private migration marker.
+    assert USER_PRINTER_SCOPE_MIGRATION_KEY not in files[SETTINGS_PATH]["settings"]
+    # A snapshot from another installation cannot change the local migration state.
     await GitHubRestoreService()._restore_settings(
-        db_session, {"settings": {"currency": "EUR"}}, overwrite=True, tally=_CategoryTally()
+        db_session,
+        {"settings": {"currency": "EUR", USER_PRINTER_SCOPE_MIGRATION_KEY: "false"}},
+        overwrite=True,
+        tally=_CategoryTally(),
     )
     await db_session.commit()
     marker = await db_session.scalar(select(Settings).where(Settings.key == USER_PRINTER_SCOPE_MIGRATION_KEY))

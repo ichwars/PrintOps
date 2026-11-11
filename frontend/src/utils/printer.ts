@@ -1,3 +1,6 @@
+export const IDLE_PRINTER_STATES = new Set(['IDLE', 'FINISH', 'FAILED']);
+export const ACTIVE_PRINT_STATES = new Set(['RUNNING', 'PAUSE', 'PREPARE', 'SLICING']);
+
 export function getPrinterImage(model: string | null | undefined): string {
   if (!model) return '/img/printers/default.png';
   const m = model.toLowerCase().replace(/\s+/g, '');

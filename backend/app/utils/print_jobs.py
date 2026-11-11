@@ -5,6 +5,7 @@ from __future__ import annotations
 INTERNAL_JOB_NAMES = frozenset(
     {
         "auto_cali_for_user",
+        "auto_cali_for_user_param",
         "auto_pa_line_calib_mode",
         "pa_line_calib_mode",
         "pa_pattern_calib_mode",

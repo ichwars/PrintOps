@@ -1,14 +1,13 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import (
-    RequirePermissionIfAuthEnabled,
-)
-from backend.app.core.database import get_db
+from backend.app.core.auth import OwnershipAccess, RequirePermissionIfAuthEnabled, require_permission_with_key
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import resolve_printer_visibility
 from backend.app.core.tasks import spawn_background_task
 from backend.app.models.ams_label import AmsLabel
 from backend.app.models.printer import Printer
@@ -18,6 +17,8 @@ from backend.app.models.user import User
 from backend.app.schemas.printer import (
     AmsLabelBody,
 )
+from backend.app.services.ams_slot_presence import tray_for_slot
+from backend.app.services.assignment_verification import register_sent_assignment
 from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.inventory_mode import spoolman_owns_assignments
 from backend.app.services.orca_filament_lookup import (
@@ -28,8 +29,9 @@ from backend.app.services.orca_filament_lookup import (
     orca_cloud_caller,
     valid_filament_id,
 )
-from backend.app.utils.filament_ids import GENERIC_FILAMENT_IDS, filament_id_to_setting_id
-from backend.app.utils.filament_types import generic_filament_id, is_material_name, printer_filament_type
+from backend.app.utils.filament_finish import finish_generic_id
+from backend.app.utils.filament_ids import filament_id_to_setting_id, setting_id_to_filament_id
+from backend.app.utils.filament_types import generic_filament_id, printer_filament_type
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -84,9 +86,9 @@ async def configure_ams_slot(
     kprofile_setting_id: str = Query(""),
     k_value: float = Query(0.0),
     orca_profile_id: str = Query(""),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Configure an AMS slot with a specific filament setting and K profile.
 
@@ -115,6 +117,14 @@ async def configure_ams_slot(
             "" if _ORCA_PROFILE_ID.fullmatch(kprofile_setting_id.removeprefix("orca_")) else kprofile_setting_id
         )
         setting_id = "" if _ORCA_PROFILE_ID.fullmatch(setting_id.removeprefix("orca_")) else setting_id
+    for_kprofile = setting_id_to_filament_id(kprofile_filament_id)
+    if for_kprofile != kprofile_filament_id:
+        kprofile_setting_id = kprofile_setting_id or kprofile_filament_id
+        kprofile_filament_id = for_kprofile
+    for_slot = setting_id_to_filament_id(tray_info_idx)
+    if for_slot != tray_info_idx:
+        setting_id = setting_id or tray_info_idx
+        tray_info_idx = for_slot
     orca_fallback_reason = ""
     if orca_profile_id and not tray_info_idx:
         owner, allowed = await orca_cloud_caller(request, db, current_user)
@@ -148,50 +158,27 @@ async def configure_ams_slot(
     effective_tray_info_idx = tray_info_idx
 
     if not tray_info_idx:
-        current_tray_info_idx = ""
-        current_tray_type = ""
         state = printer_manager.get_status(printer_id)
-        if state and state.raw_data:
-            from backend.app.api.routes.inventory import _find_tray_in_ams_data
+        current = tray_for_slot(state.raw_data, ams_id, tray_id) if state and state.raw_data else {}
+        current_tray_info_idx = current.get("tray_info_idx", "")
+        current_tray_type = current.get("tray_type", "")
+        current_tray_sub_brands = current.get("tray_sub_brands", "")
 
-            if ams_id == 255:
-                vt_tray = state.raw_data.get("vt_tray") or []
-                ext_id = tray_id + 254
-                for vt in vt_tray:
-                    if isinstance(vt, dict) and int(vt.get("id", 254)) == ext_id:
-                        current_tray_info_idx = vt.get("tray_info_idx", "")
-                        current_tray_type = vt.get("tray_type", "")
-                        break
-            else:
-                ams_data = state.raw_data.get("ams", {})
-                ams_list = (
-                    ams_data.get("ams", [])
-                    if isinstance(ams_data, dict)
-                    else ams_data
-                    if isinstance(ams_data, list)
-                    else []
-                )
-                cur_tray = _find_tray_in_ams_data(ams_list, ams_id, tray_id)
-                if cur_tray:
-                    current_tray_info_idx = cur_tray.get("tray_info_idx", "")
-                    current_tray_type = cur_tray.get("tray_type", "")
+        from backend.app.services.slicer_filament_resolver import reusable_slot_filament_id
 
-        if (
-            not orca_profile_id
-            and current_tray_info_idx
-            and current_tray_info_idx not in set(GENERIC_FILAMENT_IDS.values())
-            and not is_material_name(current_tray_info_idx)
-            and current_tray_type
-            and printer_filament_type(current_tray_type).upper() == tray_type.upper()
-        ):
-            logger.info(
-                "[configure_ams_slot] Reusing slot's existing tray_info_idx=%r (same material %r)",
-                current_tray_info_idx,
-                tray_type,
+        reused = (
+            ""
+            if orca_profile_id
+            else reusable_slot_filament_id(
+                current_tray_info_idx, current_tray_type, current_tray_sub_brands, tray_type, tray_sub_brands
             )
-            effective_tray_info_idx = current_tray_info_idx
+        )
+        if reused:
+            effective_tray_info_idx = reused
         elif tray_type:
-            generic = generic_filament_id(requested_tray_type, tray_type)
+            generic = finish_generic_id(tray_type, f"{requested_tray_type} {tray_sub_brands}") or generic_filament_id(
+                requested_tray_type, tray_type
+            )
             if generic:
                 logger.info("[configure_ams_slot] Falling back to generic %r for material %r", generic, tray_type)
                 effective_tray_info_idx = generic
@@ -257,11 +244,12 @@ async def configure_ams_slot(
     # the existing profile's metadata (extruder_id, nozzle_id, name, setting_id),
     # corrupting it — e.g., overwriting a High Flow extruder 1 profile with
     # hardcoded extruder_id=0 and nozzle_id=HS00.
+    k_value_unsent = False
     if k_value > 0 and cali_idx < 0:
         # Calculate global tray ID for extrusion_cali_set
         global_tray_id = _global_tray_id(ams_id, tray_id)
 
-        client.extrusion_cali_set(
+        k_value_unsent = not client.extrusion_cali_set(
             tray_id=global_tray_id,
             k_value=k_value,
             nozzle_diameter=nozzle_diameter,
@@ -404,6 +392,16 @@ async def configure_ams_slot(
             except Exception:
                 pass
 
+    register_sent_assignment(
+        client,
+        printer_manager.get_status(printer_id),
+        ams_id,
+        tray_id,
+        effective_tray_info_idx,
+        tray_color,
+        cali_idx,
+        request_update=False,
+    )
     # Request fresh status push from printer so frontend gets updated data via WebSocket
     logger.info("[configure_ams_slot] Requesting status update from printer")
     update_result = client.request_status_update()
@@ -413,6 +411,7 @@ async def configure_ams_slot(
         "success": True,
         "tray_info_idx": effective_tray_info_idx,
         "orca_fallback_reason": "" if realigned_to_kprofile else orca_fallback_reason,
+        "k_value_unsent": k_value_unsent,
         "message": f"Configured AMS {ams_id} tray {tray_id} with {tray_sub_brands}",
     }
 
@@ -422,9 +421,9 @@ async def reset_ams_slot(
     printer_id: int,
     ams_id: int,
     tray_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Reset an AMS slot to empty/unconfigured state.
 
@@ -435,7 +434,9 @@ async def reset_ams_slot(
     if not client:
         raise HTTPException(status_code=400, detail="Printer not connected")
 
-    # Reset the slot
+    if client.state and client.state.state in printer_manager.ACTIVE_PRINT_STATES:
+        raise HTTPException(409, "The printer is printing. Reset the slot once it is idle")
+
     success = client.reset_ams_slot(ams_id=ams_id, tray_id=tray_id)
 
     if not success:
@@ -466,9 +467,14 @@ async def reset_ams_slot(
 @router.get("/{printer_id}/ams-labels")
 async def get_ams_labels(
     printer_id: int,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PRINTERS_READ)),
+    db: AsyncSession = DB_SESSION,
 ):
+    await resolve_printer_visibility(db, access, Permission.PRINTERS_READ, printer_id)
+    return await read_ams_labels(db, printer_id)
+
+
+async def read_ams_labels(db: AsyncSession, printer_id: int) -> dict[int, str]:
     """Get all user-defined AMS labels for a printer, keyed by AMS unit ID.
 
     Labels are stored by AMS serial number.  This endpoint resolves the current
@@ -522,7 +528,7 @@ async def save_ams_label(
     ams_id: int,
     body: AmsLabelBody,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Create or update the friendly name for a specific AMS unit.
 
@@ -538,7 +544,8 @@ async def save_ams_label(
 
     # Determine the serial key to store under
     stripped = body.ams_serial.strip() if body.ams_serial else ""
-    serial_key = stripped if stripped else f"p{printer_id}a{ams_id}"
+    position_key = f"p{printer_id}a{ams_id}"
+    serial_key = stripped if stripped else position_key
 
     result = await db.execute(select(AmsLabel).where(AmsLabel.ams_serial_number == serial_key))
     existing = result.scalar_one_or_none()
@@ -548,6 +555,8 @@ async def save_ams_label(
         existing.ams_id = ams_id
     else:
         db.add(AmsLabel(ams_serial_number=serial_key, ams_id=ams_id, label=body.label))
+    if serial_key != position_key:
+        await db.execute(delete(AmsLabel).where(AmsLabel.ams_serial_number == position_key))
 
     await db.commit()
     return {"ams_id": ams_id, "label": body.label}
@@ -559,18 +568,13 @@ async def delete_ams_label(
     ams_id: int,
     ams_serial: str = Query(default="", max_length=50),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Delete the friendly name for a specific AMS unit, reverting to the auto label."""
     stripped = ams_serial.strip() if ams_serial else ""
-    serial_key = stripped if stripped else f"p{printer_id}a{ams_id}"
-
-    result = await db.execute(select(AmsLabel).where(AmsLabel.ams_serial_number == serial_key))
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        await db.delete(existing)
-        await db.commit()
+    keys = {stripped, f"p{printer_id}a{ams_id}"} - {""}
+    await db.execute(delete(AmsLabel).where(AmsLabel.ams_serial_number.in_(keys)))
+    await db.commit()
 
     return {"success": True}
 
@@ -581,8 +585,8 @@ async def refresh_ams_slot(
     ams_id: int,
     slot_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_AMS_RFID),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Re-read RFID for an AMS slot (triggers filament info refresh)."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -828,8 +832,8 @@ async def ams_load(
     printer_id: int,
     tray_id: int = Query(..., description="Tray ID: 0-15 for AMS slots (ams_id*4+slot_id), 254 for external spool"),
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Load filament from a specific AMS slot or external spool.
 
@@ -838,8 +842,10 @@ async def ams_load(
     - 254: external spool (single-external printers, or Ext-L on dual-nozzle H2D)
     - 255: Ext-R on dual-nozzle H2D
     """
-    if tray_id not in range(16) and tray_id not in (254, 255):
-        raise HTTPException(400, "tray_id must be 0..15 (AMS slot), 254 (external / Ext-L), or 255 (Ext-R)")
+    if tray_id not in (*range(16), *range(24, 28), *range(128, 136), 254, 255):
+        raise HTTPException(
+            400, "tray_id must be 0..15 (AMS), 24..27 (AMS Lite), 128..135 (AMS-HT), or 254/255 (external)"
+        )
 
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
     printer = result.scalar_one_or_none()
@@ -858,6 +864,8 @@ async def ams_load(
         target = "external spool"
     elif tray_id == 255:
         target = "Ext-R"
+    elif 128 <= tray_id <= 135:
+        target = f"AMS HT-{chr(ord('A') + tray_id - 128)}"
     else:
         target = f"AMS {tray_id // 4} slot {tray_id % 4 + 1}"
     return {"success": True, "message": f"Loading filament from {target}"}
@@ -867,8 +875,8 @@ async def ams_load(
 async def ams_unload(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Unload the currently loaded filament."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))

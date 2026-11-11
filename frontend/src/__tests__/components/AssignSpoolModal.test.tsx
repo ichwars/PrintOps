@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { AssignSpoolModal } from '../../components/AssignSpoolModal';
 import { api } from '../../api/client';
@@ -15,6 +15,9 @@ vi.mock('../../api/client', () => ({
     getSpoolmanInventorySpools: vi.fn(),
     getSpoolmanSlotAssignments: vi.fn().mockResolvedValue([]),
     getSettings: vi.fn().mockResolvedValue({}),
+    getUiFlags: vi.fn().mockResolvedValue({}),
+    getSpool: vi.fn(),
+    resolveSpoolLabel: vi.fn(),
     getAuthStatus: vi.fn().mockResolvedValue({ auth_enabled: false }),
     refreshPrinterStatus: vi.fn().mockResolvedValue({ status: 'ok' }),
   },
@@ -81,6 +84,39 @@ const anotherManualSpool = {
 };
 
 describe('AssignSpoolModal', () => {
+  it('finds an exact spool ID across tray materials without matching partial IDs', async () => {
+    vi.mocked(api.getSpools).mockResolvedValue([
+      { ...manualSpool, id: 7, material: 'PETG', brand: 'Sunlu' },
+      { ...manualSpool, id: 17, material: 'PLA', brand: 'Other' },
+    ] as never);
+    render(<AssignSpoolModal {...defaultProps} />);
+    const field = screen.getByPlaceholderText(/search/i);
+    await screen.findByText(/Other PLA/);
+    fireEvent.change(field, { target: { value: '#7' } });
+    expect(await screen.findByText(/Sunlu PETG/)).toBeInTheDocument();
+    expect(screen.queryByText(/Other PLA/)).not.toBeInTheDocument();
+    fireEvent.change(field, { target: { value: '#99' } });
+    expect(await screen.findByText('Spool #99 was not found.')).toBeInTheDocument();
+  });
+
+  it('scans a label for the already selected AMS slot', async () => {
+    const onClose = vi.fn();
+    vi.mocked(api.resolveSpoolLabel).mockResolvedValue({ spool_id: manualSpool.id, source: 'inventory' });
+    vi.mocked(api.getSpool).mockResolvedValue(manualSpool as never);
+    vi.mocked(api.assignSpool).mockResolvedValue({ pending_config: false } as never);
+    render(<AssignSpoolModal {...defaultProps} onClose={onClose} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Scan spool label' }));
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Spool label link' }), {
+      target: { value: '/inventory?spool=1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Read label' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign to AMS 1 - Slot 1' }));
+    await waitFor(() => expect(api.assignSpool).toHaveBeenCalledWith({
+      spool_id: 1, printer_id: 1, ams_id: 0, tray_id: 0, move: true,
+    }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     (api.getSpools as ReturnType<typeof vi.fn>).mockResolvedValue([manualSpool, blSpool, anotherManualSpool]);

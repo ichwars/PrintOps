@@ -1,5 +1,7 @@
 """Integration tests for Print Queue API endpoints."""
 
+import zipfile
+
 import pytest
 from httpx import AsyncClient
 
@@ -182,6 +184,17 @@ class TestPrintQueueAPI:
             headers={"Authorization": f"Bearer {scoped_token}"},
         )
         assert hidden_resume.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_unsliced_archive_with_compound_name_is_rejected(self, async_client, archive_factory, tmp_path):
+        path = tmp_path / "archived.gcode.3mf"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("3D/3dmodel.model", "<model/>")
+        stored = await archive_factory(filename=path.name, file_path=str(path))
+        response = await async_client.post("/api/v1/queue/", json={"archive_id": stored.id})
+        assert response.status_code == 400
+        assert "isn't sliced yet" in response.json()["detail"]
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -1621,6 +1634,7 @@ class TestAbortedStatusNormalisation:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
         mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.scalars = AsyncMock(return_value=MagicMock(all=lambda: []))
         mock_session.commit = AsyncMock()
 
         tasks_before = set(asyncio.all_tasks())
@@ -1717,6 +1731,7 @@ class TestAbortedStatusNormalisation:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
         mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.scalars = AsyncMock(return_value=MagicMock(all=lambda: []))
         mock_session.commit = AsyncMock()
 
         tasks_before = set(asyncio.all_tasks())

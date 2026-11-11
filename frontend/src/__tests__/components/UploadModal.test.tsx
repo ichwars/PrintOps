@@ -20,11 +20,26 @@ describe('UploadModal', () => {
         return HttpResponse.json({
           uploaded: 1,
           failed: 0,
-          results: [{ id: 1, filename: 'test.3mf' }],
+          results: [{ index: 0, id: 1, filename: 'test.3mf' }],
           errors: [],
         });
       })
     );
+  });
+
+  it('shows different results for files with the same name', async () => {
+    server.use(http.post('/api/v1/archives/upload-bulk', () => HttpResponse.json({
+      uploaded: 1, failed: 1,
+      results: [{ index: 0, id: 8, filename: 'same.3mf', status: 'success' }],
+      errors: [{ index: 1, filename: 'same.3mf', error: 'Second file is invalid' }],
+    })));
+    render(<UploadModal onClose={mockOnClose} initialFiles={[
+      new File(['first'], 'same.3mf'), new File(['second'], 'same.3mf'),
+    ]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Upload (2)' }));
+    expect(await screen.findByText('Second file is invalid')).toBeInTheDocument();
+    expect(screen.getAllByText('same.3mf')).toHaveLength(2);
+    expect(screen.getAllByText('Second file is invalid')).toHaveLength(1);
   });
 
   describe('rendering', () => {

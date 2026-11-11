@@ -2,6 +2,7 @@ from backend.app.models.ams_history import AMSSensorHistory
 from backend.app.models.ams_label import AmsLabel
 from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
+from backend.app.models.archive_alias import ArchiveAlias
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, AuthRateLimitEvent
 from backend.app.models.business_profile import (
     BusinessProfile,
@@ -78,10 +79,12 @@ from backend.app.models.document_layout import (
 from backend.app.models.drying_schedule import DryingSchedule, DryingScheduleRun
 from backend.app.models.equipment import Equipment
 from backend.app.models.filament import Filament
+from backend.app.models.filament_profile_default import FilamentProfileDefault
 from backend.app.models.filament_sku_settings import FilamentSkuSettings
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.group import Group, user_groups
 from backend.app.models.kprofile_note import KProfileNote
+from backend.app.models.label_template import LabelTemplate
 from backend.app.models.lexware import LexwareConnection, LexwareResource
 from backend.app.models.lexware_documents import LexwareDocument, LexwareOriginal, LexwarePaymentSnapshot
 from backend.app.models.library import FileVariantGroup, LibraryFile, LibraryFolder
@@ -134,8 +137,10 @@ from backend.app.models.warehouse_article import WarehouseArticle, WarehouseArti
 __all__ = [
     "Printer",
     "PrintLogEntry",
+    "ArchiveAlias",
     "PrintArchive",
     "Filament",
+    "FilamentProfileDefault",
     "FilamentSkuSettings",
     "Settings",
     "SmartPlug",
@@ -172,6 +177,7 @@ __all__ = [
     "PipelineJob",
     "PipelineRun",
     "SlicerPipeline",
+    "LabelTemplate",
     "Spool",
     "SpoolKProfile",
     "SpoolFilamentPreset",

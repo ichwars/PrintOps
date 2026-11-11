@@ -166,6 +166,7 @@ export async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const requestSession = getAuthSessionId();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers as Record<string, string>,
@@ -226,7 +227,7 @@ export async function request<T>(
 
     // Handle 401 Unauthorized - only clear token if it's actually invalid
     // Don't clear on "Authentication required" which might be a timing issue
-    if (response.status === 401) {
+    if (response.status === 401 && requestSession === getAuthSessionId()) {
       const invalidTokenMessages = [
         'Could not validate credentials',
         'Token has expired',

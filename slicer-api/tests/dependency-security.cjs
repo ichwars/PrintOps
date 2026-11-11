@@ -102,3 +102,78 @@ for (const encodeValuesOnly of [false, true]) {
     assert.equal(qs.stringify({ a: [{ toString: () => 'custom' }] }, options), 'a=custom');
   });
 }
+
+// CVE-2026-118764 / CVE-2026-118773: bound work without changing archive contents.
+const fs = require('node:fs');
+const os = require('node:os');
+const { spawnSync } = require('node:child_process');
+const { glob } = wrapperRequire('glob');
+
+test('globstar preprocessing terminates for hostile patterns', { timeout: 10000 }, () => {
+  const result = spawnSync(process.execPath, ['-e', `
+    const { Minimatch } = require(process.argv[1]);
+    const matcher = new Minimatch('root/' + '*/**/../'.repeat(22) + 'file.3mf',
+      { optimizationLevel: 2 });
+    console.log(matcher.match('root/file.3mf'));
+  `, createRequire(wrapperRequire.resolve('glob')).resolve('minimatch')], { encoding: 'utf8', timeout: 5000 });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), 'false');
+});
+
+test('aborted glob traversal stops issuing filesystem reads', { timeout: 5000 }, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'printops-glob-abort-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  for (let index = 0; index < 12; index++) {
+    fs.mkdirSync(path.join(directory, `branch-${index}`, 'nested'), { recursive: true });
+    fs.writeFileSync(path.join(directory, `branch-${index}`, 'nested', 'profile.json'), '{}');
+  }
+  const controller = new AbortController();
+  const reason = new Error('traversal canceled');
+  let reads = 0;
+  const filesystem = { ...fs, readdir: (...args) => {
+    reads++;
+    const callback = args.pop();
+    fs.readdir(...args, (error, entries) => {
+      controller.abort(reason);
+      callback(error, entries);
+    });
+  } };
+  await assert.rejects(glob('**/*', { cwd: directory, fs: filesystem,
+    signal: controller.signal }), (error) => error === reason);
+  const atRejection = reads;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(reads, atRejection, 'traversal continued after rejection');
+  assert.equal(reads, 1, 'cancellation must stop after the first directory read');
+});
+
+test('native profile ZIPs preserve recursive contents and glob selection', { timeout: 5000 }, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'printops-profile-zip-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(directory, 'nested'));
+  fs.writeFileSync(path.join(directory, 'printer.json'), '{"printer":"PrintOps"}');
+  fs.writeFileSync(path.join(directory, 'nested', 'filament.json'), '{"filament":"PLA"}');
+  fs.writeFileSync(path.join(directory, 'notes.txt'), 'keep ordinary files');
+  const selected = wrapperRequire('archiver-utils').file.expand({ cwd: directory }, ['**/*.json']);
+  assert.deepEqual(selected.sort(), ['nested/filament.json', 'printer.json']);
+  for (const selectGlob of [false, true]) {
+    const archive = wrapperRequire('archiver')('zip');
+    const chunks = [];
+    archive.on('data', (chunk) => chunks.push(chunk));
+    const completed = new Promise((resolve, reject) => {
+      archive.once('end', resolve);
+      archive.once('error', reject);
+    });
+    if (selectGlob) archive.glob('**/*.json', { cwd: directory });
+    else archive.directory(directory, 'profiles');
+    await archive.finalize();
+    await completed;
+    const zip = await wrapperRequire('unzipper').Open.buffer(Buffer.concat(chunks));
+    const files = zip.files.filter((file) => file.type === 'File');
+    assert.deepEqual(files.map((file) => file.path).sort(), selectGlob
+      ? ['nested/filament.json', 'printer.json']
+      : ['profiles/nested/filament.json', 'profiles/notes.txt', 'profiles/printer.json']);
+    const printer = files.find((file) => file.path.endsWith('printer.json'));
+    assert.deepEqual(JSON.parse((await printer.buffer()).toString()), { printer: 'PrintOps' });
+  }
+});

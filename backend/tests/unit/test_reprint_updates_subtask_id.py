@@ -144,6 +144,7 @@ async def _drive(tmp_path, mock_archive, mqtt_subtask_id: str | None):
 
     with (
         async_session_p as mock_session_maker,
+        patch("backend.app.core.printer_lifecycle.lock_existing_printer", AsyncMock(return_value=True)),
         notif_p as mock_notif,
         plug_p as mock_plug,
         ws_p as mock_ws,

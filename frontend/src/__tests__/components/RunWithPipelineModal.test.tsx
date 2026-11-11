@@ -23,7 +23,7 @@ vi.mock('../../api/client', () => ({
     checkPipelineEligibility: vi.fn(),
     runPipeline: vi.fn(),
     // ThemeContext / AuthContext bootstrap touches these on mount.
-    getSettings: vi.fn().mockResolvedValue({}),
+    getUiFlags: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({}),
   },
 }));
@@ -137,6 +137,24 @@ describe('RunWithPipelineModal', () => {
       );
       expect(onClose).toHaveBeenCalled();
     });
+  });
+
+  it('reports a refused archive source without starting or closing the pipeline', async () => {
+    mockApi.listSlicerPipelines.mockResolvedValue({ pipelines: [makePipeline()] });
+    mockApi.checkPipelineEligibility.mockRejectedValue(new Error('Archive reprint is forbidden'));
+    const onClose = vi.fn();
+    render(
+      <SliceJobTrackerProvider>
+        <RunWithPipelineModal source={{ kind: 'archive', id: 7, filename: 'archive.3mf' }} onClose={onClose} />
+      </SliceJobTrackerProvider>,
+    );
+
+    const button = await screen.findByRole('button', { name: /Production Batch/i });
+    await userEvent.setup().click(button);
+
+    expect(await screen.findByText('Archive reprint is forbidden')).toBeInTheDocument();
+    expect(mockApi.runPipeline).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('threads source kind="archive" through eligibility + run', async () => {

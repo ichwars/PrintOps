@@ -4,9 +4,15 @@ Tests the full request/response cycle for /api/v1/settings/ endpoints.
 """
 
 import os
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+
+from backend.app.models.settings import Settings
+from backend.app.services.mqtt_relay import mqtt_relay
+from backend.app.services.secret_fields import SECRET_PLACEHOLDER
 
 
 class TestSettingsAPI:
@@ -280,8 +286,10 @@ class TestSettingsAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_update_mqtt_settings(self, async_client: AsyncClient):
-        """Verify MQTT settings can be updated."""
+    async def test_update_mqtt_settings(self, async_client: AsyncClient, monkeypatch):
+        """Verify MQTT settings can be updated without returning the password."""
+        configure = AsyncMock()
+        monkeypatch.setattr(mqtt_relay, "configure", configure)
         response = await async_client.put(
             "/api/v1/settings/",
             json={
@@ -301,7 +309,8 @@ class TestSettingsAPI:
         assert result["mqtt_broker"] == "mqtt.example.com"
         assert result["mqtt_port"] == 8883
         assert result["mqtt_username"] == "testuser"
-        assert result["mqtt_password"] == "testpass"
+        assert result["mqtt_password"] == SECRET_PLACEHOLDER
+        assert configure.await_args.args[0]["mqtt_password"] == "testpass"
         assert result["mqtt_topic_prefix"] == "myprefix"
         assert result["mqtt_use_tls"] is True
 
@@ -613,7 +622,7 @@ class TestSettingsAPI:
 
             # Verify env var values are used
             assert result["ha_url"] == "http://supervisor/core"
-            assert result["ha_token"] == "test-token-12345"
+            assert result["ha_token"] == SECRET_PLACEHOLDER
 
             # Verify metadata fields
             assert result["ha_url_from_env"] is True
@@ -669,7 +678,7 @@ class TestSettingsAPI:
             assert response.status_code == 200
 
             # Verify token is from env, URL is from database
-            assert result["ha_token"] == "test-token-12345"
+            assert result["ha_token"] == SECRET_PLACEHOLDER
             assert result["ha_url_from_env"] is False
             assert result["ha_token_from_env"] is True
             assert result["ha_env_managed"] is False
@@ -698,7 +707,7 @@ class TestSettingsAPI:
         response = await async_client.get("/api/v1/settings/")
         result = response.json()
         assert result["ha_url"] == "http://database-url:8123"
-        assert result["ha_token"] == "database-token"
+        assert result["ha_token"] == SECRET_PLACEHOLDER
 
         # Now set environment variables
         os.environ["HA_URL"] = "http://env-url/core"
@@ -710,7 +719,7 @@ class TestSettingsAPI:
 
             # Verify env vars override database
             assert result["ha_url"] == "http://env-url/core"
-            assert result["ha_token"] == "env-token-xyz"
+            assert result["ha_token"] == SECRET_PLACEHOLDER
             assert result["ha_url_from_env"] is True
             assert result["ha_token_from_env"] is True
             assert result["ha_env_managed"] is True
@@ -724,7 +733,7 @@ class TestSettingsAPI:
         response = await async_client.get("/api/v1/settings/")
         result = response.json()
         assert result["ha_url"] == "http://database-url:8123"
-        assert result["ha_token"] == "database-token"
+        assert result["ha_token"] == SECRET_PLACEHOLDER
         assert result["ha_url_from_env"] is False
         assert result["ha_token_from_env"] is False
 
@@ -752,7 +761,7 @@ class TestSettingsAPI:
             # But values should still be from env vars
             result = response.json()
             assert result["ha_url"] == "http://supervisor/core"
-            assert result["ha_token"] == "env-token"
+            assert result["ha_token"] == SECRET_PLACEHOLDER
             assert result["ha_url_from_env"] is True
             assert result["ha_token_from_env"] is True
 
@@ -783,7 +792,7 @@ class TestSettingsAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_ha_settings_can_be_updated_normally_without_env_vars(self, async_client: AsyncClient):
+    async def test_ha_settings_can_be_updated_normally_without_env_vars(self, async_client: AsyncClient, db_session):
         """Verify HA settings can be updated normally when env vars are not set."""
         # Ensure no env vars
         os.environ.pop("HA_URL", None)
@@ -803,7 +812,7 @@ class TestSettingsAPI:
         result = response.json()
         assert result["ha_enabled"] is True
         assert result["ha_url"] == "http://192.168.1.100:8123"
-        assert result["ha_token"] == "my-long-lived-token"
+        assert result["ha_token"] == SECRET_PLACEHOLDER
         assert result["ha_url_from_env"] is False
         assert result["ha_token_from_env"] is False
         assert result["ha_env_managed"] is False
@@ -813,7 +822,10 @@ class TestSettingsAPI:
         result = response.json()
         assert result["ha_enabled"] is True
         assert result["ha_url"] == "http://192.168.1.100:8123"
-        assert result["ha_token"] == "my-long-lived-token"
+        assert result["ha_token"] == SECRET_PLACEHOLDER
+        assert (
+            await db_session.scalar(select(Settings.value).where(Settings.key == "ha_token")) == "my-long-lived-token"
+        )
 
 
 class TestOpenInSlicerOverride:

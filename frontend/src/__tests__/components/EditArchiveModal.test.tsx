@@ -226,6 +226,20 @@ describe('EditArchiveModal', () => {
       expect(screen.getByLabelText(/failure reason/i)).toHaveTextContent('Filament runout');
     });
 
+    it.each(['failed', 'aborted', 'cancelled'])('preserves the localized missing-status reason on %s archives', async (status) => {
+      let patched: { status?: string; failure_reason?: string } | undefined;
+      const archive = { ...mockArchive, status, failure_reason: 'noStatusUpdate' };
+      server.use(http.patch('/api/v1/archives/:id', async ({ request }) => {
+        patched = await request.json() as typeof patched;
+        return HttpResponse.json({ ...archive, ...patched });
+      }));
+      render(<EditArchiveModal archive={archive} onClose={mockOnClose} onSave={mockOnSave} />);
+      expect(screen.getByLabelText(/failure reason/i)).toHaveTextContent('No completion status received');
+      await userEvent.click(screen.getByRole('button', { name: /save/i }));
+      await waitFor(() => expect(patched?.failure_reason).toBe('noStatusUpdate'));
+      expect(patched?.status).toBeUndefined();
+    });
+
     it('reverse-looks-up a legacy translated value back to its key', () => {
       render(<EditArchiveModal archive={legacyArchive} onClose={mockOnClose} onSave={mockOnSave} />);
       expect(screen.getByLabelText(/failure reason/i)).toHaveTextContent('Filament runout');

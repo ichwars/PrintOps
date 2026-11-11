@@ -30,6 +30,8 @@ export interface PrintModalProps {
   queueItem?: PrintQueueItem;
   /** Pre-select specific printers when opening the modal */
   initialSelectedPrinterIds?: number[];
+  /** Initially select the archive/queue run's plate; absent plates fall back to the first available. */
+  preselectPlateId?: number | null;
   /** Handler for closing the modal */
   onClose: () => void;
   /** Handler for successful operation */
@@ -277,4 +279,11 @@ export interface ScheduleOptionsProps {
   printerCount?: number;
   /** Whether G-code snippets are configured in settings */
   hasGcodeSnippets?: boolean;
+}
+
+export interface FilamentOverrideChoice {
+  type: string;
+  color: string;
+  tray_info_idx?: string;
+  tray_sub_brands?: string;
 }

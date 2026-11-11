@@ -8,6 +8,7 @@ import logging
 import zipfile
 
 from backend.app.utils.archive_budget import ArchiveBudgetError, read_json_member
+from backend.app.utils.slicer_strings import first_slicer_string
 from backend.app.utils.threemf_tools import extract_project_filaments_from_3mf, supports_enabled_in_config
 
 logger = logging.getLogger(__name__)
@@ -59,10 +60,7 @@ def _source_plate_colours(model_bytes: bytes) -> list[str]:
 
 
 def _preset_default_colour(profile: dict) -> str:
-    raw = profile.get("default_filament_colour")
-    if isinstance(raw, list):
-        raw = raw[0] if raw else None
-    return raw.strip() if isinstance(raw, str) else ""
+    return first_slicer_string(profile.get("default_filament_colour")) or ""
 
 
 def patch_filament_colours(filament_jsons: list[str], requested: list[str], model_bytes: bytes) -> list[str]:

@@ -20,6 +20,7 @@ interface AuthContextType {
   authenticationEpoch: number | null;
   requiresSetup: boolean;
   loading: boolean;
+  authRetrying: boolean;
   isAdmin: boolean;
   /** Login with username/password. Returns LoginResponse (may include requires_2fa). */
   login: (username: string, password: string, persistence?: TokenPersistence) => Promise<LoginResponse>;
@@ -44,10 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const session = useSyncExternalStore(subscribeAuthSession, getAuthSessionId);
   const [requiresSetup, setRequiresSetup] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [authRetrying, setAuthRetrying] = useState(false);
+  const pendingKioskTokenRef = useRef<string | null>(null);
   const authStatusCheckRef = useRef(0);
   const hasRedirectedRef = useRef(false);
   const mountedRef = useRef(true);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renewalRef = useRef<Promise<LoginResponse> | null>(null);
 
   const clearRefreshTimer = () => {
     if (refreshTimerRef.current) {
@@ -80,27 +84,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         scheduleTokenRefresh();
         return;
       }
+      const requestSession = getAuthSessionId();
+      const check = authStatusCheckRef.current;
+      const renewal = api.refreshToken();
+      renewalRef.current = renewal;
       try {
-        const requestSession = getAuthSessionId();
-        const check = authStatusCheckRef.current;
-        const resp = await api.refreshToken();
-        if (!mountedRef.current || !resp.access_token) return;
-        const sameSession = requestSession === getAuthSessionId() && check === authStatusCheckRef.current;
+        const resp = await renewal;
+        if (!mountedRef.current || !resp.access_token || requestSession !== getAuthSessionId()) return;
+        const sameCheck = check === authStatusCheckRef.current;
         setAuthToken(resp.access_token, getTokenPersistence());
         const renewedSession = getAuthSessionId();
         // Carry preference proof through renewal only for the session that requested it.
-        setPreferenceIdentity(previous => sameSession && previous?.session === requestSession
+        setPreferenceIdentity(previous => sameCheck && previous?.session === requestSession
           ? { ...previous, session: renewedSession } : null);
         scheduleTokenRefresh();
       } catch {
         // Refresh failed (token already expired/revoked, offline, etc.) — the
         // existing 401 handling (`auth:expired`) takes over on the next
         // authenticated request rather than forcing anything here.
+      } finally {
+        if (renewalRef.current === renewal) renewalRef.current = null;
       }
     }, delay);
   }, []);
 
-  const checkAuthStatus = async () => {
+  const persistConfirmedKioskToken = useCallback(() => {
+    const token = pendingKioskTokenRef.current;
+    if (token && token === getAuthToken()) {
+      setAuthToken(token, 'persistent');
+      pendingKioskTokenRef.current = null;
+    }
+  }, []);
+
+  const waitForAuthServer = useCallback(() => {
+    setAuthRetrying(true);
+    window.dispatchEvent(new Event('auth:recheck'));
+  }, []);
+
+  const checkAuthStatus = useCallback(async () => {
     const check = ++authStatusCheckRef.current;
     setVerifiedAuthMode(null);
     setPreferenceIdentity(null);
@@ -114,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const streamingRoute = /^\/(?:overlay\/\d+|camera\/\d+|camwall)\/?$/.test(window.location.pathname);
       const urlToken = streamingRoute ? null : urlParams.get('token');
       if (urlToken) {
+        pendingKioskTokenRef.current = urlToken;
         setAuthToken(urlToken, 'session'); // session-only until server confirms it's valid
         urlParams.delete('token');
         const cleanSearch = urlParams.toString();
@@ -124,13 +146,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const status = await api.getAuthStatus();
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || check !== authStatusCheckRef.current) return;
+      if (typeof status.auth_enabled !== 'boolean') throw new Error('Invalid authentication status');
       setAuthEnabled(status.auth_enabled);
       setRequiresSetup(status.requires_setup);
 
-      if (check === authStatusCheckRef.current) {
-        setVerifiedAuthMode(typeof status.auth_enabled === 'boolean' ? status.auth_enabled : null);
-      }
+      setVerifiedAuthMode(status.auth_enabled);
       if (status.auth_enabled) {
         const token = getAuthToken();
         const requestSession = getAuthSessionId();
@@ -144,47 +165,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // `auth:expired`; here we just retry the transient cases and keep the
           // token so the session survives a slow load.
           let currentUser: UserResponse | null = null;
-          let definitiveAuthFailure = false;
+          let authFailureStatus: number | undefined;
           const maxAttempts = 3;
           for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
               currentUser = await api.getCurrentUser();
               break;
             } catch (err) {
-              if (!mountedRef.current) return;
-              // 401 invalid-token → genuinely logged out. `request()` has
-              // already cleared the token; stop retrying.
-              if (err instanceof ApiError && err.status === 401) {
-                definitiveAuthFailure = true;
+              if (!mountedRef.current || check !== authStatusCheckRef.current) return;
+              // An explicit rejection ends the check. Keep a kiosk key on
+              // 403 so the owner can regain access without configuring it again.
+              if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+                authFailureStatus = err.status;
                 break;
               }
-              // Transient (network / 5xx / other) → back off and retry. Leave
-              // the token in place so a subsequent load can recover.
+              // Brief startup retries precede the longer background backoff.
               if (attempt < maxAttempts) {
                 await new Promise((r) => setTimeout(r, 400 * attempt));
               }
             }
           }
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || check !== authStatusCheckRef.current || requestSession !== getAuthSessionId()) return;
           if (currentUser) {
             setUser(currentUser);
-            if (check === authStatusCheckRef.current && requestSession === getAuthSessionId()) {
-              setPreferenceIdentity(currentUser.id > 0 && currentUser.sub
-                ? { session: requestSession, sub: currentUser.sub, epoch: check } : null);
-            }
+            setPreferenceIdentity(currentUser.id > 0 && currentUser.sub
+              ? { session: requestSession, sub: currentUser.sub, epoch: check } : null);
             // Persist kiosk token only after the server confirms it is valid.
-            if (urlToken && token === urlToken) {
-              setAuthToken(urlToken, 'persistent');
-            }
+            persistConfirmedKioskToken();
           } else {
-            // No user: either a definitive 401 (token already cleared by
-            // request()) or transient failures exhausted their retries. In the
-            // transient case we deliberately keep the token so a reload retries
-            // rather than forcing a re-login.
-            if (definitiveAuthFailure) {
-              setAuthToken(null);
-            }
             setUser(null);
+            if (authFailureStatus === undefined) {
+              waitForAuthServer();
+              return;
+            }
+            if (authFailureStatus === 401) setAuthToken(null);
+            pendingKioskTokenRef.current = null;
           }
         } else {
           setUser(null);
@@ -193,22 +208,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Auth not enabled, allow access
         setUser(null);
       }
+      setAuthRetrying(false);
     } catch {
-      if (!mountedRef.current) return;
-      if (check === authStatusCheckRef.current) setVerifiedAuthMode(null);
-      setAuthEnabled(false);
-      setUser(null);
+      if (!mountedRef.current || check !== authStatusCheckRef.current) return;
+      waitForAuthServer();
     } finally {
       if (mountedRef.current) {
         setLoading(false);
       }
     }
-  };
+  }, [persistConfirmedKioskToken, waitForAuthServer]);
 
   useEffect(() => {
     mountedRef.current = true;
-    // Check auth status on mount
-    checkAuthStatus();
 
     // Listen for token-expiry events from the API client. setAuthToken(null)
     // in client.ts only clears storage; without this listener, `user` stays
@@ -217,18 +229,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const handleAuthExpired = () => {
       if (!mountedRef.current) return;
       authStatusCheckRef.current += 1;
+      pendingKioskTokenRef.current = null;
+      setAuthRetrying(false);
       setPreferenceIdentity(null);
       setUser(null);
     };
     window.addEventListener('auth:expired', handleAuthExpired);
 
+    let cancelled = false;
+    let rechecking = false;
+    let retryTimer: number | undefined;
+    let retryDelay = 2000;
+
+    // A refused live connection can mean that the authentication mode or
+    // current permissions changed while this tab was open.
+    const recheckAuth = async () => {
+      if (cancelled || rechecking) return;
+      window.clearTimeout(retryTimer);
+      rechecking = true;
+      const check = authStatusCheckRef.current;
+      let requestSession = getAuthSessionId();
+      const isCurrent = () => !cancelled && check === authStatusCheckRef.current
+        && requestSession === getAuthSessionId();
+      try {
+        // The server revokes the old JWT while renewing it. A socket can
+        // close in that interval, before this tab stores the replacement.
+        const renewal = renewalRef.current;
+        if (renewal) {
+          await renewal.catch(() => undefined);
+          requestSession = getAuthSessionId();
+          if (!isCurrent()) return;
+        }
+        const status = await api.getAuthStatus();
+        if (!isCurrent()) return;
+        if (typeof status.auth_enabled !== 'boolean') throw new Error('Invalid authentication status');
+
+        setAuthEnabled(status.auth_enabled);
+        setVerifiedAuthMode(status.auth_enabled);
+        setRequiresSetup(status.requires_setup);
+        if (!status.auth_enabled || !getAuthToken()) {
+          setUser(null);
+          setPreferenceIdentity(null);
+        } else {
+          try {
+            const currentUser = await api.getCurrentUser();
+            if (!isCurrent()) return;
+            setUser(currentUser);
+            persistConfirmedKioskToken();
+            setPreferenceIdentity(previous => currentUser.id > 0 && currentUser.sub
+              ? { session: requestSession, sub: currentUser.sub,
+                  epoch: previous?.session === requestSession && previous.sub === currentUser.sub ? previous.epoch : check }
+              : null);
+          } catch (error) {
+            if (!isCurrent()) return;
+            if (!(error instanceof ApiError) || (error.status !== 401 && error.status !== 403)) throw error;
+            // Keep a kiosk key when its owner has temporarily lost access.
+            if (error.status === 401) setAuthToken(null);
+            pendingKioskTokenRef.current = null;
+            setUser(null);
+            setPreferenceIdentity(null);
+          }
+        }
+        retryDelay = 2000;
+        setAuthRetrying(false);
+      } catch {
+        if (!isCurrent()) return;
+        retryTimer = window.setTimeout(recheckAuth, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 60000);
+      } finally {
+        rechecking = false;
+      }
+    };
+    window.addEventListener('auth:recheck', recheckAuth);
+    void checkAuthStatus();
+
     return () => {
       mountedRef.current = false;
       authStatusCheckRef.current += 1;
       window.removeEventListener('auth:expired', handleAuthExpired);
+      cancelled = true;
+      window.removeEventListener('auth:recheck', recheckAuth);
+      window.clearTimeout(retryTimer);
       clearRefreshTimer();
     };
-  }, []);
+  }, [checkAuthStatus, persistConfirmedKioskToken]);
 
   // (Re)schedule silent renewal whenever a user session becomes active (initial
   // load, login, 2FA/OIDC completion) and stop it once logged out.
@@ -244,7 +328,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Only redirect if setup is truly required (first time setup)
     // Don't redirect if user manually navigated to /setup or is on camera page
-    if (!loading && requiresSetup && !authEnabled) {
+    if (!loading && !authRetrying && requiresSetup && !authEnabled) {
       const currentPath = window.location.pathname;
       // Only redirect if not already on setup page or camera page, and haven't redirected yet
       if (currentPath !== '/setup' && !currentPath.startsWith('/camera/') && !hasRedirectedRef.current) {
@@ -255,7 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Reset redirect flag when setup is no longer required
       hasRedirectedRef.current = false;
     }
-  }, [loading, requiresSetup, authEnabled]);
+  }, [loading, authRetrying, requiresSetup, authEnabled]);
 
   const login = async (username: string, password: string, persistence: TokenPersistence = 'session'): Promise<LoginResponse> => {
     const response = await api.login({ username, password });
@@ -270,6 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authStatusCheckRef.current += 1;
     setAuthToken(token, persistence);
     setUser(userObj);
+    setAuthRetrying(false);
     setAuthEnabled(true);
     setVerifiedAuthMode(true);
     setPreferenceIdentity(userObj.id > 0 && userObj.sub
@@ -281,9 +366,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPreferenceIdentity(null);
     setVerifiedAuthMode(null);
     clearRefreshTimer();
+    const revoke = api.logout();
     setAuthToken(null);
     setUser(null);
-    api.logout().catch(() => {
+    void revoke.catch(() => {
       // Ignore logout errors
     });
     window.location.href = '/login';
@@ -381,6 +467,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authenticationEpoch: preferenceIdentity?.session === session ? preferenceIdentity.epoch : null,
         requiresSetup,
         loading,
+        authRetrying,
         isAdmin,
         login,
         loginWithToken,

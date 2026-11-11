@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.settings import get_external_login_url
+from backend.app.core.account_retirement import detach_user_references, hold_model_queue_jobs
 from backend.app.core.auth import (
     ALGORITHM,
     SECRET_KEY,
@@ -20,12 +21,13 @@ from backend.app.core.auth import (
     security,
     verify_password,
 )
-from backend.app.core.database import get_db
+from backend.app.core.auth_sessions import drop_owned_key_tokens, drop_pending_user_tokens
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.core.user_printer_scope import prepare_printer_scope_write, validate_printer_grants
+from backend.app.core.websocket import ws_manager
 from backend.app.models.api_key import APIKey, AppMessageQuota
 from backend.app.models.archive import PrintArchive
-from backend.app.models.auth_ephemeral import AuthEphemeralToken, TokenType
 from backend.app.models.group import Group
 from backend.app.models.library import LibraryFile
 from backend.app.models.long_lived_token import LongLivedToken
@@ -33,6 +35,7 @@ from backend.app.models.oidc_provider import UserOIDCLink
 from backend.app.models.print_batch import PrintBatch
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.settings import Settings
+from backend.app.models.sponsor_toast_state import SponsorToastState
 from backend.app.models.user import User
 from backend.app.models.user_otp_code import UserOTPCode
 from backend.app.models.user_totp import UserTOTP
@@ -45,12 +48,6 @@ from backend.app.services.email_service import (
 )
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-
-def _set_local_user_password(user: User, password: str) -> None:
-    """Set a local password and invalidate every JWT issued beforehand."""
-    user.password_hash = get_password_hash(password)
-    user.password_changed_at = datetime.now(timezone.utc)
 
 
 def _user_to_response(user: User) -> UserResponse:
@@ -75,7 +72,7 @@ def _user_to_response(user: User) -> UserResponse:
 @router.get("/", response_model=list[UserResponse])
 async def list_users(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """List all users.
 
@@ -95,7 +92,7 @@ async def create_user(
     user_data: UserCreate,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_CREATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Create a new user.
 
@@ -206,7 +203,7 @@ async def create_user(
 async def get_user(
     user_id: int,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get a user by ID. Read-only — gated on ``USERS_READ`` only."""
     result = await db.execute(select(User).where(User.id == user_id).options(selectinload(User.groups)))
@@ -226,12 +223,14 @@ async def update_user(
     user_data: UserUpdate,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Update a user."""
-    if "allowed_printer_ids" in user_data.model_fields_set:
+    clear_email = user_data.email is not None and not user_data.email.strip()
+    if clear_email or "allowed_printer_ids" in user_data.model_fields_set:
         await prepare_printer_scope_write(db)
-    result = await db.execute(select(User).where(User.id == user_id).options(selectinload(User.groups)))
+    query = select(User).where(User.id == user_id).options(selectinload(User.groups))
+    result = await db.execute(query.with_for_update() if clear_email else query)
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(
@@ -243,6 +242,8 @@ async def update_user(
         # Lock printers before mutating/flushing the user, matching delete order.
         await validate_printer_grants(db, user_data.allowed_printer_ids)
 
+    old_username = user.username
+    deactivated = user.is_active and user_data.is_active is False
     # Prevent deactivating the last admin
     if user_data.is_active is False and user.is_admin:
         # Count admins by role or Administrators group membership
@@ -286,7 +287,23 @@ async def update_user(
             )
         user.username = user_data.username
 
-    if user_data.email is not None:
+    if clear_email:
+        if user.email:
+            email_otp_key = f"user_{user_id}_email_2fa_enabled"
+            enabled = set(
+                await db.scalars(
+                    select(Settings.key).where(
+                        Settings.key.in_(("advanced_auth_enabled", email_otp_key)),
+                        func.lower(Settings.value) == "true",
+                    )
+                )
+            )
+            if "advanced_auth_enabled" in enabled:
+                raise HTTPException(400, "Email is required when advanced authentication is enabled")
+            if email_otp_key in enabled:
+                raise HTTPException(400, "Email is required while email two-factor authentication is enabled")
+        user.email = None
+    elif user_data.email is not None:
         # Check if new email already exists (case-insensitive)
         existing_email = await db.execute(
             select(User).where(func.lower(User.email) == func.lower(user_data.email), User.id != user_id)
@@ -304,7 +321,7 @@ async def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot set password for LDAP users",
             )
-        _set_local_user_password(user, user_data.password)
+        user.password_hash = get_password_hash(user_data.password)
 
     if user_data.role is not None:
         if user_data.role not in ["admin", "user"]:
@@ -331,7 +348,17 @@ async def update_user(
             )
         user.groups = list(groups)
 
+    end_sessions = deactivated or user.username != old_username or user_data.password is not None
+    if end_sessions:
+        user.password_changed_at = datetime.now(timezone.utc)
+        await drop_pending_user_tokens(db, old_username)
+    key_ids = await drop_owned_key_tokens(db, user_id) if deactivated else []
     await db.commit()
+    if end_sessions:
+        await ws_manager.close_user_sessions(user_id)
+        await ws_manager.close_api_keys(key_ids)
+    if {"allowed_printer_ids", "group_ids", "role"} & user_data.model_fields_set:
+        await ws_manager.refresh_live_access(user_id=user_id)
     result = await db.execute(select(User).where(User.id == user_id).options(selectinload(User.groups)))
     user = result.scalar_one()
 
@@ -342,7 +369,7 @@ async def update_user(
 async def get_user_items_count(
     user_id: int,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get count of items created by this user. Read-only — gated on
     ``USERS_READ`` only."""
@@ -386,7 +413,7 @@ async def delete_user(
     delete_items: bool = Query(False, description="Delete all items created by this user"),
     _admin: User | None = RequireAdminIfAuthEnabled(),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.USERS_DELETE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Delete a user.
 
@@ -394,6 +421,8 @@ async def delete_user(
     this user will also be deleted. Otherwise, these items will become "ownerless"
     (created_by_id set to NULL by the foreign key constraint).
     """
+    caller_id = current_user.id if current_user is not None else None
+    await prepare_printer_scope_write(db)
     result = await db.execute(select(User).where(User.id == user_id).options(selectinload(User.groups)))
     user = result.scalar_one_or_none()
     if not user:
@@ -424,35 +453,38 @@ async def delete_user(
             )
 
     # Prevent deleting yourself (only if auth is enabled and we have a current user)
-    if current_user and user.id == current_user.id:
+    if user.id == caller_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete your own account",
         )
 
+    from backend.app.services.connected_apps import cleanup_user
+
+    # Connected-app exchanges acquire app/grant locks before the user lock.
+    await cleanup_user(db, user_id)
+    if await db.scalar(select(User.id).where(User.id == user_id).with_for_update()) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
     if delete_items:
-        # Delete all items created by this user
+        from backend.app.services.archive import lock_archive_queue_for_deletion
+        from backend.app.services.library_queue_references import release_queue_references
+        from backend.app.services.library_trash import delete_dependent_variants
+
+        if await lock_archive_queue_for_deletion(db, PrintArchive.created_by_id == user_id, owner_id=user_id):
+            raise HTTPException(409, "A print is using this account's archives or queue. Stop the print first.")
+        file_ids = (await db.scalars(select(LibraryFile.id).where(LibraryFile.created_by_id == user_id))).all()
+        for start in range(0, len(file_ids), 400):
+            batch = list(file_ids[start : start + 400])
+            await release_queue_references(db, batch)
+            await delete_dependent_variants(db, batch)
         await db.execute(delete(PrintArchive).where(PrintArchive.created_by_id == user_id))
         await db.execute(delete(PrintQueueItem).where(PrintQueueItem.created_by_id == user_id))
         await db.execute(delete(LibraryFile).where(LibraryFile.created_by_id == user_id))
         await db.execute(delete(PrintBatch).where(PrintBatch.created_by_id == user_id))
-    else:
-        # Explicitly set created_by_id to NULL for all items (ensures consistent behavior
-        # across different database backends, including SQLite without foreign key support).
-        # PrintBatch carries the same created_by_id FK with ondelete=SET NULL — admin-deleted
-        # users would otherwise leave dangling created_by_id on SQLite (#1295 review nit).
-        from sqlalchemy import update
-
-        await db.execute(
-            update(PrintArchive)
-            .where(PrintArchive.created_by_id == user_id)
-            .values(created_by_id=None, created_by_identity=None)
-        )
-        await db.execute(
-            update(PrintQueueItem).where(PrintQueueItem.created_by_id == user_id).values(created_by_id=None)
-        )
-        await db.execute(update(LibraryFile).where(LibraryFile.created_by_id == user_id).values(created_by_id=None))
-        await db.execute(update(PrintBatch).where(PrintBatch.created_by_id == user_id).values(created_by_id=None))
+    elif user.allowed_printer_ids is not None:
+        await hold_model_queue_jobs(db, PrintQueueItem.created_by_id == user_id)
+    await detach_user_references(db, user_id)
 
     # Drop API keys owned by this user. The model declares ON DELETE CASCADE
     # so Postgres handles this automatically, but SQLite ships with FK
@@ -463,6 +495,7 @@ async def delete_user(
     # silently degrading the keys to anonymous (and locking them out of
     # /cloud/* — but the rest of the API would still accept them, which is
     # exactly the orphan-key state the CASCADE was meant to prevent).
+    key_ids = await drop_owned_key_tokens(db, user_id)
     await db.execute(
         delete(AppMessageQuota).where(AppMessageQuota.key_id.in_(select(APIKey.id).where(APIKey.user_id == user_id)))
     )
@@ -484,20 +517,19 @@ async def delete_user(
     await db.execute(delete(UserOTPCode).where(UserOTPCode.user_id == user_id))
     await db.execute(delete(LongLivedToken).where(LongLivedToken.user_id == user_id))
 
-    # SQLite can reuse a deleted user id; discard the user's media credentials
-    # before deletion so recreating the username cannot revive them.
-    await db.execute(
-        delete(AuthEphemeralToken).where(
-            AuthEphemeralToken.username == user.username,
-            AuthEphemeralToken.token_type == TokenType.MEDIA,
-        )
-    )
-
-    from backend.app.services.connected_apps import cleanup_user
-
-    await cleanup_user(db, user_id)
+    await drop_pending_user_tokens(db, user.username)
+    await db.execute(delete(Settings).where(Settings.key == f"user_{user_id}_email_2fa_enabled"))
+    await db.execute(delete(SponsorToastState).where(SponsorToastState.user_id == user_id))
     await db.delete(user)
     await db.commit()
+
+    from backend.app.api.routes.cloud import forget_cloud_presets_for_account
+    from backend.app.services.print_account_ownership import forget_user_print_ownership
+
+    forget_cloud_presets_for_account(user_id)
+    forget_user_print_ownership(user_id)
+    await ws_manager.close_user_sessions(user_id)
+    await ws_manager.close_api_keys(key_ids)
 
 
 @router.post("/me/change-password", response_model=dict)
@@ -505,7 +537,7 @@ async def change_own_password(
     password_data: ChangePasswordRequest,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
     current_user: User | None = Depends(get_current_user_optional),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Change the current user's password. Requires current password verification."""
     if not current_user:
@@ -551,8 +583,10 @@ async def change_own_password(
 
     # Update password
     user.password_hash = get_password_hash(password_data.new_password)
-    user.password_changed_at = datetime.now(timezone.utc)  # M-R7-B: invalidate all prior JWTs
+    user.password_changed_at = datetime.now(timezone.utc)
+    await drop_pending_user_tokens(db, user.username)
     await db.commit()
+    await ws_manager.close_user_sessions(user.id)
 
     # L-R6-A: Password verified successfully — reset the failure counter
     from backend.app.api.routes.mfa import clear_failed_attempts

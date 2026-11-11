@@ -9,14 +9,16 @@ import json
 import logging
 import math
 import re
+from datetime import datetime
 from typing import Any
 
 from typing_extensions import TypedDict
 
 from backend.app.api.routes._url_safety import assert_safe_lan_service_url
 from backend.app.services.spoolman import BAMBU_WEIGHT_USED_BASELINE_KEY
-from backend.app.services.spoolman_costs import cost_per_kg_from_spoolman_full_price
+from backend.app.services.spoolman_costs import cost_per_kg_from_spoolman_full_price, spoolman_usage_cost
 from backend.app.services.spoolman_weights import spoolman_net_weight, spoolman_price_weight, spoolman_tare
+from backend.app.utils.local_time import to_naive_utc
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ class MappedSpoolFields(TypedDict):
     core_weight_catalog_id: None
     weight_used: float | None
     weight_used_baseline: float | None
+    usage_reset_baseline: float
     weight_locked: bool
     last_scale_weight: None
     last_weighed_at: None
@@ -47,6 +50,10 @@ class MappedSpoolFields(TypedDict):
     note: str | None
     added_full: None
     last_used: str | None
+    last_dried_at: str | None
+    last_dried_temp: int | None
+    last_dried_hours: float | None
+    first_used_at: str | None
     encode_time: str | None
     tag_uid: str | None
     tray_uuid: str | None
@@ -56,6 +63,7 @@ class MappedSpoolFields(TypedDict):
     created_at: str | None  # None when Spoolman spool has no registered timestamp
     updated_at: str | None
     cost_per_kg: float | None
+    effective_cost_per_kg: float | None
     storage_location: str | None
     location_id: int | None
     k_profiles: list[Any]
@@ -169,6 +177,19 @@ def _extract_extra_float(extra: dict, key: str) -> float | None:
     return number if math.isfinite(number) else None
 
 
+BAMBU_LAST_DRIED_AT_KEY = "bambu_last_dried_at"
+BAMBU_LAST_DRIED_TEMP_KEY = "bambu_last_dried_temp"
+BAMBU_LAST_DRIED_HOURS_KEY = "bambu_last_dried_hours"
+
+
+def spoolman_last_dried_at(extra: dict) -> datetime | None:
+    value = _extract_extra_str(extra, BAMBU_LAST_DRIED_AT_KEY)
+    try:
+        return to_naive_utc(datetime.fromisoformat(value)) if value else None
+    except ValueError:
+        return None
+
+
 def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     """Convert a raw Spoolman spool dict to the InventorySpool-compatible format.
 
@@ -255,7 +276,7 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     archived: bool = spool.get("archived", False)
     archived_at: str | None = None
     if archived:
-        archived_at = spool.get("last_used") or spool.get("registered") or None
+        archived_at = spool.get("last_used") or spool.get("registered") or "1970-01-01T00:00:00Z"
 
     created_at: str | None = spool.get("registered") or None
 
@@ -287,6 +308,9 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     nozzle_temp_raw = filament.get("settings_extruder_temp")
     nozzle_temp_min: int | None = _safe_int(nozzle_temp_raw, 0) or None
 
+    dried_at = spoolman_last_dried_at(extra)
+    drying_temp = _extract_extra_float(extra, BAMBU_LAST_DRIED_TEMP_KEY) if dried_at is not None else None
+    drying_hours = _extract_extra_float(extra, BAMBU_LAST_DRIED_HOURS_KEY) if dried_at is not None else None
     return {
         "id": spool_id,
         "material": material,
@@ -301,6 +325,7 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         "core_weight_catalog_id": None,
         "weight_used": used_weight,
         "weight_used_baseline": weight_used_baseline,
+        "usage_reset_baseline": stored_baseline,
         "weight_locked": False,
         "last_scale_weight": None,
         "last_weighed_at": None,
@@ -316,6 +341,10 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         "note": spool.get("comment") or None,
         "added_full": None,
         "last_used": spool.get("last_used"),
+        "last_dried_at": dried_at.isoformat() if dried_at is not None else None,
+        "last_dried_temp": round(drying_temp) if drying_temp is not None and drying_temp > 0 else None,
+        "last_dried_hours": drying_hours if drying_hours is not None and drying_hours >= 0 else None,
+        "first_used_at": spool.get("first_used"),
         # encode_time semantics differ: local records NFC write time; Spoolman first_used
         # records first print use — different events; using first_used as best available proxy.
         "encode_time": spool.get("first_used"),
@@ -328,6 +357,7 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         # Spoolman has no updated_at field; use registered timestamp as best available proxy
         "updated_at": created_at,
         "cost_per_kg": cost_per_kg_from_spoolman_full_price(spool.get("price"), spoolman_price_weight(spool)),
+        "effective_cost_per_kg": spoolman_usage_cost(spool, 1000),
         "storage_location": spool.get("location") or None,
         "location_id": None,
         "k_profiles": [],

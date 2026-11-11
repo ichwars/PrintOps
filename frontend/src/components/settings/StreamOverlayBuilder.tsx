@@ -26,7 +26,7 @@ export function StreamOverlayBuilder() {
   const preview = canShare && previewUrl === url;
   const update = (next: Partial<OverlayConfig>) => { setPreviewUrl(null); setConfig(current => ({ ...current, ...next })); };
   return (
-    <section className="mt-6 border-t border-bambu-dark-tertiary pt-6" aria-label={t('streamOverlay.builder.title')}>
+    <section id="card-stream-overlay" className="mt-6 border-t border-bambu-dark-tertiary pt-6" aria-label={t('streamOverlay.builder.title')}>
       <h3 className="font-semibold text-white mb-2">{t('streamOverlay.builder.title')}</h3>
       <p className="text-sm text-bambu-gray mb-4">{t('streamOverlay.builder.hint')}</p>
       <div className="grid gap-3 sm:grid-cols-2">

@@ -3,9 +3,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.app.core.compat import StrEnum
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
 
 
 class ProviderType(StrEnum):
@@ -83,6 +84,7 @@ class NotificationProviderBase(BaseModel):
     on_bed_cooled: bool = Field(default=False, description="Notify when bed cools after print")
 
     # Event triggers - First layer complete
+    on_print_pause_upcoming: bool = Field(default=False, description="Notify before a scheduled slicer pause")
     on_first_layer_complete: bool = Field(default=False, description="Notify when first layer completes")
 
     # Event triggers - Print queue
@@ -129,8 +131,10 @@ class NotificationProviderCreate(NotificationProviderBase):
     pass
 
 
-class NotificationProviderUpdate(BaseModel):
+class NotificationProviderUpdate(IgnoresNullForRequiredColumns):
     """Schema for updating a notification provider (all fields optional)."""
+
+    __orm_table__ = "notification_providers"
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     provider_type: ProviderType | None = None
@@ -176,6 +180,7 @@ class NotificationProviderUpdate(BaseModel):
     on_bed_cooled: bool | None = None
 
     # Event triggers - First layer complete
+    on_print_pause_upcoming: bool | None = None
     on_first_layer_complete: bool | None = None
 
     # Event triggers - Print queue
@@ -199,12 +204,12 @@ class NotificationProviderUpdate(BaseModel):
     # Printer filter
     printer_id: int | None = None
 
-    @field_validator("on_app_message")
+    @model_validator(mode="before")
     @classmethod
-    def app_message_opt_in_is_boolean(cls, value: bool | None) -> bool:
-        if value is None:
+    def reject_null_app_message_opt_in(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "on_app_message" in data and data["on_app_message"] is None:
             raise ValueError("on_app_message must be true or false")
-        return value
+        return data
 
 
 class NotificationProviderResponse(NotificationProviderBase):
@@ -226,6 +231,7 @@ class NotificationTestRequest(BaseModel):
 
     provider_type: ProviderType
     config: dict[str, Any]
+    provider_id: int | None = None
 
 
 class NotificationTestResponse(BaseModel):

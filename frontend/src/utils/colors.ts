@@ -1,3 +1,5 @@
+import { colorDistance } from './colorDistance';
+
 // Runtime color-name catalog, populated once at app startup by ColorCatalogProvider
 // from /api/inventory/colors/map. The backend color_catalog table is the single
 // source of truth — no hardcoded hex→name tables live on the frontend anymore.
@@ -10,10 +12,42 @@
 // arrives instead of staying stuck on the HSL fallback.
 
 let runtimeColorCatalog: Record<string, string> = {};
+// Names a plain hex lookup cannot reach, keyed "<material>|<hex>". A hex is not
+// one colour in Bambu's range -- #FFFFFF is Jade White in PLA Basic and Ivory
+// White in PLA Matte -- so a caller that knows the material (an AMS slot knows
+// it as tray_sub_brands) gets the right one instead of whichever row the
+// backend's collapse happened to keep (#2875).
+let runtimeMaterialCatalog: Record<string, string> = {};
+// Every Bambu Lab catalogue colour, for naming a hex no exact lookup finds
+// (#3279). A colour picked on the printer's touchscreen is reported a step or
+// two off Bambu Studio's hex -- 5A657B for Blue Grey 5B6579 -- and fell through
+// to the hue bucket, which called it "Blue".
+export interface BambuCatalogColor {
+  hex: string;
+  name: string;
+  material: string;
+}
+let runtimeBambuColors: BambuCatalogColor[] = [];
+// Bambu preset id (upper case) to its range in lower case: GFA00 -> "pla basic".
+let runtimePresetMaterials: Record<string, string> = {};
+// Nearest-name answers by "<material>|<hex>", as each miss compares against
+// every Bambu colour. Emptied whenever the catalogue is replaced.
+let nearestNameCache = new Map<string, string | null>();
+// CIEDE2000 delta-E within which a hex is taken to be the catalogue colour.
+// Blue Grey's two hexes are 0.78 apart; the next Bambu colour from 5A657B is
+// 8.3 away. Different Bambu colours can sit closer than this across materials
+// (Pumpkin Orange / Translucent Orange: 0.26), which is why the caller's
+// material is searched first.
+const NEAREST_NAME_MAX_DELTA_E = 3;
 let catalogVersion = 0;
 const catalogListeners = new Set<() => void>();
 
-export function setColorCatalog(map: Record<string, string>): void {
+export function setColorCatalog(
+  map: Record<string, string>,
+  byMaterial?: Record<string, string>,
+  bambu?: BambuCatalogColor[],
+  presetMaterials?: Record<string, string>,
+): void {
   // Normalize keys to lowercase 6-char hex (no '#'), defensively. Backend already
   // does this, but the frontend contract is explicit so callers from tests or
   // future integrations can't accidentally break lookups.
@@ -23,7 +57,32 @@ export function setColorCatalog(map: Record<string, string>): void {
     const hex = key.replace('#', '').toLowerCase().slice(0, 6);
     if (hex.length === 6) normalized[hex] = value;
   }
+  const normalizedByMaterial: Record<string, string> = {};
+  for (const [key, value] of Object.entries(byMaterial || {})) {
+    if (!key || !value) continue;
+    // Split on the LAST separator: a material is free text (users edit the
+    // catalog) and may itself contain a '|'.
+    const cut = key.lastIndexOf('|');
+    if (cut <= 0) continue;
+    const material = key.slice(0, cut).trim().toLowerCase();
+    const cleanHex = key.slice(cut + 1).replace('#', '').toLowerCase().slice(0, 6);
+    if (material && cleanHex.length === 6) normalizedByMaterial[`${material}|${cleanHex}`] = value;
+  }
   runtimeColorCatalog = normalized;
+  runtimeMaterialCatalog = normalizedByMaterial;
+  runtimeBambuColors = (bambu || [])
+    .map((entry) => ({
+      hex: (entry?.hex || '').replace('#', '').toLowerCase().slice(0, 6),
+      name: entry?.name || '',
+      material: (entry?.material || '').trim().toLowerCase(),
+    }))
+    .filter((entry) => /^[0-9a-f]{6}$/.test(entry.hex) && entry.name);
+  const normalizedPresets: Record<string, string> = {};
+  for (const [preset, range] of Object.entries(presetMaterials || {})) {
+    if (preset && range) normalizedPresets[preset.trim().toUpperCase()] = range.trim().toLowerCase();
+  }
+  runtimePresetMaterials = normalizedPresets;
+  nearestNameCache = new Map();
   catalogVersion += 1;
   // Snapshot listeners to avoid mutation-during-iteration if a listener unsubscribes.
   for (const listener of Array.from(catalogListeners)) {
@@ -45,6 +104,10 @@ export function getColorCatalogVersion(): number {
 /** Test-only hook: reset the catalog to empty so unit tests can exercise fallbacks. */
 export function __resetColorCatalogForTests(): void {
   runtimeColorCatalog = {};
+  runtimeMaterialCatalog = {};
+  runtimeBambuColors = [];
+  runtimePresetMaterials = {};
+  nearestNameCache = new Map();
   catalogVersion = 0;
   catalogListeners.clear();
 }
@@ -107,14 +170,56 @@ export function hexToColorName(hex: string | null | undefined): string {
  * Get color name from hex color.
  * Looks up the runtime color catalog (backend-sourced), then falls back to HSL.
  */
-export function getColorName(hexColor: string): string {
+export function getColorName(hexColor: string, material?: string | null, trayInfoIdx?: string | null): string {
   if (!hexColor) return hexToColorName(hexColor);
   const clean = hexColor.replace('#', '').toLowerCase();
   if (clean.length === 8 && clean.substring(6, 8) === '00') return 'Clear';
   const hex = clean.substring(0, 6);
+  // Without RFID the printer sends no tray_sub_brands, but it does report the
+  // preset picked on its screen, and a Bambu preset names its range (#3279).
+  const range = (material || '').trim().toLowerCase() || runtimePresetMaterials[(trayInfoIdx || '').toUpperCase()] || '';
+  if (range) {
+    const qualified = runtimeMaterialCatalog[`${range}|${hex}`];
+    if (qualified) return qualified;
+  }
+  const rangeColors = range ? runtimeBambuColors.filter((entry) => entry.material === range) : [];
+  if (rangeColors.length > 0) {
+    const inRange = nearestBambuColorName(hex, range, rangeColors);
+    if (inRange) return inRange;
+  }
   const mapped = runtimeColorCatalog[hex];
   if (mapped) return mapped;
+  // Other ranges only for a slot whose own range has no Bambu colours: a PLA
+  // Basic grey is not Translucent Gray because PLA Basic's Gray is further off.
+  if (rangeColors.length === 0) {
+    const anyRange = nearestBambuColorName(hex, '', runtimeBambuColors);
+    if (anyRange) return anyRange;
+  }
   return hexToColorName(hexColor);
+}
+
+/**
+ * The colour in ``entries`` within ``NEAREST_NAME_MAX_DELTA_E`` of ``hex``,
+ * or null (#3279). Nearest wins, the first listed on a tie. ``range`` keys
+ * the cache: the same hex has a different answer in each range.
+ */
+function nearestBambuColorName(hex: string, range: string, entries: BambuCatalogColor[]): string | null {
+  const cacheKey = `${range}|${hex}`;
+  const cached = nearestNameCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let best: string | null = null;
+  let bestDistance = Infinity;
+  for (const entry of entries) {
+    const distance = colorDistance(hex, entry.hex);
+    if (distance !== null && distance < bestDistance) {
+      best = entry.name;
+      bestDistance = distance;
+    }
+  }
+  const name = bestDistance <= NEAREST_NAME_MAX_DELTA_E ? best : null;
+  nearestNameCache.set(cacheKey, name);
+  return name;
 }
 
 /**

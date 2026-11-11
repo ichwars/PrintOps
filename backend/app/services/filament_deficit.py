@@ -43,6 +43,8 @@ from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.filament_requirements import extract_filament_requirements
+from backend.app.services.spoolman_costs import nonnegative_finite_number, spoolman_usage_cost
+from backend.app.utils.filament_ids import normalize_slicer_filament
 from backend.app.utils.safe_path import PathTraversalError, safe_join_under
 
 logger = logging.getLogger(__name__)
@@ -199,7 +201,7 @@ def _material_identity_internal(spool) -> str:
     preset = (spool.slicer_filament or "").strip() if spool else ""
     if preset:
         color = _normalize_color_for_id(spool.rgba if spool else None)
-        return f"preset:{preset}|color:{color}"
+        return f"preset:{normalize_slicer_filament(preset)[0] or preset}|color:{color}"
     # Unique-per-spool key prevents grouping. Use the spool's primary key so
     # the same spool always resolves to the same key within a request.
     spool_id = getattr(spool, "id", None) if spool else None
@@ -229,6 +231,42 @@ def _material_identity_spoolman(spool: dict | None) -> str:
         return f"filament:{fil_id}|color:{color}"
     spool_id = spool.get("id")
     return f"unmatched:{spool_id}"
+
+
+def _live_tray_keys(printer_id: int) -> dict[int, str]:
+    """Firmware tray identities decide which loaded spools can back each other."""
+    from backend.app.services.printer_manager import printer_manager
+
+    state = printer_manager.get_status(printer_id)
+    raw = getattr(state, "raw_data", None) if state is not None else None
+    if not isinstance(raw, dict):
+        return {}
+    units = raw.get("ams")
+    units = units.get("ams") if isinstance(units, dict) else units
+    keys = {}
+    for unit in units if isinstance(units, list) else []:
+        if not isinstance(unit, dict):
+            continue
+        trays = unit.get("tray")
+        for tray in trays if isinstance(trays, list) else []:
+            if not isinstance(tray, dict):
+                continue
+            try:
+                unit_id, slot_id = int(unit["id"]), int(tray["id"])
+            except (KeyError, ValueError, TypeError, OverflowError):
+                continue
+            if unit_id < 0 or slot_id < 0:
+                continue
+            global_id = _ams_key_to_global(unit_id, slot_id)
+            preset = tray.get("tray_info_idx")
+            preset = preset.strip() if isinstance(preset, str) else ""
+            color = tray.get("tray_color")
+            color = _normalize_color_for_id(color) if isinstance(color, str) else ""
+            if tray.get("tray_type") and preset:
+                keys[global_id] = f"preset:{preset}|color:{color}"
+            else:
+                keys[global_id] = f"unmatched:tray:{global_id}"
+    return keys
 
 
 def _ams_id_from_global(global_tray_id: int) -> int:
@@ -265,7 +303,10 @@ def _loaded_internal_slots(printer_id: int) -> set[tuple[int, int]]:
         return set()
 
     loaded: set[tuple[int, int]] = set()
-    for ams_unit in raw_data.get("ams") or []:
+    units = raw_data.get("ams") or []
+    if isinstance(units, dict):
+        units = units.get("ams") or []
+    for ams_unit in units:
         if not isinstance(ams_unit, dict):
             continue
         try:
@@ -331,6 +372,7 @@ class SlotMaterial:
     material_key: str
     remaining_grams: float
     extruder: int
+    cost_per_kg: float | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -340,26 +382,33 @@ class SlotMaterial:
             "material_key": self.material_key,
             "remaining_g": self.remaining_grams,
             "extruder": self.extruder,
+            "cost_per_kg": self.cost_per_kg,
         }
 
 
-async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMaterial]:
+async def build_slot_materials(
+    db: AsyncSession, printer_id: int, *, live_keys: dict[int, str] | None = None
+) -> list[SlotMaterial]:
     """Build the material pool shared by dispatch and the print dialog."""
     _, ams_extruder_map, is_dual = await _get_printer_backup_context(printer_id)
+    if live_keys is None:
+        live_keys = _live_tray_keys(printer_id)
     loaded_slots = _loaded_internal_slots(printer_id)
     if not loaded_slots:
         return []
     materials: list[SlotMaterial] = []
 
-    def append_slot(ams_id: int, tray_id: int, material_key: str, remaining: float) -> None:
+    def append_slot(ams_id: int, tray_id: int, material_key: str, remaining: float, cost: float | None) -> None:
+        global_tray_id = _ams_key_to_global(ams_id, tray_id)
         materials.append(
             SlotMaterial(
                 ams_id=ams_id,
                 tray_id=tray_id,
-                global_tray_id=_ams_key_to_global(ams_id, tray_id),
-                material_key=material_key,
+                global_tray_id=global_tray_id,
+                material_key=live_keys.get(global_tray_id, material_key),
                 remaining_grams=remaining,
                 extruder=_extruder_side_for_ams(ams_id, ams_extruder_map, is_dual),
+                cost_per_kg=cost,
             )
         )
 
@@ -397,6 +446,7 @@ async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMa
                 assignment.tray_id,
                 _material_identity_spoolman(spool),
                 float(remaining),
+                spoolman_usage_cost(spool, 1000),
             )
         return materials
 
@@ -419,6 +469,7 @@ async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMa
             assignment.tray_id,
             _material_identity_internal(spool),
             max(0.0, label_weight - float(spool.weight_used or 0)),
+            nonnegative_finite_number(spool.cost_per_kg),
         )
     return materials
 
@@ -426,8 +477,28 @@ async def build_slot_materials(db: AsyncSession, printer_id: int) -> list[SlotMa
 async def compute_deficit_for_queue_item(
     db: AsyncSession,
     item: PrintQueueItem,
+    *,
+    printer_id: int | None = None,
+    ams_mapping: list[int] | None = None,
+    require_known: bool = False,
+    source_item: PrintQueueItem | None = None,
 ) -> list[FilamentDeficit]:
     """Return per-slot filament shortfalls for ``item``, or [] when it's safe to dispatch.
+
+    ``printer_id`` and ``ams_mapping`` ask about a printer the item is not
+    assigned to yet, with the mapping it would get there: the model-based
+    matcher uses them to pass over a printer that would be short (#3137)
+    before it commits the item to one. Without them, the item's own columns
+    are read.
+
+    ``source_item`` supplies an unpersisted candidate source while the queue
+    row remains unchanged; model alternatives must check their own 3MF.
+
+    ``require_known`` also reports every printed slot whose remaining amount
+    cannot be determined (no tray mapped, no spool assigned, no label weight,
+    Spoolman not answering), with ``remaining_grams=None``. Everywhere else an
+    unknown amount lets the print through; a caller about to *start* a held
+    job on its own uses this so it only does so on a positive finding.
 
     Returns an empty list whenever any of the following hold:
 
@@ -452,7 +523,9 @@ async def compute_deficit_for_queue_item(
     """
     if await _warnings_disabled(db):
         return []
-    if item.printer_id is None:
+    if printer_id is None:
+        printer_id = item.printer_id
+    if printer_id is None:
         return []
 
     # Refresh the relationships we need without assuming the caller eagerly
@@ -468,7 +541,7 @@ async def compute_deficit_for_queue_item(
     )
     item = refreshed.scalar_one_or_none() or item
 
-    source_path = _resolve_source_3mf(item)
+    source_path = _resolve_source_3mf(source_item if source_item is not None else item)
     if source_path is None:
         return []
     if not source_path.exists():
@@ -479,16 +552,19 @@ async def compute_deficit_for_queue_item(
         )
         return []
 
-    requirements = extract_filament_requirements(source_path, item.plate_id)
+    requirements = extract_filament_requirements(
+        source_path, (source_item if source_item is not None else item).plate_id
+    )
     if not requirements:
         return []
 
-    mapping = _parse_ams_mapping(item.ams_mapping)
+    mapping = ams_mapping if ams_mapping is not None else _parse_ams_mapping(item.ams_mapping)
     if not mapping:
         return []
 
     spoolman_mode = await _is_spoolman_mode(db)
-    backup_on, ams_extruder_map, is_dual = await _get_printer_backup_context(item.printer_id)
+    backup_on, ams_extruder_map, is_dual = await _get_printer_backup_context(printer_id)
+    live_keys = _live_tray_keys(printer_id) if backup_on else {}
 
     # ------------------------------------------------------------------ phase 1
     # Resolve each requirement to (ams_id, tray_id, identity, remaining_grams).
@@ -508,6 +584,21 @@ async def compute_deficit_for_queue_item(
         extruder: int
 
     resolved: list[_ReqRow] = []
+    # Printed slots whose remaining amount is unknown; only returned with
+    # ``require_known``.
+    undetermined: list[FilamentDeficit] = []
+
+    def _undetermined(req: dict, ams_id: int | None = None, tray_id: int | None = None) -> None:
+        undetermined.append(
+            FilamentDeficit(
+                slot_id=req["slot_id"],
+                ams_id=ams_id,
+                tray_id=tray_id,
+                filament_type=str(req.get("type", "")),
+                required_grams=float(req["used_grams"]),
+                remaining_grams=None,
+            )
+        )
 
     for req in requirements:
         slot_id = req.get("slot_id")
@@ -518,9 +609,11 @@ async def compute_deficit_for_queue_item(
             continue
         idx = slot_id - 1
         if idx >= len(mapping):
+            _undetermined(req)
             continue
         global_tray_id = mapping[idx]
         if global_tray_id is None or global_tray_id < 0:
+            _undetermined(req)
             continue
         ams_id, tray_id = _global_to_ams_key(global_tray_id)
 
@@ -529,13 +622,14 @@ async def compute_deficit_for_queue_item(
         if spoolman_mode:
             sm_result = await db.execute(
                 select(SpoolmanSlotAssignment).where(
-                    SpoolmanSlotAssignment.printer_id == item.printer_id,
+                    SpoolmanSlotAssignment.printer_id == printer_id,
                     SpoolmanSlotAssignment.ams_id == ams_id,
                     SpoolmanSlotAssignment.tray_id == tray_id,
                 )
             )
             sm_assignment = sm_result.scalar_one_or_none()
             if sm_assignment is None:
+                _undetermined(req, ams_id, tray_id)
                 continue
             # Live remaining_weight from Spoolman. The fetch also resolves the
             # filament identity for pooling (material + colour + name).
@@ -570,25 +664,28 @@ async def compute_deficit_for_queue_item(
                 select(SpoolAssignment)
                 .options(selectinload(SpoolAssignment.spool))
                 .where(
-                    SpoolAssignment.printer_id == item.printer_id,
+                    SpoolAssignment.printer_id == printer_id,
                     SpoolAssignment.ams_id == ams_id,
                     SpoolAssignment.tray_id == tray_id,
                 )
             )
             assignment = internal_result.scalar_one_or_none()
             if assignment is None or assignment.spool is None:
+                _undetermined(req, ams_id, tray_id)
                 continue
             spool = assignment.spool
             identity = _material_identity_internal(spool)
             label_weight = float(spool.label_weight or 0)
             weight_used = float(spool.weight_used or 0)
             if label_weight <= 0:
+                _undetermined(req, ams_id, tray_id)
                 continue
             remaining = max(0.0, label_weight - weight_used)
 
         if remaining is None:
             # Unable to determine remaining grams — preserve pre-#1762 behaviour
             # (don't block on undetermined data).
+            _undetermined(req, ams_id, tray_id)
             continue
 
         resolved.append(
@@ -598,7 +695,7 @@ async def compute_deficit_for_queue_item(
                 tray_id=tray_id,
                 global_tray_id=global_tray_id,
                 required=float(used_grams),
-                identity=identity,
+                identity=live_keys.get(global_tray_id, identity),
                 remaining=remaining,
                 filament_type=str(req.get("type", "")),
                 extruder=_extruder_side_for_ams(ams_id, ams_extruder_map, is_dual),
@@ -609,8 +706,10 @@ async def compute_deficit_for_queue_item(
     # When backup is OFF, fall back to today's per-slot accounting (one-line
     # equivalence of the original loop), so this path is a strict no-op
     # behaviour-wise vs. the pre-#1762 code.
+    unknown = undetermined if require_known else []
+
     if not backup_on:
-        return [
+        return unknown + [
             FilamentDeficit(
                 slot_id=row.slot_id,
                 ams_id=row.ams_id,
@@ -631,7 +730,7 @@ async def compute_deficit_for_queue_item(
     pool_by_key: dict[tuple[str, int], float] = defaultdict(float)
     required_by_key: dict[tuple[str, int], float] = defaultdict(float)
 
-    for slot in await build_slot_materials(db, item.printer_id):
+    for slot in await build_slot_materials(db, printer_id, live_keys=live_keys):
         pool_by_key[(slot.material_key, slot.extruder)] += slot.remaining_grams
 
     for row in resolved:
@@ -655,7 +754,7 @@ async def compute_deficit_for_queue_item(
                 )
             )
 
-    return deficits
+    return unknown + deficits
 
 
 # Re-export the most useful pieces for callers that just want the data.

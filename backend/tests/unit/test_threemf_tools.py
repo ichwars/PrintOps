@@ -85,8 +85,8 @@ G1 E2.0
         # Layer 2: filament 0 = 15mm (13+2)
         assert result[2] == {0: 15.0, 1: 5.0}
 
-    def test_retractions_ignored(self):
-        """Negative E values (retractions) should be ignored."""
+    def test_retractions_subtracted(self):
+        """Relative retractions reduce the net filament fed."""
         gcode = """
 M620 S0
 G1 E10.0
@@ -94,7 +94,7 @@ G1 E-2.0
 G1 E5.0
 """
         result = parse_gcode_layer_filament_usage(gcode)
-        assert result == {0: {0: 15.0}}
+        assert result == {0: {0: 13.0}}
 
     def test_m620_s255_unloads(self):
         """M620 S255 means unload - extrusion after should be ignored."""
@@ -573,88 +573,52 @@ class TestExtractPlateExtruderSetFrom3mf:
         with _make_3mf_with({"Metadata/model_settings.config": xml}) as zf:
             assert extract_plate_extruder_set_from_3mf(zf, plate_id=1) == set()
 
-    def test_painted_face_above_threshold_kept(self):
-        # 60/40 split: 60 triangles painted with extruder 1, 40 with ext 2.
-        # Threshold is 5%; both above. The dominant ones are real colours.
-        triangles = []
-        for _ in range(60):
-            triangles.append('<triangle v1="0" v2="1" v3="2" paint_color="1"/>')
-        for _ in range(40):
-            triangles.append('<triangle v1="0" v2="1" v3="2" paint_color="2"/>')
-        per_obj = (
-            '<?xml version="1.0"?>'
-            '<model><resources><object id="100" type="model"><mesh>'
-            "<triangles>" + "".join(triangles) + "</triangles>"
-            "</mesh></object></resources><build/></model>"
-        )
-        ms = (
-            '<?xml version="1.0"?><config>'
-            '<object id="10"><metadata key="name" value="o"/></object>'
-            '<plate><metadata key="plater_id" value="1"/>'
-            '<model_instance><metadata key="object_id" value="10"/></model_instance>'
-            "</plate></config>"
-        )
-        threed = (
-            '<?xml version="1.0"?>'
-            '<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"'
-            ' xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">'
-            "<resources>"
-            '<object id="10" type="model"><components>'
-            '<component p:path="/3D/Objects/o100.model" objectid="100"/>'
-            "</components></object>"
-            "</resources><build/></model>"
-        )
-        with _make_3mf_with(
+    @staticmethod
+    def _painted(paints: list[str], object_extruder: int | None = None) -> zipfile.ZipFile:
+        triangles = "".join(f'<triangle v1="0" v2="1" v3="2" paint_color="{paint}"/>' for paint in paints)
+        return _make_3mf_with(
             {
-                "Metadata/model_settings.config": ms,
-                "3D/3dmodel.model": threed,
-                "3D/Objects/o100.model": per_obj,
+                "Metadata/model_settings.config": _model_settings(1, [{"id": "10", "extruder": object_extruder}]),
+                "3D/3dmodel.model": (
+                    '<model xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">'
+                    '<resources><object id="10"><components>'
+                    '<component p:path="/3D/Objects/o100.model" objectid="100"/>'
+                    "</components></object></resources></model>"
+                ),
+                "3D/Objects/o100.model": (
+                    '<model><resources><object id="100"><mesh>'
+                    f"<triangles>{triangles}</triangles></mesh></object></resources></model>"
+                ),
             }
-        ) as zf:
-            result = extract_plate_extruder_set_from_3mf(zf, plate_id=1)
-        # Both real colours kept (60/40 well above 5% threshold); the dropped
-        # threshold case is the regression that motivates this test.
-        assert result == {1, 2}
+        )
 
-    def test_painted_face_below_threshold_dropped_as_noise(self):
-        # 99 triangles at ext 1, 1 triangle at ext 9 (1% — below 5%
-        # threshold). The 1% leaf is a single-leaf accident.
-        triangles = []
-        for _ in range(99):
-            triangles.append('<triangle v1="0" v2="1" v3="2" paint_color="1"/>')
-        triangles.append('<triangle v1="0" v2="1" v3="2" paint_color="9"/>')
-        per_obj = (
-            '<?xml version="1.0"?>'
-            '<model><resources><object id="100" type="model"><mesh>'
-            "<triangles>" + "".join(triangles) + "</triangles>"
-            "</mesh></object></resources><build/></model>"
-        )
-        ms = (
-            '<?xml version="1.0"?><config>'
-            '<object id="10"><metadata key="name" value="o"/></object>'
-            '<plate><metadata key="plater_id" value="1"/>'
-            '<model_instance><metadata key="object_id" value="10"/></model_instance>'
-            "</plate></config>"
-        )
-        threed = (
-            '<?xml version="1.0"?>'
-            '<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"'
-            ' xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">'
-            '<resources><object id="10" type="model"><components>'
-            '<component p:path="/3D/Objects/o100.model" objectid="100"/>'
-            "</components></object></resources><build/></model>"
-        )
-        with _make_3mf_with(
-            {
-                "Metadata/model_settings.config": ms,
-                "3D/3dmodel.model": threed,
-                "3D/Objects/o100.model": per_obj,
-            }
-        ) as zf:
-            result = extract_plate_extruder_set_from_3mf(zf, plate_id=1)
-        # Single-leaf accident at 1% filtered as noise; only the dominant
-        # extruder survives.
-        assert result == {1}
+    @pytest.mark.parametrize(
+        ("paint", "slots"),
+        [
+            ("4", {1}),
+            ("8", {2}),
+            ("0C", {3}),
+            ("1c", {4}),
+            ("CC", {15}),
+            ("0FC", {18}),
+            ("2FC", {20}),
+            ("0C81", {2, 3}),
+            ("0C806", {2, 3}),
+        ],
+    )
+    def test_decodes_whole_and_split_triangle_states(self, paint, slots):
+        with self._painted([paint]) as zf:
+            assert extract_plate_extruder_set_from_3mf(zf, plate_id=1) == slots
+
+    def test_a_small_painted_region_keeps_its_filament(self):
+        with self._painted(["4"] * 99 + ["1C"], object_extruder=3) as zf:
+            assert extract_plate_extruder_set_from_3mf(zf, plate_id=1) == {1, 3, 4}
+
+    def test_real_bambu_studio_cube_paint_keeps_every_filament(self):
+        from backend.tests._fixtures.painted_cube_3355 import CUBE_PAINT_COLORS
+
+        with self._painted(CUBE_PAINT_COLORS, object_extruder=1) as zf:
+            assert extract_plate_extruder_set_from_3mf(zf, plate_id=1) == {1, 2, 3, 4}
 
     def test_missing_per_object_model_file_silently_skipped(self):
         ms = (

@@ -24,3 +24,4 @@ class ActivePrintSession(Base):
     tray_remain_start: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     tray_change_log: Mapped[list | None] = mapped_column(JSON, nullable=True)
     spoolman_owns_usage: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    spool_change_log: Mapped[list | None] = mapped_column(JSON, nullable=True)

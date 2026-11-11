@@ -90,7 +90,7 @@ async def create(client):
     return response.json()
 
 
-async def issue(client, app, **changes):
+async def issue(client, app, *, issuer_headers=None, **changes):
     data = {
         "client_id": app["client_id"],
         "redirect_uri": CALLBACK,
@@ -98,7 +98,7 @@ async def issue(client, app, **changes):
         "code_challenge_method": "S256",
     }
     data.update(changes)
-    return await client.post(f"{PREFIX}/authorize", headers=headers("person"), json=data)
+    return await client.post(f"{PREFIX}/authorize", headers=issuer_headers or headers("person"), json=data)
 
 
 async def redeem(client, app, code, **changes):
@@ -112,6 +112,20 @@ async def redeem(client, app, code, **changes):
     }
     data.update(changes)
     return await client.post(f"{PREFIX}/token", json=data)
+
+
+@pytest.mark.parametrize("connected", ["sqlite", "postgres"], indirect=True)
+async def test_connected_app_consent_ends_with_issuing_jwt(connected):
+    client, _ = connected
+    app = await create(client)
+    issuer = headers("person")
+    issued = await issue(client, app, issuer_headers=issuer)
+    assert issued.status_code == 200
+    assert (await client.post("/api/v1/auth/logout", headers=issuer)).status_code == 200
+    assert (await redeem(client, app, issued.json()["code"])).status_code == 400
+    fresh = await issue(client, app)
+    assert fresh.status_code == 200
+    assert (await redeem(client, app, fresh.json()["code"])).status_code == 200
 
 
 async def test_identity_only_single_use_and_hashed_credentials(connected):
@@ -432,10 +446,10 @@ async def test_paused_consent_cannot_switch_to_recreated_highest_user_id(connect
     try:
         assert (await client.delete("/api/v1/users/102", headers=headers())).status_code == 204
         async with sessions() as db:
-            recreated = User(username="person", role="admin")
+            recreated = User(id=102, username="person", role="admin")
             db.add(recreated)
             await db.commit()
-            assert recreated.id == 102  # actual SQLite rowid reuse, not a forced identifier
+            assert recreated.id == 102  # Simulate a legacy or restored duplicate ID.
     finally:
         release.set()
     result = await issuing
@@ -473,7 +487,7 @@ async def test_stale_identity_code_cannot_redeem_as_reused_user_id(connected):
     async with sessions() as db:
         await db.execute(delete(User).where(User.id == 102))
         await db.commit()
-        replacement = User(username="person", role="admin")
+        replacement = User(id=102, username="person", role="admin")
         db.add(replacement)
         await db.commit()
         assert replacement.id == 102
@@ -484,7 +498,7 @@ async def test_deleting_app_creator_nulls_ownership_without_foreign_keys(connect
     client, sessions = connected
     async with sessions() as db:
         person = await db.get(User, 102)
-        person.groups.append(Group(name="Application managers", permissions=["settings:update"]))
+        person.role = "admin"
         await db.commit()
     response = await client.post(
         f"{PREFIX}/apps", headers=headers("person"), json={"name": "Delegated", "redirect_uri": CALLBACK}
@@ -503,7 +517,7 @@ async def test_public_subject_survives_rename_but_not_deleted_id_reuse(connected
     assert len(first["sub"]) == 32
     assert (await client.delete("/api/v1/users/102", headers=headers())).status_code == 204
     async with sessions() as db:
-        replacement = User(username="person", role="user")
+        replacement = User(id=102, username="person", role="user")
         db.add(replacement)
         await db.commit()
         assert replacement.id == 102

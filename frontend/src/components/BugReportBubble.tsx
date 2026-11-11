@@ -8,7 +8,7 @@ import { SystemHealthPanel } from './SystemHealthPanel';
 import { Collapsible } from './Collapsible';
 import { FileInput, TextArea, TextField } from './ui';
 
-type ViewState = 'form' | 'logging' | 'stopping' | 'submitting' | 'success' | 'error';
+type ViewState = 'form' | 'logging' | 'stopping' | 'review' | 'submitting' | 'success' | 'error';
 
 type DiagnosticEntry = { name: string; result: PrinterDiagnosticResult };
 
@@ -89,6 +89,7 @@ export function BugReportBubble() {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [viewState, setViewState] = useState<ViewState>('form');
+  const [heldLogs, setHeldLogs] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [email, setEmail] = useState('');
   const [screenshot, setScreenshot] = useState<string | null>(null);
@@ -163,6 +164,11 @@ export function BugReportBubble() {
 
   const handleOpen = () => {
     setIsOpen(true);
+    if (viewState === 'review' || viewState === 'logging' || viewState === 'stopping' || viewState === 'submitting') return;
+    if (heldLogs !== null) {
+      setViewState('review');
+      return;
+    }
     setViewState('form');
     setDescription('');
     setEmail('');
@@ -192,9 +198,10 @@ export function BugReportBubble() {
   }, []);
 
   const handleClose = async () => {
-    if (viewState === 'logging') {
-      setViewState('stopping');
+    if (viewState === 'stopping' || viewState === 'submitting') return;
+    if (loggingActiveRef.current) {
       await cancelActiveLogging();
+      setViewState('form');
     }
     setIsOpen(false);
   };
@@ -249,7 +256,8 @@ export function BugReportBubble() {
       setViewState('logging');
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        await handleSubmitReport('');
+        setHeldLogs('');
+        setViewState('review');
         return;
       }
       const message = err instanceof Error ? err.message : t('bugReport.unexpectedError');
@@ -258,12 +266,15 @@ export function BugReportBubble() {
   };
 
   const handleStopLogging = async () => {
+    if (!loggingActiveRef.current) return;
+    loggingActiveRef.current = false;
     setViewState('stopping');
     try {
       const stopResult = await bugReportApi.stopLogging(wasDebug);
-      loggingActiveRef.current = false;
-      await handleSubmitReport(stopResult.logs);
+      setHeldLogs(stopResult.logs ?? '');
+      setViewState('review');
     } catch (err) {
+      loggingActiveRef.current = true;
       const message = err instanceof Error ? err.message : t('bugReport.unexpectedError');
       showSubmissionError(message);
     }
@@ -283,6 +294,7 @@ export function BugReportBubble() {
       if (result.success) {
         setIssueUrl(result.issue_url || null);
         setIssueNumber(result.issue_number || null);
+        setHeldLogs(null);
         setViewState('success');
       } else {
         showSubmissionError(result.message, { manualIssueUrl: result.issue_url, debugLogs });
@@ -320,6 +332,8 @@ export function BugReportBubble() {
               </h2>
               <button
                 onClick={handleClose}
+                aria-label={t('common.close')}
+                disabled={viewState === 'stopping' || viewState === 'submitting'}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="w-5 h-5" />
@@ -528,7 +542,43 @@ export function BugReportBubble() {
                       onClick={handleStopLogging}
                       className="px-6 py-2.5 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
                     >
-                      {t('bugReport.stopAndSubmit')}
+                      {t('bugReport.stopLogging')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {viewState === 'review' && heldLogs !== null && (
+                <div className="space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-white">{t('bugReport.reviewTitle')}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('bugReport.reviewBody')}</p>
+                  <p className="whitespace-pre-wrap text-sm text-gray-900 dark:text-white">{description}</p>
+                  {email && <p className="text-sm text-gray-600 dark:text-gray-400">{email}</p>}
+                  {screenshot && (
+                    <img className="max-h-40 object-contain" src={`data:image/jpeg;base64,${screenshot}`} alt={t('bugReport.screenshot')} />
+                  )}
+                  {heldLogs && (
+                    <details className="text-sm text-gray-600 dark:text-gray-400">
+                      <summary className="cursor-pointer">{t('bugReport.recordedLogs')}</summary>
+                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words">{heldLogs}</pre>
+                    </details>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setHeldLogs(null);
+                        setIsOpen(false);
+                        setViewState('form');
+                      }}
+                      className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                    >
+                      {t('bugReport.discard')}
+                    </button>
+                    <button
+                      onClick={() => void handleSubmitReport(heldLogs)}
+                      className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+                    >
+                      {t('bugReport.submit')}
                     </button>
                   </div>
                 </div>
@@ -585,7 +635,7 @@ export function BugReportBubble() {
                       onClick={() => {
                         setIssueUrl(null);
                         setErrorMessage('');
-                        setViewState('form');
+                        setViewState(heldLogs === null ? 'form' : 'review');
                       }}
                       className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
                     >

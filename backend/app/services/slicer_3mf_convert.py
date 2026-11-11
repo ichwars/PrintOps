@@ -329,6 +329,18 @@ def merge_plate_3mfs(
     return result
 
 
+def _preserve_slot_colour(anchor_json: str, slot_json: str) -> str:
+    """Copy the compatible profile while retaining the target slot's colour."""
+    try:
+        anchor = json.loads(anchor_json)
+        slot = json.loads(slot_json)
+    except json.JSONDecodeError:
+        return anchor_json
+    if not isinstance(anchor, dict) or not isinstance(slot, dict) or "filament_colour" not in slot:
+        return anchor_json
+    return json.dumps({**anchor, "filament_colour": slot["filament_colour"]})
+
+
 def substitute_unused_plate_filaments(
     source_3mf_bytes: bytes,
     plate_id: int | None,
@@ -338,6 +350,7 @@ def substitute_unused_plate_filaments(
 ) -> list[str]:
     """Replace any filament-list entry whose 1-indexed slot isn't used by
     ``plate_id`` with the entry from the plate's lowest *used* slot.
+    Preserve any colour stored on the unused slot.
 
     Why: the slice modal lets the user pick a filament profile per slot,
     but each plate in a multi-plate project only uses a subset of those
@@ -424,7 +437,7 @@ def substitute_unused_plate_filaments(
         slot = idx + 1
         if slot not in used:
             substituted.append(slot)
-            out[idx] = out[anchor_slot - 1]
+            out[idx] = _preserve_slot_colour(items[anchor_slot - 1], items[idx])
     if substituted:
         logger.info(
             "Substituted slot-%s filament for unused slot(s) %s on plate %s "

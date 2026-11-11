@@ -43,8 +43,8 @@ export function SpoolBuddyTopBar({ selectedPrinterId, onPrinterChange, deviceOnl
   }, [onlinePrinters, selectedPrinterId, onPrinterChange]);
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   // Clock - update every second for kiosk display
@@ -54,18 +54,18 @@ export function SpoolBuddyTopBar({ selectedPrinterId, onPrinterChange, deviceOnl
   }, []);
 
   return (
-    <div className="h-12 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary flex items-center px-3 gap-4 shrink-0">
+    <div className="h-12 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary flex items-center px-2 gap-2 sm:px-3 sm:gap-4 shrink-0">
       {/* Logo */}
       <div className="flex items-center shrink-0">
-        <img src="/img/spoolbuddy_logo_dark_small.png" alt="SpoolBuddy" width={113} height={28} className="h-7 w-auto" />
+        <img src="/img/spoolbuddy_logo_dark_small.png" alt="SpoolBuddy" width={113} height={28} className="h-5 sm:h-7 w-auto" />
       </div>
 
       {/* Printer selector - centered */}
-      <div className="flex-1 flex justify-center">
+      <div className="min-w-0 flex-1 flex justify-center">
         <LegacySelect
           value={selectedPrinterId ?? ''}
           onChange={(e) => onPrinterChange(Number(e.target.value))}
-          className="bg-bambu-dark text-white text-base px-4 py-2 rounded border border-bambu-dark-tertiary focus:outline-none focus:border-bambu-green min-w-[180px]"
+          className="bg-bambu-dark text-white text-base px-2 sm:px-4 py-2 rounded border border-bambu-dark-tertiary focus:outline-none focus:border-bambu-green w-full sm:w-auto sm:min-w-[180px]"
         >
           {onlinePrinters.length === 0 ? (
             <option value="">{t('spoolbuddy.status.noPrinters', 'No printers online')}</option>
@@ -80,7 +80,7 @@ export function SpoolBuddyTopBar({ selectedPrinterId, onPrinterChange, deviceOnl
       </div>
 
       {/* Right side indicators */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* WiFi signal bars */}
         <div className="flex items-center" title={deviceOnline ? t('spoolbuddy.status.backend', 'Backend') : t('spoolbuddy.status.offline', 'Offline')}>
           {deviceOnline ? (
@@ -101,7 +101,7 @@ export function SpoolBuddyTopBar({ selectedPrinterId, onPrinterChange, deviceOnl
         {/* Device LED */}
         <div className="flex items-center gap-1.5">
           <div className={`w-3 h-3 rounded-full ${deviceOnline ? 'bg-bambu-green shadow-[0_0_6px_rgba(34,197,94,0.5)]' : 'bg-bambu-gray'}`} />
-          <span className="text-sm text-white/50">{deviceOnline ? t('spoolbuddy.status.backend', 'Backend') : t('spoolbuddy.status.offline', 'Offline')}</span>
+          <span className="sr-only sm:not-sr-only text-sm text-white/50">{deviceOnline ? t('spoolbuddy.status.backend', 'Backend') : t('spoolbuddy.status.offline', 'Offline')}</span>
         </div>
 
         {/* Clock */}

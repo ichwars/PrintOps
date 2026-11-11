@@ -456,4 +456,32 @@ describe('FileManagerModal', () => {
       });
     });
   });
+  it('preserves selection through a slow listing and refreshes without claiming an empty folder', async () => {
+    let slow = false;
+    server.use(http.get('/api/v1/printers/:id/files', () => HttpResponse.json(
+      slow ? {files: [], warnings: ['listing_timed_out']} : {files: mockFiles},
+    )));
+    render(<FileManagerModal printerId={1} printerName="X1 Carbon" onClose={mockOnClose} />);
+    await screen.findByText('benchy.3mf');
+    const checkboxes = screen.getAllByRole('checkbox').filter(btn => btn.querySelector('svg')?.classList.contains('lucide-square'));
+    fireEvent.click(checkboxes[0]);
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    slow = true;
+    fireEvent.click(screen.getByRole('button', {name: 'Refresh', exact: true}));
+    await screen.findByText(/^The printer is answering, but listing this folder/);
+    expect(screen.queryByText('No files in this directory')).not.toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    slow = false;
+    fireEvent.click(screen.getByRole('button', {name: 'Refresh', exact: true}));
+    await screen.findByText('benchy.3mf');
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('distinguishes an unavailable printer from an empty folder', async () => {
+    server.use(http.get('/api/v1/printers/:id/files', () => HttpResponse.json({files: [], warnings: ['printer_unavailable']})));
+    render(<FileManagerModal printerId={1} printerName="X1 Carbon" onClose={mockOnClose} />);
+    await screen.findByText(/^The printer file service is unavailable/);
+    expect(screen.queryByText('No files in this directory')).not.toBeInTheDocument();
+  });
+
 });

@@ -1,3 +1,5 @@
+import { ARCHIVED_RATE_WINDOW_MS } from './forecastStock';
+import { parseUTCDate } from './date';
 import type { InventorySpool, SpoolUsageRecord } from '../api/client';
 
 /**
@@ -66,18 +68,30 @@ export function computeHistoryRate(records: SpoolUsageRecord[]): { rate: number;
   return { rate: mean, stdDev: Math.sqrt(variance) };
 }
 
-export function computeDeltaRate(spools: InventorySpool[]): number | null {
-  // Use weight_used - baseline so "Reset usage to 0" on the Inventory page
-  // makes forecast restart from zero rather than carrying stale lifetime
-  // consumption across the reset (#1390).
-  const totalUsed = spools.reduce((s, sp) => s + Math.max(0, sp.weight_used - (sp.weight_used_baseline ?? 0)), 0);
-  if (totalUsed === 0) return null;
+export function computeDeltaRate(
+  spools: InventorySpool[],
+  firstUses: ReadonlyMap<number, number> = new Map(),
+  usedBefore = false,
+): number | null {
   const now = Date.now();
-  const oldestMs = spools.reduce((min, sp) => {
-    const t = new Date(sp.created_at).getTime();
-    return t < min ? t : min;
-  }, now);
-  const daysSinceOldest = (now - oldestMs) / 86400000;
-  if (daysSinceOldest < 1) return null;
-  return totalUsed / daysSinceOldest;
+  const windowStart = now - ARCHIVED_RATE_WINDOW_MS;
+  const spans = spools.flatMap(spool => {
+    const consumed = Math.max(0, spool.weight_used - (spool.weight_used_baseline ?? 0));
+    if (!consumed) return [];
+    const end = Math.min(parseUTCDate(spool.last_used || spool.archived_at)?.getTime() ?? now, now);
+    const first = parseUTCDate(spool.first_used_at)?.getTime() ?? firstUses.get(spool.id)
+      ?? parseUTCDate(spool.created_at)?.getTime() ?? end;
+    return [{ consumed, start: Math.min(first, end), end }];
+  });
+  if (!spans.length) return null;
+  const oldest = spans.reduce((min, span) => Math.min(min, span.start), now);
+  const observedFrom = usedBefore ? windowStart : Math.max(windowStart, oldest);
+  const days = (now - observedFrom) / 86400000;
+  if (days < 1) return null;
+  const grams = spans.reduce((total, { consumed, start, end }) => {
+    if (end < observedFrom) return total;
+    const span = end - start;
+    return total + (span < 86400000 ? consumed : consumed * (end - Math.max(start, observedFrom)) / span);
+  }, 0);
+  return grams / days;
 }

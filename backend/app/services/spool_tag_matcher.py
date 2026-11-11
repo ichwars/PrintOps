@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
+from backend.app.services import spool_swaps
 from backend.app.utils.spool_core_weights import BAMBU_RFID_CORE_CATALOG_NAME, BAMBU_RFID_CORE_WEIGHT
 from backend.app.utils.tag_normalization import (
     normalize_tag_uid as _normalize_tag_uid,
@@ -203,8 +204,10 @@ async def create_spool_from_tray(db: AsyncSession, tray_data: dict) -> Spool:
     spool.k_profiles = []
     spool.assignments = []
     db.add(spool)
+    from backend.app.services.filament_profile_defaults import apply_product_defaults
     from backend.app.services.filament_sku_identity import ensure_sku
 
+    await apply_product_defaults(db, spool)
     await ensure_sku(db, spool)
     await db.flush()
 
@@ -355,6 +358,26 @@ async def link_tag_to_inventory_spool(db: AsyncSession, spool: Spool, tray_data:
     )
 
 
+async def tag_belongs_to_archived_spool(db: AsyncSession, tag_uid: str, tray_uuid: str) -> bool:
+    """True when the tag is an archived spool's.
+
+    Archiving releases the spool's slot, but its tag can stay in the AMS (an
+    empty core waiting to be swapped). Treated as unknown, it would be linked
+    to a matching unopened spool or become a new one.
+    """
+    tray_uuid_norm = _normalize_tray_uuid(tray_uuid)
+    tag_uid_norm = _normalize_tag_uid(tag_uid)
+    conditions = []
+    if tray_uuid_norm and tray_uuid_norm != ZERO_TRAY_UUID and tray_uuid_norm != "0" * len(tray_uuid_norm):
+        conditions.append(func.upper(Spool.tray_uuid) == tray_uuid_norm)
+    if tag_uid_norm and tag_uid_norm != ZERO_TAG_UID and tag_uid_norm != "0" * len(tag_uid_norm):
+        conditions.append(func.upper(Spool.tag_uid) == tag_uid_norm)
+    if not conditions:
+        return False
+    found = await db.scalar(select(Spool.id).where(Spool.archived_at.is_not(None), or_(*conditions)).limit(1))
+    return found is not None
+
+
 async def get_spool_by_tag(db: AsyncSession, tag_uid: str, tray_uuid: str) -> Spool | None:
     """Look up an active spool by RFID tag UID or Bambu Lab tray UUID.
 
@@ -498,6 +521,7 @@ async def auto_assign_spool(
     if old:
         await db.delete(old)
         await db.flush()
+    await spool_swaps.record_assignment(db, printer_id, ams_id, tray_id, spool.id, spool_swaps.INVENTORY)
 
     assignment = SpoolAssignment(
         spool_id=spool.id,

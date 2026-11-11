@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from backend.app.core.config import settings
 from backend.app.services.virtual_printer.mqtt_server import SimpleMQTTServer
 
 
@@ -78,6 +79,37 @@ def _build_publish_payload(topic: str, message: dict) -> bytes:
     topic_bytes = topic.encode("utf-8")
     message_bytes = json.dumps(message).encode("utf-8")
     return len(topic_bytes).to_bytes(2, "big") + topic_bytes + message_bytes
+
+
+@pytest.mark.parametrize(
+    "command", ["extrusion_cali_sel", "extrusion_cali_set", "ams_filament_setting", "ams_change_filament"]
+)
+def test_slicer_ams_commands_are_captured_in_full_when_wire_trace_is_enabled(command, tmp_path, monkeypatch):
+    server = _make_server()
+    topic = f"device/{server.serial}/request"
+    message = {
+        "print": {
+            "command": command,
+            "sequence_id": "1" * 70,
+            "ams_id": 128,
+            "tray_id": 0,
+            "target": 128,
+        }
+    }
+    payload = _build_publish_payload(topic, message)
+    monkeypatch.setattr(settings, "log_dir", tmp_path)
+    monkeypatch.delenv("PRINTOPS_VP_DUMP_WIRE", raising=False)
+
+    asyncio.run(server._handle_publish(0x30, payload, MagicMock(), "fixture"))
+    assert not (tmp_path / "vp_wire").exists()
+
+    monkeypatch.setenv("PRINTOPS_VP_DUMP_WIRE", "1")
+    asyncio.run(server._handle_publish(0x30, payload, MagicMock(), "fixture"))
+    (trace,) = (tmp_path / "vp_wire").glob("*_cmd.jsonl")
+    record = json.loads(trace.read_text())
+    assert record["dir"] == "slicer_to_bridge"
+    assert record["cmd"] == f"print.{command}"
+    assert record["payload"] == message
 
 
 class TestPublishHandlerAdaptiveSerial:

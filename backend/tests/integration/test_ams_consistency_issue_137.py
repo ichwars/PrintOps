@@ -95,7 +95,7 @@ async def test_internal_assignment_keeps_product_but_sends_protocol_type(async_c
     sent = mqtt.ams_set_filament_setting.call_args.kwargs
     assert sent["tray_type"] == "PLA"
     assert sent["tray_sub_brands"] == "eSUN PLA+ Silk"
-    assert sent["tray_info_idx"] == "GFL99"
+    assert sent["tray_info_idx"] == "GFL96"
     assert (sent["nozzle_temp_min"], sent["nozzle_temp_max"]) == (190, 230)
 
 

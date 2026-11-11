@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, false, true
 from sqlalchemy.orm import relationship
 
 from backend.app.core.database import Base
@@ -56,17 +56,17 @@ class NotificationProvider(Base):
     provider_type = Column(String(50), nullable=False)  # callmebot, ntfy, pushover, telegram, email
     enabled = Column(Boolean, default=True)
     # Preserve attachments already sent by existing providers.
-    attach_photo = Column(Boolean, nullable=False, default=True, server_default="true")
+    attach_photo = Column(Boolean, nullable=False, default=True, server_default=true())
 
     # Provider-specific configuration stored as JSON string
     config = Column(Text, nullable=False)
 
-    on_app_message = Column(Boolean, nullable=False, default=False, server_default="false")
+    on_app_message = Column(Boolean, nullable=False, default=False, server_default=false())
 
     # Event triggers - print lifecycle
     on_print_start = Column(Boolean, default=False)
     on_print_complete = Column(Boolean, default=True)
-    on_print_confirm_request = Column(Boolean, default=True, server_default="true")
+    on_print_confirm_request = Column(Boolean, default=True, server_default=true())
     on_print_failed = Column(Boolean, default=True)
     on_print_stopped = Column(Boolean, default=True)  # User cancelled/stopped print
     on_print_progress = Column(Boolean, default=False)  # 25%, 50%, 75% milestones
@@ -75,7 +75,9 @@ class NotificationProvider(Base):
     # Event triggers - printer status
     on_printer_offline = Column(Boolean, default=False)
     on_printer_error = Column(Boolean, default=False)  # AMS issues, etc.
-    on_ai_failure_detection = Column(Boolean, default=False)  # Obico spaghetti / failure detection (#1794)
+    on_ai_failure_detection = Column(
+        Boolean, default=False, server_default=false()
+    )  # Obico spaghetti / failure detection (#1794)
     on_filament_low = Column(Boolean, default=False)
     on_maintenance_due = Column(Boolean, default=False)  # Maintenance reminder
 
@@ -89,18 +91,23 @@ class NotificationProvider(Base):
 
     # Event triggers - Home Assistant sensors bound to a printer (#1148)
     on_storage_sensor_alert = Column(Boolean, default=False)
-    on_ha_sensor_alert = Column(Boolean, default=False)  # Bound HA sensor entered its alert state
+    on_ha_sensor_alert = Column(
+        Boolean, default=False, server_default=false()
+    )  # Bound HA sensor entered its alert state
 
     # Event triggers - Build plate detection
     on_plate_not_empty = Column(Boolean, default=True)  # Objects detected on plate before print
 
     # Event triggers - Bed cooled after print
     on_bed_cooled = Column(Boolean, default=False)  # Bed cooled below threshold after print
+    on_print_pause_upcoming = Column(Boolean, nullable=False, default=False, server_default=false())
     on_first_layer_complete = Column(Boolean, default=False)  # First layer finished printing
 
     # Event triggers - Inventory stock alerts
-    on_stock_reorder_alert = Column(Boolean, default=False)  # SKU hits reorder point
-    on_stock_break_alert = Column(Boolean, default=False)  # Stock will run out before replenishment
+    on_stock_reorder_alert = Column(Boolean, default=False, server_default=false())  # SKU hits reorder point
+    on_stock_break_alert = Column(
+        Boolean, default=False, server_default=false()
+    )  # Stock will run out before replenishment
 
     # Event triggers - Print queue
     on_queue_job_added = Column(Boolean, default=False)  # Job added to queue
@@ -121,7 +128,7 @@ class NotificationProvider(Base):
     daily_digest_time = Column(String(5), nullable=True)  # HH:MM format, e.g., "08:00"
 
     # Optional: Link to specific printer (NULL = all printers)
-    printer_id = Column(Integer, ForeignKey("printers.id", ondelete="SET NULL"), nullable=True)
+    printer_id = Column(Integer, ForeignKey("printers.id", ondelete="CASCADE"), nullable=True)
 
     # Status tracking
     last_success = Column(DateTime, nullable=True)

@@ -56,7 +56,7 @@ def test_callbacks_distinguish_legacy_mapping_from_explicit_unfed(details, want)
         ([0, -1], [1], (110, 200), 0.2, False),
         ([255, -1], [2], (100, 210), 0.4, False),
         ([-1, -1], [], (100, 200), None, False),
-        ([-1], [], (100, 200), None, True),
+        ([-1], [1, 2], (105, 205), 0.1, True),
         (None, [2], (100, 210), 0.4, False),
     ],
 )
@@ -108,7 +108,7 @@ async def test_unmapped_slot_does_not_change_stock_or_cost(
 
 
 @pytest.mark.asyncio
-async def test_spoolman_split_cannot_charge_an_explicitly_unfed_slot(
+async def test_spoolman_recovers_all_negative_mapping_from_actual_tray_changes(
     test_engine, db_session, printer_factory, archive_factory, monkeypatch
 ):
     from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -155,7 +155,7 @@ async def test_spoolman_split_cannot_charge_an_explicitly_unfed_slot(
         ),
     )
     await spoolman_tracking.report_usage(printer.id, archive.id)
-    assert consumed == {1: 0, 2: 0}
+    assert consumed == {1: 5.0, 2: 5.0}
 
 
 @pytest.mark.asyncio

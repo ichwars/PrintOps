@@ -1,4 +1,4 @@
-import { Cloud, CloudOff, Cog, Loader2, RefreshCw, X } from 'lucide-react';
+import { Cloud, CloudOff, Cog, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,8 @@ import {
 } from '../api/client';
 import { useSliceJobTracker } from '../contexts/SliceJobTrackerContext';
 import { useToast } from '../contexts/ToastContext';
+import { useSliceLoadedSpools } from '../hooks/useSliceLoadedSpools';
+import { SliceLoadedSpoolSelect } from './SliceLoadedSpoolSelect';
 import { PlatePickerModal } from './PlatePickerModal';
 import type { PlateFilament } from '../types/plates';
 import {
@@ -26,8 +28,10 @@ import {
 import {
   findPreset,
   findPresetByName,
+  listedPresetRef,
   pickDefault,
   pickFilamentForSlot,
+  printerPresetParents,
   pickProcessDefault,
   statesDifferentMaterial,
   type Slot,
@@ -206,6 +210,7 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
   const queryClient = useQueryClient();
 
   const [printerPreset, setPrinterPreset] = useState<PresetRef | null>(null);
+  const explicitPrinter = useRef(false);
   const [processPreset, setProcessPreset] = useState<PresetRef | null>(null);
   // One filament ref per plate slot, in plate order. For STL / single-plate /
   // single-color sources this is a one-element array; multi-color 3MFs get one
@@ -387,17 +392,22 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
   });
 
   // Selected-printer context for the process / filament filter (#1325).
-  const selectedPrinterName = useMemo<string | null>(() => {
-    if (!presetsQuery.data || !printerPreset) return null;
-    return findPreset(presetsQuery.data, printerPreset, 'printer')?.name ?? null;
-  }, [presetsQuery.data, printerPreset]);
+  const selectedPrinter = presetsQuery.data ? findPreset(presetsQuery.data, printerPreset, 'printer') : null;
+  const selectedPrinterName = selectedPrinter?.name ?? null;
   // Compatibility ground truth: the slicer's own `compatible_printers` list
   // on local-imported presets, plus the @BBL <code> name fallback for cloud
   // / standard presets via the backend Bambu printer-model registry.
   const compatIndex = useMemo<PrinterCompatibilityIndex>(
-    () => buildCompatibilityIndex(printerModelsQuery.data ?? {}),
-    [printerModelsQuery.data],
+    () => buildCompatibilityIndex(
+      printerModelsQuery.data,
+      presetsQuery.data && selectedPrinter ? printerPresetParents(presetsQuery.data, selectedPrinter) : undefined,
+    ),
+    [presetsQuery.data, printerModelsQuery.data, selectedPrinter],
   );
+
+  const loadedSpools = useSliceLoadedSpools(presetsQuery.data, selectedPrinterName, printerModelsQuery.data, compatIndex);
+  const onlinePrinterProfiles = loadedSpools.online;
+  const loadedFilamentProfiles = loadedSpools.loaded;
 
   // Printer / process preset names the source 3MF was prepared with. The
   // plates query resolves before the presets query (the latter is gated on
@@ -415,19 +425,21 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
     if (!canUseEmbedded) setUseEmbedded(false);
   }, [canUseEmbedded]);
 
-  // Printer pre-pick: defaults to the printer the 3MF was prepared for when
-  // that preset is available, else the first listed printer. Runs once when
-  // presets first arrive; later re-renders preserve any manual choice.
+  // Preserve manual and saved selections when the online filter changes.
   useEffect(() => {
     const data = presetsQuery.data;
-    if (!data) return;
-    if (printerPreset == null) {
-      setPrinterPreset(
-        findPresetByName(data, 'printer', embeddedPrinter) ?? pickDefault(data, 'printer'),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presetsQuery.data, embeddedPrinter]);
+    if (!data || useEmbedded) return;
+    setPrinterPreset((current) => {
+      const preset = findPreset(data, current, 'printer');
+      if (preset && (explicitPrinter.current || !onlinePrinterProfiles || onlinePrinterProfiles.filter(preset))) {
+        return current;
+      }
+      const embedded = findPresetByName(data, 'printer', embeddedPrinter);
+      const embeddedPreset = findPreset(data, embedded, 'printer');
+      if (embeddedPreset && (!onlinePrinterProfiles || onlinePrinterProfiles.filter(embeddedPreset))) return embedded;
+      return onlinePrinterProfiles?.preferred ?? current ?? pickDefault(data, 'printer');
+    });
+  }, [presetsQuery.data, embeddedPrinter, onlinePrinterProfiles, useEmbedded]);
 
   // Process pre-pick / re-pick (#1325): defaults to a process compatible with
   // the selected printer, and re-defaults when a printer change leaves the
@@ -467,20 +479,22 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
           if (
             p &&
             !wrongMaterial &&
+            (!loadedFilamentProfiles || explicitFilamentSlots.current.has(i) || loadedFilamentProfiles.filter(p)) &&
             presetCompatibility(p, 'filament', selectedPrinterName, compatIndex) !== 'mismatch'
           ) {
             return cur;
           }
         }
-        return pickFilamentForSlot(
-          data,
-          { type: slot.type, color: slot.color },
-          selectedPrinterName,
-          compatIndex,
-        );
+        const requirement = { type: slot.type, color: slot.color };
+        if (loadedFilamentProfiles) {
+          const ref = pickFilamentForSlot(loadedFilamentProfiles.data, requirement, selectedPrinterName, compatIndex);
+          const preset = findPreset(data, ref, 'filament');
+          if (preset && !statesDifferentMaterial(preset, slot.type)) return ref;
+        }
+        return pickFilamentForSlot(data, requirement, selectedPrinterName, compatIndex);
       });
     });
-  }, [presetsQuery.data, filamentSlots, selectedPrinterName, compatIndex]);
+  }, [presetsQuery.data, filamentSlots, selectedPrinterName, compatIndex, loadedFilamentProfiles]);
 
   useEffect(() => {
     setFilamentColours((current) => {
@@ -520,11 +534,13 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
     ) {
       throw new Error(t('slice.allPresetsRequired'));
     }
+    const registry = presetsQuery.data;
+    const filamentRefs = (filamentPresets as PresetRef[]).map(ref => listedPresetRef(registry, 'filament', ref));
     return {
-      printer_preset: printerPreset,
-      process_preset: processPreset,
-      filament_preset: filamentPresets[0] as PresetRef,
-      filament_presets: filamentPresets as PresetRef[],
+      printer_preset: listedPresetRef(registry, 'printer', printerPreset),
+      process_preset: listedPresetRef(registry, 'process', processPreset),
+      filament_preset: filamentRefs[0],
+      filament_presets: filamentRefs,
       filament_colours: filamentSlots.map((slot, index) => filamentColours[index] ?? slot.color ?? ''),
       ...(plate != null ? { plate } : {}),
       ...(bedType != null ? { bed_type: bedType } : {}),
@@ -663,14 +679,16 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                     // Apply slot state. The filament list is right-padded from
                     // current state so a pipeline with fewer entries than the
                     // current source's slot count keeps the existing tail.
-                    setPrinterPreset(picked.printer_preset);
-                    setProcessPreset(picked.process_preset);
+                    const registry = presetsQuery.data;
+                    explicitPrinter.current = true;
+                    setPrinterPreset(listedPresetRef(registry, 'printer', picked.printer_preset));
+                    setProcessPreset(listedPresetRef(registry, 'process', picked.process_preset));
                     setBedType(picked.bed_type);
                     setFilamentPresets((current) => {
                       const next = current.length > 0 ? [...current] : picked.filament_presets.map(() => null);
                       for (let i = 0; i < next.length; i++) {
                         if (i < picked.filament_presets.length) {
-                          next[i] = picked.filament_presets[i];
+                          next[i] = listedPresetRef(registry, 'filament', picked.filament_presets[i]);
                           explicitFilamentSlots.current.add(i);
                         }
                       }
@@ -762,12 +780,36 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                   </div>
                 )}
               </div>
+              {loadedSpools.available && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-bambu-gray">
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={loadedSpools.onlineOnly} disabled={isEnqueuing || useEmbedded}
+                      onChange={(event) => loadedSpools.setOnlineOnly(event.target.checked)} />
+                    {t('slice.filters.online')}
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={loadedSpools.loadedOnly} disabled={isEnqueuing || useEmbedded}
+                      onChange={(event) => loadedSpools.setLoadedOnly(event.target.checked)} />
+                    {t('slice.filters.loaded')}
+                  </label>
+                  {loadedSpools.onlineOnly && !loadedSpools.online && (
+                    <p role="status" className="w-full text-xs">{t('slice.filters.noOnline')}</p>
+                  )}
+                  {loadedSpools.loadedOnly && !loadedSpools.loaded && (
+                    <p role="status" className="w-full text-xs">{t('slice.filters.noMatch')}</p>
+                  )}
+                </div>
+              )}
               <PresetDropdown
                 label={t('slice.printer')}
                 slot="printer"
                 data={presetsQuery.data}
                 value={printerPreset}
-                onChange={setPrinterPreset}
+                onChange={(ref) => {
+                  explicitPrinter.current = ref !== null;
+                  setPrinterPreset(ref);
+                }}
+                filter={onlinePrinterProfiles?.filter}
                 disabled={isEnqueuing || useEmbedded}
               />
               {canUseEmbedded && (
@@ -864,37 +906,41 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
                   const label = isUsed
                     ? baseLabel
                     : `${baseLabel} ${t('slice.notUsedByPlate')}`;
+                  const changeRef = (ref: PresetRef | null) => {
+                    explicitFilamentSlots.current.add(idx);
+                    setFilamentPresets((current) => filamentSlots.map((_, i) => i === idx ? ref : current[i] ?? null));
+                  };
+                  const changeColour = (colour: string) => {
+                    setFilamentColours((current) => filamentSlots.map((_, i) => i === idx ? colour : current[i] ?? null));
+                  };
+                  const disabled = isEnqueuing || !isUsed || useEmbedded;
                   return (
-                    <PresetDropdown
-                      key={`filament-${idx}`}
-                      label={label}
-                      slot="filament"
-                      data={presetsQuery.data}
-                      value={filamentPresets[idx] ?? null}
-                      onChange={(ref) => {
-                        explicitFilamentSlots.current.add(idx);
-                        setFilamentPresets((current) => {
-                          const next = current.length === filamentSlots.length
-                            ? [...current]
-                            : filamentSlots.map((_, i) => current[i] ?? null);
-                          next[idx] = ref;
-                          return next;
-                        });
-                      }}
-                      disabled={isEnqueuing || !isUsed || useEmbedded}
-                      swatchColor={filamentColours[idx] ?? slot.color}
-                      onSwatchColorChange={(colour) =>
-                        setFilamentColours((current) => {
-                          const next = current.length === filamentSlots.length
-                            ? [...current]
-                            : filamentSlots.map((_, i) => current[i] ?? null);
-                          next[idx] = colour;
-                          return next;
-                        })
-                      }
-                      selectedPrinterName={selectedPrinterName}
-                      compatIndex={compatIndex}
-                    />
+                    <div key={`filament-${idx}`}>
+                      <PresetDropdown
+                        label={label}
+                        slot="filament"
+                        data={presetsQuery.data}
+                        value={filamentPresets[idx] ?? null}
+                        onChange={changeRef}
+                        disabled={disabled}
+                        swatchColor={filamentColours[idx] ?? slot.color}
+                        onSwatchColorChange={changeColour}
+                        selectedPrinterName={selectedPrinterName}
+                        compatIndex={compatIndex}
+                        filter={loadedFilamentProfiles?.filter}
+                      />
+                      {isUsed && !useEmbedded && (
+                        <SliceLoadedSpoolSelect
+                          slotLabel={label}
+                          groups={loadedSpools.groups}
+                          disabled={disabled}
+                          onPick={(match, colour) => {
+                            changeRef(match.ref);
+                            if (colour) changeColour(colour);
+                          }}
+                        />
+                      )}
+                    </div>
                   );
                 })
               )}
@@ -1023,22 +1069,13 @@ function CloudStatusBanner({
   );
 }
 
-// Build-plate options offered in the SliceModal (#1337). Values are the
-// canonical strings the slicer's StaticPrintConfig validator accepts as
-// `curr_bed_type` — BambuStudio is the default sidecar, so this matches its
-// enum; OrcaSlicer accepts the same set with a Supertack alias that users
-// can target via the same dropdown if they re-import their presets.
-const BED_TYPE_OPTIONS: { value: string; labelKey: string; fallback: string }[] = [
-  { value: 'Cool Plate', labelKey: 'slice.bedType.coolPlate', fallback: 'Cool Plate' },
-  {
-    value: 'Cool Plate (SuperTack)',
-    labelKey: 'slice.bedType.coolPlateSuperTack',
-    fallback: 'Cool Plate SuperTack',
-  },
-  { value: 'Engineering Plate', labelKey: 'slice.bedType.engineering', fallback: 'Engineering Plate' },
-  { value: 'High Temp Plate', labelKey: 'slice.bedType.highTemp', fallback: 'High Temp Plate' },
-  { value: 'Textured PEI Plate', labelKey: 'slice.bedType.texturedPEI', fallback: 'Textured PEI Plate' },
-  { value: 'Smooth PEI Plate', labelKey: 'slice.bedType.smoothPEI', fallback: 'Smooth PEI Plate' },
+// Values match the slicer's curr_bed_type names.
+const BED_TYPE_OPTIONS = [
+  { value: 'Cool Plate', labelKey: 'slice.bedType.coolPlate' },
+  { value: 'Supertack Plate', labelKey: 'slice.bedType.coolPlateSuperTack' },
+  { value: 'Engineering Plate', labelKey: 'slice.bedType.engineering' },
+  { value: 'High Temp Plate', labelKey: 'slice.bedType.highTemp', aliasKey: 'slice.bedType.smoothPEI' },
+  { value: 'Textured PEI Plate', labelKey: 'slice.bedType.texturedPEI' },
 ];
 
 function BedTypeDropdown({
@@ -1064,9 +1101,10 @@ function BedTypeDropdown({
         className="w-full px-3 py-2 rounded-md bg-bambu-dark border border-bambu-dark-tertiary text-white text-sm focus:outline-none focus:border-bambu-gray disabled:opacity-50"
       >
         <option value="">{t('slice.bedType.auto')}</option>
+        {value && !BED_TYPE_OPTIONS.some((opt) => opt.value === value) && <option value={value}>{value}</option>}
         {BED_TYPE_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>
-            {t(opt.labelKey, opt.fallback)}
+            {opt.aliasKey ? [t(opt.labelKey), t(opt.aliasKey)].join(' / ') : t(opt.labelKey)}
           </option>
         ))}
       </LegacySelect>
@@ -1091,6 +1129,7 @@ interface PresetDropdownProps {
   // into a trailing "Other printers" group instead of the main tier list.
   selectedPrinterName?: string | null;
   compatIndex?: PrinterCompatibilityIndex;
+  filter?: (preset: UnifiedPreset) => boolean;
 }
 
 function PresetDropdown({
@@ -1104,8 +1143,14 @@ function PresetDropdown({
   onSwatchColorChange,
   selectedPrinterName,
   compatIndex,
+  filter,
 }: PresetDropdownProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchButton = useRef<HTMLButtonElement>(null);
+  const selectedValue = value && toRefValue(listedPresetRef(data, slot, value));
+  const collator = useMemo(() => new Intl.Collator(i18n.language, { numeric: true, sensitivity: 'base' }), [i18n.language]);
 
   // Tier sections (imported → cloud → standard), plus — for a process /
   // filament slot with a selected printer — a trailing group of presets that
@@ -1123,7 +1168,9 @@ function PresetDropdown({
     const compatSections: { tierLabel: string; entries: UnifiedPreset[] }[] = [];
     const other: UnifiedPreset[] = [];
     for (const { key, label: lk, fallback } of tiers) {
-      const entries = (data[key] as UnifiedPresetsBySlot)[slot];
+      const entries = (data[key] as UnifiedPresetsBySlot)[slot].filter(
+        (preset) => !filter || toRefValue(preset) === selectedValue || filter(preset),
+      );
       if (!filterByPrinter) {
         if (entries.length > 0) compatSections.push({ tierLabel: t(lk, fallback), entries });
         continue;
@@ -1148,11 +1195,27 @@ function PresetDropdown({
         compatSections.push({ tierLabel: t(lk, fallback), entries: compatible });
       }
     }
-    return { sections: compatSections, otherEntries: other };
-  }, [data, slot, t, selectedPrinterName, compatIndex]);
+    const sorted = (entries: UnifiedPreset[]) => [...entries].sort((left, right) => {
+      if (slot === 'process') {
+        const height = (name: string) => Number(/^\s*([\d.]+)\s*mm\b/i.exec(name)?.[1]);
+        const difference = height(left.name) - height(right.name);
+        if (Number.isFinite(difference) && difference !== 0) return difference;
+      }
+      return collator.compare(left.name, right.name);
+    });
+    return {
+      sections: compatSections.map(section => ({ ...section, entries: sorted(section.entries) })),
+      otherEntries: sorted(other),
+    };
+  }, [data, slot, t, selectedPrinterName, compatIndex, collator, filter, selectedValue]);
 
-  const totalEntries =
-    sections.reduce((sum, s) => sum + s.entries.length, 0) + otherEntries.length;
+  const totalEntries = sections.reduce((sum, section) => sum + section.entries.length, 0) + otherEntries.length;
+  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const matches = (preset: UnifiedPreset) => words.every(word => preset.name.toLocaleLowerCase().includes(word));
+  const visible = (entries: UnifiedPreset[]) => entries.filter(preset => toRefValue(preset) === selectedValue || matches(preset));
+  const matching = sections.some(section => section.entries.some(matches)) || otherEntries.some(matches);
+  const otherVisible = visible(otherEntries);
+  const closeSearch = () => { setSearching(false); setQuery(''); };
 
   return (
     <div className="block">
@@ -1165,6 +1228,12 @@ function PresetDropdown({
           />
         )}
         <span>{label}</span>
+        {totalEntries > 1 && <button ref={searchButton} type="button" disabled={disabled} aria-expanded={searching}
+          className="rounded p-1 hover:text-white disabled:opacity-50"
+          aria-label={`${label}: ${t(searching ? 'slice.closeSearch' : 'common.search')}`}
+          onClick={() => { if (searching) closeSearch(); else setSearching(true); }}>
+          {searching ? <X className="h-3.5 w-3.5" /> : <Search className="h-3.5 w-3.5" />}
+        </button>}
         {onSwatchColorChange && (
           <label className="ml-auto flex items-center gap-1.5 font-mono text-white">
             <ColorInput
@@ -1180,9 +1249,19 @@ function PresetDropdown({
           </label>
         )}
       </div>
+      {searching && <TextField type="search" autoFocus value={query} disabled={disabled}
+        className="mb-1 text-xs" placeholder={t('slice.searchPresets')}
+        aria-label={`${label}: ${t('slice.searchPresets')}`} onChange={event => setQuery(event.target.value)}
+        onKeyDown={event => {
+          if (event.key !== 'Escape') return;
+          event.stopPropagation();
+          closeSearch();
+          searchButton.current?.focus();
+        }} />}
+      {words.length > 0 && !matching && <p role="status" className="text-xs text-bambu-gray">{t('slice.noPresetMatches')}</p>}
       <LegacySelect
         aria-label={label}
-        value={toRefValue(value)}
+        value={selectedValue ?? ''}
         onChange={(e) => onChange(fromRefValue(e.target.value))}
         disabled={disabled || totalEntries === 0}
         className="w-full px-3 py-2 rounded-md bg-bambu-dark border border-bambu-dark-tertiary text-white text-sm focus:outline-none focus:border-bambu-gray disabled:opacity-50"
@@ -1192,7 +1271,7 @@ function PresetDropdown({
             ? t('slice.noPresetsForSlot')
             : t('slice.selectPreset')}
         </option>
-        {sections.map((section) => (
+        {sections.map(section => ({ ...section, entries: visible(section.entries) })).filter(section => section.entries.length > 0).map((section) => (
           <optgroup key={section.tierLabel} label={section.tierLabel}>
             {section.entries.map((p) => (
               <option key={`${p.source}:${p.id}`} value={`${p.source}:${p.id}`}>
@@ -1201,9 +1280,9 @@ function PresetDropdown({
             ))}
           </optgroup>
         ))}
-        {otherEntries.length > 0 && (
+        {otherVisible.length > 0 && (
           <optgroup label={t('slice.otherPrinters')}>
-            {otherEntries.map((p) => (
+            {otherVisible.map((p) => (
               <option key={`${p.source}:${p.id}`} value={`${p.source}:${p.id}`}>
                 {p.name}
               </option>

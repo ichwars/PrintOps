@@ -110,12 +110,12 @@ export function TimelapseViewer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="relative bg-bambu-dark-secondary rounded-xl max-w-4xl w-full mx-4 overflow-hidden">
+      <div className="relative bg-bambu-dark-secondary rounded-xl max-w-4xl min-w-0 w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Film className="w-5 h-5 text-bambu-green" />
-            {title}
+        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-bambu-dark-tertiary">
+          <h3 className="min-w-0 text-lg font-semibold text-white flex items-center gap-2">
+            <Film className="w-5 h-5 shrink-0 text-bambu-green" />
+            <span className="break-all">{title}</span>
           </h3>
           <div className="flex items-center gap-2">
             {archiveId && (
@@ -130,6 +130,7 @@ export function TimelapseViewer({
             </Button>
             <button
               onClick={onClose}
+              aria-label={translateInterface('common.close')}
               className="p-1 hover:bg-bambu-dark-tertiary rounded transition-colors"
             >
               <X className="w-5 h-5 text-bambu-gray" />
@@ -143,7 +144,7 @@ export function TimelapseViewer({
             ref={videoRef}
             src={src}
             autoPlay
-            className="w-full rounded-lg"
+            className="w-full max-h-[55dvh] object-contain rounded-lg bg-black"
             onClick={togglePlay}
           />
 
@@ -170,7 +171,7 @@ export function TimelapseViewer({
             </div>
 
             {/* Playback controls */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               {/* Left: Play controls */}
               <div className="flex items-center gap-2">
                 <button
@@ -200,9 +201,9 @@ export function TimelapseViewer({
               </div>
 
               {/* Right: Speed control */}
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="text-sm text-bambu-gray">{translateInterface("orders.runtimeInterface.speed2")}</span>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {SPEED_OPTIONS.map((speed) => (
                     <button
                       key={speed}

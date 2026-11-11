@@ -1,3 +1,5 @@
+import { batchedRecord } from '../batch';
+import type { KProfileWriteResult } from '../../utils/kprofileWrite';
 import type {
   EventVariablesResponse,
   Filament,
@@ -22,6 +24,8 @@ import type {
   PrintBatchUpdate,
   PrintQueueBulkUpdate,
   PrintQueueBulkUpdateResponse,
+  PrintQueueHistoryFilters,
+  PrintQueueHistoryResponse,
   PrintQueueItem,
   PrintQueueItemCreate,
   PrintQueueItemUpdate,
@@ -45,15 +49,61 @@ type QueueRemovalResult =
       retention_reason: 'last_batch_plate_source';
     };
 
+const slotPresetsBatch = batchedRecord(
+  (id) => request<Record<number, SlotPresetMapping>>(`/printers/${id}/slot-presets`),
+  '/bulk/slot-presets',
+);
+
+const amsLabelsBatch = batchedRecord(
+  (id) => request<Record<number, string>>(`/printers/${id}/ams-labels`),
+  '/bulk/ams-labels',
+);
+
+const queueBatch = (status: 'pending' | 'printing') => batchedRecord(
+  (id) => request<PrintQueueItem[]>(`/queue/?printer_id=${id}&status=${status}`),
+  `/bulk/printer-queues?status=${status}`,
+);
+const pendingQueueBatch = queueBatch('pending');
+const printingQueueBatch = queueBatch('printing');
+
+function queueHistoryParams(filters: PrintQueueHistoryFilters) {
+  const params = new URLSearchParams();
+  if (filters.printerId !== undefined) params.set('printer_id', String(filters.printerId));
+  if (filters.status) params.set('status', filters.status);
+  if (filters.location) params.set('location', filters.location);
+  return params;
+}
+
 export const queueProfilesNotificationsMethods = {
   // Print Queue
   getQueue: (printerId?: number, status?: string, targetModel?: string) => {
+    if (printerId && printerId > 0 && !targetModel) {
+      if (status === 'pending') return pendingQueueBatch(printerId);
+      if (status === 'printing') return printingQueueBatch(printerId);
+    }
     const params = new URLSearchParams();
     if (printerId) params.set('printer_id', String(printerId));
     if (status) params.set('status', status);
     if (targetModel) params.set('target_model', targetModel);
     return request<PrintQueueItem[]>(`/queue/?${params}`);
   },
+
+  getQueueHistory: (options: PrintQueueHistoryFilters & {
+    sortBy?: 'date' | 'name' | 'printer';
+    reverse?: boolean;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const params = queueHistoryParams(options);
+    if (options.sortBy) params.set('sort_by', options.sortBy);
+    if (options.reverse) params.set('reverse', 'true');
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+    if (options.offset) params.set('offset', String(options.offset));
+    return request<PrintQueueHistoryResponse>(`/queue/history?${params}`);
+  },
+
+  clearQueueHistory: (filters: PrintQueueHistoryFilters) =>
+    request<{ cleared: number; kept: number }>(`/queue/history/clear?${queueHistoryParams(filters)}`, { method: 'POST' }),
 
   getQueueItem: (id: number) => request<PrintQueueItem>(`/queue/${id}`),
 
@@ -107,6 +157,12 @@ export const queueProfilesNotificationsMethods = {
       { method: 'POST' },
     ),
 
+  resumeModelQueueAfterFailure: (model: string) =>
+    request<{ acknowledged: number; printers: number }>(
+      `/queue/model/${encodeURIComponent(model)}/resume`,
+      { method: 'POST' },
+    ),
+
   bulkUpdateQueue: (data: PrintQueueBulkUpdate) =>
     request<PrintQueueBulkUpdateResponse>('/queue/bulk', {
       method: 'PATCH',
@@ -153,19 +209,19 @@ export const queueProfilesNotificationsMethods = {
     request<KProfilesResponse>(`/printers/${printerId}/kprofiles/?nozzle_diameter=${nozzleDiameter}`),
 
   setKProfile: (printerId: number, profile: KProfileCreate) =>
-    request<{ success: boolean; message: string }>(`/printers/${printerId}/kprofiles/`, {
+    request<KProfileWriteResult>(`/printers/${printerId}/kprofiles/`, {
       method: 'POST',
       body: JSON.stringify(profile),
     }),
 
   deleteKProfile: (printerId: number, profile: KProfileDelete) =>
-    request<{ success: boolean; message: string }>(`/printers/${printerId}/kprofiles/`, {
+    request<KProfileWriteResult>(`/printers/${printerId}/kprofiles/`, {
       method: 'DELETE',
       body: JSON.stringify(profile),
     }),
 
   setKProfilesBatch: (printerId: number, profiles: KProfileCreate[]) =>
-    request<{ success: boolean; message: string }>(`/printers/${printerId}/kprofiles/batch`, {
+    request<KProfileWriteResult>(`/printers/${printerId}/kprofiles/batch`, {
       method: 'POST',
       body: JSON.stringify(profiles),
     }),
@@ -186,8 +242,7 @@ export const queueProfilesNotificationsMethods = {
     }),
 
   // Slot Preset Mappings
-  getSlotPresets: (printerId: number) =>
-    request<Record<number, SlotPresetMapping>>(`/printers/${printerId}/slot-presets`),
+  getSlotPresets: slotPresetsBatch,
 
   getSlotPreset: (printerId: number, amsId: number, trayId: number) =>
     request<SlotPresetMapping | null>(`/printers/${printerId}/slot-presets/${amsId}/${trayId}`),
@@ -203,8 +258,7 @@ export const queueProfilesNotificationsMethods = {
     }),
 
   // AMS Labels (user-defined friendly names)
-  getAmsLabels: (printerId: number) =>
-    request<Record<number, string>>(`/printers/${printerId}/ams-labels`),
+  getAmsLabels: amsLabelsBatch,
 
   saveAmsLabel: (printerId: number, amsId: number, label: string, amsSerial = '') =>
     request<{ ams_id: number; label: string }>(
@@ -263,7 +317,7 @@ export const queueProfilesNotificationsMethods = {
       params.set('k_value', config.k_value.toString());
     }
     if (config.orca_profile_id) params.set('orca_profile_id', config.orca_profile_id);
-    return request<{ success: boolean; message: string; tray_info_idx: string; orca_fallback_reason: '' | 'no_filament_id' | 'lookup_failed' | 'no_permission' }>(
+    return request<{ success: boolean; message: string; tray_info_idx: string; k_value_unsent?: boolean; orca_fallback_reason: '' | 'no_filament_id' | 'lookup_failed' | 'no_permission' }>(
       `/printers/${printerId}/slots/${amsId}/${trayId}/configure?${params}`,
       { method: 'POST' }
     );

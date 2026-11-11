@@ -8,9 +8,10 @@ import {
   Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   TrendingDown, Layers, Printer, AlertTriangle, X, Clock, LayoutGrid, TableProperties, Columns,
   ArrowUp, ArrowDown, ArrowUpDown, Group, ChevronDown, Check, RefreshCw, TrendingUp, Lock, Copy, Eraser, MapPin,
-  Upload, Download, CircleDollarSign,
+  Upload, Download, CircleDollarSign, ScanLine,
 } from 'lucide-react';
 import { ForecastPanel } from '../components/ForecastPanel';
+import { shownCostPerKg } from '../utils/spoolCost';
 import { EmptyFilterState } from './inventory/EmptyFilterState';
 import { api, spoolbuddyApi, ApiError } from '../api/client';
 import type { InventorySpool, SpoolCatalogEntry } from '../api/client';
@@ -21,16 +22,20 @@ import {SpoolFormModal, type SpoolFormMode} from '../components/SpoolFormModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ColumnConfigModal, type ColumnConfig } from '../components/ColumnConfigModal';
 import { LabelTemplatePickerModal } from '../components/LabelTemplatePickerModal';
+import { QrAssignTargetModal } from '../components/QrAssignTargetModal';
 import { SpoolCsvImportModal } from '../components/SpoolCsvImportModal';
 import { LocationsModal } from '../components/LocationsModal';
 import { BulkEditSpoolsModal } from '../components/BulkEditSpoolsModal';
 import { useToast } from '../contexts/ToastContext';
+import { failedCount, notifyResetResult } from '../utils/inventoryBulkResult';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveSpoolColorName } from '../utils/colors';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { useInventoryFilters } from '../hooks/useInventoryFilters';
+import { useInventorySpoolDeepLink } from '../hooks/useInventorySpoolDeepLink';
 import { parseInventoryURLFilters } from '../utils/inventoryURLFilters';
 import { formatDateInput, parseUTCDate, type DateFormat } from '../utils/date';
+import { formatSpoolDryingDetails } from '../utils/spoolDrying';
 import { formatSlotLabel } from '../utils/amsHelpers';
 import { filterSpoolsByQuery } from '../utils/inventorySearch';
 import {
@@ -69,7 +74,7 @@ function spoolGroupKey(s: InventorySpool): string {
   // Include extra_colors + effect_type so the "Group similar" toggle does
   // not collapse two spools that share the base colour but differ on
   // gradient stops or visual effect (#1154).
-  return `${s.material_number || ''}|${s.material}|${s.subtype || ''}|${s.brand || ''}|${s.color_name || ''}|${s.rgba || ''}|${s.extra_colors || ''}|${s.effect_type || ''}|${s.label_weight}`;
+  return `${s.material_number || ''}|${s.material}|${s.subtype || ''}|${s.brand || ''}|${s.color_name || ''}|${s.rgba || ''}|${s.extra_colors || ''}|${s.effect_type || ''}|${s.label_weight}|${s.last_dried_at || ''}`;
 }
 
 // Column definitions for the inventory table
@@ -80,6 +85,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'added_time', label: 'Added', visible: true },
   { id: 'encode_time', label: 'Encoded', visible: false },
   { id: 'last_used_time', label: 'Last Used', visible: false },
+  { id: 'last_dried', label: 'Last Dried', visible: true },
   { id: 'rgba', label: 'Color', visible: true },
   { id: 'material', label: 'Material', visible: true },
   { id: 'material_number', label: 'Material number', visible: true },
@@ -92,7 +98,6 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'label_weight', label: 'Label', visible: true },
   { id: 'net', label: 'Net', visible: true },
   { id: 'gross', label: 'Gross', visible: false },
-  { id: 'added_full', label: 'Full', visible: false },
   { id: 'used', label: 'Used', visible: false },
   { id: 'printed_total', label: 'Printed Total', visible: false },
   { id: 'printed_since_weight', label: 'Printed Since Weight', visible: false },
@@ -179,6 +184,7 @@ const columnHeaders: Record<string, (t: TFn) => string> = {
   added_time: (t) => t('orders.runtimeInterface.inventoryColumns.added'),
   encode_time: (t) => t('orders.runtimeInterface.inventoryColumns.encoded'),
   last_used_time: (t) => t('orders.runtimeInterface.inventoryColumns.lastUsed'),
+  last_dried: (t) => t('inventory.lastDried'),
   rgba: (t) => t('inventory.color'),
   material: (t) => t('inventory.material'),
   material_number: (t) => t('inventory.materialNumber'),
@@ -191,7 +197,6 @@ const columnHeaders: Record<string, (t: TFn) => string> = {
   label_weight: (t) => t('inventory.labelWeight'),
   net: (t) => t('inventory.net'),
   gross: (t) => t('orders.runtimeInterface.inventoryColumns.gross'),
-  added_full: (t) => t('orders.runtimeInterface.inventoryColumns.full'),
   used: (t) => t('inventory.weightUsed'),
   printed_total: (t) => t('orders.runtimeInterface.inventoryColumns.printedTotal'),
   printed_since_weight: (t) => t('orders.runtimeInterface.inventoryColumns.printedSinceWeight'),
@@ -220,6 +225,12 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   ),
   last_used_time: ({ spool, dateFormat }) => (
     <span className="text-sm text-bambu-gray">{spool.last_used ? formatInventoryDate(spool.last_used, dateFormat) : 'Never'}</span>
+  ),
+  last_dried: ({ spool, dateFormat }) => (
+    <div className="text-sm text-bambu-gray">
+      {formatInventoryDate(spool.last_dried_at ?? null, dateFormat)}
+      {spool.last_dried_at && <div className="text-xs">{formatSpoolDryingDetails(spool)}</div>}
+    </div>
   ),
   rgba: ({ spool }) => (
     <div className="flex items-center justify-center">
@@ -282,9 +293,6 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   gross: ({ spool, remaining }) => (
     <span className="text-sm text-bambu-gray">{formatWeight(remaining + spool.core_weight)}</span>
   ),
-  added_full: ({ spool, t }) => (
-    <span className="text-sm text-bambu-gray">{spool.added_full == null ? '-' : spool.added_full ? t('common.yes') : t('common.no')}</span>
-  ),
   used: ({ spool }) => (
     <span className="text-sm text-bambu-gray">{spool.weight_used > 0 ? formatWeight(spool.weight_used) : '-'}</span>
   ),
@@ -346,11 +354,11 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     const entry = spool.core_weight_catalog_id != null ? catalogMap[spool.core_weight_catalog_id] : undefined;
     return <span className="text-sm text-bambu-gray">{entry?.name || '-'}</span>;
   },
-  cost_per_kg: ({ spool, currencySymbol }) => (
-    <span className="text-sm text-bambu-gray">
-      {spool.cost_per_kg != null ? `${currencySymbol}${spool.cost_per_kg.toFixed(2)}` : '-'}
-    </span>
-  ),
+  cost_per_kg: ({ spool, currencySymbol, t }) => {
+    const rate = shownCostPerKg(spool);
+    const inherited = spool.effective_cost_per_kg != null && !(spool.cost_per_kg && spool.cost_per_kg > 0);
+    return <span className="text-sm text-bambu-gray" title={inherited ? t('inventory.costFromFilament') : undefined}>{rate != null ? `${currencySymbol}${rate.toFixed(2)}` : '-'}</span>;
+  },
   weight_check: ({ spool, onSyncWeight }) => {
     const scaleWeight = spool.last_scale_weight;
     if (scaleWeight == null) return <span className="text-sm text-bambu-gray/50" title={interfaceI18n.t("orders.runtimeInterface.noScaleMeasurement")}>-</span>;
@@ -447,9 +455,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const { hasPermission, loading: authLoading } = useAuth();
   const canViewForecast = !authLoading && hasPermission('inventory:forecast_read');
   const [searchParams, setSearchParams] = useSearchParams();
-  const { focusFilter, storageLocationFilter, deepLinkSpoolId, hasURLOverride } = parseInventoryURLFilters(searchParams);
+  const { focusFilter, storageLocationFilter, deepLinkSpoolId: linkedSpoolId, hasURLOverride } = parseInventoryURLFilters(searchParams);
+  const [scanOpen, setScanOpen] = useState(false);
+  const canScan = !authLoading && spoolmanModeReady && hasPermission('inventory:read') && hasPermission('inventory:update');
   const [formModal, setFormModal] = useState<{ spool?: InventorySpool | null; mode: SpoolFormMode } | null>(null);
-  const deepLinkHandled = useRef(false);
   const [confirmAction, setConfirmAction] = useState<
     | { type: 'delete' | 'archive' | 'reset-consumed-counter'; spoolId: number }
     | { type: 'reset-all-consumed-counters' }
@@ -526,8 +535,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const dateFormat: DateFormat = settings?.date_format || 'system';
@@ -568,71 +577,16 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   });
 
   // Deep-link: open edit modal for ?spool=<id>
-  // Prefer the already-loaded spool list (no extra API call); fall back to a
-  // targeted fetch for the rare case where the full list hasn't arrived yet.
-  const deepLinkInList = spools?.find((s) => s.id === deepLinkSpoolId) ?? null;
+  useInventorySpoolDeepLink(linkedSpoolId, spoolmanMode, spoolmanModeReady, spools, setFormModal);
 
-  const clearDeepLinkParam = useCallback(() => {
-    deepLinkHandled.current = true;
-    setSearchParams((prev) => { prev.delete('spool'); return prev; }, { replace: true });
-  }, [setSearchParams]);
-
-  // Targeted fetch — only fires when mode is known and spool isn't in the list yet
-  const { data: deepLinkSpool, isError: deepLinkFetchFailed, error: deepLinkError } = useQuery({
-    queryKey: spoolmanMode
-      ? ['spoolman-inventory-spool', deepLinkSpoolId]
-      : ['inventory-spool', deepLinkSpoolId],
-    queryFn: () =>
-      spoolmanMode
-        ? api.getSpoolmanInventorySpool(deepLinkSpoolId!)
-        : api.getSpool(deepLinkSpoolId!),
-    enabled: spoolmanModeReady && deepLinkSpoolId !== null && deepLinkInList === null,
-    staleTime: Infinity,
-    retry: (failureCount, error) =>
-      failureCount < 2 && !(error instanceof ApiError && error.status === 404),
-  });
-
-  useEffect(() => {
-    if (deepLinkHandled.current) return;
-
-    // Case 1: spool is already in the fetched list
-    if (spoolmanModeReady && deepLinkSpoolId && deepLinkInList) {
-      clearDeepLinkParam();
-      setFormModal({ spool: deepLinkInList, mode: 'edit' });
-      return;
-    }
-
-    // Case 2: spool was fetched individually
-    if (deepLinkSpool) {
-      clearDeepLinkParam();
-      setFormModal({ spool: deepLinkSpool, mode: 'edit' });
-      return;
-    }
-
-    // Case 3: fetch failed
-    if (deepLinkFetchFailed) {
-      clearDeepLinkParam();
-      const is404 = deepLinkError instanceof ApiError && deepLinkError.status === 404;
-      showToast(t(is404 ? 'inventory.deepLinkSpoolNotFound' : 'inventory.deepLinkFetchFailed'), 'error');
-    }
-  }, [
-    spoolmanModeReady,
-    deepLinkSpoolId,
-    deepLinkInList,
-    deepLinkSpool,
-    deepLinkFetchFailed,
-    deepLinkError,
-    clearDeepLinkParam,
-    showToast,
-    t,
-  ]);
-
-  const { data: assignments } = useQuery({
+  const { data: builtInAssignments } = useQuery({
     queryKey: ['spool-assignments'],
     queryFn: () => api.getAssignments(),
     refetchInterval: 30000,
     enabled: spoolmanModeReady && !spoolmanMode,
   });
+
+  const assignments = spoolmanMode ? undefined : builtInAssignments;
 
   // Spoolman-mode slot assignments. spool.id IS the spoolman_spool_id, so this
   // feeds into the same assignmentMap that the LOCATION column reads.
@@ -640,7 +594,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     data: spoolmanSlotAssignments = [],
     isError: spoolmanSlotAssignmentsError,
   } = useQuery({
-    queryKey: ['spoolman-slot-assignments-all'],
+    queryKey: ['spoolman-slot-assignments', 'all'],
     queryFn: () => api.getSpoolmanSlotAssignments(),
     enabled: spoolmanMode,
     refetchInterval: 30000,
@@ -741,7 +695,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         : api.bulkResetSpoolConsumedCounter(ids),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: spoolsQueryKey });
-      showToast(t('inventory.allConsumedCountersReset', { count: data.reset }), 'success');
+      if (!notifyResetResult(data, t, showToast)) return;
       // Close any open bulk-confirm modal + clear selection so the toolbar
       // collapses after the action — matches the other three bulk mutations
       // and stops the confirm dialog from lingering after Reset.
@@ -755,13 +709,6 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
 
   // Bulk action mutations (#1795). Each invalidates the same query keys as
   // the per-spool equivalents so the table refreshes with the new state.
-  // Helper: count items that didn't succeed across the two response shapes
-  // (internal mode returns not_found, Spoolman returns errors[]). When the
-  // success count is 0 OR any failures occurred, surface that to the user
-  // instead of the silent green-toast-and-clear flow the first cut shipped.
-  const failedCount = (data: { not_found?: number[]; errors?: Array<{ id: number }> }): number =>
-    (data.not_found?.length ?? 0) + (data.errors?.length ?? 0);
-
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ ids, update }: { ids: number[]; update: Partial<Omit<InventorySpool, 'id' | 'archived_at' | 'created_at' | 'updated_at' | 'k_profiles'>> }): Promise<{ updated: number; not_found?: number[]; errors?: Array<{ id: number; status: number; detail: string }> }> => {
       if (spoolmanMode) return api.bulkUpdateSpoolmanInventorySpools(ids, update);
@@ -997,7 +944,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       activeCount++;
       const remaining = Math.max(0, s.label_weight - s.weight_used);
       totalWeight += remaining;
-      totalValue += (remaining / 1000) * Math.max(0, s.cost_per_kg ?? 0);
+      totalValue += (remaining / 1000) * Math.max(0, shownCostPerKg(s) ?? 0);
       const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
       const threshold = s.low_stock_threshold_pct ?? lowStockThreshold;
       if (pct <= threshold) lowStock++;
@@ -1151,7 +1098,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         return s.label_weight > 0 && pct <= threshold;
       });
     } else if (focusFilter === 'missing-cost') {
-      filtered = filtered.filter((s) => !s.cost_per_kg || s.cost_per_kg <= 0);
+      filtered = filtered.filter((s) => (shownCostPerKg(s) ?? 0) <= 0);
     } else if (focusFilter === 'missing-location') {
       filtered = filtered.filter((s) => !s.location_id && !s.storage_location?.trim());
     } else if (focusFilter === 'used') {
@@ -1376,6 +1323,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             {exportingCsv ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {t('inventory.csv.exportButton', 'Export CSV')}
           </Button>
+          {canScan && <Button variant="secondary" onClick={() => setScanOpen(true)}>
+            <ScanLine className="w-4 h-4" />{t('inventory.qrAssign.title')}
+          </Button>}
           <Button variant="secondary" onClick={() => setLocationsModalOpen(true)}>
             <MapPin className="w-4 h-4" />
             {t('locations.manage')}
@@ -1937,7 +1887,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         </div>
       ) : viewMode === 'forecast' ? (
         /* Forecast view */
-        <ForecastPanel spools={spools || []} />
+        <ForecastPanel spools={spools || []} spoolmanMode={spoolmanMode} />
       ) : viewMode === 'cards' ? (
         /* Cards view */
         pagedItems.length > 0 ? (
@@ -2008,6 +1958,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                                 onCopy={() => setFormModal({ spool: spool, mode: 'copy' })}
                                 onRefill={() => handleRefillSpool(spool)}
                                 refilling={refillingSpoolId === spool.id}
+                                dateFormat={dateFormat}
                                 t={t}
                               />
                             );
@@ -2031,6 +1982,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                     onCopy={() => setFormModal({ spool: spool, mode: 'copy' })}
                     onRefill={() => handleRefillSpool(spool)}
                     refilling={refillingSpoolId === spool.id}
+                    dateFormat={dateFormat}
                     t={t}
                   />
                 );
@@ -2149,6 +2101,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                           onEdit={(s) => setFormModal({ spool: s, mode: 'edit' })}
                           onCopy={(s) => setFormModal({ spool: s, mode: 'copy' })}
                           onArchive={(id) => setConfirmAction({ type: 'archive', spoolId: id })}
+                          onRestore={(id) => restoreMutation.mutate(id)}
                           onDelete={(id) => setConfirmAction({ type: 'delete', spoolId: id })}
                           onPrintLabel={(id) => setLabelPickerSpoolIds([id])}
                           onResetConsumedCounter={(id) => setConfirmAction({ type: 'reset-consumed-counter', spoolId: id })}
@@ -2330,6 +2283,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         onSave={handleColumnConfigSave}
       />
 
+      {scanOpen && canScan && <QrAssignTargetModal key={String(spoolmanMode)} spoolmanMode={spoolmanMode} onClose={() => setScanOpen(false)} />}
       <LabelTemplatePickerModal
         isOpen={labelPickerSpoolIds !== null}
         onClose={() => setLabelPickerSpoolIds(null)}
@@ -2490,7 +2444,7 @@ function PaginationBar({
 
 /* Spool card for cards view */
 function SpoolCard({
-  spool, remaining, pct, onClick, onPrintLabel, onCopy, onRefill, refilling, t,
+  spool, remaining, pct, onClick, onPrintLabel, onCopy, onRefill, refilling, dateFormat, t,
 }: {
   spool: InventorySpool;
   remaining: number;
@@ -2500,6 +2454,7 @@ function SpoolCard({
   onCopy?: () => void;
   onRefill?: () => void;
   refilling?: boolean;
+  dateFormat: DateFormat;
   t: (key: string, opts?: Record<string, unknown>) => string;
 }) {
   const bannerStyle = buildFilamentBackground({
@@ -2583,6 +2538,11 @@ function SpoolCard({
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
+          {spool.last_dried_at && (
+            <div className="col-span-2 text-bambu-gray">
+              {t('inventory.lastDried')}: {[formatInventoryDate(spool.last_dried_at, dateFormat), formatSpoolDryingDetails(spool)].filter(Boolean).join(' · ')}
+            </div>
+          )}
           <div>
             <span className="text-bambu-gray/60">{t('inventory.labelWeight')}: </span>
             <span className="text-bambu-gray">{formatWeight(spool.label_weight)}</span>
@@ -2711,7 +2671,7 @@ function SpoolTableRow({
 /* Grouped spool rows for table view */
 function SpoolTableGroup({
   spools, headerSpool, remaining, pct, isExpanded, onToggle,
-  onEdit, onCopy, onArchive, onDelete, onPrintLabel, onResetConsumedCounter, onRefill, refillingSpoolId,
+  onEdit, onCopy, onArchive, onRestore, onDelete, onPrintLabel, onResetConsumedCounter, onRefill, refillingSpoolId,
   visibleColumns, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight,
   selectedIds, onToggleSelected, onToggleGroupSelected,
 }: {
@@ -2726,6 +2686,7 @@ function SpoolTableGroup({
   onEdit: (spool: InventorySpool) => void;
   onCopy?: (spool: InventorySpool) => void;
   onArchive: (id: number) => void;
+  onRestore: (id: number) => void;
   onDelete: (id: number) => void;
   onPrintLabel?: (spoolId: number) => void;
   onResetConsumedCounter?: (id: number) => void;
@@ -2795,7 +2756,7 @@ function SpoolTableGroup({
             onToggleSelected={onToggleSelected ? () => onToggleSelected(spool.id) : undefined}
             onEdit={() => onEdit(spool)}
             onCopy={onCopy ? () => onCopy(spool) : undefined}
-            onRestore={() => {}}
+            onRestore={() => onRestore(spool.id)}
             onArchive={() => onArchive(spool.id)}
             onDelete={() => onDelete(spool.id)}
             onPrintLabel={onPrintLabel ? () => onPrintLabel(spool.id) : undefined}

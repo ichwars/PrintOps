@@ -247,6 +247,7 @@ async def test_plate_start_callback_attaches_local_capture_before_restoring_ligh
     def toggle(value):
         toggles.append(value)
         light.chamber_light = value
+        return True
 
     printer_client = SimpleNamespace(state=light, set_chamber_light=toggle, pause_print=Mock())
     monkeypatch.setattr(main.printer_manager, "get_client", lambda _: printer_client)
@@ -333,6 +334,8 @@ async def test_ai_detector_carries_the_flagged_frame_through_action_to_http(
     service = obico_detection.ObicoDetectionService()
     state = PrintState()
     for _ in range(WARMUP_FRAMES + 500):
+        state.update(0.0)
+    for _ in range(12):
         state.update(1.0)
     service._states[printer.id] = state
     service._state_keys[printer.id] = "job"
@@ -360,8 +363,12 @@ async def test_ai_detector_carries_the_flagged_frame_through_action_to_http(
             "action": "notify",
             "external_url": "https://printops.example",
         }
-        await service._check_printer(printer.id, SimpleNamespace(task_name="job", subtask_name=""), config)
-        await service._check_printer(printer.id, SimpleNamespace(task_name="job", subtask_name=""), config)
+        await service._check_printer(
+            printer.id, SimpleNamespace(task_name="job", subtask_name="", state="RUNNING"), config
+        )
+        await service._check_printer(
+            printer.id, SimpleNamespace(task_name="job", subtask_name="", state="RUNNING"), config
+        )
     assert len(requests) == 1, "one action per detected print"
     assert requests[0].method == "PUT" and requests[0].content == jpeg
 

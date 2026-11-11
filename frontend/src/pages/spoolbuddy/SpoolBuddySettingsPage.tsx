@@ -39,11 +39,14 @@ const BLANK_OPTIONS = [
 
 function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [diagnosticOpen, setDiagnosticOpen] = useState<'nfc' | 'scale' | 'read_tag' | null>(null);
   const [backendUrl, setBackendUrl] = useState('');
   const [apiToken, setApiToken] = useState('');
   const [systemBusy, setSystemBusy] = useState(false);
   const [systemMsg, setSystemMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
+  const [restartOffered, setRestartOffered] = useState(false);
+  const configPending = device.pending_command === 'apply_system_config';
 
   useEffect(() => {
     if (!backendUrl && device.backend_url) {
@@ -65,7 +68,28 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
         backendUrl.trim(),
         apiToken.trim() || undefined
       );
+      const devicesKey = ['spoolbuddy-devices'];
+      await queryClient.cancelQueries({ queryKey: devicesKey });
+      queryClient.setQueryData<SpoolBuddyDevice[]>(devicesKey, (devices) => devices?.map((row) =>
+        row.device_id === device.device_id ? { ...row, pending_command: 'apply_system_config' } : row
+      ));
+      setRestartOffered(true);
       setSystemMsg({ type: 'ok', text: t('spoolbuddy.settings.systemQueued', 'Config queued.') });
+      await queryClient.invalidateQueries({ queryKey: devicesKey });
+    } catch (e) {
+      setSystemMsg({ type: 'error', text: e instanceof Error ? e.message : t('common.error', 'Error') });
+    } finally {
+      setSystemBusy(false);
+    }
+  };
+
+  const restartDaemon = async () => {
+    if (systemBusy || configPending) return;
+    setSystemBusy(true);
+    try {
+      await spoolbuddyApi.systemCommand(device.device_id, 'restart_daemon');
+      setRestartOffered(false);
+      setSystemMsg({ type: 'ok', text: t('spoolbuddy.settings.systemRestartQueued', 'Daemon restart queued.') });
     } catch (e) {
       setSystemMsg({ type: 'error', text: e instanceof Error ? e.message : t('common.error', 'Error') });
     } finally {
@@ -142,7 +166,7 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
       </div>
 
       {/* Backend/Auth + Diagnostics side by side */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {/* Backend/Auth Config */}
         <div className="bg-zinc-800 rounded-lg p-3 space-y-2">
           <h3 className="text-sm font-semibold text-zinc-300">
@@ -154,13 +178,13 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
             placeholder="http://192.168.1.100:5000"
             className="w-full px-2 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-100 text-xs"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <TextField
               type="password"
               value={apiToken}
               onChange={(e) => setApiToken(e.target.value)}
               placeholder={t('spoolbuddy.settings.apiTokenPlaceholder', 'API token')}
-              className="flex-1 px-2 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-100 text-xs"
+              className="min-w-0 flex-1 px-2 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-100 text-xs"
             />
             <button
               onClick={saveConfig}
@@ -174,6 +198,15 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
             <div className={`text-xs ${systemMsg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
               {systemMsg.text}
             </div>
+          )}
+          {restartOffered && (
+            <button
+              onClick={restartDaemon}
+              disabled={systemBusy || configPending}
+              className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-xs font-medium text-zinc-100"
+            >
+              {t('spoolbuddy.quickMenu.restartDaemon', 'Restart Daemon')}
+            </button>
           )}
         </div>
 
@@ -1045,7 +1078,7 @@ export function SpoolBuddySettingsPage() {
       </h1>
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-zinc-800/50 rounded-lg p-1 mb-4">
+      <div className="flex flex-wrap gap-1 bg-zinc-800/50 rounded-lg p-1 mb-4">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -1071,7 +1104,7 @@ export function SpoolBuddySettingsPage() {
           </div>
         ) : (
           <>
-            {activeTab === 'device' && <DeviceTab device={device} />}
+            {activeTab === 'device' && <DeviceTab key={device.device_id} device={device} />}
             {activeTab === 'display' && (
               <DisplayTab
                 device={device}

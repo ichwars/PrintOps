@@ -85,6 +85,8 @@ class TestBugReportService:
         assert result["issue_url"] == "https://github.com/ichwars/PrintOps/issues/99"
         assert mock_client.post.call_args.kwargs["json"]["repository"] == "ichwars/PrintOps"
         mock_db.add.assert_called_once()
+        assert mock_client.post.call_args.kwargs["json"]["reporter_email"] == "user@test.com"
+        assert mock_db.add.call_args.args[0].reporter_email is None
 
     @pytest.mark.asyncio
     @pytest.mark.unit

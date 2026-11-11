@@ -243,3 +243,17 @@ async def test_scheduler_loop_runs_stranded_recovery():
     scheduler._stranded_print_recovery.tick.assert_awaited_once()
     drying_tick.assert_awaited_once()
     scheduler.check_queue.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("expected", "observed"),
+    [("Part ", "Part_"), (" Part ", "_Part_"), ("Part_name_remaining", "Part_...")],
+)
+def test_printer_name_edge_underscores_match(expected, observed):
+    assert subtask_names_match(expected, observed)
+    assert subtask_names_match(observed, expected)
+
+
+@pytest.mark.parametrize("observed", ["...", "_...", "___..."])
+def test_truncated_name_without_a_prefix_matches_no_file(observed):
+    assert not subtask_names_match("Part_name", observed)

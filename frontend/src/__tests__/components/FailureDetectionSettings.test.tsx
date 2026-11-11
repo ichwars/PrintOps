@@ -3,12 +3,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
 import { FailureDetectionSettings } from '../../components/FailureDetectionSettings';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
+import { SECRET_PLACEHOLDER } from '../../utils/secrets';
 
 const baseSettings = {
   auto_archive: true,
@@ -69,7 +70,7 @@ describe('FailureDetectionSettings', () => {
       ),
       http.post('/api/v1/obico/test-connection', async ({ request }) => {
         called = true;
-        expect(await request.json()).toEqual({});
+        expect(await request.json()).toEqual({ url: 'http://obico:3333', token: '' });
         return HttpResponse.json({ ok: true, status_code: 200, body: 'ok', error: null });
       }),
     );
@@ -82,7 +83,7 @@ describe('FailureDetectionSettings', () => {
     expect(await screen.findByText(/ML API reachable/i)).toBeInTheDocument();
   });
 
-  it('saves pending form changes before testing the persisted configuration', async () => {
+  it('tests a pending endpoint without saving it first', async () => {
     const calls: string[] = [];
     server.use(
       http.get('/api/v1/settings/', () =>
@@ -94,19 +95,96 @@ describe('FailureDetectionSettings', () => {
       }),
       http.post('/api/v1/obico/test-connection', async ({ request }) => {
         calls.push('test');
-        expect(await request.json()).toEqual({});
+        expect(await request.json()).toEqual({ url: 'http://candidate:3333', token: '' });
         return HttpResponse.json({ ok: true, status_code: 200, body: 'ok', error: null });
       }),
     );
     render(<FailureDetectionSettings />);
     const user = userEvent.setup();
     const url = await screen.findByDisplayValue('http://old:3333');
-    await user.clear(url);
-    await user.type(url, 'http://saved:3333');
+    fireEvent.change(url, { target: { value: 'http://candidate:3333' } });
 
     await user.click(screen.getByRole('button', { name: /test/i }));
 
-    await waitFor(() => expect(calls).toEqual(['save', 'test']));
+    await waitFor(() => expect(calls[0]).toBe('test'));
+  });
+
+  it('blocks a changed URL with a retained token and masks the replacement after saving', async () => {
+    let settings = {
+      ...baseSettings,
+      obico_enabled: true,
+      obico_ml_url: 'http://old:3333',
+      obico_ml_token: SECRET_PLACEHOLDER,
+    };
+    const sent = vi.fn();
+    server.use(
+      http.get('/api/v1/settings/', () => HttpResponse.json(settings)),
+      http.put('/api/v1/settings/', async ({ request }) => {
+        const update = await request.json() as typeof settings;
+        sent(update);
+        settings = { ...settings, ...update, obico_ml_token: SECRET_PLACEHOLDER };
+        return HttpResponse.json(settings);
+      }),
+    );
+    render(<FailureDetectionSettings />);
+    const url = await screen.findByDisplayValue('http://old:3333');
+    fireEvent.change(url, { target: { value: 'http://next:3333' } });
+    const testButton = screen.getByRole('button', { name: /test/i });
+    expect(testButton).toBeDisabled();
+    expect(screen.getByText(/re-enter the credential/i)).toBeInTheDocument();
+    expect(sent).not.toHaveBeenCalled();
+
+    const token = screen.getByDisplayValue(SECRET_PLACEHOLDER);
+    fireEvent.change(token, { target: { value: 'fixture-new-token' } });
+    await waitFor(() => expect(sent).toHaveBeenCalledWith(expect.objectContaining({
+      obico_ml_url: 'http://next:3333', obico_ml_token: 'fixture-new-token',
+    })));
+    expect(await screen.findByDisplayValue(SECRET_PLACEHOLDER)).toBeInTheDocument();
+  });
+
+  it('reloads a stale printer scope without dropping the edited Obico URL', async () => {
+    const original = { ...baseSettings, obico_enabled: true, obico_ml_url: 'http://old:3333', obico_enabled_printers: '[1]' };
+    let current = original;
+    const saves: Array<{ obico_enabled_printers: string; obico_ml_url: string }> = [];
+    server.use(
+      http.get('/api/v1/settings/', () => HttpResponse.json(current)),
+      http.put('/api/v1/settings/', async ({ request }) => {
+        const saved = (await request.json()) as (typeof saves)[number];
+        saves.push(saved);
+        if (saved.obico_enabled_printers === '[1]') {
+          current = { ...original, obico_enabled_printers: '[]' };
+          return HttpResponse.json({ detail: 'One or more printer IDs are invalid' }, { status: 400 });
+        }
+        current = { ...original, ...saved };
+        return HttpResponse.json(current);
+      }),
+    );
+    render(<FailureDetectionSettings />);
+    const url = await screen.findByDisplayValue('http://old:3333');
+    const user = userEvent.setup();
+    await user.clear(url);
+    await user.type(url, 'http://changed:3333');
+
+    await waitFor(() => expect(saves.at(-1)).toMatchObject({
+      obico_enabled_printers: '[]',
+      obico_ml_url: 'http://changed:3333',
+    }), { timeout: 2500 });
+    expect(saves.map(save => save.obico_enabled_printers)).toEqual(['[1]', '[]']);
+    expect(screen.queryByText('Save failed')).not.toBeInTheDocument();
+  });
+
+  it('shows the configured automatic pause threshold', async () => {
+    server.use(
+      http.get('/api/v1/settings/', () =>
+        HttpResponse.json({ ...baseSettings, obico_enabled: true, obico_ml_url: 'http://obico:3333' }),
+      ),
+      http.get('/api/v1/obico/status', () =>
+        HttpResponse.json({ ...baseStatus, enabled: true, thresholds: { ...baseStatus.thresholds, pause: 1.364 } }),
+      ),
+    );
+    render(<FailureDetectionSettings />);
+    expect(await screen.findByText('Automatic pause threshold')).toBeInTheDocument();
+    expect(screen.getByText('1.36')).toBeInTheDocument();
   });
 
   it('shows failure class history entries with red styling', async () => {

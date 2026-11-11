@@ -214,11 +214,28 @@ bundling changes you intend to ship; it checks both the app and Vite configurati
 through the root project references. Incremental results are stored under
 `frontend/node_modules/.tmp/` and can be removed when a clean check is needed.
 
-From the repository root, `./test_frontend.sh` runs typecheck, lint and tests
-sequentially and reports failure if any stage fails. The separate required CI
+From the repository root, `./test_frontend.sh` runs typecheck, lint, tests and
+a production build in a temporary directory. It reports failure if any stage fails. The separate required CI
 typecheck job gates frontend tests and builds. Docker source builds also run
 `npm run typecheck` before bundling, including container releases. Windows
 installer packaging also validates types.
+
+### Backend type checking
+
+CI checks `backend/app` with BasedPyright on Linux and Python 3.13, using
+`requirements-dev.lock.txt`. Existing diagnostics are recorded in
+`.basedpyright/baseline.json`. Lock mode fails on new diagnostics and on stale
+entries after a fix. The analysis package is pinned separately from the app.
+
+```bash
+npm ci --prefix tools/backend-typecheck --ignore-scripts --no-audit --no-fund
+node tools/backend-typecheck/node_modules/basedpyright/index.js --pythonpath "$(command -v python)" --baselinemode=lock
+```
+
+Run this with the same Python version and locked dependencies as CI.
+`./test_backend.sh` uses four workers by default. Override the worker count or
+interpreter with `PRINTOPS_TEST_WORKERS` or `PRINTOPS_TEST_PYTHON`.
+With `--full` and a local `TEST_POSTGRES_URL` it runs both database variants.
 
 ### Pre-commit Hooks
 
@@ -333,7 +350,7 @@ reprint eligibility. Archive reprint still needs `queue:create` before it can en
 The easiest way to run tests is with the provided scripts in the project root:
 
 ```bash
-./test_frontend.sh    # TypeScript check + ESLint + Vitest
+./test_frontend.sh    # TypeScript check + ESLint + Vitest + production build
 ./test_backend.sh     # Ruff lint/format + pytest (parallel)
 ./test_docker.sh      # Full Docker build, unit tests, and integration tests
 ./test_all.sh         # All of the above (frontend → backend → docker)
@@ -362,6 +379,20 @@ npm run test:run       # Single run
 npm test               # Watch mode
 npm run test:coverage  # With coverage
 ```
+
+### Running HTTP integration tests with PostgreSQL
+
+Set `TEST_POSTGRES_URL` to a local PostgreSQL test instance. The test account must be able to create databases. Each pytest process creates its own app and fixture databases with unique names, then removes them on exit. Tests marked `sqlite_only` are skipped in this mode.
+
+```bash
+TEST_POSTGRES_URL="$PRINTOPS_POSTGRES_TEST_URL" python -m pytest \
+  backend/tests/postgres/test_suite_isolation.py \
+  backend/tests/integration/test_project_value_compatibility.py
+```
+
+### Comparing PostgreSQL upgrade schemas
+
+With `PRINTOPS_POSTGRES_TEST_URL` set to a local test server, run `python -m tools.check_postgres_upgrade` from the project root. The check upgrades separate databases from the PrintOps 1.2.8.1 and 1.2.8.2 tags and compares each with a fresh database. It also compares the schema before and after another startup. It checks columns, constraints, indexes, triggers and sequences. Any difference causes the check to fail and prints the affected definition.
 
 ## CI Pipeline
 

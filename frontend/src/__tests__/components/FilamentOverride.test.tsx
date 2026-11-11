@@ -303,7 +303,7 @@ describe('FilamentOverride', () => {
       selectComboboxOption(screen.getByRole('combobox'), /PLA Basic \(Green\)/);
 
       expect(mockOnChange).toHaveBeenCalledWith({
-        1: { type: 'PLA', color: '#00FF00' },
+        1: { type: 'PLA', color: '#00FF00', tray_info_idx: 'GFA01', tray_sub_brands: 'PLA Basic' },
       });
     });
 

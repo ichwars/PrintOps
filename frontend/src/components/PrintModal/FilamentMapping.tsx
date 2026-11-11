@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Circle, Check, AlertTriangle, RefreshCw, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { api } from '../../api/client';
 import { useFilamentMapping } from '../../hooks/useFilamentMapping';
-import { getGlobalTrayId, effectivePreferLowest } from '../../utils/amsHelpers';
+import { effectivePreferLowest } from '../../utils/amsHelpers';
 import { getColorName } from '../../utils/colors';
 import { useFilamentLabels } from './useFilamentLabels';
 import type { FilamentMappingProps } from './types';
@@ -42,13 +42,8 @@ export function FilamentMapping({
   // the dispatcher uses (#1766). Without this, the per-slot dropdown's
   // auto-suggestion could disagree with what actually gets dispatched.
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
-  });
-  const { data: assignments } = useQuery({
-    queryKey: ['spool-assignments', printerId],
-    queryFn: () => api.getAssignments(printerId),
-    enabled: !!printerId && settings !== undefined && !settings.spoolman_enabled,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
   const { data: inventoryRemain } = useQuery({
     queryKey: ['printer-inventory-remain', printerId],
@@ -80,30 +75,12 @@ export function FilamentMapping({
   // resolved — never blanks out the required row.
   const filamentLabels = useFilamentLabels(filamentReqs?.filaments);
 
-  const trayCostMap = useMemo(() => {
-    const map = new Map<number, number | null>();
-    for (const assignment of assignments || []) {
-      const isExternal = assignment.ams_id === 255;
-      const globalTrayId = getGlobalTrayId(assignment.ams_id, assignment.tray_id, isExternal);
-      map.set(globalTrayId, assignment.spool?.cost_per_kg ?? null);
-    }
-    return map;
-  }, [assignments]);
-
-  const trayRemainingWeightMap = useMemo(() => {
-    const map = new Map<number, number | null>();
-    for (const assignment of assignments || []) {
-      const isExternal = assignment.ams_id === 255;
-      const globalTrayId = getGlobalTrayId(assignment.ams_id, assignment.tray_id, isExternal);
-      const spool = assignment.spool;
-      if (!spool) {
-        map.set(globalTrayId, null);
-        continue;
-      }
-      map.set(globalTrayId, Math.max(0, Math.round((spool.label_weight ?? 0) - (spool.weight_used ?? 0))));
-    }
-    return map;
-  }, [assignments]);
+  const trayCostMap = useMemo(() => new Map(
+    (inventoryRemain?.slot_materials ?? []).map(slot => [slot.global_tray_id, slot.cost_per_kg]),
+  ), [inventoryRemain]);
+  const trayRemainingWeightMap = useMemo(() => new Map(
+    (inventoryRemain?.slot_materials ?? []).map(slot => [slot.global_tray_id, Math.round(slot.remaining_g)]),
+  ), [inventoryRemain]);
 
   const totalCost = useMemo(() => {
     let total = 0;
@@ -119,10 +96,7 @@ export function FilamentMapping({
     return total;
   }, [filamentComparison, trayCostMap, defaultCostPerKg]);
 
-  const hasAnyCost = useMemo(
-    () => Array.from(trayCostMap.values()).some((v) => v != null && v > 0),
-    [trayCostMap]
-  );
+  const hasAnyCost = [...trayCostMap.values()].some(rate => rate != null);
   const hasFilamentReqs = filamentReqs?.filaments && filamentReqs.filaments.length > 0;
   const isDualNozzle = filamentReqs?.filaments?.some((f) => f.nozzle_id != null) ?? false;
 
@@ -236,15 +210,14 @@ export function FilamentMapping({
             return (
             <div key={idx} className="space-y-1">
               <div
-                className="grid items-center gap-2 text-xs"
-                style={{ gridTemplateColumns: '16px minmax(70px, 1fr) auto 2fr 16px' }}
+                className="grid grid-cols-[16px_minmax(0,1fr)_16px] items-center gap-2 text-xs sm:grid-cols-[16px_minmax(70px,1fr)_auto_2fr_16px]"
               >
                 {/* Required color */}
                 <span title={`Required: ${resolvedName} - ${colorLabel}`}>
                   <Circle className="w-3 h-3" fill={item.color} stroke={item.color} />
                 </span>
                 {/* Required type + grams + nozzle badge */}
-                <span className="text-white flex items-center gap-1 min-w-0">
+                <span className="col-span-2 flex min-w-0 items-center gap-1 text-white sm:col-span-1">
                   {isDualNozzle && item.nozzle_id != null && (
                     <span
                       className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-bold leading-none bg-bambu-gray/20 text-bambu-gray shrink-0"
@@ -262,7 +235,7 @@ export function FilamentMapping({
                 <LegacySelect
                   value={item.loaded?.globalTrayId ?? ''}
                   onChange={(e) => handleSlotChange(slotId, e.target.value)}
-                  className={`flex-1 px-2 py-1 rounded border text-xs bg-bambu-dark-secondary focus:outline-none focus:ring-1 focus:ring-bambu-green ${
+                  className={`min-w-0 flex-1 px-2 py-1 rounded border text-xs bg-bambu-dark-secondary focus:outline-none focus:ring-1 focus:ring-bambu-green ${
                     item.status === 'match'
                       ? 'border-bambu-green/50 text-bambu-green'
                       : item.status === 'type_only'

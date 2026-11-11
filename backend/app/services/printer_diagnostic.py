@@ -11,9 +11,11 @@ user-side setup errors clustered on exactly these causes.
 
 import asyncio
 import ipaddress
+import json
 import logging
 import socket
 import ssl
+import subprocess
 
 from backend.app.models.printer import Printer
 from backend.app.schemas.printer import DiagnosticCheck, PrinterDiagnosticResult
@@ -112,19 +114,23 @@ def _camera_port_for_printer(printer: Printer | None) -> tuple[int, str]:
 
 
 def _detect_docker_network_mode() -> str:
-    """Detect Docker network mode.
-
-    In host mode the container shares the host network namespace, so Docker
-    infrastructure interfaces (docker0, br-*, veth*) are visible. In bridge
-    mode the container only sees its own eth0.
-    """
+    """Read the local network namespace. Call off the event loop."""
     try:
-        for _idx, name in socket.if_nameindex():
-            if name.startswith(("docker", "br-", "veth", "virbr")):
-                return "host"
-    except Exception:
-        pass
-    return "bridge"
+        if any(name.startswith(("docker", "br-", "veth", "virbr")) for _, name in socket.if_nameindex()):
+            return "host"
+        result = subprocess.run(
+            ["ip", "-d", "-j", "link", "show"], capture_output=True, text=True, timeout=2, check=True
+        )
+        kinds = set()
+        for link in json.loads(result.stdout):
+            info = link.get("linkinfo") or {}
+            kind = info.get("info_kind")
+            if kind == "ipvlan" and (info.get("info_data") or {}).get("mode") in ("l3", "l3s"):
+                kind = "ipvlan_l3"
+            kinds.add(kind)
+        return next((kind for kind in ("macvlan", "ipvlan", "ipvlan_l3") if kind in kinds), "bridge")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return "unknown"
 
 
 def _get_host_ip() -> str | None:
@@ -214,11 +220,11 @@ async def run_connection_diagnostic(
     # --- Docker network mode ---
     network_mode: str | None = None
     if is_running_in_docker():
-        network_mode = _detect_docker_network_mode()
+        network_mode = await asyncio.to_thread(_detect_docker_network_mode)
         checks.append(
             DiagnosticCheck(
                 id="network_mode",
-                status="pass" if network_mode == "host" else "warn",
+                status="pass" if network_mode in ("host", "macvlan", "ipvlan") else "warn",
                 params={"mode": network_mode},
             )
         )
@@ -228,7 +234,7 @@ async def run_connection_diagnostic(
     # --- Subnet match ---
     # Skipped in bridge mode: the container IP is the bridge IP, not the host's,
     # so the comparison is meaningless and the network_mode check already covers it.
-    if network_mode == "bridge":
+    if network_mode in ("bridge", "ipvlan_l3", "unknown"):
         checks.append(DiagnosticCheck(id="subnet", status="skip"))
     else:
         host_ip = _get_host_ip()

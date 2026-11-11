@@ -51,8 +51,7 @@ export function getMaintenanceWikiUrl(typeName: string, printerModel: string | n
       return 'https://wiki.bambulab.com/en/x1/troubleshooting/nozzle-clog';
 
     case 'Check Belt Tension':
-      if (isX1) return 'https://wiki.bambulab.com/en/x1/maintenance/belt-tension';
-      if (isP1) return 'https://wiki.bambulab.com/en/p1/maintenance/p1p-maintenance';
+      if (isX1 || isP1) return 'https://wiki.bambulab.com/en/x1/maintenance/belt-tension';
       if (isA1Mini) return 'https://wiki.bambulab.com/en/a1-mini/maintenance/belt_tension';
       if (isA1) return 'https://wiki.bambulab.com/en/a1/maintenance/belt_tension';
       if (isH2D) return 'https://wiki.bambulab.com/en/h2/maintenance/belt-tension';

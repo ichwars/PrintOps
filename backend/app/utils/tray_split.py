@@ -92,3 +92,24 @@ def compute_tray_split_grams(
         results.append((seg_idx, tray_global, segment_grams))
 
     return results
+
+
+def compute_file_tray_split(file_path, plate_id, tray_changes, total_weight, slot_id, total_layers, last_layer_num):
+    """Read a slot's layer/material metadata and apply the shared split math."""
+    layer_usage = None
+    properties = {}
+    try:
+        layer_usage = threemf_tools.extract_layer_filament_usage_from_3mf(file_path, plate_id)
+        properties = threemf_tools.extract_filament_properties_from_3mf(file_path).get(slot_id, {})
+    except Exception:
+        pass  # Preserve linear splitting when the optional layer metadata is unavailable.
+    return compute_tray_split_grams(
+        tray_changes=tray_changes,
+        total_weight=total_weight,
+        slot_id=slot_id,
+        layer_usage=layer_usage,
+        density=properties.get("density", 1.24),
+        diameter=properties.get("diameter", 1.75),
+        total_layers=total_layers,
+        last_layer_num=last_layer_num,
+    )

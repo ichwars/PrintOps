@@ -1,11 +1,11 @@
 """Read-only Cam Wall feed for token-authenticated kiosk displays."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequireCamWallTokenIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.models.printer import Printer
 from backend.app.schemas.printer import hms_error_responses
 from backend.app.services.printer_manager import printer_manager
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/camwall", tags=["camwall"])
 @router.get("/printers")
 async def list_camwall_printers(
     _: None = RequireCamWallTokenIfAuthEnabled,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ) -> list[dict]:
     """Return the minimal printer/status payload a passive wall display needs."""
     result = await db.execute(select(Printer).order_by(Printer.name))

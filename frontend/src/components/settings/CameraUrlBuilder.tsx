@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Wrench } from 'lucide-react';
 import { Button, TextField } from '../ui';
+import { UsbCameraDevicePicker } from './UsbCameraDevicePicker';
 
 type CameraUrlBuilderFields = { host: string; port: string; path: string; username: string; password: string };
 const emptyBuilderFields: CameraUrlBuilderFields = { host: '', port: '', path: '', username: '', password: '' };
@@ -35,6 +36,7 @@ export function ExternalCameraUrlField({ cameraType, value, onUrlChange }: { cam
 
   return (
     <div className="flex flex-wrap gap-2 items-start">
+      {cameraType === 'usb' && <UsbCameraDevicePicker value={value} onSelect={onUrlChange} />}
       <TextField
         type="text"
         placeholder={cameraType === 'usb' ? t('settings.cameraPlaceholderUsb') : t('settings.cameraPlaceholderUrl')}

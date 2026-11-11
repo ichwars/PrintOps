@@ -1,41 +1,45 @@
 import io
 import json
 import logging
+import math
 import re as _re
 import zipfile
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import and_, case as case, func, or_, select
+from sqlalchemy import and_, case as case, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from backend.app.api.gcode_preview import gcode_preview_response
+from backend.app.api.routes import archive_merges
 from backend.app.api.routes.archives_runs import (
     _load_run_aggregates as _load_run_aggregates,
     archive_to_response as archive_to_response,
     compute_time_accuracy as compute_time_accuracy,
 )
 from backend.app.core.auth import (
+    OwnershipAccess,
     RequirePermissionIfAuthEnabled,
     allowed_printer_ids_for_user,
     check_printer_access,
     require_media_token_ownership,
     require_ownership_permission,
-    resolve_optional_api_key,
+    require_permission_with_key,
     user_can_access_printer,
 )
 from backend.app.core.config import settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
-from backend.app.models.api_key import APIKey
+from backend.app.core.row_visibility import RowVisibility, require_archive_source, resolve_row_visibility
 from backend.app.models.archive import PrintArchive
-from backend.app.models.filament import Filament
 from backend.app.models.print_log import PrintLogEntry as PrintLogEntry
-from backend.app.models.spool_usage_history import SpoolUsageHistory
+from backend.app.models.printer import Printer
+from backend.app.models.project import Project
 from backend.app.models.user import User
 from backend.app.schemas.archive import (
     ArchiveEnergyHistoryPoint,
@@ -47,15 +51,32 @@ from backend.app.schemas.archive import (
 )
 from backend.app.schemas.print_log import PrintLogResponse
 from backend.app.schemas.slicer import SliceRequest
-from backend.app.services.archive import ArchiveService
+from backend.app.services.archive import ArchiveService, ThreeMFParser
+from backend.app.services.archive_cost_recalculation import (
+    mirror_inherited_cost,
+    one_print_cost,
+    projected_print_runs,
+    recalculate_archive_costs,
+)
+from backend.app.services.archive_plate_estimates import read_archive_plate_estimates
+from backend.app.services.archive_scope import (
+    archive_printed_on,
+    archive_printer_conditions as _archive_printer_conditions,
+    archive_status_in_scope,
+    archive_visibility_conditions as _archive_history_conditions,
+    ensure_archive_visible as _ensure_archive_history_visible,
+    ensure_current_archive_visible as _ensure_archive_visible,
+    ensure_whole_archive_visible,
+    whole_archive_conditions,
+)
 from backend.app.services.slice_formats import (
     is_server_sliceable_filename,
     unsliceable_detail,
 )
-from backend.app.services.spoolman_costs import has_spoolman_actual_cost
 from backend.app.utils.archive_budget import MAX_TIMELAPSE_UPLOAD_BYTES, ArchiveBudgetError, read_upload_limited
 from backend.app.utils.http import build_content_disposition
-from backend.app.utils.safe_path import safe_join_under
+from backend.app.utils.local_time import calendar_bounds, parse_calendar_bound
+from backend.app.utils.safe_path import assert_under, safe_join_under
 from backend.app.utils.threemf_tools import (
     extract_embedded_presets_from_3mf,
     extract_nozzle_mapping_from_3mf,
@@ -66,6 +87,7 @@ from backend.app.utils.threemf_tools import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/archives", tags=["archives"])
+router.include_router(archive_merges.router)
 
 
 @router.post("/{archive_id}/runs/{run_id}/outcome")
@@ -74,16 +96,17 @@ async def confirm_production_outcome(
     archive_id: int,
     outcome: OutcomeConfirmation,
     run_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN, include_api_key=True
+        )
     ),
 ):
     """Inspect or correct the current run with normal ownership and printer scopes."""
     from backend.app.api.routes.archives_runs import confirm_production_outcome as confirm
 
-    return await confirm(archive_id, outcome, run_id, db, api_key, auth_result)
+    return await confirm(archive_id, outcome, run_id, db, auth_result)
 
 
 @router.get("/outcome-link/{token}/{verdict}")
@@ -91,7 +114,7 @@ async def production_outcome_link_page(
     request: Request,
     token: str,
     verdict: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Read-only landing page; unfurlers never record an inspection through GET."""
     from backend.app.api.routes.archives_runs import production_outcome_link_page as confirm
@@ -104,7 +127,7 @@ async def confirm_production_outcome_link(
     request: Request,
     token: str,
     verdict: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """An expiring capability can answer just this run, once, with no other authority."""
     from backend.app.api.routes.archives_runs import confirm_production_outcome_link as confirm
@@ -189,43 +212,22 @@ def _match_timelapse_by_timestamp(
     return best_video, best_diff
 
 
-def _ensure_archive_visible(
-    archive: PrintArchive | None,
-    user: User | None,
-    can_read_all: bool,
-) -> PrintArchive:
-    """Per-archive visibility gate for ownership-scoped reads (#1726-adjacent).
+def _archive_visibility_conditions(access: OwnershipAccess) -> tuple[ColumnElement[bool], ...]:
+    conditions = _archive_printer_conditions(access)
+    if access.can_access_all:
+        return conditions
+    owner = PrintArchive.created_by_id == access.user.id if access.user is not None else false()
+    return (*conditions, owner)
 
-    Returns ``archive`` if the caller is allowed to see it; raises 404 otherwise.
-    Single enforcement point used by every detail / download / sub-resource
-    route so we can't accidentally leak a row through a less-guarded sibling.
 
-    Rules:
-      - Missing archive or soft-deleted (``deleted_at != None``) → 404.
-      - Caller with ARCHIVES_READ_ALL or auth disabled (``can_read_all=True``,
-        ``user`` may be None) → archive returned.
-      - Caller without ARCHIVES_READ_ALL and ``archive.created_by_id != user.id``
-        → 404, deliberately NOT 403. 403 leaks "this id exists but you can't
-        see it" — enumeration-friendly. 404 is indistinguishable from a
-        nonexistent id. Pre-GHSA fix the caller saw 200 here (the PoC vector).
-      - Ownerless rows (``created_by_id is None``) require ALL — fail-closed
-        per ``feedback_no_fail_open_in_auth``.
-    """
-    if not archive or archive.deleted_at is not None:
-        raise HTTPException(404, "Archive not found")
-    if can_read_all and user_can_access_printer(user, archive.printer_id):
-        return archive
-    # Auth enabled, caller has _OWN only.
-    if user is None:
-        # Defensive: should be unreachable (RequirePermissionIfAuthEnabled
-        # would have 401'd already), but never trust user identity to be
-        # non-None when can_read_all is False.
-        raise HTTPException(404, "Archive not found")
-    if archive.created_by_id is None or archive.created_by_id != user.id:
-        raise HTTPException(404, "Archive not found")
-    if not user_can_access_printer(user, archive.printer_id):
-        raise HTTPException(404, "Archive not found")
-    return archive
+async def _validate_archive_printer_target(db: AsyncSession, printer_id: int | None, access: OwnershipAccess) -> None:
+    if printer_id is None:
+        return
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
+    if not visibility.allows_printer(printer_id):
+        raise HTTPException(404, "Printer not found")
+    if await db.get(Printer, printer_id) is None:
+        raise HTTPException(400, "Printer not found")
 
 
 def _validate_user_filter_permission(current_user: User | None, created_by_id: int | None):
@@ -356,7 +358,12 @@ async def _energy_history_points(
     ]
 
 
-def _apply_scanned_metadata(archive: PrintArchive, metadata: dict) -> None:
+def _rescan_archive_metadata(archive: PrintArchive) -> None:
+    file_path = safe_join_under(settings.base_dir, archive.file_path)
+    if not file_path.is_file():
+        raise FileNotFoundError
+    metadata = ThreeMFParser(file_path, plate_number=archive.plate_id).parse()
+    archive.plate_estimates = read_archive_plate_estimates(settings.base_dir, archive.file_path)
     fields = "filament_type filament_color print_time_seconds filament_used_grams layer_height nozzle_diameter"
     fields += " bed_temperature bed_type nozzle_temperature makerworld_url designer"
     for field in fields.split():
@@ -370,36 +377,37 @@ async def list_archives(
     project_id: int | None = None,
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
+    tz: str | None = Query(None, max_length=100),
     limit: int = 50,
     offset: int = 0,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """List archived prints."""
-    user, can_read_all = auth_result
-    visible_to_user_id = user.id if (user is not None and not can_read_all) else None
-    allowed_printer_ids = allowed_printer_ids_for_user(user)
+    visible = _archive_history_conditions(auth_result)
+    if printer_id:
+        if auth_result.printer_ids is not None and not auth_result.allows_printer(printer_id):
+            return []
+        visible = (*visible, archive_printed_on(printer_id))
     service = ArchiveService(db)
     archives = await service.list_archives(
-        printer_id=printer_id,
         project_id=project_id,
         date_from=date_from,
         date_to=date_to,
+        tz=tz,
         limit=limit,
         offset=offset,
-        visible_to_user_id=visible_to_user_id,
-        allowed_printer_ids=allowed_printer_ids,
+        visible=visible,
     )
 
-    # Get sets of duplicate hashes and duplicate (name, hash) pairs (efficient single queries)
-    duplicate_hashes, duplicate_name_hash_pairs = await service.get_duplicate_hashes_and_names()
+    duplicate_hashes, duplicate_name_hash_pairs = await service.get_duplicate_hashes_and_names(visible)
 
-    # Batch-load duplicate groups once for the current page keys.
     duplicate_hashes_in_page = {
         a.content_hash for a in archives if a.content_hash and a.content_hash in duplicate_hashes
     }
@@ -428,7 +436,7 @@ async def list_archives(
                 PrintArchive.created_at,
                 PrintArchive.content_hash,
                 func.lower(PrintArchive.print_name).label("print_name_lower"),
-            ).where(or_(*duplicate_group_conditions), PrintArchive.deleted_at.is_(None))
+            ).where(or_(*duplicate_group_conditions), PrintArchive.deleted_at.is_(None), *visible)
         )
 
         duplicate_groups_by_hash: dict[str, list[tuple[int, datetime]]] = defaultdict(list)
@@ -463,7 +471,7 @@ async def list_archives(
             for sequence, (archive_id, _) in enumerate(group):
                 duplicate_meta_by_archive_id.setdefault(archive_id, (sequence, original_id, duplicate_count))
 
-    run_aggregates = await _load_run_aggregates(db, [a.id for a in archives])
+    run_aggregates = await _load_run_aggregates(db, [a.id for a in archives], auth_result)
 
     # Build response with duplicate sequence and original archive ID pre-computed
     result = []
@@ -497,11 +505,12 @@ async def list_archives(
 
 @router.get("/no-3mf-warning")
 async def no_3mf_warning(
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -519,18 +528,13 @@ async def no_3mf_warning(
     user has been told, no further nudge until they clear browser storage.
     The backend stays stateless.
     """
-    user, can_read_all = auth_result
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)
     conditions = [
         PrintArchive.created_at >= cutoff,
         PrintArchive.deleted_at.is_(None),
         PrintArchive.extra_data.isnot(None),
     ]
-    if user is not None and not can_read_all:
-        conditions.append(PrintArchive.created_by_id == user.id)
-    printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
-    if printer_scope is not None:
-        conditions.append(printer_scope)
+    conditions.extend(_archive_visibility_conditions(auth_result))
     result = await db.execute(select(PrintArchive.extra_data).where(*conditions))
     for (extra_data,) in result.all():
         if extra_data and extra_data.get("no_3mf_available"):
@@ -542,10 +546,11 @@ async def no_3mf_warning(
 async def list_archives_slim(
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
+    tz: str | None = Query(None, max_length=100),
     created_by_id: int | None = Query(None, description="Filter by user who created the print (-1 for no user)"),
     limit: int = Query(default=10000, le=50000),
     offset: int = 0,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
@@ -575,11 +580,10 @@ async def list_archives_slim(
     if current_user is not None and not can_read_all:
         created_by_id = current_user.id
     filters = []
-    if date_from:
-        dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+    dt_from, dt_to = calendar_bounds(date_from, date_to, tz)
+    if dt_from is not None:
         filters.append(PrintLogEntry.created_at >= dt_from)
-    if date_to:
-        dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+    if dt_to is not None:
         filters.append(PrintLogEntry.created_at <= dt_to)
     _apply_run_user_filter(filters, created_by_id)
     printer_scope = _printer_scope_condition(PrintLogEntry.printer_id, current_user)
@@ -655,8 +659,9 @@ async def list_archives_slim(
 async def get_archive_energy_history(
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
+    tz: str | None = Query(None, max_length=100),
     bucket: str = Query("hour", pattern="^(hour|day)$"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
@@ -670,8 +675,7 @@ async def get_archive_energy_history(
     current_user, can_read_all = auth_result
     if current_user is not None and not can_read_all:
         return []
-    dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None
-    dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None
+    dt_from, dt_to = calendar_bounds(date_from, date_to, tz)
     energy_cost_per_kwh_str = await get_setting(db, "energy_cost_per_kwh")
     energy_cost_per_kwh = float(energy_cost_per_kwh_str) if energy_cost_per_kwh_str else 0.15
     return await _energy_history_points(
@@ -693,7 +697,7 @@ async def search_archives(
     status: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
@@ -712,7 +716,16 @@ async def search_archives(
     from backend.app.core.db_dialect import is_sqlite
 
     user, can_read_all = auth_result
-    own_only = user is not None and not can_read_all
+    access = OwnershipAccess(user, can_read_all)
+    if printer_id and not access.allows_printer(printer_id):
+        return []
+    filters = list(_archive_history_conditions(access))
+    if printer_id:
+        filters.append(archive_printed_on(printer_id))
+    if project_id:
+        filters.append(PrintArchive.project_id == project_id)
+    if status:
+        filters.append(archive_status_in_scope(access) == status)
     search_term = q.strip()
 
     # Build dialect-specific full-text search query
@@ -767,24 +780,13 @@ async def search_archives(
             .order_by(PrintArchive.created_at.desc())
         )
 
-        if printer_id:
-            query = query.where(PrintArchive.printer_id == printer_id)
-        if project_id:
-            query = query.where(PrintArchive.project_id == project_id)
-        if status:
-            query = query.where(PrintArchive.status == status)
-        if own_only:
-            query = query.where(PrintArchive.created_by_id == user.id)
-        printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
-        if printer_scope is not None:
-            query = query.where(printer_scope)
-
+        query = query.where(*filters)
         query = query.limit(limit).offset(offset)
         result = await db.execute(query)
         archives = result.scalars().all()
         # Load run aggregates so multi-run archives' time/accuracy badge is
         # suppressed consistently with the main list endpoint (#1608).
-        run_aggregates = await _load_run_aggregates(db, [a.id for a in archives])
+        run_aggregates = await _load_run_aggregates(db, [a.id for a in archives], access)
         return [archive_to_response(a, run_aggregate=run_aggregates.get(a.id)) for a in archives]
 
     if not matched_ids:
@@ -796,19 +798,7 @@ async def search_archives(
         .options(selectinload(PrintArchive.project))
         .where(PrintArchive.id.in_(matched_ids), PrintArchive.deleted_at.is_(None))
     )
-    if own_only:
-        query = query.where(PrintArchive.created_by_id == user.id)
-    printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
-    if printer_scope is not None:
-        query = query.where(printer_scope)
-
-    # Apply additional filters
-    if printer_id:
-        query = query.where(PrintArchive.printer_id == printer_id)
-    if project_id:
-        query = query.where(PrintArchive.project_id == project_id)
-    if status:
-        query = query.where(PrintArchive.status == status)
+    query = query.where(*filters)
 
     result = await db.execute(query)
     archives_dict = {a.id: a for a in result.scalars().all()}
@@ -819,13 +809,13 @@ async def search_archives(
 
     # Load run aggregates so multi-run archives' time/accuracy badge is
     # suppressed consistently with the main list endpoint (#1608).
-    run_aggregates = await _load_run_aggregates(db, [a.id for a in paginated])
+    run_aggregates = await _load_run_aggregates(db, [a.id for a in paginated], access)
     return [archive_to_response(a, run_aggregate=run_aggregates.get(a.id)) for a in paginated]
 
 
 @router.post("/search/rebuild-index")
 async def rebuild_search_index(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
 ):
     """Rebuild the full-text search index from existing archives.
@@ -870,10 +860,11 @@ async def analyze_failures(
     days: int | None = None,
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
+    tz: str | None = Query(None, max_length=100),
     printer_id: int | None = None,
     project_id: int | None = None,
     created_by_id: int | None = Query(None, description="Filter by user who created the print (-1 for no user)"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
@@ -903,6 +894,7 @@ async def analyze_failures(
         days=days,
         date_from=date_from,
         date_to=date_to,
+        tz=tz,
         printer_id=printer_id,
         project_id=project_id,
         created_by_id=created_by_id,
@@ -913,11 +905,12 @@ async def analyze_failures(
 @router.get("/compare")
 async def compare_archives(
     archive_ids: str = Query(..., description="Comma-separated archive IDs (2-5)"),
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -930,8 +923,6 @@ async def compare_archives(
         archive_ids: Comma-separated list of 2-5 archive IDs to compare
     """
     from backend.app.services.archive_comparison import ArchiveComparisonService
-
-    user, can_read_all = auth_result
 
     # Parse and validate archive IDs
     try:
@@ -949,7 +940,7 @@ async def compare_archives(
     existing = await db.execute(select(PrintArchive).where(PrintArchive.id.in_(ids)))
     archives_by_id = {archive.id: archive for archive in existing.scalars().all()}
     for archive_id in ids:
-        _ensure_archive_visible(archives_by_id.get(archive_id), user, can_read_all)
+        _ensure_archive_visible(archives_by_id.get(archive_id), auth_result)
 
     service = ArchiveComparisonService(db)
     try:
@@ -967,47 +958,39 @@ async def export_archives(
     status: str | None = None,
     date_from: str | None = Query(None, description="Start date (ISO format)"),
     date_to: str | None = Query(None, description="End date (ISO format)"),
+    tz: str | None = Query(None, max_length=100),
     search: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
-    """Export archives to CSV or Excel format.
-
-    Returns a downloadable file with archive data.
-    """
-    from datetime import datetime
-
+    """Export runs and legacy archives to CSV or Excel."""
     from fastapi.responses import StreamingResponse
 
     from backend.app.services.export import ExportService
 
-    user, can_read_all = auth_result
-    visible_to_user_id = user.id if (user is not None and not can_read_all) else None
-
     if format not in ("csv", "xlsx"):
         raise HTTPException(400, "Format must be 'csv' or 'xlsx'")
 
-    # Parse fields
     field_list = None
     if fields:
         field_list = [f.strip() for f in fields.split(",")]
 
-    # Parse dates
     date_from_dt = None
     date_to_dt = None
     if date_from:
         try:
-            date_from_dt = datetime.fromisoformat(date_from)
+            date_from_dt = parse_calendar_bound(date_from, tz)
         except ValueError:
             raise HTTPException(400, "Invalid date_from format")
     if date_to:
         try:
-            date_to_dt = datetime.fromisoformat(date_to)
+            date_to_dt = parse_calendar_bound(date_to, tz, end=True)
         except ValueError:
             raise HTTPException(400, "Invalid date_to format")
 
@@ -1022,9 +1005,10 @@ async def export_archives(
             date_from=date_from_dt,
             date_to=date_to_dt,
             search=search,
-            visible_to_user_id=visible_to_user_id,
-            allowed_printer_ids=allowed_printer_ids_for_user(user),
+            access=auth_result,
         )
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     except ImportError as e:
         raise HTTPException(500, str(e))
 
@@ -1042,11 +1026,12 @@ async def export_stats(
     printer_id: int | None = None,
     project_id: int | None = None,
     created_by_id: int | None = Query(None, description="Filter by user who created the print (-1 for no user)"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.STATS_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.STATS_READ)),
 ):
     """Export statistics summary to CSV or Excel format."""
-    _validate_user_filter_permission(current_user, created_by_id)
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
+    _validate_user_filter_permission(visibility.user, created_by_id)
 
     from fastapi.responses import StreamingResponse
 
@@ -1063,7 +1048,8 @@ async def export_stats(
             printer_id=printer_id,
             project_id=project_id,
             created_by_id=created_by_id,
-            allowed_printer_ids=allowed_printer_ids_for_user(current_user),
+            allowed_printer_ids=visibility.printer_ids,
+            include_unassigned=visibility.api_key is None or visibility.api_key.printer_ids is None,
         )
     except ImportError as e:
         raise HTTPException(500, str(e))
@@ -1079,9 +1065,10 @@ async def export_stats(
 async def get_archive_stats(
     date_from: date | None = Query(None, description="Start date (inclusive), YYYY-MM-DD"),
     date_to: date | None = Query(None, description="End date (inclusive), YYYY-MM-DD"),
+    tz: str | None = Query(None, max_length=100),
     created_by_id: int | None = Query(None, description="Filter by user who created the print (-1 for no user)"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.STATS_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.STATS_READ)),
 ):
     """Get statistics across all archives.
 
@@ -1092,20 +1079,17 @@ async def get_archive_stats(
     """
     from backend.app.models.print_log import PrintLogEntry
 
-    _validate_user_filter_permission(current_user, created_by_id)
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
+    _validate_user_filter_permission(visibility.user, created_by_id)
 
-    # Build date filter conditions scoped to PrintLogEntry (event-time).
     base_conditions = []
-    if date_from:
-        dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+    dt_from, dt_to = calendar_bounds(date_from, date_to, tz)
+    if dt_from is not None:
         base_conditions.append(PrintLogEntry.created_at >= dt_from)
-    if date_to:
-        dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+    if dt_to is not None:
         base_conditions.append(PrintLogEntry.created_at <= dt_to)
     _apply_run_user_filter(base_conditions, created_by_id)
-    printer_scope = _printer_scope_condition(PrintLogEntry.printer_id, current_user)
-    if printer_scope is not None:
-        base_conditions.append(printer_scope)
+    base_conditions.extend(visibility.printer_criteria(PrintLogEntry.printer_id))
 
     quality = (
         await db.execute(
@@ -1199,6 +1183,8 @@ async def get_archive_stats(
     # Time accuracy — compare each completed run's actual duration to the
     # slicer's estimate on the linked archive. Runs without a linked archive
     # (NULL archive_id) or without an estimate are excluded.
+    from backend.app.services.archive_plate_estimates import estimate_for_plate
+
     accuracy_rows = await db.execute(
         select(
             PrintLogEntry.duration_seconds,
@@ -1206,36 +1192,25 @@ async def get_archive_stats(
             PrintLogEntry.completed_at,
             PrintLogEntry.printer_id,
             PrintArchive.print_time_seconds,
+            PrintArchive.plate_estimates,
+            PrintLogEntry.plate_id,
         )
         .join(PrintArchive, PrintArchive.id == PrintLogEntry.archive_id)
         .where(
             PrintLogEntry.status == "completed",
-            PrintArchive.print_time_seconds.isnot(None),
+            PrintLogEntry.duration_unmeasured.is_not(True),
             *base_conditions,
         )
     )
-    # Accuracy is meaningful only when the estimate roughly describes the
-    # work the run actually performed. Two shapes produce wildly-off ratios
-    # that are pure noise:
-    #   - multi-plate ``.gcode.3mf`` printed plate-by-plate: each run's
-    #     actual is one plate, the archive's estimate is the sum across
-    #     plates (post-#1593 parser fix), so the ratio is roughly N×100%
-    #     for an N-plate file. Pre-fix this shape was also broken, just
-    #     less dramatically — the estimate was plate-1-only so the ratio
-    #     was meaningless rather than N×.
-    #   - manual interventions / purge waste blowing the actual far past
-    #     the estimate.
-    # Clamp to the [50%, 200%] band so the printer-level average reflects
-    # real slicer-vs-reality drift, not multi-plate accounting or one-off
-    # outliers. Single-plate archives — the case the metric is actually
-    # designed for — stay fully included.
+    # Exclude extreme deviations and runs with no trustworthy plate estimate.
     _ACCURACY_BAND_LO = 50.0
     _ACCURACY_BAND_HI = 200.0
     average_accuracy = None
     accuracy_by_printer: dict[str, float] = {}
     accuracies: list[float] = []
     printer_accuracies: dict[str, list[float]] = {}
-    for duration_seconds, started_at, completed_at, run_printer_id, estimate_seconds in accuracy_rows.all():
+    for duration_seconds, started_at, completed_at, run_printer_id, legacy_seconds, plates, plate_id in accuracy_rows:
+        estimate_seconds, _ = estimate_for_plate(plates, plate_id, legacy_seconds)
         actual_seconds = duration_seconds
         if not actual_seconds and started_at and completed_at:
             elapsed = (completed_at - started_at).total_seconds()
@@ -1267,7 +1242,7 @@ async def get_archive_stats(
 
     if energy_tracking_mode == "total" and not date_from and not date_to:
         # All-time total consumption — read live lifetime counters.
-        total_energy_kwh = await _sum_live_plug_totals(db)
+        total_energy_kwh = await _sum_live_plug_totals(db, visibility)
         total_energy_cost = total_energy_kwh * energy_cost_per_kwh
         energy_source = "smart_plug_live"
     elif energy_tracking_mode == "total":
@@ -1275,8 +1250,9 @@ async def get_archive_stats(
         # to compute per-plug (endpoint - baseline) deltas.
         total_energy_kwh, energy_data_warming_up = await _sum_snapshot_deltas(
             db,
-            dt_from=(datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None),
-            dt_to=(datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None),
+            dt_from=dt_from,
+            dt_to=dt_to,
+            visibility=visibility,
         )
         total_energy_cost = total_energy_kwh * energy_cost_per_kwh
         energy_source = "smart_plug_snapshots"
@@ -1314,26 +1290,25 @@ async def get_archive_stats(
     )
 
 
-async def _sum_live_plug_totals(db: AsyncSession) -> float:
+async def _sum_live_plug_totals(db: AsyncSession, visibility: RowVisibility) -> float:
     """Sum the live lifetime counter from every smart plug.
 
     Used for all-time "total consumption" mode. Only the current value is
     available so this can't be date-filtered — use `_sum_snapshot_deltas` for
     that case.
     """
-    from backend.app.api.routes.settings import get_setting
+    from backend.app.api.routes.settings import get_homeassistant_settings
     from backend.app.models.smart_plug import SmartPlug
     from backend.app.services.homeassistant import homeassistant_service
     from backend.app.services.mqtt_relay import mqtt_relay
     from backend.app.services.rest_smart_plug import rest_smart_plug_service
     from backend.app.services.tasmota import tasmota_service
 
-    plugs_result = await db.execute(select(SmartPlug))
+    plugs_result = await db.execute(select(SmartPlug).where(*visibility.printer_criteria(SmartPlug.printer_id)))
     plugs = list(plugs_result.scalars().all())
 
-    ha_url = await get_setting(db, "ha_url") or ""
-    ha_token = await get_setting(db, "ha_token") or ""
-    homeassistant_service.configure(ha_url, ha_token)
+    ha_settings = await get_homeassistant_settings(db)
+    homeassistant_service.configure(ha_settings["ha_url"], ha_settings["ha_token"])
 
     total = 0.0
     for plug in plugs:
@@ -1362,6 +1337,7 @@ async def _sum_snapshot_deltas(
     *,
     dt_from: datetime | None,
     dt_to: datetime | None,
+    visibility: RowVisibility | None = None,
 ) -> tuple[float, bool]:
     """Sum per-plug energy consumption over a date range using hourly snapshots.
 
@@ -1379,7 +1355,8 @@ async def _sum_snapshot_deltas(
     from backend.app.models.smart_plug import SmartPlug
     from backend.app.models.smart_plug_energy_snapshot import SmartPlugEnergySnapshot
 
-    plug_ids_result = await db.execute(select(SmartPlug.id))
+    scope = visibility.printer_criteria(SmartPlug.printer_id) if visibility is not None else ()
+    plug_ids_result = await db.execute(select(SmartPlug.id).where(*scope))
     plug_ids = [row[0] for row in plug_ids_result.all()]
     if not plug_ids:
         return 0.0, False
@@ -1436,11 +1413,12 @@ async def _sum_snapshot_deltas(
 
 @router.get("/tags")
 async def get_all_tags(
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -1448,14 +1426,9 @@ async def get_all_tags(
 
     Returns a list of tags sorted by count (descending), then by name.
     """
-    user, can_read_all = auth_result
     # Query all archives with non-null tags
     tag_conditions = [PrintArchive.tags.isnot(None), PrintArchive.deleted_at.is_(None)]
-    if user is not None and not can_read_all:
-        tag_conditions.append(PrintArchive.created_by_id == user.id)
-    printer_scope = _printer_scope_condition(PrintArchive.printer_id, user)
-    if printer_scope is not None:
-        tag_conditions.append(printer_scope)
+    tag_conditions.extend(_archive_visibility_conditions(auth_result))
     result = await db.execute(select(PrintArchive.tags).where(*tag_conditions))
     all_tags_rows = result.all()
 
@@ -1479,8 +1452,8 @@ async def get_all_tags(
 async def rename_tag(
     tag_name: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Rename a tag across all archives.
 
@@ -1498,7 +1471,9 @@ async def rename_tag(
 
     # Find all archives containing the old tag
     result = await db.execute(
-        select(PrintArchive).where(PrintArchive.tags.isnot(None), PrintArchive.deleted_at.is_(None))
+        select(PrintArchive).where(
+            PrintArchive.tags.isnot(None), PrintArchive.deleted_at.is_(None), *whole_archive_conditions(access)
+        )
     )
     archives = list(result.scalars().all())
 
@@ -1527,8 +1502,8 @@ async def rename_tag(
 @router.delete("/tags/{tag_name}")
 async def delete_tag(
     tag_name: str,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Delete a tag from all archives.
 
@@ -1536,7 +1511,9 @@ async def delete_tag(
     """
     # Find all archives containing the tag
     result = await db.execute(
-        select(PrintArchive).where(PrintArchive.tags.isnot(None), PrintArchive.deleted_at.is_(None))
+        select(PrintArchive).where(
+            PrintArchive.tags.isnot(None), PrintArchive.deleted_at.is_(None), *whole_archive_conditions(access)
+        )
     )
     archives = list(result.scalars().all())
 
@@ -1558,18 +1535,25 @@ async def delete_tag(
 @router.get("/{archive_id}", response_model=ArchiveResponse)
 async def get_archive(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    run_id: int | None = Query(None, gt=0),
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Get a specific archive."""
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    found = await service.get_archive(archive_id)
+    if found is None or found.deleted_at is not None:
+        from backend.app.services.archive_merge import resolve_alias
+
+        if (target := await resolve_alias(db, archive_id, auth_result)) is not None:
+            found = await service.get_archive(target)
+    archive = await _ensure_archive_history_visible(db, found, auth_result)
 
     # Find duplicates
     makerworld_id = archive.extra_data.get("makerworld_model_id") if archive.extra_data else None
@@ -1578,19 +1562,24 @@ async def get_archive(
         content_hash=archive.content_hash,
         print_name=archive.print_name,
         makerworld_model_id=makerworld_id,
+        visible=_archive_history_conditions(auth_result),
     )
-    run_aggregates = await _load_run_aggregates(db, [archive.id])
-    return archive_to_response(archive, duplicates, run_aggregate=run_aggregates.get(archive.id))
+    run_aggregates = await _load_run_aggregates(db, [archive.id], auth_result)
+    summary = run_aggregates.get(archive.id, {})
+    if run_id is not None:
+        summary["selected_run"] = await _visible_archive_run(db, archive.id, run_id, auth_result)
+    return archive_to_response(archive, duplicates, run_aggregate=summary)
 
 
 @router.get("/{archive_id}/delete-impact")
 async def get_archive_delete_impact(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -1603,9 +1592,9 @@ async def get_archive_delete_impact(
     not folded into the archive GET response so the much larger list
     endpoint isn't forced to run the same query per row.
     """
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
     from backend.app.services.archive import _count_related_queue_items
 
     total, printing = await _count_related_queue_items(db, archive.id)
@@ -1615,31 +1604,36 @@ async def get_archive_delete_impact(
 @router.get("/{archive_id}/runs", response_model=PrintLogResponse)
 async def list_archive_runs(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
-    """List PrintLogEntry rows for this archive — one per print event.
-
-    Newest first. Drives the per-archive "Print Log" view (#1378).
-    """
-    from backend.app.models.print_log import PrintLogEntry
+    """List visible print runs for the archive, newest first."""
     from backend.app.schemas.print_log import PrintLogEntrySchema
+    from backend.app.services.archive_plate_estimates import estimate_for_plate
+    from backend.app.services.print_log_run import run_visibility_conditions
 
-    user, can_read_all = auth_result
-    _ensure_archive_visible(await db.get(PrintArchive, archive_id), user, can_read_all)
+    archive = await _ensure_archive_history_visible(db, await db.get(PrintArchive, archive_id), auth_result)
 
     rows = await db.execute(
         select(PrintLogEntry)
-        .where(PrintLogEntry.archive_id == archive_id)
+        .where(PrintLogEntry.archive_id == archive_id, *run_visibility_conditions(auth_result))
         .order_by(PrintLogEntry.started_at.desc().nulls_last(), PrintLogEntry.id.desc())
     )
-    entries = list(rows.scalars().all())
-    items = [PrintLogEntrySchema.model_validate(e, from_attributes=True) for e in entries]
+    items = []
+    for run in rows.scalars():
+        seconds, grams = estimate_for_plate(
+            archive.plate_estimates, run.plate_id, archive.print_time_seconds, archive.filament_used_grams
+        )
+        item = PrintLogEntrySchema.model_validate(run)
+        item.estimate_seconds, item.estimate_grams = seconds, grams
+        item.has_timelapse = bool(run.timelapse_path)
+        items.append(item)
     return PrintLogResponse(items=items, total=len(items))
 
 
@@ -1647,11 +1641,12 @@ async def list_archive_runs(
 async def find_similar_archives(
     archive_id: int,
     limit: int = 10,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -1664,12 +1659,13 @@ async def find_similar_archives(
     """
     from backend.app.services.archive_comparison import ArchiveComparisonService
 
-    user, can_read_all = auth_result
-    _ensure_archive_visible(await db.get(PrintArchive, archive_id), user, can_read_all)
+    _ensure_archive_visible(await db.get(PrintArchive, archive_id), auth_result)
 
     service = ArchiveComparisonService(db)
     try:
-        return await service.find_similar_archives(archive_id, limit=limit)
+        return await service.find_similar_archives(
+            archive_id, limit=limit, visible=_archive_visibility_conditions(auth_result)
+        )
     except ValueError as e:
         raise HTTPException(404, str(e))
 
@@ -1678,18 +1674,19 @@ async def find_similar_archives(
 async def update_archive(
     archive_id: int,
     update_data: ArchiveUpdate,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_UPDATE_ALL,
             Permission.ARCHIVES_UPDATE_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Update archive metadata (tags, notes, cost, is_favorite, project_id)."""
     from sqlalchemy.orm import selectinload
 
-    user, can_modify_all = auth_result
+    user, can_modify_all, api_key = auth_result
 
     result = await db.execute(
         select(PrintArchive)
@@ -1700,39 +1697,69 @@ async def update_archive(
     if not archive:
         raise HTTPException(404, "Archive not found")
 
+    if not user_can_access_printer(user, archive.printer_id):
+        raise HTTPException(404, "Archive not found")
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
+
     # Ownership check
     if not can_modify_all:
         if archive.created_by_id != user.id:
             raise HTTPException(403, "You can only update your own archives")
 
+    await ensure_whole_archive_visible(db, archive, auth_result)
+
+    previous_grams, previous_cost = archive.filament_used_grams, archive.cost
     update_payload = update_data.model_dump(exclude_unset=True)
+    new_printer_id = update_payload.get("printer_id")
+    if new_printer_id is not None and new_printer_id != archive.printer_id:
+        await _validate_archive_printer_target(db, new_printer_id, auth_result)
+    new_project_id = update_payload.get("project_id")
+    if (
+        new_project_id is not None
+        and new_project_id != archive.project_id
+        and await db.get(Project, new_project_id) is None
+    ):
+        raise HTTPException(400, "Project not found")
+    weight_changed = "filament_used_grams" in update_payload and update_payload["filament_used_grams"] != previous_grams
+    can_set_cost = can_modify_all
+    if weight_changed or "cost" in update_payload:
+        visibility = await resolve_row_visibility(db, user, api_key)
+        all_updates, own_updates = Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN
+        can_set_cost = visibility.can_access_owner(None, all_updates, own_updates)
+        if not can_set_cost:
+            if "cost" in update_payload:
+                raise HTTPException(403, "Only users who can edit all archives can set the cost")
+            owns_archive = visibility.can_access_owner(archive.created_by_id, all_updates, own_updates)
+            if not owns_archive or previous_grams is not None or archive.file_path or archive.source_3mf_path:
+                raise HTTPException(403, "Only users who can edit all archives can change this filament weight")
+    to_mirror = {
+        field: update_payload[field]
+        for field in ("failure_reason", "status", "filament_used_grams")
+        if field in update_payload
+    }
+    run = None
+    if archive.status != "printing" and (to_mirror or "cost" in update_payload):
+        run = (await projected_print_runs(db, auth_result, archive_id)).get(archive_id)
     for field, value in update_payload.items():
         setattr(archive, field, value)
 
-    # #1444: Mirror per-run classification fields to the most recent
-    # PrintLogEntry for this archive. PrintLogEntry.failure_reason is captured
-    # once at print-completion time from archive.failure_reason — which is
-    # NULL until the user classifies the failure via the Edit Archive modal.
-    # Without this mirror the Failure Analysis widget (which groups by
-    # print_log_entries.failure_reason) keeps showing "Unknown" forever.
-    # Same desync hits status: flipping it in the modal wouldn't update the
-    # entry either. Only the latest entry is touched because that's the run
-    # the modal is implicitly showing (archive.failure_reason / status are
-    # overwritten on each reprint to reflect the latest run's outcome).
-    mirror_fields = {"failure_reason", "status"}
-    to_mirror = {k: v for k, v in update_payload.items() if k in mirror_fields}
-    if to_mirror:
-        from backend.app.models.print_log import PrintLogEntry
+    repriced = bool(
+        update_payload.get("filament_used_grams")
+        and "cost" not in update_payload
+        and weight_changed
+        and (can_set_cost or archive.cost is None)
+    )
+    if repriced:
+        archive.cost = await one_print_cost(db, archive, previous_grams=previous_grams)
 
-        latest_entry = await db.scalar(
-            select(PrintLogEntry)
-            .where(PrintLogEntry.archive_id == archive_id)
-            .order_by(PrintLogEntry.id.desc())
-            .limit(1)
-        )
-        if latest_entry is not None:
-            for field, value in to_mirror.items():
-                setattr(latest_entry, field, value)
+    if run is not None:
+        if "cost" in update_payload or repriced:
+            mirror_inherited_cost(run, previous_cost, archive.cost)
+        if "filament_used_grams" in to_mirror and run.filament_used_grams != previous_grams:
+            del to_mirror["filament_used_grams"]
+        for field, value in to_mirror.items():
+            setattr(run, field, value)
 
     await db.commit()
 
@@ -1754,14 +1781,17 @@ async def update_archive(
 @router.post("/{archive_id}/favorite", response_model=ArchiveResponse)
 async def toggle_favorite(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_OWN),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN, include_api_key=True
+        )
+    ),
 ):
     """Toggle favorite status for an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = result.scalar_one_or_none()
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), access)
+    await ensure_whole_archive_visible(db, archive, access)
 
     archive.is_favorite = not archive.is_favorite
     await db.commit()
@@ -1772,67 +1802,23 @@ async def toggle_favorite(
 @router.post("/{archive_id}/rescan", response_model=ArchiveResponse)
 async def rescan_archive(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Rescan the 3MF file and update metadata."""
-    from backend.app.api.routes.settings import get_setting
-    from backend.app.services.archive import ThreeMFParser
-
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
     archive = result.scalar_one_or_none()
     if not archive:
         raise HTTPException(404, "Archive not found")
+    _ensure_archive_visible(archive, access)
+    await ensure_whole_archive_visible(db, archive, access)
 
-    file_path = settings.base_dir / archive.file_path
-    if not file_path.is_file():
-        raise HTTPException(404, "Archive file not found")
+    try:
+        _rescan_archive_metadata(archive)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Archive file not found") from exc
 
-    # Parse the 3MF file
-    parser = ThreeMFParser(file_path, plate_number=archive.plate_id)
-    metadata = parser.parse()
-
-    # Update fields from metadata
-    _apply_scanned_metadata(archive, metadata)
-
-    # Calculate cost: prefer spool-based cost if available, else catalog-based.
-    # When spool-based costs exist but don't cover every filament gram used
-    # (#1344), fall back to the global default rate for the untracked weight
-    # so the displayed cost still reflects the whole print.
-    if archive.filament_used_grams and archive.filament_type and not has_spoolman_actual_cost(archive):
-        default_cost_setting = await get_setting(db, "default_filament_cost")
-        default_cost_per_kg = float(default_cost_setting) if default_cost_setting else 25.0
-        usage_result = await db.execute(
-            select(
-                func.sum(SpoolUsageHistory.cost),
-                func.sum(SpoolUsageHistory.weight_used),
-            ).where(SpoolUsageHistory.archive_id == archive.id)
-        )
-        usage_cost_row = usage_result.one()
-        usage_cost = usage_cost_row[0]
-        tracked_grams = float(usage_cost_row[1] or 0)
-        if usage_cost is not None and usage_cost > 0:
-            total_cost = float(usage_cost)
-            untracked_grams = max(0.0, archive.filament_used_grams - tracked_grams)
-            if untracked_grams > 0 and default_cost_per_kg > 0:
-                total_cost += (untracked_grams / 1000.0) * default_cost_per_kg
-            archive.cost = float(Decimal(str(total_cost)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-        else:
-            primary_type = archive.filament_type.split(",")[0].strip()
-            filament_result = await db.execute(select(Filament).where(Filament.type == primary_type).limit(1))
-            filament = filament_result.scalar_one_or_none()
-            if filament:
-                archive.cost = float(
-                    Decimal(str((archive.filament_used_grams / 1000) * filament.cost_per_kg)).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
-                )
-            else:
-                archive.cost = float(
-                    Decimal(str((archive.filament_used_grams / 1000) * default_cost_per_kg)).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
-                )
+    archive.cost = await one_print_cost(db, archive)
 
     await db.commit()
     await db.refresh(archive)
@@ -1841,86 +1827,20 @@ async def rescan_archive(
 
 @router.post("/recalculate-costs")
 async def recalculate_all_costs(
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
-    """Recalculate costs for all archives based on filament usage and prices."""
-
-    from backend.app.api.routes.settings import get_setting
-
-    result = await db.execute(select(PrintArchive))
-    archives = list(result.scalars().all())
-
-    # Load all filaments for lookup
-    filament_result = await db.execute(select(Filament))
-    filaments = {f.type: f.cost_per_kg for f in filament_result.scalars().all()}
-
-    # Get default filament cost from settings
-    default_cost_setting = await get_setting(db, "default_filament_cost")
-    default_cost_per_kg = float(default_cost_setting) if default_cost_setting else 25.0
-
-    # Pre-fetch cost and weight so untracked grams can use the default rate (#1344).
-    usage_costs_result = await db.execute(
-        select(
-            SpoolUsageHistory.archive_id,
-            func.sum(SpoolUsageHistory.cost),
-            func.sum(SpoolUsageHistory.weight_used),
-        ).group_by(SpoolUsageHistory.archive_id)
-    )
-    usage_costs = usage_costs_result.fetchall()
-    cost_map = {
-        row[0]: (row[1], float(row[2] or 0))
-        for row in usage_costs
-        if row[0] is not None and row[1] is not None and row[1] > 0
-    }
-
-    updated = 0
-    for archive in archives:
-        if has_spoolman_actual_cost(archive):
-            continue
-        usage = cost_map.get(archive.id)
-        if usage is not None:
-            usage_cost, tracked_grams = usage
-            total_cost = float(usage_cost)
-            archive_grams = float(archive.filament_used_grams or 0)
-            untracked_grams = max(0.0, archive_grams - tracked_grams)
-            if untracked_grams > 0 and default_cost_per_kg > 0:
-                total_cost += (untracked_grams / 1000.0) * default_cost_per_kg
-            new_cost = round(total_cost, 2)
-        else:
-            # Fallback: sum costs for old records by print_name
-            usage_result = await db.execute(
-                select(func.sum(SpoolUsageHistory.cost)).where(
-                    SpoolUsageHistory.print_name == archive.print_name,
-                    SpoolUsageHistory.archive_id.is_(None),
-                )
-            )
-            fallback_cost = usage_result.scalar()
-            if fallback_cost is not None and fallback_cost > 0:
-                new_cost = round(fallback_cost, 2)
-            elif archive.filament_used_grams and archive.filament_type:
-                primary_type = archive.filament_type.split(",")[0].strip()
-                cost_per_kg = filaments.get(primary_type, default_cost_per_kg)
-                new_cost = round((archive.filament_used_grams / 1000) * cost_per_kg, 2)
-            else:
-                new_cost = None
-        if new_cost is not None and archive.cost != new_cost:
-            archive.cost = new_cost
-            updated += 1
-
-    await db.commit()
-    return {"message": f"Recalculated costs for {updated} archives", "updated": updated}
+    """Recalculate archived estimates and measured usage using current prices."""
+    return await recalculate_archive_costs(db, access)
 
 
 @router.post("/rescan-all")
 async def rescan_all_archives(
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Rescan all archives and update their metadata."""
-    from backend.app.services.archive import ThreeMFParser
-
-    result = await db.execute(select(PrintArchive))
+    result = await db.execute(select(PrintArchive).where(*whole_archive_conditions(access)))
     archives = list(result.scalars().all())
 
     updated = 0
@@ -1928,16 +1848,10 @@ async def rescan_all_archives(
 
     for archive in archives:
         try:
-            file_path = settings.base_dir / archive.file_path
-            if not file_path.is_file():
-                errors.append({"id": archive.id, "error": "File not found"})
-                continue
-
-            parser = ThreeMFParser(file_path, plate_number=archive.plate_id)
-            metadata = parser.parse()
-            _apply_scanned_metadata(archive, metadata)
-
+            _rescan_archive_metadata(archive)
             updated += 1
+        except FileNotFoundError:
+            errors.append({"id": archive.id, "error": "File not found"})
         except Exception as e:
             logger.exception("Failed to rescan archive %s: %s", archive.id, e)
             errors.append({"id": archive.id, "error": "Failed to parse 3MF file"})
@@ -1949,18 +1863,18 @@ async def rescan_all_archives(
 @router.get("/{archive_id}/duplicates")
 async def get_archive_duplicates(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Get duplicates for a specific archive."""
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
 
     makerworld_id = archive.extra_data.get("makerworld_model_id") if archive.extra_data else None
     duplicates = await service.find_duplicates(
@@ -1968,17 +1882,20 @@ async def get_archive_duplicates(
         content_hash=archive.content_hash,
         print_name=archive.print_name,
         makerworld_model_id=makerworld_id,
+        visible=_archive_visibility_conditions(auth_result),
     )
     return {"duplicates": duplicates, "count": len(duplicates)}
 
 
 @router.post("/backfill-hashes")
 async def backfill_content_hashes(
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Compute and store content hashes for all archives missing them."""
-    result = await db.execute(select(PrintArchive).where(PrintArchive.content_hash.is_(None)))
+    result = await db.execute(
+        select(PrintArchive).where(PrintArchive.content_hash.is_(None), *whole_archive_conditions(access))
+    )
     archives = list(result.scalars().all())
 
     updated = 0
@@ -2013,11 +1930,12 @@ async def delete_archive(
             "drop the row from statistics (#1343)."
         ),
     ),
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_DELETE_ALL,
             Permission.ARCHIVES_DELETE_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -2029,7 +1947,7 @@ async def delete_archive(
     when any related queue item is currently mid-print so the dispatcher
     doesn't lose its metadata trail under the running print.
     """
-    user, can_modify_all = auth_result
+    user, can_modify_all, api_key = auth_result
 
     # Get archive first to check ownership
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
@@ -2037,19 +1955,26 @@ async def delete_archive(
     if not archive:
         raise HTTPException(404, "Archive not found")
 
+    if not user_can_access_printer(user, archive.printer_id):
+        raise HTTPException(404, "Archive not found")
+    if api_key is not None:
+        check_printer_access(api_key, archive.printer_id)
+
     # Ownership check
     if not can_modify_all:
         if archive.created_by_id != user.id:
             raise HTTPException(403, "You can only delete your own archives")
 
+    await ensure_whole_archive_visible(db, archive, auth_result)
+
     # #1734: block delete when any related queue item is currently printing.
     # Both soft and hard delete are gated — an in-flight print needs its
     # backing archive to stay around for the metadata trail (filament,
     # plate, ams_mapping). The user can stop the print first, then retry.
-    from backend.app.services.archive import _count_related_queue_items
+    from backend.app.services.archive import lock_archive_queue_for_deletion
 
-    _related_total, related_printing = await _count_related_queue_items(db, archive_id)
-    if related_printing > 0:
+    related_printing = await lock_archive_queue_for_deletion(db, PrintArchive.id == archive_id)
+    if related_printing:
         raise HTTPException(
             409,
             f"Cannot delete archive — {related_printing} related queue item(s) are "
@@ -2058,18 +1983,7 @@ async def delete_archive(
 
     service = ArchiveService(db)
     if purge_stats:
-        # Hard-delete the linked PrintLogEntry rows first so their filament /
-        # cost / count contributions disappear from /archives/stats. The FK is
-        # ON DELETE SET NULL, so without this delete the runs would survive
-        # the archive row and keep showing up in totals (#1343 / #1378).
-        from sqlalchemy import delete as sa_delete
-
-        from backend.app.models.print_log import PrintLogEntry
-
-        await db.execute(sa_delete(PrintLogEntry).where(PrintLogEntry.archive_id == archive_id))
-        await db.commit()
-
-        if not await service.delete_archive(archive_id):
+        if not await service.delete_archive(archive_id, purge_stats=True):
             raise HTTPException(404, "Archive not found")
         return {"status": "deleted", "purged_from_stats": True}
 
@@ -2082,18 +1996,18 @@ async def delete_archive(
 async def download_archive(
     archive_id: int,
     inline: bool = False,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Download the 3MF file."""
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -2114,18 +2028,18 @@ async def download_archive(
 async def download_archive_with_filename(
     archive_id: int,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Download the 3MF file with filename in URL."""
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -2141,11 +2055,12 @@ async def download_archive_with_filename(
 @router.post("/{archive_id}/slicer-token")
 async def create_archive_slicer_token(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -2156,9 +2071,8 @@ async def create_archive_slicer_token(
     """
     from backend.app.core.auth import create_slicer_download_token
 
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
 
     token = await create_slicer_download_token("archive", archive_id)
     return {"token": token}
@@ -2169,7 +2083,7 @@ async def download_archive_for_slicer(
     archive_id: int,
     token: str,
     filename: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Download 3MF file using a slicer download token.
 
@@ -2201,21 +2115,17 @@ async def download_archive_for_slicer(
 @router.get("/{archive_id}/thumbnail")
 async def get_thumbnail(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail image.
 
     Requires a media token query param (?token=xxx) when auth is enabled.
     """
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
-    if api_key is not None:
-        check_printer_access(api_key, archive.printer_id)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
     if not archive or not archive.thumbnail_path:
         raise HTTPException(404, "Thumbnail not found")
 
@@ -2236,28 +2146,45 @@ async def get_thumbnail(
     )
 
 
+async def _visible_archive_run(db, archive_id, run_id, access):
+    from backend.app.models.print_log import INCLUDE_OPEN_RUNS
+    from backend.app.services.print_log_run import run_visibility_conditions
+
+    run = await db.scalar(
+        select(PrintLogEntry)
+        .where(PrintLogEntry.id == run_id, PrintLogEntry.archive_id == archive_id, *run_visibility_conditions(access))
+        .execution_options(**{INCLUDE_OPEN_RUNS: True})
+    )
+    if run is None:
+        raise HTTPException(404, "Print run not found")
+    return run
+
+
 @router.get("/{archive_id}/timelapse")
 async def get_timelapse(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    run_id: int | None = Query(None, gt=0),
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the timelapse video.
 
     Requires a media token query param (?token=xxx) when auth is enabled.
     """
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
-    if api_key is not None:
-        check_printer_access(api_key, archive.printer_id)
-    if not archive or not archive.timelapse_path:
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
+    if run_id is None:
+        await ensure_whole_archive_visible(db, archive, auth_result)
+        path = archive.timelapse_path
+    else:
+        run = await _visible_archive_run(db, archive_id, run_id, auth_result)
+        path = run.timelapse_path
+    if not path:
         raise HTTPException(404, "Timelapse not found")
 
-    timelapse_path = settings.base_dir / archive.timelapse_path
+    timelapse_path = safe_join_under(settings.base_dir, path)
     if not timelapse_path.exists():
         raise HTTPException(404, "Timelapse file not found")
 
@@ -2283,27 +2210,38 @@ async def get_timelapse(
 @router.delete("/{archive_id}/timelapse")
 async def delete_timelapse(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN, include_api_key=True
+        )
     ),
 ):
     """Remove the timelapse video from an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     if not archive.timelapse_path:
         raise HTTPException(404, "No timelapse attached to this archive")
 
-    # Delete the file
-    timelapse_path = settings.base_dir / archive.timelapse_path
-    if timelapse_path.exists():
-        timelapse_path.unlink()
+    from sqlalchemy import update
 
-    # Clear the path in database
+    from backend.app.services.archive_timelapse import announce_timelapse, remove_unreferenced
+    from backend.app.utils.archive_paths import archive_dir
+
+    previous = archive.timelapse_path
+    parent = archive_dir(archive, base_dir=settings.base_dir, archive_root=settings.archive_dir)
     archive.timelapse_path = None
+    archive.timelapse_plate_id = None
+    await db.execute(
+        update(PrintLogEntry)
+        .where(PrintLogEntry.archive_id == archive_id, PrintLogEntry.timelapse_path == previous)
+        .values(timelapse_path=None)
+    )
     await db.commit()
+    await remove_unreferenced(db, previous, settings=settings, parent=parent)
+    await announce_timelapse(archive_id, attached=False)
 
     return {"status": "deleted"}
 
@@ -2311,12 +2249,12 @@ async def delete_timelapse(
 @router.post("/{archive_id}/timelapse/scan")
 async def scan_timelapse(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Scan printer for timelapse matching this archive and attach it."""
-    from backend.app.models.printer import Printer
     from backend.app.services.bambu_ftp import (
+        DownloadDeadlineExceeded,
         FtpsCooldownActive,
         download_file_bytes_async,
         get_ftp_retry_settings,
@@ -2328,7 +2266,10 @@ async def scan_timelapse(
     archive = await service.get_archive(archive_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
+    _ensure_archive_visible(archive, access)
+    await ensure_whole_archive_visible(db, archive, access)
 
+    run_started_at = archive.started_at
     if archive.timelapse_path:
         return {"status": "exists", "message": "Timelapse already attached"}
 
@@ -2365,65 +2306,80 @@ async def scan_timelapse(
         f for f in files if not f.get("is_directory") and f.get("name", "").lower().endswith((".mp4", ".avi"))
     ]
 
-    # Strategy 1: Match by print name in filename
-    for f in video_files:
-        fname = f.get("name", "")
-        if base_name.lower() in fname.lower():
-            matching_file = f
-            break
+    from backend.app.services.timelapse_archive import _claimed_names, read_baseline_state
 
-    # Strategy 2: Match by timestamp proximity against print START time.
-    # Bambu timelapse filename embeds the print start time in printer-local clock.
-    # See _match_timelapse_by_timestamp for the offset-search rationale and why we
-    # intentionally don't try to match filename against end time here.
-    if not matching_file and archive.started_at:
-        candidate, diff = _match_timelapse_by_timestamp(video_files, archive.started_at)
-        if candidate is not None:
-            matching_file = candidate
-            logger.info("Matched timelapse by timestamp: %s (diff: %s)", candidate.get("name"), diff)
+    offered = video_files
+    claimed = await _claimed_names(db, archive.printer_id, archive_id)
+    video_files = [row for row in video_files if Path(row.get("name", "")).stem not in claimed]
+    persisted = read_baseline_state(getattr(archive, "timelapse_baseline", None))
+    if persisted is not None:
+        names, trusted = persisted
+        candidates = [row for row in video_files if row.get("name") not in names]
+        if trusted and len(candidates) == 1:
+            matching_file = candidates[0]
+        elif trusted and candidates:
+            offered = candidates
 
-    # Strategy 3: Use file modification time from FTP listing
-    # This handles cases where printer's filename timestamp is wrong but file mtime is correct
-    if not matching_file and (archive.started_at or archive.completed_at or archive.created_at):
-        from datetime import datetime, timedelta
-
-        _archive_start = archive.started_at
-        archive_end = archive.completed_at or archive.created_at
-        best_match = None
-        best_diff = timedelta(hours=24)
-
+    if persisted is None:
+        # Strategy 1: Match by print name in filename
         for f in video_files:
-            mtime = f.get("mtime")
-            if mtime:
-                # Timelapse file should be modified during or shortly after the print
-                # The mtime should be close to completion time (video finishes when print ends)
-                if archive_end:
-                    diff = abs(mtime - archive_end)
-                    if diff < best_diff:
-                        best_diff = diff
-                        best_match = f
-                        logger.debug(
-                            f"Timelapse mtime match candidate: {f.get('name')}, mtime: {mtime}, diff from end: {diff}"
-                        )
+            fname = f.get("name", "")
+            if base_name.lower() in fname.lower():
+                matching_file = f
+                break
 
-        if best_match and best_diff < timedelta(hours=2):
-            matching_file = best_match
-            logger.info("Matched timelapse by file mtime: %s (diff: %s)", best_match.get("name"), best_diff)
+        # Strategy 2: Match by timestamp proximity against print START time.
+        # Bambu timelapse filename embeds the print start time in printer-local clock.
+        # See _match_timelapse_by_timestamp for the offset-search rationale and why we
+        # intentionally don't try to match filename against end time here.
+        if not matching_file and archive.started_at:
+            candidate, diff = _match_timelapse_by_timestamp(video_files, archive.started_at)
+            if candidate is not None:
+                matching_file = candidate
+                logger.info("Matched timelapse by timestamp: %s (diff: %s)", candidate.get("name"), diff)
 
-    # Strategy 4: If only one timelapse exists and archive was recently completed, use it
-    # This handles cases where printer clock is wrong or timezone issues exist
-    if not matching_file and len(video_files) == 1:
-        from datetime import datetime, timedelta, timezone
+        # Strategy 3: Use file modification time from FTP listing
+        # This handles cases where printer's filename timestamp is wrong but file mtime is correct
+        if not matching_file and (archive.started_at or archive.completed_at or archive.created_at):
+            from datetime import datetime, timedelta
 
-        archive_completed = archive.completed_at or archive.created_at
-        if archive_completed:
-            if archive_completed.tzinfo is None:
-                archive_completed = archive_completed.replace(tzinfo=timezone.utc)
-            time_since_completion = datetime.now(timezone.utc) - archive_completed
-            # If archive was completed within the last hour, assume the single timelapse is for it
-            if time_since_completion < timedelta(hours=1):
-                matching_file = video_files[0]
-                logger.info("Using single timelapse file as fallback: %s", video_files[0].get("name"))
+            _archive_start = archive.started_at
+            archive_end = archive.completed_at or archive.created_at
+            best_match = None
+            best_diff = timedelta(hours=24)
+
+            for f in video_files:
+                mtime = f.get("mtime")
+                if mtime:
+                    # Timelapse file should be modified during or shortly after the print
+                    # The mtime should be close to completion time (video finishes when print ends)
+                    if archive_end:
+                        diff = abs(mtime - archive_end)
+                        if diff < best_diff:
+                            best_diff = diff
+                            best_match = f
+                            logger.debug(
+                                f"Timelapse mtime match candidate: {f.get('name')}, mtime: {mtime}, diff from end: {diff}"
+                            )
+
+            if best_match and best_diff < timedelta(hours=2):
+                matching_file = best_match
+                logger.info("Matched timelapse by file mtime: %s (diff: %s)", best_match.get("name"), best_diff)
+
+        # Strategy 4: If only one timelapse exists and archive was recently completed, use it
+        # This handles cases where printer clock is wrong or timezone issues exist
+        if not matching_file and len(video_files) == 1:
+            from datetime import datetime, timedelta, timezone
+
+            archive_completed = archive.completed_at or archive.created_at
+            if archive_completed:
+                if archive_completed.tzinfo is None:
+                    archive_completed = archive_completed.replace(tzinfo=timezone.utc)
+                time_since_completion = datetime.now(timezone.utc) - archive_completed
+                # If archive was completed within the last hour, assume the single timelapse is for it
+                if time_since_completion < timedelta(hours=1):
+                    matching_file = video_files[0]
+                    logger.info("Using single timelapse file as fallback: %s", video_files[0].get("name"))
 
     # Note: We intentionally don't use a "most recent file" fallback because
     # we can't verify if timelapse was actually enabled for this print.
@@ -2438,7 +2394,7 @@ async def scan_timelapse(
                 "size": f.get("size"),
                 "mtime": f.get("mtime").isoformat() if f.get("mtime") else None,
             }
-            for f in video_files
+            for f in offered
         ]
         # Sort by mtime descending (most recent first)
         available_files.sort(key=lambda x: x.get("mtime") or "", reverse=True)
@@ -2454,6 +2410,8 @@ async def scan_timelapse(
     # Get FTP retry settings
     ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
 
+    await db.close()
+
     try:
         if ftp_retry_enabled:
             timelapse_data = await with_ftp_retry(
@@ -2463,6 +2421,7 @@ async def scan_timelapse(
                 remote_path,
                 socket_timeout=ftp_timeout,
                 printer_model=printer.model,
+                total_bytes=matching_file.get("size") or 0,
                 max_retries=ftp_retry_count,
                 retry_delay=ftp_retry_delay,
                 operation_name=f"Download timelapse {matching_file['name']}",
@@ -2474,15 +2433,24 @@ async def scan_timelapse(
                 remote_path,
                 socket_timeout=ftp_timeout,
                 printer_model=printer.model,
+                total_bytes=matching_file.get("size") or 0,
             )
+    except DownloadDeadlineExceeded as e:
+        raise HTTPException(504, "Timelapse download exceeded its transfer budget") from e
     except FtpsCooldownActive as e:
         raise HTTPException(503, str(e)) from e
 
     if not timelapse_data:
-        raise HTTPException(500, "Failed to download timelapse")
+        raise HTTPException(502, "Failed to download timelapse")
 
     # Attach timelapse to archive
-    success = await service.attach_timelapse(archive_id, timelapse_data, matching_file["name"])
+    success = await service.attach_timelapse(
+        archive_id,
+        timelapse_data,
+        matching_file["name"],
+        expected_started_at=run_started_at,
+        replace=False,
+    )
 
     if not success:
         raise HTTPException(500, "Failed to attach timelapse")
@@ -2498,12 +2466,12 @@ async def scan_timelapse(
 async def select_timelapse(
     archive_id: int,
     filename: str = Query(..., description="Timelapse filename to attach"),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Manually select a timelapse from the printer to attach."""
-    from backend.app.models.printer import Printer
     from backend.app.services.bambu_ftp import (
+        DownloadDeadlineExceeded,
         FtpsCooldownActive,
         download_file_bytes_async,
         get_ftp_retry_settings,
@@ -2515,6 +2483,9 @@ async def select_timelapse(
     archive = await service.get_archive(archive_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
+    _ensure_archive_visible(archive, access)
+    await ensure_whole_archive_visible(db, archive, access)
+    run_started_at = archive.started_at
 
     if not archive.printer_id:
         raise HTTPException(400, "Archive has no associated printer")
@@ -2527,6 +2498,7 @@ async def select_timelapse(
     # Find the file on the printer
     files = []
     remote_path = None
+    selected_size = 0
     for timelapse_dir in ["/timelapse", "/timelapse/video", "/record", "/recording"]:
         try:
             files = await list_files_async(
@@ -2535,6 +2507,7 @@ async def select_timelapse(
             for f in files:
                 if f.get("name") == filename:
                     remote_path = f.get("path") or f"{timelapse_dir}/{filename}"
+                    selected_size = f.get("size") or 0
                     break
             if remote_path:
                 break
@@ -2547,6 +2520,8 @@ async def select_timelapse(
     # Download and attach
     ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
 
+    await db.close()
+
     try:
         if ftp_retry_enabled:
             timelapse_data = await with_ftp_retry(
@@ -2556,6 +2531,7 @@ async def select_timelapse(
                 remote_path,
                 socket_timeout=ftp_timeout,
                 printer_model=printer.model,
+                total_bytes=selected_size,
                 max_retries=ftp_retry_count,
                 retry_delay=ftp_retry_delay,
                 operation_name=f"Download timelapse {filename}",
@@ -2567,14 +2543,22 @@ async def select_timelapse(
                 remote_path,
                 socket_timeout=ftp_timeout,
                 printer_model=printer.model,
+                total_bytes=selected_size,
             )
+    except DownloadDeadlineExceeded as e:
+        raise HTTPException(504, "Timelapse download exceeded its transfer budget") from e
     except FtpsCooldownActive as e:
         raise HTTPException(503, str(e)) from e
 
     if not timelapse_data:
-        raise HTTPException(500, "Failed to download timelapse")
+        raise HTTPException(502, "Failed to download timelapse")
 
-    success = await service.attach_timelapse(archive_id, timelapse_data, filename)
+    success = await service.attach_timelapse(
+        archive_id,
+        timelapse_data,
+        filename,
+        expected_started_at=run_started_at,
+    )
     if not success:
         raise HTTPException(500, "Failed to attach timelapse")
 
@@ -2589,15 +2573,18 @@ async def select_timelapse(
 async def upload_timelapse(
     archive_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Manually upload a timelapse video to an archive."""
     service = ArchiveService(db)
     archive = await service.get_archive(archive_id)
     if not archive:
         raise HTTPException(404, "Archive not found")
+    _ensure_archive_visible(archive, access)
+    await ensure_whole_archive_visible(db, archive, access)
 
+    run_started_at = archive.started_at
     if not file.filename or not file.filename.endswith((".mp4", ".avi", ".mkv")):
         raise HTTPException(400, "File must be a video file (.mp4, .avi, .mkv)")
 
@@ -2606,7 +2593,12 @@ async def upload_timelapse(
     except ArchiveBudgetError as exc:
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
     safe_filename = _safe_filename(file.filename)
-    success = await service.attach_timelapse(archive_id, content, safe_filename)
+    success = await service.attach_timelapse(
+        archive_id,
+        content,
+        safe_filename,
+        expected_started_at=run_started_at,
+    )
 
     if not success:
         raise HTTPException(500, "Failed to attach timelapse")
@@ -2617,35 +2609,39 @@ async def upload_timelapse(
 @router.get("/{archive_id}/timelapse/info")
 async def get_timelapse_info(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Get timelapse video metadata for editor."""
     from backend.app.schemas.timelapse import TimelapseInfoResponse
+    from backend.app.services.timelapse_jobs import source_version, timelapse_source
     from backend.app.services.timelapse_processor import TimelapseProcessor
 
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
     if not archive.timelapse_path:
         raise HTTPException(404, "Timelapse not found")
 
-    timelapse_path = settings.base_dir / archive.timelapse_path
-    if not timelapse_path.exists():
-        raise HTTPException(404, "Timelapse file not found")
-
     try:
-        processor = TimelapseProcessor(timelapse_path)
-        info = await processor.get_info()
-        return TimelapseInfoResponse(**info)
-    except Exception as e:
-        logger.error("Failed to get timelapse info: %s", e)
-        raise HTTPException(500, f"Failed to get video info: {str(e)}")
+        timelapse_path = timelapse_source(archive.timelapse_path)
+        revision = source_version(timelapse_path)
+        info = await TimelapseProcessor(timelapse_path).get_info()
+        if source_version(timelapse_path) != revision:
+            raise HTTPException(409, "The timelapse changed. Reopen the editor and try again.")
+        return TimelapseInfoResponse(source_version=revision, **info)
+    except TimeoutError as exc:
+        raise HTTPException(504, "Timelapse inspection timed out") from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(404, "Timelapse file not found") from exc
+    except RuntimeError as exc:
+        raise HTTPException(500, "Failed to get video info") from exc
 
 
 @router.get("/{archive_id}/timelapse/thumbnails")
@@ -2653,11 +2649,12 @@ async def get_timelapse_thumbnails(
     archive_id: int,
     count: int = Query(10, ge=1, le=30),
     width: int = Query(160, ge=80, le=320),
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -2667,9 +2664,9 @@ async def get_timelapse_thumbnails(
     from backend.app.schemas.timelapse import ThumbnailResponse
     from backend.app.services.timelapse_processor import TimelapseProcessor
 
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
     if not archive.timelapse_path:
         raise HTTPException(404, "Timelapse not found")
 
@@ -2690,117 +2687,144 @@ async def get_timelapse_thumbnails(
         raise HTTPException(500, f"Failed to generate thumbnails: {str(e)}")
 
 
+def _timelapse_job_scope(access: OwnershipAccess) -> tuple[str, int]:
+    if access.api_key is not None:
+        return "key", access.api_key.id
+    if access.user is not None:
+        return "user", access.user.id
+    return "appliance", 0
+
+
+async def _timelapse_edit_archive(db: AsyncSession, archive_id: int, access: OwnershipAccess) -> PrintArchive:
+    archive = _ensure_archive_visible(await ArchiveService(db).get_archive(archive_id), access)
+    await ensure_whole_archive_visible(db, archive, access)
+    return archive
+
+
 @router.post("/{archive_id}/timelapse/process")
 async def process_timelapse(
     archive_id: int,
+    response: Response,
     trim_start: float = Form(0),
-    trim_end: float = Form(None),
+    trim_end: float | None = Form(None),
     speed: float = Form(1.0),
     save_mode: str = Form("new"),
-    output_filename: str = Form(None),
-    audio: UploadFile = File(None),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    output_filename: str | None = Form(None),
+    expected_version: str | None = Form(None, alias="source_version"),
+    audio: UploadFile | None = File(None),
+    background: bool = Query(False),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
-    """Process timelapse with trim, speed, and optional audio overlay."""
-    import shutil
-    import tempfile
+    """Process a timelapse or return a cancellable background job."""
+    from backend.app.services import timelapse_jobs
+    from backend.app.services.archive_merge import finish_archive_media_edit, start_archive_media_edit
 
-    from backend.app.schemas.timelapse import ProcessResponse
-    from backend.app.services.timelapse_processor import TimelapseProcessor
-
-    # Validate speed
     if not 0.25 <= speed <= 4.0:
         raise HTTPException(400, "Speed must be between 0.25 and 4.0")
-
+    if (
+        not math.isfinite(trim_start)
+        or trim_start < 0
+        or (trim_end is not None and (not math.isfinite(trim_end) or trim_end <= trim_start))
+    ):
+        raise HTTPException(400, "Invalid timelapse trim range")
     if save_mode not in ("replace", "new"):
         raise HTTPException(400, "save_mode must be 'replace' or 'new'")
+    if background and expected_version is None:
+        raise HTTPException(400, "A source version is required for background edits")
 
-    service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
-    if not archive or not archive.timelapse_path:
+    archive = await _timelapse_edit_archive(db, archive_id, access)
+    if not archive.timelapse_path:
         raise HTTPException(404, "Timelapse not found")
-
-    timelapse_path = settings.base_dir / archive.timelapse_path
-    if not timelapse_path.exists():
-        raise HTTPException(404, "Timelapse file not found")
-
-    archive_dir = timelapse_path.parent
-
-    # Handle audio file
-    audio_temp_path = None
-    if audio and audio.filename:
-        # Validate audio file extension
-        if not audio.filename.lower().endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
-            raise HTTPException(400, "Audio must be .mp3, .wav, .m4a, .aac, or .ogg")
-
-        try:
-            audio_content = await read_upload_limited(audio)
-        except ArchiveBudgetError as exc:
-            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
-        # Extract and validate suffix to prevent path injection
-        suffix = Path(audio.filename).suffix.lower()
-        if suffix not in (".mp3", ".wav", ".m4a", ".aac", ".ogg"):
-            raise HTTPException(400, "Invalid audio file extension")
-        audio_temp_path = Path(tempfile.gettempdir()) / f"audio_{archive_id}{suffix}"
-        audio_temp_path.write_bytes(audio_content)
-
     try:
-        processor = TimelapseProcessor(timelapse_path)
+        source = timelapse_jobs.timelapse_source(archive.timelapse_path)
+        version = timelapse_jobs.source_version(source)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(404, "Timelapse file not found") from exc
+    if expected_version is not None and expected_version != version:
+        raise HTTPException(409, "The timelapse changed. Reopen the editor and try again.")
 
-        # Determine output path
-        if save_mode == "replace":
-            # Process to temp file first, then replace
-            temp_output = Path(tempfile.gettempdir()) / f"processed_{archive_id}.mp4"
-            output_path = temp_output
-        else:
-            # Save as new file alongside original
-            filename = output_filename or f"{archive.print_name or 'timelapse'}_edited.mp4"
-            # Sanitize filename - remove path separators and traversal sequences
-            filename = "".join(c for c in filename if c.isalnum() or c in "._- ")
-            # Prevent path traversal
-            if ".." in filename or not filename or filename.startswith("."):
-                filename = f"timelapse_{archive_id}_edited"
-            if not filename.endswith(".mp4"):
-                filename += ".mp4"
-            output_path = archive_dir / filename  # SEC-PATH-OK: filename alnum-filtered + .. rejected above
+    destination = source
+    if save_mode == "new":
+        filename = output_filename or f"{archive.print_name or 'timelapse'}_edited"
+        filename = "".join(c for c in filename if c.isalnum() or c in "._- ").strip()[:180]
+        if ".." in filename or not filename or filename.startswith("."):
+            filename = f"timelapse_{archive_id}_edited"
+        if not filename.lower().endswith(".mp4"):
+            filename += ".mp4"
+        destination = safe_join_under(source.parent, filename)
+        if destination.exists():
+            raise HTTPException(409, "A timelapse with this filename already exists.")
 
-        success = await processor.process(
-            output_path=output_path,
-            trim_start=trim_start,
-            trim_end=trim_end,
-            speed=speed,
-            audio_path=audio_temp_path,
-        )
+    audio_suffix = Path(audio.filename).suffix.lower() if audio and audio.filename else None
+    if audio and audio.filename and audio_suffix not in {".mp3", ".wav", ".m4a", ".aac", ".ogg"}:
+        raise HTTPException(400, "Audio must be .mp3, .wav, .m4a, .aac, or .ogg")
+    try:
+        audio_data = await read_upload_limited(audio) if audio_suffix and audio is not None else None
+    except ArchiveBudgetError as exc:
+        raise HTTPException(413, str(exc)) from exc
 
-        if not success:
-            raise HTTPException(500, "Video processing failed")
+    spec = timelapse_jobs.EditSpec(
+        archive_id,
+        archive.timelapse_path,
+        source,
+        version,
+        trim_start,
+        trim_end,
+        speed,
+        destination,
+        save_mode == "replace",
+        audio_suffix,
+    )
+    try:
+        if background:
+            job = timelapse_jobs.start_job(spec, audio_data, _timelapse_job_scope(access))
+            response.status_code = 202
+            return job.response()
+        if not start_archive_media_edit(archive_id):
+            raise timelapse_jobs.TimelapseConflict("Archive media is already being changed")
+        try:
+            return await timelapse_jobs.render_edit(spec, audio_data)
+        finally:
+            finish_archive_media_edit(archive_id)
+    except timelapse_jobs.TimelapseConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(504, "Timelapse processing timed out") from exc
+    except (RuntimeError, OSError) as exc:
+        logger.exception("Timelapse processing failed for archive %s", archive_id)
+        raise HTTPException(500, "Timelapse processing failed") from exc
 
-        # Handle save mode
-        if save_mode == "replace":
-            # Replace original file
-            shutil.move(str(output_path), str(timelapse_path))
-            final_path = archive.timelapse_path
-            message = "Timelapse replaced successfully"
-        else:
-            final_path = str(output_path.relative_to(settings.base_dir))
-            message = f"Saved as {output_path.name}"
 
-        return ProcessResponse(
-            status="completed",
-            output_path=final_path,
-            message=message,
-        )
+@router.get("/{archive_id}/timelapse/job")
+async def get_timelapse_job(
+    archive_id: int,
+    job_id: str | None = Query(None),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
+):
+    from backend.app.services.timelapse_jobs import get_job
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Timelapse processing failed: %s", e)
-        raise HTTPException(500, f"Processing failed: {str(e)}")
-    finally:
-        # Cleanup temp audio file
-        if audio_temp_path and audio_temp_path.exists():
-            audio_temp_path.unlink()
+    await _timelapse_edit_archive(db, archive_id, access)
+    job = get_job(archive_id, _timelapse_job_scope(access), job_id)
+    return job.response() if job else None
+
+
+@router.delete("/{archive_id}/timelapse/job/{job_id}")
+async def cancel_timelapse_job(
+    archive_id: int,
+    job_id: str,
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
+):
+    from backend.app.services.timelapse_jobs import cancel_job, get_job
+
+    await _timelapse_edit_archive(db, archive_id, access)
+    job = get_job(archive_id, _timelapse_job_scope(access), job_id)
+    if job is None:
+        raise HTTPException(404, "Timelapse job not found")
+    await cancel_job(job)
+    return job.response()
 
 
 # Photo Endpoints
@@ -2810,15 +2834,17 @@ async def process_timelapse(
 async def upload_photo(
     archive_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN, include_api_key=True
+        )
     ),
 ):
     """Upload a photo of the printed result."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     if not file.filename or not file.filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
         raise HTTPException(400, "File must be an image (.jpg, .jpeg, .png, .webp)")
@@ -2857,37 +2883,31 @@ async def upload_photo(
 async def get_photo(
     archive_id: int,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    run_id: int | None = Query(None, gt=0),
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get a specific photo.
 
     Requires a media token query param (?token=xxx) when auth is enabled.
     """
-    user, can_read_all = auth_result
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
-    if api_key is not None:
-        check_printer_access(api_key, archive.printer_id)
-    if not archive:
-        raise HTTPException(404, "Archive not found")
-
-    # Membership check first — UUID-generated names on upload mean any URL
-    # filename that doesn't appear here is by definition not a real photo.
-    # Mirrors the delete handler below; previously this endpoint had no
-    # membership check at all and joined `filename` straight to disk.
-    if not archive.photos or filename not in archive.photos:
+    archive = await _ensure_archive_history_visible(db, result.scalar_one_or_none(), auth_result)
+    if run_id is None:
+        await ensure_whole_archive_visible(db, archive, auth_result)
+        photos = archive.photos
+    else:
+        run = await _visible_archive_run(db, archive_id, run_id, auth_result)
+        photos = run.photos
+    if not photos or filename not in photos:
         raise HTTPException(404, "Photo not found")
 
-    archive_dir = settings.base_dir / Path(archive.file_path).parent
-    photos_dir = archive_dir / "photos"
-    # Defence-in-depth: even though the membership check above already
-    # constrains `filename` to UUID-generated names from upload, the
-    # resolve + containment check guards against future code paths that
-    # might populate `archive.photos` from a less-trusted source.
+    from backend.app.utils.archive_paths import archive_dir
+
+    directory = archive_dir(archive, base_dir=settings.base_dir, archive_root=settings.archive_dir)
+    photos_dir = assert_under(settings.base_dir, directory / "photos")
     photo_path = safe_join_under(photos_dir, filename)
 
     if not photo_path.exists():
@@ -2903,38 +2923,46 @@ async def get_photo(
     }
     media_type = media_types.get(ext, "image/jpeg")
 
-    return FileResponse(path=photo_path, media_type=media_type)
+    return FileResponse(path=photo_path, media_type=media_type, headers={"Cache-Control": "no-cache"})
 
 
 @router.delete("/{archive_id}/photos/{filename}")
 async def delete_photo(
     archive_id: int,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN, include_api_key=True
+        )
     ),
 ):
     """Delete a photo."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     if not archive.photos or filename not in archive.photos:
         raise HTTPException(404, "Photo not found")
 
-    # Delete file — same defence-in-depth as get_photo above.
-    archive_dir = settings.base_dir / Path(archive.file_path).parent
-    photos_dir = archive_dir / "photos"
+    from backend.app.utils.archive_paths import archive_dir
+
+    directory = archive_dir(archive, base_dir=settings.base_dir, archive_root=settings.archive_dir)
+    photos_dir = assert_under(settings.base_dir, directory / "photos")
     photo_path = safe_join_under(photos_dir, filename)
-    if photo_path.exists():
-        photo_path.unlink()
+    runs = await db.scalars(
+        select(PrintLogEntry).where(PrintLogEntry.archive_id == archive_id, PrintLogEntry.photos.is_not(None))
+    )
+    for run in runs:
+        if filename in run.photos:
+            run.photos = [photo for photo in run.photos if photo != filename]
 
     # Update archive photos list
     photos = [p for p in archive.photos if p != filename]
     archive.photos = photos if photos else None
 
     await db.commit()
+    photo_path.unlink(missing_ok=True)
 
     return {"status": "deleted", "photos": archive.photos}
 
@@ -2947,17 +2975,15 @@ async def get_qrcode(
     archive_id: int,
     request: Request,
     size: int = 200,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Generate a QR code that links to this archive.
 
     Requires a media token query param (?token=xxx) when auth is enabled.
     """
-    user, can_read_all = auth_result
     try:
         import qrcode
         from PIL import Image as PILImage
@@ -2965,9 +2991,7 @@ async def get_qrcode(
         raise HTTPException(500, "QR code generation not available - qrcode package not installed")
 
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
-    if api_key is not None:
-        check_printer_access(api_key, archive.printer_id)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3010,20 +3034,20 @@ async def get_qrcode(
 @router.get("/{archive_id}/capabilities")
 async def get_archive_capabilities(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Check what viewing capabilities are available for this 3MF file."""
     import defusedxml.ElementTree as ET
 
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -3234,11 +3258,12 @@ async def get_archive_capabilities(
 async def get_gcode(
     archive_id: int,
     plate: int | None = None,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -3248,9 +3273,8 @@ async def get_gcode(
     (e.g. ``?plate=2`` returns ``Metadata/plate_2.gcode``). If omitted, falls
     back to the lowest numbered plate, independent of ZIP member order.
     """
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -3262,11 +3286,10 @@ async def get_gcode(
 @router.get("/{archive_id}/plate-preview")
 async def get_plate_preview(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the plate preview image from the 3MF file.
 
@@ -3275,11 +3298,8 @@ async def get_plate_preview(
 
     Requires a media token query param (?token=xxx) when auth is enabled.
     """
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
-    if api_key is not None:
-        check_printer_access(api_key, archive.printer_id)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3338,10 +3358,11 @@ async def get_plate_preview(
 async def upload_archive(
     file: UploadFile = File(...),
     printer_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_CREATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_CREATE)),
 ):
     """Manually upload a 3MF file to archive."""
+    await _validate_archive_printer_target(db, printer_id, access)
     if not file.filename or not file.filename.endswith(".3mf"):
         raise HTTPException(400, "File must be a .3mf file")
 
@@ -3369,7 +3390,7 @@ async def upload_archive(
         archive = await service.archive_print(
             printer_id=printer_id,
             source_file=temp_path,
-            created_by_id=current_user.id if current_user else None,
+            created_by_id=access.user.id if access.user else None,
         )
 
         if not archive:
@@ -3385,66 +3406,51 @@ async def upload_archive(
 async def upload_archives_bulk(
     files: list[UploadFile] = File(...),
     printer_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_CREATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_CREATE)),
 ):
     """Bulk upload multiple 3MF files to archive."""
+    await _validate_archive_printer_target(db, printer_id, access)
     from backend.app.api.routes.library import validate_print_file_upload
 
     results = []
     errors = []
+    created_by_id = access.user.id if access.user else None
+    temp_root = settings.archive_dir / "temp"
 
-    for file in files:
+    for index, file in enumerate(files):
+        outcome = {"index": index, "filename": file.filename or "unknown"}
         if not file.filename or not file.filename.endswith(".3mf"):
-            errors.append({"filename": file.filename or "unknown", "error": "Not a .3mf file"})
+            errors.append({**outcome, "error": "Not a .3mf file"})
             continue
 
-        safe_filename = _safe_filename(file.filename)
-        temp_path = (
-            settings.archive_dir / "temp" / safe_filename
-        )  # SEC-PATH-OK: safe_filename = _safe_filename(...) basename-stripped above
-        temp_path.parent.mkdir(parents=True, exist_ok=True)
-
         try:
-            try:
-                content = await read_upload_limited(file)
-            except ArchiveBudgetError as exc:
-                errors.append({"filename": file.filename, "error": str(exc)})
-                continue
-            # #1401: bulk-upload variant of the library validation. Collect
-            # the rejection per-file rather than aborting the whole batch
-            # so one bad file in a 10-file drag-drop doesn't lose the
-            # other nine.
-            try:
-                validate_print_file_upload(file.filename, content)
-            except HTTPException as exc:
-                errors.append({"filename": file.filename, "error": exc.detail})
-                continue
-            temp_path.write_bytes(content)
-
-            service = ArchiveService(db)
-            archive = await service.archive_print(
-                printer_id=printer_id,
-                source_file=temp_path,
-                created_by_id=current_user.id if current_user else None,
-            )
-
-            if archive:
-                results.append(
-                    {
-                        "filename": file.filename,
-                        "id": archive.id,
-                        "status": "success",
-                    }
+            content = await read_upload_limited(file)
+            validate_print_file_upload(file.filename, content)
+            temp_root.mkdir(parents=True, exist_ok=True)
+            with TemporaryDirectory(prefix="bulk-upload-", dir=temp_root) as work_dir:
+                temp_path = safe_join_under(Path(work_dir), _safe_filename(file.filename), http=False)
+                temp_path.write_bytes(content)
+                archive = await ArchiveService(db).archive_print(
+                    printer_id=printer_id,
+                    source_file=temp_path,
+                    created_by_id=created_by_id,
                 )
+            if archive is None:
+                await db.rollback()
+                errors.append({**outcome, "error": "Failed to process"})
             else:
-                errors.append({"filename": file.filename, "error": "Failed to process"})
-        except Exception as e:
-            logger.exception("Failed to upload archive %s: %s", file.filename, e)
-            errors.append({"filename": file.filename, "error": "Failed to process file"})
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
+                results.append({**outcome, "id": archive.id, "status": "success"})
+        except ArchiveBudgetError as exc:
+            errors.append({**outcome, "error": str(exc)})
+        except HTTPException as exc:
+            detail = exc.detail
+            message = detail.get("message", str(detail)) if isinstance(detail, dict) else str(detail)
+            errors.append({**outcome, "error": message})
+        except Exception:
+            await db.rollback()
+            logger.exception("Failed to upload archive %s", file.filename)
+            errors.append({**outcome, "error": "Failed to process file"})
 
     return {
         "uploaded": len(results),
@@ -3457,11 +3463,12 @@ async def upload_archives_bulk(
 @router.get("/{archive_id}/plates")
 async def get_archive_plates(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -3474,9 +3481,8 @@ async def get_archive_plates(
 
     import defusedxml.ElementTree as ET
 
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -3537,7 +3543,6 @@ async def get_archive_plates(
                         plate_indices.append(index)
 
             if not plate_indices:
-                # No plate metadata found
                 return {
                     "archive_id": archive_id,
                     "filename": archive.filename,
@@ -3656,6 +3661,7 @@ async def get_archive_plates(
                                     "type": filament_type,
                                     "color": filament_color,
                                     "used_grams": round(used_grams, 1),
+                                    "tray_info_idx": filament_elem.get("tray_info_idx") or "",
                                     "used_meters": float(used_m) if used_m else 0,
                                 }
                             )
@@ -3763,21 +3769,17 @@ async def get_archive_plates(
 async def get_plate_thumbnail(
     archive_id: int,
     plate_index: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get the thumbnail image for a specific plate.
 
     Requires a media token query param (?token=xxx) when auth is enabled.
     """
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
-    if api_key is not None:
-        check_printer_access(api_key, archive.printer_id)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -3847,11 +3849,12 @@ async def get_filament_requirements(
     archive_id: int,
     plate_id: int | None = None,
     request_id: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -3866,9 +3869,8 @@ async def get_filament_requirements(
     """
     import defusedxml.ElementTree as ET
 
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = await _ensure_archive_history_visible(db, await service.get_archive(archive_id), auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -3984,7 +3986,7 @@ async def get_filament_requirements(
             filaments.sort(key=lambda x: x["slot_id"])
 
             # Enrich with nozzle mapping for dual-nozzle printers
-            nozzle_mapping = extract_nozzle_mapping_from_3mf(zf)
+            nozzle_mapping = extract_nozzle_mapping_from_3mf(zf, plate_id=plate_id)
             if nozzle_mapping:
                 for filament in filaments:
                     filament["nozzle_id"] = nozzle_mapping.get(filament["slot_id"])
@@ -4004,10 +4006,10 @@ async def get_filament_requirements(
 async def slice_archive(
     archive_id: int,
     request: SliceRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.LIBRARY_UPLOAD),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
 ):
     """Enqueue a slice job for an archive's source. Returns 202 + job_id;
@@ -4024,8 +4026,8 @@ async def slice_archive(
         slice_dispatch,
     )
 
-    user, can_read_all = auth_result
-    archive = _ensure_archive_visible(await db.get(PrintArchive, archive_id), user, can_read_all)
+    visibility = await resolve_row_visibility(db, auth_result.user, auth_result.api_key)
+    archive = await require_archive_source(db, archive_id, visibility)
 
     src_relative = archive.source_3mf_path or archive.file_path
     if not src_relative:
@@ -4090,7 +4092,7 @@ async def slice_archive(
         kind="archive",
         source_id=archive.id,
         source_name=archive.print_name or archive.filename or f"archive {archive.id}",
-        owner_id=user_id,
+        owner_id=visibility.user.id if visibility.user is not None else None,
         run=_run,
     )
     return {
@@ -4130,11 +4132,12 @@ async def reprint_archive(
 @router.get("/{archive_id}/project-page")
 async def get_project_page(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
@@ -4142,9 +4145,8 @@ async def get_project_page(
     from backend.app.schemas.archive import ProjectPageResponse
     from backend.app.services.archive import ProjectPageParser
 
-    user, can_read_all = auth_result
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -4160,17 +4162,19 @@ async def get_project_page(
 async def update_project_page(
     archive_id: int,
     update_data: dict,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN, include_api_key=True
+        )
     ),
 ):
     """Update project page metadata in the 3MF file."""
     from backend.app.services.archive import ProjectPageParser
 
     service = ArchiveService(db)
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_modify_all)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     file_path = settings.base_dir / archive.file_path
     if not file_path.is_file():
@@ -4191,23 +4195,19 @@ async def update_project_page(
 async def get_project_image(
     archive_id: int,
     image_path: str,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_media_token_ownership(Permission.ARCHIVES_READ_ALL, Permission.ARCHIVES_READ_OWN, include_api_key=True)
     ),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get an image from the 3MF project page.
 
     Requires a media token query param (?token=xxx) when auth is enabled.
     """
-    user, can_read_all = auth_result
     from backend.app.services.archive import ProjectPageParser
 
     service = ArchiveService(db)
-    archive = _ensure_archive_visible(await service.get_archive(archive_id), user, can_read_all)
-    if api_key is not None:
-        check_printer_access(api_key, archive.printer_id)
+    archive = _ensure_archive_visible(await service.get_archive(archive_id), auth_result)
     if not archive:
         raise HTTPException(404, "Archive not found")
 
@@ -4283,15 +4283,17 @@ def _resolve_source_3mf_path(archive: PrintArchive, source_filename: str) -> Pat
 async def upload_source_3mf(
     archive_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN, include_api_key=True
+        )
     ),
 ):
     """Upload the original source 3MF project file for an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     if not file.filename or not file.filename.endswith(".3mf"):
         raise HTTPException(400, "File must be a .3mf file")
@@ -4332,18 +4334,18 @@ async def upload_source_3mf(
 @router.get("/{archive_id}/source")
 async def download_source_3mf(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Download the source 3MF project file."""
-    user, can_read_all = auth_result
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
 
     if not archive.source_3mf_path:
         raise HTTPException(404, "No source 3MF attached to this archive")
@@ -4366,18 +4368,18 @@ async def download_source_3mf(
 async def download_source_3mf_for_slicer(
     archive_id: int,
     filename: str,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Download source 3MF with filename in URL."""
-    user, can_read_all = auth_result
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
 
     if not archive.source_3mf_path:
         raise HTTPException(404, "No source 3MF attached to this archive")
@@ -4396,20 +4398,20 @@ async def download_source_3mf_for_slicer(
 @router.post("/{archive_id}/source-slicer-token")
 async def create_source_slicer_token(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Create a short-lived download token for opening source 3MF in slicer."""
     from backend.app.core.auth import create_slicer_download_token
 
-    user, can_read_all = auth_result
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
     if not archive.source_3mf_path:
         raise HTTPException(404, "No source 3MF attached to this archive")
 
@@ -4422,7 +4424,7 @@ async def download_source_3mf_for_slicer_with_token(
     archive_id: int,
     token: str,
     filename: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Download source 3MF using a slicer download token.
 
@@ -4457,8 +4459,8 @@ async def download_source_3mf_for_slicer_with_token(
 async def upload_source_3mf_by_name(
     file: UploadFile = File(...),
     print_name: str = Query(None, description="Match archive by print name"),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.ARCHIVES_UPDATE_ALL)),
 ):
     """Upload source 3MF and match to archive by print name.
 
@@ -4478,34 +4480,22 @@ async def upload_source_3mf_by_name(
         if print_name.endswith("_source"):
             print_name = print_name[:-7]
 
-    # Find matching archive - try exact match first, then fuzzy
-    result = await db.execute(
+    # Match the newest visible row at each level, from exact name to partial.
+    query = (
         select(PrintArchive)
-        .where(PrintArchive.print_name == print_name)
+        .where(PrintArchive.deleted_at.is_(None), *whole_archive_conditions(access))
         .order_by(PrintArchive.created_at.desc())
         .limit(1)
     )
-    archive = result.scalar_one_or_none()
-
-    if not archive:
-        # Try matching filename without .gcode.3mf
-        result = await db.execute(
-            select(PrintArchive)
-            .where(PrintArchive.filename.like(f"{print_name}%"))
-            .order_by(PrintArchive.created_at.desc())
-            .limit(1)
-        )
-        archive = result.scalar_one_or_none()
-
-    if not archive:
-        # Try case-insensitive partial match on print_name
-        result = await db.execute(
-            select(PrintArchive)
-            .where(PrintArchive.print_name.ilike(f"%{print_name}%"))
-            .order_by(PrintArchive.created_at.desc())
-            .limit(1)
-        )
-        archive = result.scalar_one_or_none()
+    archive = None
+    for match in (
+        PrintArchive.print_name == print_name,
+        PrintArchive.filename.like(f"{print_name}%"),
+        PrintArchive.print_name.ilike(f"%{print_name}%"),
+    ):
+        archive = await db.scalar(query.where(match))
+        if archive is not None:
+            break
 
     if not archive:
         raise HTTPException(404, f"No archive found matching '{print_name}'")
@@ -4549,15 +4539,17 @@ async def upload_source_3mf_by_name(
 @router.delete("/{archive_id}/source")
 async def delete_source_3mf(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN, include_api_key=True
+        )
     ),
 ):
     """Delete the source 3MF project file from an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     if not archive.source_3mf_path:
         raise HTTPException(404, "No source 3MF attached to this archive")
@@ -4581,15 +4573,17 @@ async def delete_source_3mf(
 async def upload_f3d(
     archive_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_UPDATE_ALL, Permission.ARCHIVES_UPDATE_OWN, include_api_key=True
+        )
     ),
 ):
     """Upload a Fusion 360 design file for an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     if not file.filename or not file.filename.endswith(".f3d"):
         raise HTTPException(400, "File must be a .f3d file")
@@ -4632,18 +4626,18 @@ async def upload_f3d(
 @router.get("/{archive_id}/f3d")
 async def download_f3d(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
         require_ownership_permission(
             Permission.ARCHIVES_READ_ALL,
             Permission.ARCHIVES_READ_OWN,
+            include_api_key=True,
         )
     ),
 ):
     """Download the Fusion 360 design file."""
-    user, can_read_all = auth_result
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_read_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
 
     if not archive.f3d_path:
         raise HTTPException(404, "No F3D file attached to this archive")
@@ -4665,15 +4659,17 @@ async def download_f3d(
 @router.delete("/{archive_id}/f3d")
 async def delete_f3d(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
-    auth_result: tuple[User | None, bool] = Depends(
-        require_ownership_permission(Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN)
+    db: AsyncSession = DB_SESSION,
+    auth_result: OwnershipAccess = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_DELETE_ALL, Permission.ARCHIVES_DELETE_OWN, include_api_key=True
+        )
     ),
 ):
     """Delete the Fusion 360 design file from an archive."""
     result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-    user, can_modify_all = auth_result
-    archive = _ensure_archive_visible(result.scalar_one_or_none(), user, can_modify_all)
+    archive = _ensure_archive_visible(result.scalar_one_or_none(), auth_result)
+    await ensure_whole_archive_visible(db, archive, auth_result)
 
     if not archive.f3d_path:
         raise HTTPException(404, "No F3D file attached to this archive")

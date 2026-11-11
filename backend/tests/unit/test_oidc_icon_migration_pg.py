@@ -53,6 +53,8 @@ async def _capture_sql(is_sqlite_value: bool) -> list[str]:
     fake_conn.begin_nested = lambda: _AsyncCtxStub()
     fake_conn.dialect.name = "sqlite" if is_sqlite_value else "postgresql"
     fake_conn.run_sync = AsyncMock(return_value={"allowed_printer_ids"})
+    fake_conn.scalar = AsyncMock(return_value=None)
+    fake_conn.exec_driver_sql = AsyncMock()
     fake_conn.execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
 
     with (
@@ -61,6 +63,7 @@ async def _capture_sql(is_sqlite_value: bool) -> list[str]:
         patch("backend.app.core.database._migrate_update_auto_link_constraint", AsyncMock()),
         patch("backend.app.core.database._migrate_widen_spoolman_slot_ams_id_range", AsyncMock()),
         patch("backend.app.core.database.migrate_spool_k_profile_contexts", AsyncMock()),
+        patch("backend.app.core.print_log_legacy_migration.has_legacy_print_log", AsyncMock(return_value=False)),
     ):
         await db_module.run_migrations(fake_conn)
 

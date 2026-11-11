@@ -15,6 +15,7 @@ import type { ArchiveSlim } from '../api/client';
 import { MetricToggle, type Metric } from './MetricToggle';
 import { parseUTCDate } from '../utils/date';
 import { formatWeight } from '../utils/weight';
+import { splitFilamentTypes } from '../utils/filamentTypes';
 import { MeasuredResponsiveContainer } from './charts/MeasuredResponsiveContainer';
 
 interface FilamentTrendsProps {
@@ -28,6 +29,11 @@ const COLORS = ['#00ae42', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOUR_SUFFIXES = ['12am', '1am', '2am', '3am', '4am', '5am', '6am', '7am', '8am', '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm', '7pm', '8pm', '9pm', '10pm', '11pm'];
+
+function archiveFilamentTypes(value: ArchiveSlim['filament_type']): string[] {
+  const types = splitFilamentTypes(value);
+  return types.length ? types : ['Unknown'];
+}
 
 export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: FilamentTrendsProps) {
   const { t: translateInterface } = useTranslation();
@@ -137,9 +143,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
     const dataMap = new Map<string, number>();
 
     archives.forEach(archive => {
-      const type = archive.filament_type || 'Unknown';
-      // Handle multiple types (e.g., "PLA, PETG")
-      const types = type.split(', ');
+      const types = archiveFilamentTypes(archive.filament_type);
       types.forEach(t => {
         const grams = (archive.filament_used_grams || 0) / types.length;
         dataMap.set(t, (dataMap.get(t) || 0) + grams);
@@ -155,8 +159,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
   const filamentTypePrintData = useMemo(() => {
     const dataMap = new Map<string, number>();
     archives.forEach(archive => {
-      const type = archive.filament_type || 'Unknown';
-      const types = type.split(', ');
+      const types = archiveFilamentTypes(archive.filament_type);
       types.forEach(t => {
         dataMap.set(t, (dataMap.get(t) || 0) + 1);
       });
@@ -170,8 +173,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
   const filamentTypeTimeData = useMemo(() => {
     const dataMap = new Map<string, number>();
     archives.forEach(archive => {
-      const type = archive.filament_type || 'Unknown';
-      const types = type.split(', ');
+      const types = archiveFilamentTypes(archive.filament_type);
       const seconds = (archive.actual_time_seconds ?? archive.print_time_seconds ?? 0) / types.length;
       types.forEach(t => {
         dataMap.set(t, (dataMap.get(t) || 0) + seconds);
@@ -187,7 +189,7 @@ export function FilamentTrends({ archives, currency = '$', dateFrom, dateTo }: F
     const map = new Map<string, { completed: number; failed: number }>();
     archives.forEach(a => {
       if (a.status !== 'completed' && a.status !== 'failed') return;
-      const types = (a.filament_type || 'Unknown').split(', ');
+      const types = archiveFilamentTypes(a.filament_type);
       types.forEach(type => {
         const entry = map.get(type) || { completed: 0, failed: 0 };
         if (a.status === 'completed') entry.completed++;

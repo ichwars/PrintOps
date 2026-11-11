@@ -1,21 +1,27 @@
 import { useState, useEffect, useSyncExternalStore, useRef, useCallback } from 'react';
-import { useParams, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, AlertTriangle, Camera, Maximize, Minimize, WifiOff, ZoomIn, ZoomOut, Stethoscope, Thermometer } from 'lucide-react';
+import { RefreshCw, AlertTriangle, ArrowLeft, Camera, PanelTopOpen, Maximize, Minimize, WifiOff, ZoomIn, ZoomOut, Stethoscope, Thermometer } from 'lucide-react';
 import { api, getAuthSessionId, subscribeAuthSession, getAuthToken, getStreamToken, withStreamToken } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCameraStream } from '../hooks/useCameraStream';
+import { useStreamImgRef } from '../hooks/useStreamImgRef';
+import { useCameraViewport } from '../hooks/useCameraViewport';
 import { ChamberLight } from '../components/icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from '../components/SkipObjectsModal';
 import { CameraDiagnoseModal } from '../components/CameraDiagnoseModal';
 import { useCameraViewPreference } from '../hooks/useCameraViewPreference';
+import { isIosHomeScreenApp } from '../utils/cameraWindow';
+import { requestCameraOverlay } from '../utils/cameraHandoff';
+import { useCameraOverlayAccount } from '../hooks/useEmbeddedCameraSelection';
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 2000; // 2 seconds
 const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const STALL_CHECK_INTERVAL = 5000; // Check every 5 seconds
+const SNAPSHOT_RETRY_DELAY = 2000;
 
 export function CameraPage() {
   const { t } = useTranslation();
@@ -25,9 +31,33 @@ export function CameraPage() {
   const { printerId } = useParams<{ printerId: string }>();
   const id = parseInt(printerId || '0', 10);
   const [searchParams] = useSearchParams();
+  const cameraAccount = useCameraOverlayAccount();
+  const [embedding, setEmbedding] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [openedAsWindow] = useState(() =>
+    !isIosHomeScreenApp() && Boolean(window.opener || window.name.startsWith('camera-')),
+  );
+  const goBack = () => {
+    if (location.state?.fromCamWall === true && location.key !== 'default') navigate(-1);
+    else navigate('/printers', { replace: true });
+  };
   const launchView = searchParams.get('view');
   const publicToken = searchParams.get('camera_token');
   const anonymous = publicToken !== null;
+  const embedCamera = async () => {
+    if (!cameraAccount || embedding) return;
+    const session = getAuthSessionId();
+    setEmbedding(true);
+    const accepted = await requestCameraOverlay(id, cameraAccount);
+    if (session !== getAuthSessionId()) {
+      setEmbedding(false);
+      return;
+    }
+    if (accepted && openedAsWindow) window.close();
+    else navigate('/printers', { replace: true, state: { cameraOverlayId: id, cameraOverlayAccount: cameraAccount } });
+    setEmbedding(false);
+  };
   // Only the in-memory generation enters preference identity; never the token.
   const [publicLink, setPublicLink] = useState({ token: publicToken, generation: 0 });
   const linkGeneration = publicLink.generation + Number(publicLink.token !== publicToken);
@@ -75,7 +105,12 @@ export function CameraPage() {
   const [lastTouchCenter, setLastTouchCenter] = useState<{ x: number; y: number } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const frameBounds = useCameraViewport(viewportRef, printer?.camera_rotation ?? 0);
+  const frameLimits = frameBounds && { maxWidth: frameBounds.width, maxHeight: frameBounds.height, flexShrink: 0 };
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const snapshotRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const snapshotRetriedRef = useRef(false);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stallCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -97,14 +132,23 @@ export function CameraPage() {
     stallCheckIntervalRef.current = null;
   }, [streamMode, preferenceIdentity]);
 
+  useEffect(() => {
+    snapshotRetriedRef.current = false;
+    return () => {
+      if (snapshotRetryTimerRef.current) clearTimeout(snapshotRetryTimerRef.current);
+      snapshotRetryTimerRef.current = null;
+    };
+  }, [id, streamMode]);
+
   // MSE (fMP4-over-WebSocket, via go2rtc) is the primary player — see
   // useCameraStream and the matching integration in EmbeddedCameraViewer.tsx
   // for the full rationale. Falls back permanently to the MJPEG <img> path
   // below once it reports 'error' or 'unsupported'.
   const [mseGaveUp, setMseGaveUp] = useState(false);
+  const useMjpeg = mseGaveUp || printer?.external_camera_enabled === true;
   const { videoRef: mseVideoRef, status: mseStatus, reconnect: mseReconnect } = useCameraStream({
     printerId: id,
-    enabled: preferenceReady && !transitioning && id > 0 && streamMode === 'stream' && !!printer && !printer.external_camera_enabled && !mseGaveUp,
+    enabled: preferenceReady && !transitioning && id > 0 && streamMode === 'stream' && !!printer && !useMjpeg,
     onPlaying: () => {
       setStreamLoading(false);
       setStreamError(false);
@@ -180,16 +224,8 @@ export function CameraPage() {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
-    // Store ref value for cleanup - ref may change by cleanup time
-    const imgElement = imgRef.current;
-
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-
-      // Clear the image source first to stop the stream
-      if (imgElement) {
-        imgElement.src = '';
-      }
       // Send stop signal only once
       sendStopOnce();
     };
@@ -322,7 +358,7 @@ export function CameraPage() {
   useEffect(() => {
     // Only skip stall check during initial load, reconnecting, or transitioning
     // Continue checking even during streamError to detect recovery
-    if (!mseGaveUp || streamMode !== 'stream' || streamLoading || isReconnecting || transitioning) {
+    if (!useMjpeg || streamMode !== 'stream' || streamLoading || isReconnecting || transitioning) {
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
         stallCheckIntervalRef.current = null;
@@ -357,9 +393,18 @@ export function CameraPage() {
         stallCheckIntervalRef.current = null;
       }
     };
-  }, [mseGaveUp, streamMode, streamLoading, streamError, isReconnecting, transitioning, id, attemptReconnect]);
+  }, [useMjpeg, streamMode, streamLoading, streamError, isReconnecting, transitioning, id, attemptReconnect]);
 
   const handleStreamError = () => {
+    if (streamMode === 'snapshot' && !snapshotRetriedRef.current) {
+      snapshotRetriedRef.current = true;
+      snapshotRetryTimerRef.current = setTimeout(() => {
+        snapshotRetryTimerRef.current = null;
+        setImageKey(Date.now());
+      }, SNAPSHOT_RETRY_DELAY);
+      return;
+    }
+    if (snapshotRetryTimerRef.current) return;
     setStreamLoading(false);
 
     // Only auto-reconnect for live stream mode
@@ -371,6 +416,9 @@ export function CameraPage() {
   };
 
   const handleStreamLoad = () => {
+    if (snapshotRetryTimerRef.current) clearTimeout(snapshotRetryTimerRef.current);
+    snapshotRetryTimerRef.current = null;
+    snapshotRetriedRef.current = false;
     setStreamLoading(false);
     setStreamError(false);
     // Reset reconnect attempts on successful connection
@@ -457,6 +505,9 @@ export function CameraPage() {
 
   const refresh = () => {
     if (transitioning) return;
+    if (snapshotRetryTimerRef.current) clearTimeout(snapshotRetryTimerRef.current);
+    snapshotRetryTimerRef.current = null;
+    snapshotRetriedRef.current = false;
     setTransitioning(true);
     setStreamLoading(true);
     setStreamError(false);
@@ -483,7 +534,7 @@ export function CameraPage() {
       setImageKey(Date.now());
       setTransitioning(false);
     }, 100);
-    if (!mseGaveUp) mseReconnect();
+    if (!useMjpeg) mseReconnect();
   };
 
   const toggleFullscreen = () => {
@@ -656,6 +707,7 @@ export function CameraPage() {
     : streamMode === 'stream'
       ? appendToken(`/api/v1/printers/${id}/camera/stream?fps=${fps}&t=${imageKey}`)
       : appendToken(`/api/v1/printers/${id}/camera/snapshot?t=${imageKey}`);
+  const attachImage = useStreamImgRef(currentUrl, imgRef);
 
   const isDisabled = !preferenceReady || streamLoading || transitioning || isReconnecting;
 
@@ -668,10 +720,16 @@ export function CameraPage() {
   }
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-black flex flex-col">
+    <div ref={containerRef} className="h-dvh bg-black flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary">
         <h1 className="text-sm font-medium text-white flex items-center gap-2">
+          {!openedAsWindow && !anonymous && (
+            <button type="button" aria-label={t('common.back')} onClick={goBack}
+              className="rounded p-1 hover:bg-bambu-dark-tertiary">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          )}
           <Camera className="w-4 h-4" />
           {printer?.name || `${t('common.printer')} ${id}`}
         </h1>
@@ -741,6 +799,13 @@ export function CameraPage() {
           >
             <Thermometer className="w-4 h-4" />
           </button>
+          {cameraAccount && hasPermission('printers:read') && !anonymous && !isIosHomeScreenApp() && (
+            <button type="button" disabled={embedding} onClick={() => void embedCamera()}
+              className="rounded p-1.5 hover:bg-bambu-dark-tertiary disabled:opacity-50"
+              title={t('printers.openCameraOverlay')} aria-label={t('printers.openCameraOverlay')}>
+              <PanelTopOpen className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={() => setShowDiagnoseModal(true)}
             className="p-1.5 hover:bg-bambu-dark-tertiary rounded"
@@ -764,7 +829,7 @@ export function CameraPage() {
 
       {/* Video area */}
       <div
-        className="flex-1 flex items-center justify-center p-2 overflow-hidden"
+        className="flex-1 min-h-0 flex items-center justify-center p-2 overflow-hidden"
         onWheel={handleWheel}
         onMouseMove={handleImageMouseMove}
         onMouseUp={handleImageMouseUp}
@@ -774,7 +839,7 @@ export function CameraPage() {
         onTouchEnd={handleTouchEnd}
         style={{ touchAction: 'none' }}
       >
-        <div className="relative w-full h-full flex items-center justify-center">
+        <div ref={viewportRef} className="relative w-full h-full flex items-center justify-center">
           {showTempOverlay && status?.temperatures && (
             <div className="absolute top-4 right-4 flex flex-col gap-1 bg-black/60 rounded-lg px-3 py-2 text-xs text-white pointer-events-none">
               {status.temperatures.nozzle !== undefined && (
@@ -852,13 +917,13 @@ export function CameraPage() {
               </div>
             </div>
           )}
-          {streamMode === 'stream' && !mseGaveUp && (
+          {streamMode === 'stream' && !useMjpeg && (
             <video
               ref={mseVideoRef}
               className="max-w-full max-h-full object-contain select-none"
               style={{
                 transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px) rotate(${printer?.camera_rotation || 0}deg)`,
-                ...(printer?.camera_rotation === 90 || printer?.camera_rotation === 270 ? { maxWidth: '100vh', maxHeight: '100vw' } : {}),
+                ...frameLimits,
                 cursor: zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
                 display: mseStatus === 'playing' ? undefined : 'none',
               }}
@@ -868,19 +933,20 @@ export function CameraPage() {
               onMouseDown={handleImageMouseDown}
             />
           )}
-          {(streamMode !== 'stream' || mseGaveUp) && (
+          {(streamMode !== 'stream' || useMjpeg) && (
           <img
-            ref={imgRef}
+            ref={attachImage}
             key={imageKey}
-            src={currentUrl}
             alt={t('camera.cameraStream')}
             className="max-w-full max-h-full object-contain select-none"
             style={{
               transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px) rotate(${printer?.camera_rotation || 0}deg)`,
-              ...(printer?.camera_rotation === 90 || printer?.camera_rotation === 270 ? { maxWidth: '100vh', maxHeight: '100vw' } : {}),
+              ...frameLimits,
               cursor: zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
             }}
-            onError={currentUrl ? handleStreamError : undefined}
+            onError={currentUrl ? (event) => {
+              if (event.currentTarget.getAttribute('src')) handleStreamError();
+            } : undefined}
             onLoad={currentUrl ? handleStreamLoad : undefined}
             onMouseDown={handleImageMouseDown}
             draggable={false}
@@ -927,7 +993,7 @@ export function CameraPage() {
         <CameraDiagnoseModal
           printerId={id}
           printerName={printer?.name || null}
-          activePlayer={mseGaveUp ? 'mjpeg' : mseStatus === 'playing' ? 'mse' : 'connecting'}
+          activePlayer={useMjpeg ? 'mjpeg' : mseStatus === 'playing' ? 'mse' : 'connecting'}
           onClose={() => setShowDiagnoseModal(false)}
         />
       )}

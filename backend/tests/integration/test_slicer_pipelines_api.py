@@ -60,6 +60,20 @@ class TestSlicerPipelinesAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_bed_type_aliases_and_unknown_values(self, async_client: AsyncClient):
+        url = "/api/v1/slicer-pipelines/"
+        response = await async_client.post(url, json=_payload(bed_type="Cool Plate (SuperTack)"))
+        assert response.status_code == 201
+        assert response.json()["bed_type"] == "Supertack Plate"
+        update_url = f"{url}{response.json()['id']}"
+        response = await async_client.put(update_url, json={"bed_type": "Smooth PEI Plate"})
+        assert response.status_code == 200
+        assert response.json()["bed_type"] == "High Temp Plate"
+        assert (await async_client.post(url, json=_payload(bed_type="Glass Plate"))).status_code == 422
+        assert (await async_client.put(update_url, json={"bed_type": "Glass Plate"})).status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_get_by_id(self, async_client: AsyncClient):
         """Round-trips the preset slots through JSON storage faithfully."""
         created = (await async_client.post("/api/v1/slicer-pipelines/", json=_payload())).json()

@@ -2,15 +2,37 @@
 
 import asyncio
 import logging
+import ssl
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import httpx
 
+from backend.app.core.logging_filters import redact_refused_headers
+
 if TYPE_CHECKING:
     from backend.app.models.smart_plug import SmartPlug
 
 logger = logging.getLogger(__name__)
+
+
+def _tls_connection_error(error: httpx.ConnectError) -> str:
+    seen: set[int] = set()
+    cause: BaseException | None = error
+    while cause is not None and id(cause) not in seen:
+        seen.add(id(cause))
+        if isinstance(cause, ssl.SSLCertVerificationError):
+            match getattr(cause, "verify_code", None):
+                case 62 | 64:
+                    return "The Home Assistant hostname does not match its certificate."
+                case 10:
+                    return "The Home Assistant certificate has expired."
+                case _:
+                    return "The Home Assistant certificate could not be verified. Check the configured trust store."
+        if isinstance(cause, ssl.SSLError):
+            return "The secure connection to Home Assistant failed. Check the HTTPS address and port."
+        cause = cause.__cause__ or cause.__context__
+    return "Could not connect to Home Assistant"
 
 
 class HomeAssistantService:
@@ -231,10 +253,10 @@ class HomeAssistantService:
             return {"success": False, "message": None, "error": f"HTTP {e.response.status_code}"}
         except httpx.TimeoutException:
             return {"success": False, "message": None, "error": "Connection timeout"}
-        except httpx.ConnectError:
-            return {"success": False, "message": None, "error": "Could not connect to Home Assistant"}
+        except httpx.ConnectError as error:
+            return {"success": False, "message": None, "error": _tls_connection_error(error)}
         except Exception as e:
-            return {"success": False, "message": None, "error": str(e)}
+            return {"success": False, "message": None, "error": redact_refused_headers(str(e))}
 
     async def list_entities(self, url: str, token: str, search: str | None = None) -> list[dict]:
         """List available entities from HA.

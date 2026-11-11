@@ -71,8 +71,8 @@ def patched_env(fake_printer, monkeypatch):
         _get_setting,
     )
     monkeypatch.setattr(
-        "backend.app.api.routes.camera.get_buffered_frame",
-        lambda _pid: None,
+        "backend.app.api.routes.camera.live_frame_for_capture",
+        AsyncMock(return_value=(False, None)),
     )
     return fake_printer
 

@@ -1,7 +1,7 @@
 # Datenbank-Verbindungspool
 
 PrintOps verwendet ohne Umgebungsüberschreibungen für PostgreSQL `pool_size=20`
-und `max_overflow=20`, für SQLite `20 + 200`. Der maximale Bedarf eines
+und `max_overflow=20`, für SQLite `10 + 90`. Der maximale Bedarf eines
 Worker-Prozesses ist die Summe beider Werte. Verbindungen werden nach Bedarf
 geöffnet; der Grenzwert ist keine Vorreservierung auf dem Server.
 
@@ -47,3 +47,10 @@ der Datenbankverbindung kann den anschließenden Start verzögern; Fehler der
 eigentlichen Initialisierung oder Migration bleiben Fehler.
 SQLite führt diese Abfrage überhaupt nicht aus. Eine Wiederherstellung, die
 `init_db()` aufruft, löst keine zusätzliche Kapazitätsdiagnose aus.
+
+SQLite hält im WAL-Modus Dateideskriptoren zeitweise auch nach dem Schließen
+einer Verbindung. Der kleinere Pool begrenzt den Spitzenbedarf. Auf Systemen
+mit einem weichen Open-File-Limit hebt PrintOps dieses beim Prozessstart im
+Rahmen des harten Limits an. Das Supportpaket enthält die Limits, die
+Anzahl offener Deskriptoren und auf Linux die Anzahl je Typ. Pfade und
+Socket-Ziele werden dabei nicht erfasst.

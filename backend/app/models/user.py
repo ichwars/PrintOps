@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from backend.app.core.auth_time import AuthDateTime
 from backend.app.core.database import Base
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ class User(Base):
     """
 
     __tablename__ = "users"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     connected_identity: Mapped[str | None] = mapped_column(
@@ -41,7 +43,10 @@ class User(Base):
 
     # Set whenever the local password is changed/reset — used to invalidate JWTs
     # issued before the change (M-R7-B).  NULL means no password change recorded yet.
-    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The account begins at this cutoff, including LDAP and OIDC creation.
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        AuthDateTime(), nullable=True, default=lambda: datetime.now(timezone.utc)
+    )
 
     # NULL means all printers. A non-empty JSON list narrows printer-bound
     # resources after the regular Own/All permission check.

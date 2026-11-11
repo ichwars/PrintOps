@@ -2,21 +2,25 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useTranslation } from 'react-i18next';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, getAuthSessionId } from '../api/client';
 import { inventoryLocationsQueryKey } from '../utils/inventoryQueries';
 
-// The only auth-failure close code /api/v1/ws emits (websocket.py
-// _WS_CLOSE_UNAUTHORIZED). A 4401 means the ws-token was missing / invalid /
-// expired, or the caller lacks WEBSOCKET_CONNECT — none of which a reconnect can
-// fix without a fresh login (which remounts this provider anyway). Treat it as
-// terminal so we don't respawn the /auth/ws-token loop.
+// A 4401 on an accepted socket asks the tab to check its session again.
+// A refused HTTP handshake appears to the browser as an unopened socket.
 const WS_CLOSE_UNAUTHORIZED = 4401;
+const RECONNECT_MS = 3000;
+const AUTH_RECONNECT_MAX_MS = 300000;
+const HANDSHAKE_RECONNECT_MAX_MS = 30000;
 
 interface WebSocketMessage {
   type: string;
   printer_id?: number;
   data?: Record<string, unknown>;
   printer_name?: string;
+  reason?: string;
+  slot?: string;
+  verified?: boolean;
+  kprofile_applied?: boolean;
   missing_slots?: Array<{ slot?: string }>;
   // Slicer Pipeline run events (#1425 PR C). ``run`` carries the full
   // PipelineRunResponse payload — typed loosely here so the WebSocket hook
@@ -27,11 +31,9 @@ interface WebSocketMessage {
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
-  // Set true by the effect cleanup so a close event fired *during* unmount
-  // can't schedule a reconnect after the provider is gone (the old code cleared
-  // reconnectTimeoutRef, then .close() ran ws.onclose which set a *fresh*
-  // timeout — a leaked reconnect that kept minting ws-tokens post-logout).
-  const disposedRef = useRef(false);
+  const connectionRunRef = useRef(0);
+  const unauthorizedDelayRef = useRef(0);
+  const handshakeDelayRef = useRef(0);
   const queryClient = useQueryClient();
   const [isConnected, setIsConnected] = useState(false);
   const lastMissingSpoolWarningRef = useRef<Map<number, string>>(new Map());
@@ -82,43 +84,35 @@ export function useWebSocket() {
     processNext();
   }, []);
 
-  const connect = useCallback(async () => {
-    if (disposedRef.current || wsRef.current?.readyState === WebSocket.OPEN) {
+  const connect = useCallback(async (run: number) => {
+    if (run !== connectionRunRef.current || wsRef.current) return;
+
+    const reconnect = (delay: number) => {
+      reconnectTimeoutRef.current = window.setTimeout(() => void connect(run), delay);
+    };
+    const retryHandshake = () => {
+      const delay = handshakeDelayRef.current || RECONNECT_MS;
+      handshakeDelayRef.current = Math.min(delay * 2, HANDSHAKE_RECONNECT_MAX_MS);
+      reconnect(delay);
+    };
+    const requestSession = getAuthSessionId();
+    let token: string;
+    try {
+      token = (await api.getWebSocketToken()).token;
+    } catch (error) {
+      if (run !== connectionRunRef.current) return;
+      if (requestSession !== getAuthSessionId()) {
+        reconnect(RECONNECT_MS);
+      } else if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        window.dispatchEvent(new CustomEvent('auth:recheck'));
+      } else {
+        retryHandshake();
+      }
       return;
     }
-
-    // GHSA-r2qv follow-up: when auth is enabled, /ws now requires a token
-    // minted by POST /api/v1/auth/ws-token. We use the shared ``api.request``
-    // helper (via ``api.getWebSocketToken``) so the JWT Authorization header
-    // is attached — a raw ``fetch()`` with ``credentials: 'include'`` would
-    // miss it (PrintOps uses Bearer tokens, not cookies, for JWT auth).
-    // Auth-disabled deployments accept connections without a token.
-    let token: string | undefined;
-    try {
-      const resp = await api.getWebSocketToken();
-      token = resp.token;
-    } catch (err) {
-      // A 401/403 from the token mint is an AUTH decision, not a transient
-      // blip, so retrying is pointless and hammers /auth/ws-token every 3s:
-      //   401 — the JWT expired. ``request()`` already cleared it and
-      //         dispatched ``auth:expired``, so the route guard is redirecting
-      //         to /login and this provider is about to unmount.
-      //   403 — the user is validly logged in but their group lacks
-      //         WEBSOCKET_CONNECT. They stay logged in; live updates simply
-      //         degrade to the REST polling the query cache already does.
-      // Either way: do NOT open a tokenless socket (the server just closes it
-      // 4401) and do NOT reconnect. The old catch-all fell through to a
-      // tokenless socket whose 4401 close rescheduled connect() forever. A
-      // network/5xx error is not auth — fall through and let the socket + its
-      // reconnect loop handle it (auth-disabled deployments also land here with
-      // no token and connect fine).
-      const status = err instanceof ApiError ? err.status : 0;
-      if (status === 401 || status === 403) {
-        return;
-      }
-    }
-
-    if (disposedRef.current) {
+    if (run !== connectionRunRef.current) return;
+    if (requestSession !== getAuthSessionId()) {
+      reconnect(RECONNECT_MS);
       return;
     }
 
@@ -129,8 +123,12 @@ export function useWebSocket() {
     const ws = new WebSocket(wsUrl);
 
     let pingInterval: number | null = null;
+    let opened = false;
 
     ws.onopen = () => {
+      if (run !== connectionRunRef.current) return;
+      opened = true;
+      handshakeDelayRef.current = 0;
       if (import.meta.env.MODE !== 'test') console.log('[WebSocket] Connected');
       setIsConnected(true);
       // Start ping interval
@@ -142,8 +140,10 @@ export function useWebSocket() {
     };
 
     ws.onmessage = (event) => {
+      if (run !== connectionRunRef.current || wsRef.current !== ws) return;
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
+        unauthorizedDelayRef.current = 0;
         // Handle printer_status directly (already throttled) to avoid queue delays
         // This prevents the "timelapse" effect where status updates are applied slowly
         if (message.type === 'printer_status' && message.printer_id !== undefined && message.data) {
@@ -164,26 +164,24 @@ export function useWebSocket() {
         clearInterval(pingInterval);
         pingInterval = null;
       }
+      if (run !== connectionRunRef.current || wsRef.current !== ws) return;
       setIsConnected(false);
       wsRef.current = null;
 
-      // Don't reconnect after an auth rejection (4401) or once the provider has
-      // unmounted — both would just respawn the /auth/ws-token loop. A 4401 is
-      // terminal (needs a fresh login, which remounts us); every other close
-      // code is treated as a network drop and gets the 3s reconnect.
-      if (disposedRef.current || event.code === WS_CLOSE_UNAUTHORIZED) {
-        return;
+      if (event.code === WS_CLOSE_UNAUTHORIZED) {
+        window.dispatchEvent(new CustomEvent('auth:recheck'));
+        const delay = unauthorizedDelayRef.current || RECONNECT_MS;
+        unauthorizedDelayRef.current = Math.min(delay * 2, AUTH_RECONNECT_MAX_MS);
+        reconnect(delay);
+      } else if (!opened) {
+        retryHandshake();
+      } else {
+        reconnect(RECONNECT_MS);
       }
-
-      // Reconnect after 3 seconds
-      reconnectTimeoutRef.current = window.setTimeout(() => {
-        connect();
-      }, 3000);
     };
 
     ws.onerror = (error) => {
       if (import.meta.env.MODE !== 'test') console.error('[WebSocket] Error', error);
-      ws.close();
     };
 
     wsRef.current = ws;
@@ -333,7 +331,15 @@ export function useWebSocket() {
         }));
         break;
 
+      case 'plate_check_failed':
+        window.dispatchEvent(new CustomEvent('plate-check-failed', {
+          detail: { printer_id: message.printer_id, printer_name: message.printer_name, reason: message.reason },
+        }));
+        break;
+
       case 'inventory_changed':
+        debouncedInvalidate('linked-spools');
+        debouncedInvalidate('spool-assignments');
         // Spool created/updated/deleted/archived/restored - refresh inventory across all tabs
         debouncedInvalidate('inventory-spools');
         debouncedInvalidate('spoolman-inventory-spools');
@@ -341,10 +347,30 @@ export function useWebSocket() {
         break;
 
       case 'spool_assignment_changed':
+        debouncedInvalidate('spoolman-slot-assignments');
+        debouncedInvalidate('linked-spools');
+        debouncedInvalidate('unlinked-spools');
+        debouncedInvalidate('spoolman-inventory-spools');
         // Spool assigned/unassigned - refresh assignment data across all tabs
         debouncedInvalidate('spool-assignments');
         debouncedInvalidate('slotPresets');
         break;
+
+      case 'spool_assignment_verified': {
+        if (typeof message.verified !== 'boolean') break;
+        const printer = message.printer_name || 'Printer';
+        const slot = message.slot || '?';
+        if (message.verified) {
+          if (message.kprofile_applied === false) {
+            showToast(t('printers.toast.assignmentVerifiedNoKprofile', { slot, printer }), 'warning');
+          } else {
+            showToast(t('printers.toast.assignmentVerified', { slot, printer }), 'success');
+          }
+        } else {
+          showToast(t('printers.toast.assignmentNotConfirmed', { slot, printer }), 'warning');
+        }
+        break;
+      }
 
       case 'spool_auto_assigned':
         // RFID tag matched - refresh inventory and assignment data
@@ -353,8 +379,12 @@ export function useWebSocket() {
         break;
 
       case 'spool_usage_logged':
-        // Filament consumption recorded - refresh spool data
+        debouncedInvalidate('spool-assignments');
         debouncedInvalidate('inventory-spools');
+        debouncedInvalidate('spool-usage');
+        debouncedInvalidate('all-usage-history-forecast');
+        debouncedInvalidate('spoolman-inventory-spools');
+        debouncedInvalidate('printer-inventory-remain');
         break;
 
       case 'unknown_tag': {
@@ -470,16 +500,13 @@ export function useWebSocket() {
   }, [handleMessage]);
 
   useEffect(() => {
-    // connect() is async after the GHSA-r2qv fix (mints a ws-token first).
-    // Fire-and-forget at mount; the inner reconnect loop also calls
-    // connect() in the ws.onclose handler.
-    disposedRef.current = false;
-    void connect();
+    const run = ++connectionRunRef.current;
+    handshakeDelayRef.current = 0;
+    unauthorizedDelayRef.current = 0;
+    void connect(run);
 
     return () => {
-      // Mark disposed BEFORE closing so the ws.onclose triggered by close()
-      // sees it and won't schedule a post-unmount reconnect.
-      disposedRef.current = true;
+      connectionRunRef.current += 1;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -489,9 +516,9 @@ export function useWebSocket() {
       if (printerStatusTimeoutRef.current) {
         clearTimeout(printerStatusTimeoutRef.current);
       }
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      const socket = wsRef.current;
+      wsRef.current = null;
+      socket?.close();
     };
   }, [connect]);
 

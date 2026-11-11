@@ -42,7 +42,7 @@ const mjpegPrinter = {
 
 describe('external camera URL builder (#102)', () => {
   beforeEach(() => {
-    window.history.replaceState({}, '', '/settings?tab=printers-production');
+    window.history.replaceState({}, '', '/settings?tab=printers-production&sub=cameras');
     localStorage.clear();
     setAuthToken(null);
     Element.prototype.scrollIntoView = vi.fn();
@@ -137,5 +137,14 @@ describe('external camera URL builder (#102)', () => {
       expect(screen.getByPlaceholderText(/Device path/i)).toBeInTheDocument();
     });
     expect(screen.queryByTitle('Build URL from host, port and path')).not.toBeInTheDocument();
+  });
+
+  it('opens camera tokens and overlay controls from the old API Keys URL', async () => {
+    window.history.replaceState({}, '', '/settings?tab=apikeys#card-camera-tokens');
+    render(<SettingsPage />);
+    expect(await screen.findByRole('button', { name: 'Cameras' })).toHaveClass('text-bambu-green');
+    expect(document.getElementById('card-camera-tokens')).not.toBeNull();
+    expect(await screen.findByText('External Cameras')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Automatic chamber lighting' })).toBeInTheDocument();
   });
 });

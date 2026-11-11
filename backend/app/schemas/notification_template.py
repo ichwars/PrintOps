@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from backend.app.core.compat import StrEnum
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
 
 
 class EventType(StrEnum):
@@ -15,6 +16,8 @@ class EventType(StrEnum):
     PRINT_FAILED = "print_failed"
     PRINT_STOPPED = "print_stopped"
     PRINT_PROGRESS = "print_progress"
+    PRINT_PAUSE_UPCOMING = "print_pause_upcoming"
+    PRINT_CONFIRM_REQUEST = "print_confirm_request"
     PRINT_MISSING_SPOOL_ASSIGNMENT = "print_missing_spool_assignment"
     PRINTER_OFFLINE = "printer_offline"
     PRINTER_ERROR = "printer_error"
@@ -32,6 +35,8 @@ class EventType(StrEnum):
 EVENT_VARIABLES: dict[str, list[str]] = {
     "print_start": ["printer", "filename", "estimated_time", "eta", "timestamp", "app_name"],
     "print_complete": [
+        "archive_id",
+        "run_id",
         "printer",
         "filename",
         "duration",
@@ -42,6 +47,8 @@ EVENT_VARIABLES: dict[str, list[str]] = {
         "app_name",
     ],
     "print_failed": [
+        "archive_id",
+        "run_id",
         "printer",
         "filename",
         "duration",
@@ -54,6 +61,8 @@ EVENT_VARIABLES: dict[str, list[str]] = {
         "app_name",
     ],
     "print_stopped": [
+        "archive_id",
+        "run_id",
         "printer",
         "filename",
         "duration",
@@ -65,6 +74,31 @@ EVENT_VARIABLES: dict[str, list[str]] = {
         "app_name",
     ],
     "print_progress": ["printer", "filename", "progress", "remaining_time", "eta", "timestamp", "app_name"],
+    "print_confirm_request": ["printer", "filename", "confirm_url", "archive_id", "run_id", "timestamp", "app_name"],
+    "ai_failure_detection": ["printer", "task_name", "confidence", "action", "timestamp", "app_name"],
+    "plate_not_empty": ["printer", "difference_percent", "timestamp", "app_name"],
+    "print_pause_upcoming": [
+        "printer",
+        "filename",
+        "time_to_pause",
+        "eta",
+        "layer",
+        "total_layers",
+        "timestamp",
+        "app_name",
+    ],
+    "first_layer_complete": ["printer", "filename", "total_layers", "timestamp", "app_name"],
+    "stock_reorder_alert": ["material", "brand", "stock_g", "rate_g_day", "days_left", "timestamp", "app_name"],
+    "stock_break_alert": [
+        "material",
+        "brand",
+        "stock_g",
+        "rate_g_day",
+        "days_left",
+        "lead_time_days",
+        "timestamp",
+        "app_name",
+    ],
     "print_missing_spool_assignment": [
         "printer",
         "missing_slots",
@@ -91,8 +125,8 @@ EVENT_VARIABLES: dict[str, list[str]] = {
     "queue_job_failed": ["printer", "job_name", "reason", "timestamp", "app_name"],
     "queue_completed": ["completed_count", "timestamp", "app_name"],
     # User management notifications
-    "user_created": ["username", "password", "login_url", "app_name", "timestamp"],
-    "password_reset": ["username", "password", "login_url", "app_name", "timestamp"],
+    "user_created": ["username", "login_url", "app_name", "timestamp"],
+    "password_reset": ["username", "app_name", "timestamp"],
     # User email print notifications
     "user_print_start": ["username", "printer", "filename", "timestamp", "app_name"],
     "user_print_complete": ["username", "printer", "filename", "timestamp", "app_name"],
@@ -111,6 +145,8 @@ SAMPLE_DATA: dict[str, dict[str, str]] = {
         "app_name": "PrintOps",
     },
     "print_complete": {
+        "archive_id": "42",
+        "run_id": "108",
         "printer": "Bambu X1C",
         "filename": "Benchy.3mf",
         "duration": "1h 18m",
@@ -121,6 +157,8 @@ SAMPLE_DATA: dict[str, dict[str, str]] = {
         "app_name": "PrintOps",
     },
     "print_failed": {
+        "archive_id": "42",
+        "run_id": "108",
         "printer": "Bambu X1C",
         "filename": "Benchy.3mf",
         "duration": "0h 45m",
@@ -133,6 +171,8 @@ SAMPLE_DATA: dict[str, dict[str, str]] = {
         "app_name": "PrintOps",
     },
     "print_stopped": {
+        "archive_id": "42",
+        "run_id": "108",
         "printer": "Bambu X1C",
         "filename": "Benchy.3mf",
         "duration": "0h 30m",
@@ -142,6 +182,46 @@ SAMPLE_DATA: dict[str, dict[str, str]] = {
         "finish_photo_url": "/api/v1/archives/123/photos/finish_20240115_150000_ghi11223.jpg",
         "timestamp": "2024-01-15 15:00",
         "app_name": "PrintOps",
+    },
+    "print_confirm_request": {
+        "printer": "Workshop printer",
+        "filename": "Mounting bracket",
+        "confirm_url": "https://printops.example/archives?confirm=42&run=19",
+        "archive_id": "42",
+        "run_id": "19",
+        "timestamp": "2026-11-09 12:00",
+        "app_name": "PrintOps",
+    },
+    "ai_failure_detection": {
+        "printer": "Workshop printer",
+        "task_name": "Mounting bracket",
+        "confidence": "0.87",
+        "action": "Paused",
+    },
+    "plate_not_empty": {"printer": "Workshop printer", "difference_percent": "12.5"},
+    "print_pause_upcoming": {
+        "printer": "Workshop printer",
+        "filename": "Mounting bracket",
+        "time_to_pause": "5m",
+        "eta": "16:05",
+        "layer": "42",
+        "total_layers": "120",
+    },
+    "first_layer_complete": {"printer": "Workshop printer", "filename": "Mounting bracket", "total_layers": "126"},
+    "stock_reorder_alert": {
+        "material": "PLA",
+        "brand": "Example",
+        "stock_g": "320",
+        "rate_g_day": "80",
+        "days_left": "4",
+    },
+    "stock_break_alert": {
+        "material": "PLA",
+        "brand": "Example",
+        "stock_g": "160",
+        "rate_g_day": "80",
+        "days_left": "2",
+        "lead_time_days": "5",
     },
     "print_progress": {
         "printer": "Bambu X1C",
@@ -272,15 +352,12 @@ SAMPLE_DATA: dict[str, dict[str, str]] = {
     # User management notifications
     "user_created": {
         "username": "john_doe",
-        "password": "<generated-password>",
         "login_url": "https://printops.example.com/login",
         "app_name": "PrintOps",
         "timestamp": "2024-01-15 14:30",
     },
     "password_reset": {
         "username": "john_doe",
-        "password": "<new-password>",
-        "login_url": "https://printops.example.com/login",
         "app_name": "PrintOps",
         "timestamp": "2024-01-15 14:30",
     },
@@ -323,8 +400,10 @@ class NotificationTemplateBase(BaseModel):
     body_template: str = Field(..., min_length=1, max_length=2000)
 
 
-class NotificationTemplateUpdate(BaseModel):
+class NotificationTemplateUpdate(IgnoresNullForRequiredColumns):
     """Schema for updating a notification template."""
+
+    __orm_table__ = "notification_templates"
 
     title_template: str | None = Field(default=None, min_length=1, max_length=200)
     body_template: str | None = Field(default=None, min_length=1, max_length=2000)

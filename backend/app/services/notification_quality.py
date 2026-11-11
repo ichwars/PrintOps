@@ -5,8 +5,19 @@ async def send_confirmation(
     service, printer_id, printer_name, db, print_name, confirm_url, outcome_urls, archive_id, run_id
 ):
     providers = await service._get_providers_for_event(db, "on_print_confirm_request", printer_id)
-    title = "Confirm production quality"
-    message = f"{printer_name}: {print_name}\nInspect good and rejected quantities: {confirm_url}"
+    if not providers:
+        return
+    variables = {
+        "printer": printer_name,
+        "filename": print_name,
+        "confirm_url": confirm_url,
+        "archive_id": archive_id,
+        "run_id": run_id,
+    }
+    title, message = await service._build_message_from_template(db, "print_confirm_request", variables)
+    variables["_outcome_urls"] = outcome_urls
+    if archive_id is not None and run_id is not None:
+        variables["_telegram_quality_context"] = (archive_id, run_id)
     await service._send_to_providers(
         providers,
         title,
@@ -15,13 +26,7 @@ async def send_confirmation(
         event_type="print_confirm_request",
         printer_id=printer_id,
         printer_name=printer_name,
-        variables={
-            "confirm_url": confirm_url,
-            "_outcome_urls": outcome_urls,
-            "_telegram_quality_context": (archive_id, run_id)
-            if archive_id is not None and run_id is not None
-            else None,
-        },
+        variables=variables,
     )
 
 

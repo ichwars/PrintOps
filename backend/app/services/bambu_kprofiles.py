@@ -10,6 +10,16 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+CALI_ACK_UNCONFIRMED = "no acknowledgement from printer"
+KPROFILE_COMMAND_ANSWERS = frozenset(
+    {"extrusion_cali_get", "extrusion_cali_set", "extrusion_cali_del", "extrusion_cali_sel"}
+)
+
+
+class KProfileReadError(Exception):
+    """No readable printer table, distinct from a successfully read empty table."""
+
+
 @dataclass
 class KProfile:
     """Pressure advance calibration profile reported by a printer."""
@@ -109,15 +119,15 @@ async def await_cali_ack(
         sequence_id,
         timeout,
     )
-    return (True, "no acknowledgement from printer")
+    return (True, CALI_ACK_UNCONFIRMED)
 
 
 def handle_kprofile_response(client, data):
     """Correlate the existing diameter query and update only its cache scope."""
     from backend.app.services.calibration_context import store_profile_table
 
-    filaments = data.get("filaments", [])
-    if not isinstance(filaments, list):
+    filaments = data.get("filaments")
+    if str(data.get("result") or "").lower() not in ("", "success") or not isinstance(filaments, list):
         return
     response_nozzle = data.get("nozzle_diameter")
     pending = dict(client._pending_kprofile_requests)
@@ -138,3 +148,18 @@ def handle_kprofile_response(client, data):
             client._loop.call_soon_threadsafe(event.set)
         else:
             event.set()
+
+
+def log_filament_write_refusal(client, command, data, log):
+    result = data.get("result")
+    probe = client._dev_mode_probe_seq is not None and data.get("sequence_id") == client._dev_mode_probe_seq
+    if not probe and isinstance(result, str) and result.lower() != "success":
+        log.info(
+            "[%s] %s refused: result=%s reason=%s ams_id=%s tray_id=%s",
+            client.serial_number,
+            command,
+            result,
+            data.get("reason", ""),
+            data.get("ams_id"),
+            data.get("tray_id"),
+        )

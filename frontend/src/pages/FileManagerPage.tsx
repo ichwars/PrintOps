@@ -9,7 +9,6 @@ import {
   Upload,
   Trash2,
   Download,
-  ChevronRight,
   FolderPlus,
   FileBox,
   CalendarClock,
@@ -53,9 +52,7 @@ import type {
   LibraryFolderCreate,
   LibraryFolderUpdate,
   ExternalFolderCreate,
-  AppSettings,
   Archive,
-  Permission,
 } from '../api/client';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -72,9 +69,14 @@ import { BulkTagsPickerModal } from '../components/BulkTagsPickerModal';
 import { FileUploadModal } from '../components/FileUploadModal';
 import { FolderReadmePanel } from '../components/FolderReadmePanel';
 import { LibraryTagsModal } from '../components/LibraryTagsModal';
+import { LibraryTagFilterRail } from '../components/LibraryTagFilterRail';
 import { PurgeOldFilesModal } from '../components/PurgeOldFilesModal';
 import { useToast } from '../contexts/ToastContext';
 import { FolderActions } from './file-manager/FolderActions';
+import { FolderTreeItem } from './file-manager/FolderTreeItem';
+import { MoveFolderDialog } from './file-manager/MoveFolderDialog';
+import { useFolderMove } from './file-manager/useFolderMove';
+import { useLibraryFileHighlight } from './file-manager/useLibraryFileHighlight';
 import { FileCard } from './file-manager/FileCard';
 import { usePageFileDrop } from '../hooks/usePageFileDrop';
 import { useAuth } from '../contexts/AuthContext';
@@ -88,6 +90,12 @@ import { Checkbox, LegacySelect, TextField } from '../components/ui';
 type SortField = 'name' | 'date' | 'size' | 'type' | 'prints';
 type SortDirection = 'asc' | 'desc';
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
+
+function fileListColumns(authEnabled: boolean) {
+  return authEnabled
+    ? 'grid-cols-[24px_minmax(240px,1fr)_120px_100px_100px_100px_minmax(96px,200px)_220px]'
+    : 'grid-cols-[24px_minmax(240px,1fr)_100px_100px_100px_minmax(96px,200px)_220px]';
+}
 
 // New Folder Modal
 interface NewFolderModalProps {
@@ -555,119 +563,6 @@ function LinkFolderModal({ folder, onClose, onLink, isLoading, t }: LinkFolderMo
   );
 }
 
-// Folder Tree Item
-interface FolderTreeItemProps {
-  folder: LibraryFolderTree;
-  selectedFolderId: number | null;
-  onSelect: (id: number | null) => void;
-  onDelete: (id: number) => void;
-  onLink: (folder: LibraryFolderTree) => void;
-  onRename: (folder: LibraryFolderTree) => void;
-  depth?: number;
-  wrapNames?: boolean;
-  defaultExpanded?: boolean;
-  hasPermission: (permission: Permission) => boolean;
-  t: TFunction;
-}
-
-function FolderTreeItem({ folder, selectedFolderId, onSelect, onDelete, onLink, onRename, depth = 0, wrapNames = false, defaultExpanded = true, hasPermission, t }: FolderTreeItemProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const hasChildren = folder.children.length > 0;
-  const isLinked = folder.project_id || folder.archive_id;
-  const isExternal = folder.is_external;
-
-  return (
-    <div>
-      <div
-        className={`group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer transition-colors ${
-          selectedFolderId === folder.id
-            ? 'bg-bambu-green/20 text-bambu-green'
-            : 'hover:bg-bambu-dark text-white'
-        }`}
-        style={{ paddingLeft: `${8 + depth * 12}px` }}
-        onClick={() => onSelect(folder.id)}
-      >
-        {hasChildren ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-            className="p-0.5 hover:bg-bambu-dark-tertiary rounded"
-          >
-            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-90' : ''}`} />
-          </button>
-        ) : (
-          <div className="w-4.5" />
-        )}
-        {isExternal ? (
-          <FolderSymlink className="w-4 h-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
-        ) : (
-          <FolderOpen className="w-4 h-4 text-bambu-green flex-shrink-0" />
-        )}
-        <span className={`text-sm flex-1 min-w-0 ${wrapNames ? 'break-all' : 'truncate'}`} title={folder.name}>{folder.name}</span>
-        {/* Link indicator - clickable to change link */}
-        {isLinked && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onLink(folder); }}
-            className="flex-shrink-0 flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-colors"
-            title={`${folder.project_name ? `Project: ${folder.project_name}` : `Archive: ${folder.archive_name}`} (click to change)`}
-          >
-            <Link2 className="w-3 h-3" />
-            {folder.project_name ? (
-              <Briefcase className="w-3 h-3" />
-            ) : (
-              <ArchiveIcon className="w-3 h-3" />
-            )}
-          </button>
-        )}
-        {/* Read-only indicator for external folders */}
-        {isExternal && folder.external_readonly && (
-          <span title={t('fileManager.readOnly')}>
-            <Lock className="w-3 h-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-          </span>
-        )}
-        {folder.file_count > 0 && (
-          <span className="flex-shrink-0 text-xs text-bambu-gray">{folder.file_count}</span>
-        )}
-        {/* Quick link button - always visible for unlinked folders */}
-        {!isLinked && !isExternal && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onLink(folder); }}
-            className="flex-shrink-0 p-1 rounded hover:bg-bambu-dark-tertiary"
-            title={t('fileManager.linkToProjectOrArchive')}
-          >
-            <Link2 className="w-3.5 h-3.5 text-bambu-gray hover:text-bambu-green" />
-          </button>
-        )}
-        <div className={`flex-shrink-0 flex items-center gap-0.5 transition-opacity ${wrapNames ? '' : 'can-hover:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100'}`} onClick={(e) => e.stopPropagation()}>
-          <FolderActions folder={folder} onRename={onRename} onLink={onLink} onDelete={onDelete} hasPermission={hasPermission} t={t} />
-        </div>
-      </div>
-      {hasChildren && expanded && (
-        <div>
-          {folder.children.map((child) => (
-            <FolderTreeItem
-              key={child.id}
-              folder={child}
-              selectedFolderId={selectedFolderId}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              onLink={onLink}
-              onRename={onRename}
-              depth={depth + 1}
-              wrapNames={wrapNames}
-              defaultExpanded={defaultExpanded}
-              hasPermission={hasPermission}
-              t={t}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function FileManagerPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -815,13 +710,14 @@ export function FileManagerPage() {
 
   // Queries
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.getSettings() as Promise<AppSettings>,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
   const { data: folders, isLoading: foldersLoading } = useQuery({
     queryKey: ['library-folders'],
     queryFn: () => api.getLibraryFolders(),
   });
+  const folderMove = useFolderMove(folders, hasPermission('library:update_all'));
 
   // Recursive folder tree sort (#1770). Applies the same comparator to the
   // top-level list AND to each level of `children`, so sort order is uniform
@@ -915,7 +811,7 @@ export function FileManagerPage() {
     );
   }, []);
 
-  const { data: files, isLoading: filesLoading } = useQuery({
+  const { data: files, isLoading: filesLoading, dataUpdatedAt: filesUpdatedAt, isError: filesError } = useQuery({
     queryKey: ['library-files', selectedFolderId, topLevelView, searchExpandsSubfolders, tagFilterKey],
     // When a specific folder is selected we list its contents directly; when
     // no folder is selected the topLevelView pseudo-node decides whether the
@@ -1009,6 +905,19 @@ export function FileManagerPage() {
 
     return result;
   }, [files, searchQuery, filterType, filterUsername, sortField, sortDirection]);
+
+  const highlightedFileId = useLibraryFileHighlight({
+    value: searchParams.get('highlight'), folderId: selectedFolderId, visibleFiles: filteredAndSortedFiles,
+    filesUpdatedAt, filesError,
+    reveal: file => {
+      setSelectedFolderId(file.folder_id);
+      setTopLevelView(file.is_external ? 'external' : 'internal');
+      setSearchQuery('');
+      setFilterType('all');
+      setFilterUsername('');
+      setSelectedTagIds([]);
+    },
+  });
 
   // Check if disk space is low
   const isDiskSpaceLow = useMemo(() => {
@@ -1384,7 +1293,7 @@ export function FileManagerPage() {
             {t('fileManager.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-1 sm:justify-end">
           {/* View mode toggle */}
           <div className="flex items-center bg-bambu-dark rounded-lg p-1">
             <button
@@ -1563,7 +1472,7 @@ export function FileManagerPage() {
             })()}
           </LegacySelect>
           </div>
-          {selectedFolder && <FolderActions folder={selectedFolder} hasPermission={hasPermission} t={t}
+          {selectedFolder && <FolderActions folder={selectedFolder} hasPermission={hasPermission} t={t} onMove={folderMove.setPicker}
             onRename={(folder) => setRenameItem({ type: 'folder', id: folder.id, name: folder.name })}
             onLink={setLinkFolder}
             onDelete={(id) => setDeleteConfirm({ type: 'folder', id })}
@@ -1667,11 +1576,12 @@ export function FileManagerPage() {
                 only. External folders are surfaced separately below to keep
                 a linked NAS from drowning the user's own uploads (#1621). */}
             <div
+              {...folderMove.dropProps(0)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
                 selectedFolderId === null && topLevelView === 'internal'
                   ? 'bg-bambu-green/20 text-bambu-green'
                   : 'hover:bg-bambu-dark text-white'
-              }`}
+              } ${folderMove.hovered === 0 ? 'ring-1 ring-bambu-green' : ''}`}
               onClick={() => {
                 setSelectedFolderId(null);
                 setTopLevelView('internal');
@@ -1717,6 +1627,7 @@ export function FileManagerPage() {
                 defaultExpanded={!collapseFoldersByDefault}
                 hasPermission={hasPermission}
                 t={t}
+                move={folderMove}
               />
             ))}
           </div>
@@ -1727,47 +1638,8 @@ export function FileManagerPage() {
           {/* Markdown description panel (#1268) — auto-hides if the folder
               has no README/description.md so non-users pay no UI cost. */}
           {selectedFolderId !== null && <FolderReadmePanel folderId={selectedFolderId} />}
-          {/* Tag filter rail (#1268). Lists every catalog tag as a togglable
-              chip — active chips are filled green and show an X, inactive
-              chips are outlined and toggle ON when clicked. Clicking an active
-              chip removes it from the filter. Hidden entirely when the
-              catalog is empty so brand-new installs don't see a stray rail. */}
-          {tagCatalog.length > 0 && (
-            <div className="mb-3 flex flex-wrap items-center gap-2 p-2 sm:p-3 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary">
-              <span className="text-xs text-bambu-gray font-medium shrink-0">
-                {t('fileManager.tags.filterLabel')}
-              </span>
-              {tagCatalog.map((tg) => {
-                const active = selectedTagIds.includes(tg.id);
-                return (
-                  <button
-                    key={tg.id}
-                    type="button"
-                    onClick={() => toggleTagFilter(tg.id)}
-                    className={
-                      active
-                        ? 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-bambu-green/20 text-bambu-green border border-bambu-green/40 hover:bg-bambu-green/30 transition-colors'
-                        : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-bambu-dark text-bambu-gray border border-bambu-dark-tertiary hover:text-white hover:border-bambu-green/40 transition-colors'
-                    }
-                    title={tg.name}
-                  >
-                    <TagIcon className="w-3 h-3" />
-                    <span>{tg.name}</span>
-                    {active && <X className="w-3 h-3" />}
-                  </button>
-                );
-              })}
-              {selectedTagIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedTagIds([])}
-                  className="ml-auto text-xs text-bambu-gray hover:text-white shrink-0"
-                >
-                  {t('fileManager.tags.clearAll')}
-                </button>
-              )}
-            </div>
-          )}
+          <LibraryTagFilterRail tags={tagCatalog} selectedIds={selectedTagIds}
+            onToggle={toggleTagFilter} onClear={() => setSelectedTagIds([])} />
           {/* External folder info bar */}
           {selectedFolder?.is_external && (
             <div className="flex items-center gap-3 mb-4 p-3 bg-purple-50 dark:bg-purple-500/10 border border-purple-300 dark:border-purple-500/30 rounded-lg">
@@ -2107,6 +1979,7 @@ export function FileManagerPage() {
                     key={file.id}
                     file={file}
                     isSelected={selectedFiles.includes(file.id)}
+                    highlighted={highlightedFileId === file.id}
                     t={t}
                     onSelect={handleFileSelect}
                     onDelete={(id) => setDeleteConfirm({ type: 'file', id })}
@@ -2155,7 +2028,7 @@ export function FileManagerPage() {
                     grids that compute `min-content` independently — the header's empty
                     trailing div resolved to 0px, leaving body columns shifted left of
                     their headers. Fixed width keeps header and body in lockstep. */}
-                <div className={`hidden sm:grid ${authEnabled ? 'grid-cols-[auto_1fr_120px_100px_100px_100px_minmax(0,200px)_220px]' : 'grid-cols-[auto_1fr_100px_100px_100px_minmax(0,200px)_220px]'} gap-4 px-4 py-2 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary text-xs text-bambu-gray font-medium`}>
+                <div className={`hidden sm:grid ${fileListColumns(authEnabled)} min-w-min gap-4 px-4 py-2 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary text-xs text-bambu-gray font-medium`}>
                   <div className="w-6" />
                   <div>{t('common.name')}</div>
                   {authEnabled && <div>{t('fileManager.uploadedBy', { defaultValue: 'Uploaded By' })}</div>}
@@ -2169,9 +2042,11 @@ export function FileManagerPage() {
                 {filteredAndSortedFiles.map((file) => (
                   <div
                     key={file.id}
-                    className={`grid ${authEnabled ? 'grid-cols-[auto_1fr_120px_100px_100px_100px_minmax(0,200px)_220px]' : 'grid-cols-[auto_1fr_100px_100px_100px_minmax(0,200px)_220px]'} gap-4 px-4 py-3 items-center border-b border-bambu-dark-tertiary last:border-b-0 cursor-pointer hover:bg-bambu-dark/50 transition-colors ${
+                    data-library-file-id={file.id}
+                    data-highlighted={highlightedFileId === file.id || undefined}
+                    className={`grid ${fileListColumns(authEnabled)} min-w-min gap-4 px-4 py-3 items-center border-b border-bambu-dark-tertiary last:border-b-0 cursor-pointer hover:bg-bambu-dark/50 transition-colors ${
                       selectedFiles.includes(file.id) ? 'bg-bambu-green/10' : ''
-                    }`}
+                    } ${highlightedFileId === file.id ? 'bg-bambu-green/15 ring-2 ring-inset ring-bambu-green' : ''}`}
                     onClick={() => handleFileSelect(file.id)}
                   >
                     {/* Checkbox */}
@@ -2189,6 +2064,7 @@ export function FileManagerPage() {
                           {file.thumbnail_path ? (
                             <img
                               src={`${api.getLibraryFileThumbnailUrl(file.id)}${thumbnailVersions[file.id] ? ((api.getLibraryFileThumbnailUrl(file.id).includes('?') ? '&' : '?') + `v=${thumbnailVersions[file.id]}`) : ''}`}
+                              loading="lazy"
                               alt=""
                               className="w-full h-full object-cover"
                             />
@@ -2204,6 +2080,7 @@ export function FileManagerPage() {
                             <div className="w-48 h-48 rounded-lg bg-bambu-dark-secondary border border-bambu-dark-tertiary shadow-xl overflow-hidden">
                               <img
                                 src={`${api.getLibraryFileThumbnailUrl(file.id)}${thumbnailVersions[file.id] ? ((api.getLibraryFileThumbnailUrl(file.id).includes('?') ? '&' : '?') + `v=${thumbnailVersions[file.id]}`) : ''}`}
+                                loading="lazy"
                                 alt={file.filename}
                                 className="w-full h-full object-contain"
                               />
@@ -2439,6 +2316,10 @@ export function FileManagerPage() {
           t={t}
         />
       )}
+
+      {folderMove.picker && <MoveFolderDialog key={folderMove.picker.id} name={folderMove.picker.name}
+        allowRoot={folderMove.picker.parent_id != null} destinations={folderMove.destinations} busy={folderMove.isPending}
+        onMove={folderMove.move} onClose={() => folderMove.setPicker(null)} />}
 
       {showMoveModal && folders && (
         <MoveFilesModal

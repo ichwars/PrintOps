@@ -49,20 +49,19 @@ export function UploadModal({ onClose, initialFiles }: UploadModalProps) {
       queryClient.invalidateQueries({ queryKey: ['archives'] });
       queryClient.invalidateQueries({ queryKey: ['archiveStats'] });
 
-      // Update file statuses based on result
-      setFiles((prev) =>
-        prev.map((f) => {
-          const success = result.results.find((r) => r.filename === f.file.name);
-          const error = result.errors.find((e) => e.filename === f.file.name);
-          if (success) {
-            return { ...f, status: 'success', archiveId: success.id };
-          }
-          if (error) {
-            return { ...f, status: 'error', error: error.error };
-          }
-          return f;
-        })
-      );
+      const successes = new Map(result.results.map(outcome => [outcome.index, outcome.id]));
+      const errors = new Map(result.errors.map(outcome => [outcome.index, outcome.error]));
+      setFiles((previous) => {
+        let sentIndex = 0;
+        return previous.map(file => {
+          if (file.status !== 'uploading') return file;
+          const index = sentIndex++;
+          const archiveId = successes.get(index);
+          return archiveId === undefined
+            ? { ...file, status: 'error', error: errors.get(index) ?? t('uploadModal.uploadFailed') }
+            : { ...file, status: 'success', archiveId };
+        });
+      });
 
       // Show toast
       if (result.failed === 0) {
@@ -75,9 +74,9 @@ export function UploadModal({ onClose, initialFiles }: UploadModalProps) {
     },
     onError: () => {
       setFiles((prev) =>
-        prev.map((f) => ({ ...f, status: 'error', error: 'Upload failed' }))
+        prev.map((f) => f.status === 'uploading' ? { ...f, status: 'error', error: t('uploadModal.uploadFailed') } : f)
       );
-      showToast('Upload failed', 'error');
+      showToast(t('uploadModal.uploadFailed'), 'error');
     },
   });
 

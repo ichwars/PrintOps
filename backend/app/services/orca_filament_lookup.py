@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
+from backend.app.utils.filament_ids import orca_to_bambu_filament_id
 from backend.app.utils.generic_filament_catalog import GENERIC_FILAMENT_IDS as _ORCA_GENERIC_IDS
+from backend.app.utils.slicer_strings import first_slicer_string as _preset_filament_type
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ def _content_filament_id(content: dict) -> str:
     raw = content.get("filament_id")
     if isinstance(raw, list):
         raw = raw[0] if raw else None
-    return valid_filament_id(raw)
+    return valid_filament_id(orca_to_bambu_filament_id(raw.strip())) if isinstance(raw, str) else ""
 
 
 def _catalog_filament_id(preset_name: str) -> str:
@@ -178,18 +180,12 @@ async def lookup_orca_filament_id(
                 logger.debug("Orca client close failed after lookup of %r: %s", profile_id, e)
 
 
-def _preset_filament_type(raw: object) -> str | None:
-    if isinstance(raw, list):
-        raw = raw[0] if raw else None
-    return raw.strip() if isinstance(raw, str) and raw.strip() else None
-
-
 def valid_filament_id(raw: object) -> str:
     """Reject UUIDs, material names and cloud setting IDs at the boundary."""
     if not isinstance(raw, str):
         return ""
     raw = raw.strip()
-    return raw if len(raw) <= 32 and re.fullmatch(r"(?:GF[A-Za-z]\d+|P[0-9a-fA-F]+)", raw) else ""
+    return raw if len(raw) <= 32 and re.fullmatch(r"(?:GF[A-Za-z]\d+|GFSNL\d+|P[0-9a-fA-F]+)", raw) else ""
 
 
 def _orca_generic_filament_id(material: str) -> str:

@@ -1,6 +1,9 @@
+import { batched, batchedRecord, readBulkRecord } from '../batch';
+import { getAuthSessionId } from './core';
 import type {
   AppSettings,
   AppSettingsUpdate,
+  AppUiFlags,
   BuiltinFilament,
   CloudAuthStatus,
   CloudDevice,
@@ -41,16 +44,44 @@ import type {
 import type { NetworkInterface } from './specialized';
 import { API_BASE, authToken, request } from './core';
 
+type CardPlugs = { plug: SmartPlug | null; scripts: SmartPlug[] };
+const pendingCardPlugs = new Map<string, Promise<Map<number, CardPlugs>>>();
+
+function readCardPlugs(ids: number[]) {
+  const sorted = [...ids].sort((a, b) => a - b);
+  const key = `${getAuthSessionId()}:${sorted.join(',')}`;
+  const existing = pendingCardPlugs.get(key);
+  if (existing) return existing;
+  const loading = readBulkRecord<CardPlugs>('/bulk/card-plugs', sorted).finally(() => pendingCardPlugs.delete(key));
+  pendingCardPlugs.set(key, loading);
+  return loading;
+}
+
+const smartPlugBatch = batched(
+  (id) => request<SmartPlug | null>(`/smart-plugs/by-printer/${id}`),
+  async (ids) => new Map([...(await readCardPlugs(ids))].map(([id, card]) => [id, card.plug])),
+);
+
+const scriptPlugsBatch = batched(
+  (id) => request<SmartPlug[]>(`/smart-plugs/by-printer/${id}/scripts`),
+  async (ids) => new Map([...(await readCardPlugs(ids))].map(([id, card]) => [id, card.scripts])),
+);
+
+const sensorReadingsBatch = batchedRecord(
+  (id) => request<PrinterHASensorReading[]>(`/ha-sensors/by-printer/${id}/readings`),
+  '/bulk/ha-sensor-readings',
+);
+
 export const settingsCloudPlugsMethods = {
   // Settings
   getSettings: () => request<AppSettings>('/settings/'),
 
   getDefaultSidebarOrder: () => request<{ default_sidebar_order: string }>('/settings/default-sidebar-order'),
 
-  // Public subset of settings for UI rendering — no settings:read required.
-  // Used by pages whose users may not have SETTINGS_READ (e.g. operators with
-  // only printers:clear_plate). Keep in sync with _UI_PREFERENCE_FIELDS in
-  // backend/app/api/routes/settings.py.
+  // Allowlisted configuration for signed-in users across normal application pages.
+  getUiFlags: () => request<AppUiFlags>('/settings/ui-flags'),
+
+  // Public appearance and printer-card preferences.
   getUiPreferences: () =>
     request<{
       require_plate_clear?: boolean;
@@ -280,9 +311,9 @@ export const settingsCloudPlugsMethods = {
 
   getSmartPlug: (id: number) => request<SmartPlug>(`/smart-plugs/${id}`),
 
-  getSmartPlugByPrinter: (printerId: number) => request<SmartPlug | null>(`/smart-plugs/by-printer/${printerId}`),
+  getSmartPlugByPrinter: smartPlugBatch,
 
-  getScriptPlugsByPrinter: (printerId: number) => request<SmartPlug[]>(`/smart-plugs/by-printer/${printerId}/scripts`),
+  getScriptPlugsByPrinter: scriptPlugsBatch,
 
   createSmartPlug: (data: SmartPlugCreate) =>
     request<SmartPlug>('/smart-plugs/', {
@@ -308,10 +339,10 @@ export const settingsCloudPlugsMethods = {
   getSmartPlugStatus: (id: number) =>
     request<SmartPlugStatus>(`/smart-plugs/${id}/status`),
 
-  testSmartPlugConnection: (ip_address: string, username?: string | null, password?: string | null) =>
+  testSmartPlugConnection: (ip_address: string, username?: string | null, password?: string | null, plug_id?: number) =>
     request<SmartPlugTestResult>('/smart-plugs/test-connection', {
       method: 'POST',
-      body: JSON.stringify({ ip_address, username, password }),
+      body: JSON.stringify({ ip_address, username, password, plug_id }),
     }),
 
   // Tasmota Discovery (auto-detects network)
@@ -345,8 +376,7 @@ export const settingsCloudPlugsMethods = {
   getHASensors: (printerId?: number) =>
     request<PrinterHASensor[]>(`/ha-sensors/${printerId ? `?printer_id=${printerId}` : ''}`),
 
-  getHASensorReadings: (printerId: number) =>
-    request<PrinterHASensorReading[]>(`/ha-sensors/by-printer/${printerId}/readings`),
+  getHASensorReadings: sensorReadingsBatch,
 
   getHAInterlockOverride: (printerId: number) =>
     request<PrinterHAInterlockOverrideStatus>(`/ha-sensors/printers/${printerId}/interlock-override`),
@@ -377,9 +407,9 @@ export const settingsCloudPlugsMethods = {
     request<{ message: string }>(`/ha-sensors/${id}`, { method: 'DELETE' }),
 
   // REST smart plug
-  testRESTConnection: (url: string, method: string = 'GET', headers?: string | null) =>
+  testRESTConnection: (url: string, method: string = 'GET', headers?: string | null, plug_id?: number) =>
     request<{ success: boolean; error: string | null }>('/smart-plugs/rest/test-connection', {
       method: 'POST',
-      body: JSON.stringify({ url, method, headers }),
+      body: JSON.stringify({ url, method, headers, plug_id }),
     })
 };

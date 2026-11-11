@@ -9,13 +9,17 @@ Covers:
 """
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from sqlalchemy import select
 
 from backend.app.api.routes.archives import _energy_history_points, _sum_snapshot_deltas, get_archive_stats
+from backend.app.core.auth import OwnershipAccess
 from backend.app.models.archive import PrintArchive
+from backend.app.models.settings import Settings
 from backend.app.models.smart_plug_energy_snapshot import SmartPlugEnergySnapshot
+from backend.app.services.homeassistant import homeassistant_service
 
 
 def _snap(plug_id: int, recorded_at: datetime, kwh: float) -> SmartPlugEnergySnapshot:
@@ -152,13 +156,42 @@ class TestSumSnapshotDeltas:
         stats = await get_archive_stats(
             date_from=t0.date(),
             date_to=t0.date(),
+            tz="UTC",
             created_by_id=None,
             db=db_session,
-            current_user=None,
+            access=OwnershipAccess(None, True),
         )
 
         assert stats.energy_data_warming_up is True
         assert stats.energy_source == "smart_plug_snapshots"
+
+    @pytest.mark.asyncio
+    async def test_live_stats_respect_home_assistant_environment_settings(
+        self, db_session, smart_plug_factory, monkeypatch
+    ):
+        plug = await smart_plug_factory(plug_type="homeassistant")
+        db_session.add_all(
+            [
+                Settings(key="ha_url", value="http://old-ha.example.test"),
+                Settings(key="ha_token", value="fixture-db-token"),
+            ]
+        )
+        await db_session.commit()
+        monkeypatch.setenv("HA_URL", "https://ha.example.test")
+        monkeypatch.setenv("HA_TOKEN", "fixture-env-token")
+        configure = Mock()
+        get_energy = AsyncMock(return_value={"total": 7.5})
+        monkeypatch.setattr(homeassistant_service, "configure", configure)
+        monkeypatch.setattr(homeassistant_service, "get_energy", get_energy)
+
+        stats = await get_archive_stats(
+            date_from=None, date_to=None, created_by_id=None, db=db_session, access=OwnershipAccess(None, True)
+        )
+
+        assert stats.energy_source == "smart_plug_live"
+        assert stats.total_energy_kwh == pytest.approx(7.5)
+        configure.assert_called_once_with("https://ha.example.test", "fixture-env-token")
+        get_energy.assert_awaited_once_with(plug)
 
     @pytest.mark.asyncio
     async def test_energy_history_buckets_apply_existing_kwh_price(self, db_session, smart_plug_factory):

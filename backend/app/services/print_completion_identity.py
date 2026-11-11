@@ -34,7 +34,7 @@ def subtask_name_from_filename(filename: str) -> str:
 
 
 def _normalise_subtask_name(name: str) -> str:
-    return name.strip().replace(" ", "_").casefold()
+    return name.strip().replace(" ", "_").strip("_").casefold()
 
 
 def subtask_names_match(expected: str, observed: str) -> bool:
@@ -44,7 +44,10 @@ def subtask_names_match(expected: str, observed: str) -> bool:
     if expected_n == observed_n:
         return True
     for full, cut in ((expected_n, observed_n), (observed_n, expected_n)):
-        if cut.endswith(_TRUNCATION_MARKER) and full.startswith(cut[: -len(_TRUNCATION_MARKER)]):
+        if not cut.endswith(_TRUNCATION_MARKER):
+            continue
+        kept = cut[: -len(_TRUNCATION_MARKER)].rstrip("_")
+        if kept and full.startswith(kept):
             return True
     return False
 
@@ -208,12 +211,14 @@ class StrandedPrintRecovery:
         monotonic: Callable[[], float] = time.monotonic,
         plate_clear_setter: Callable[[int, bool], None] = printer_manager.set_awaiting_plate_clear,
         bump_usage: Callable = bump_library_file_usage_if_completed,
+        on_close: Callable[[int], None] | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._status_getter = status_getter
         self._monotonic = monotonic
         self._plate_clear_setter = plate_clear_setter
         self._bump_usage = bump_usage
+        self._on_close = on_close
         self._terminal_since: dict[int, float] = {}
 
     async def tick(self) -> None:
@@ -236,7 +241,7 @@ class StrandedPrintRecovery:
 
             now = self._monotonic()
             seen_printers: set[int] = set()
-            closed = False
+            closed_ids = []
             for item in items:
                 printer_id = item.printer_id
                 seen_printers.add(printer_id)
@@ -254,7 +259,7 @@ class StrandedPrintRecovery:
                 item.completed_at = datetime.now(timezone.utc)
                 await self._bump_usage(db, item, status)
                 self._terminal_since.pop(printer_id, None)
-                closed = True
+                closed_ids.append(item.id)
                 logger.warning(
                     "Recovered queue item %s as %s after printer %s remained terminal for %.0fs",
                     item.id,
@@ -264,5 +269,11 @@ class StrandedPrintRecovery:
                 )
             for printer_id in set(self._terminal_since) - seen_printers:
                 self._terminal_since.pop(printer_id, None)
-            if closed:
+            if closed_ids:
                 await db.commit()
+                from backend.app.services.print_batch import refresh_batches_after
+
+                await refresh_batches_after(closed_ids)
+                if self._on_close:
+                    for item_id in closed_ids:
+                        self._on_close(item_id)

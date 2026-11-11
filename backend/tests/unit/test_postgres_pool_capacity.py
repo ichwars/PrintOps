@@ -184,13 +184,13 @@ async def test_lifespan_does_not_swallow_migration_errors(monkeypatch):
     assert not engine.queries
 
 
-@pytest.mark.parametrize("sqlite,overflow", [(True, 200), (False, 20)])
-def test_existing_defaults_and_overrides_remain_dialect_aware(monkeypatch, sqlite, overflow):
+@pytest.mark.parametrize("sqlite,size,overflow", [(True, 10, 90), (False, 20, 20)])
+def test_defaults_and_overrides_remain_dialect_aware(monkeypatch, sqlite, size, overflow):
     monkeypatch.setattr(database, "is_sqlite", lambda: sqlite)
     for name in ("db_pool_size", "db_max_overflow", "db_pool_timeout", "db_pool_recycle"):
         monkeypatch.setattr(database.settings, name, None)
     config = database._resolve_pool_kwargs()
-    assert config["pool_size"] == 20 and config["max_overflow"] == overflow
+    assert config["pool_size"] == size and config["max_overflow"] == overflow
     monkeypatch.setattr(database.settings, "db_pool_size", 7)
     monkeypatch.setattr(database.settings, "db_max_overflow", 0)
     monkeypatch.setattr(database.settings, "db_pool_timeout", 9)

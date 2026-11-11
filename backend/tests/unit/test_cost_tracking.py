@@ -142,6 +142,7 @@ def _mock_db_sequential(responses):
             result.scalar_one_or_none.return_value = responses[idx]
         else:
             result.scalar_one_or_none.return_value = None
+        result.scalars.return_value.first.return_value = result.scalar_one_or_none.return_value
         return result
 
     db.execute = mock_execute
@@ -453,9 +454,8 @@ class TestCostCalculation:
         # Mock slot-to-tray mapping: slot 1 -> tray 0, slot 2 -> tray 1
         ams_mapping = [0, 1]
 
-        # db returns: archive, assignment1, spool1, assignment2, spool2
-        # ams_mapping is provided, so no queue item lookup is performed
-        db = _mock_db_sequential([archive, assignment1, spool1, assignment2, spool2])
+        # The archive has no dispatched plate. Check queue evidence before reading spool assignments.
+        db = _mock_db_sequential([archive, None, assignment1, spool1, assignment2, spool2])
 
         # Two filaments used
         filament_usage = [

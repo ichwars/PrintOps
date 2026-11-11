@@ -9,6 +9,7 @@ Covers:
 """
 
 import time
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -313,7 +314,7 @@ class TestMinimumDryingTime:
         # Queue item with schedule
         item = MagicMock()
         item.printer_id = 1
-        item.scheduled_time = MagicMock()  # Has a schedule
+        item.scheduled_time = datetime.now(timezone.utc) + timedelta(hours=1)
         item.manual_start = False
 
         await scheduler._check_auto_drying(db, [item], set())
@@ -368,7 +369,7 @@ class TestMinimumDryingTime:
 
         item = MagicMock()
         item.printer_id = 1
-        item.scheduled_time = MagicMock()
+        item.scheduled_time = datetime.now(timezone.utc) - timedelta(minutes=1)
         item.manual_start = False
 
         await scheduler._check_auto_drying(db, [item], set())
@@ -876,7 +877,7 @@ class TestBlockForDryingBugFix(_DryingTestBase):
         # Queue item exists for this printer (triggers block mode gate)
         item = MagicMock()
         item.printer_id = 1
-        item.scheduled_time = MagicMock()
+        item.scheduled_time = datetime.now(timezone.utc) - timedelta(minutes=1)
         item.manual_start = False
 
         await scheduler._check_auto_drying(db, [item], set())
@@ -888,10 +889,13 @@ class TestBlockForDryingBugFix(_DryingTestBase):
             )
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("minutes_until_start", [-1, 60])
     @patch("backend.app.services.print_scheduler.printer_manager")
     @patch("backend.app.services.print_scheduler.supports_drying", return_value=True)
-    async def test_block_mode_prevents_new_drying_start(self, mock_sd, mock_pm, scheduler):
-        """Block mode should still prevent starting NEW drying on printers with pending items."""
+    async def test_block_mode_predries_only_for_future_queue_jobs(
+        self, mock_sd, mock_pm, scheduler, minutes_until_start
+    ):
+        """The drying hold allows preparation for a future start and leaves ready jobs free."""
         state = MagicMock()
         state.raw_data = {
             "ams": [
@@ -925,13 +929,12 @@ class TestBlockForDryingBugFix(_DryingTestBase):
 
         item = MagicMock()
         item.printer_id = 1
-        item.scheduled_time = MagicMock()
+        item.scheduled_time = datetime.now(timezone.utc) + timedelta(minutes=minutes_until_start)
         item.manual_start = False
 
         await scheduler._check_auto_drying(db, [item], set())
 
-        # Should NOT start drying — block mode with pending items
-        mock_pm.send_drying_command.assert_not_called()
+        assert mock_pm.send_drying_command.call_count == int(minutes_until_start > 0)
 
 
 class TestResolveHumidityThreshold:

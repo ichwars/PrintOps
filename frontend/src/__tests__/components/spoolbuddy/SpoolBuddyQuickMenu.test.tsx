@@ -17,6 +17,7 @@ vi.mock('../../../api/client', () => ({
   getAuthSessionId: () => 0,
   subscribeAuthSession: () => () => {},
   api: {
+    getUiFlags: async () => ({}),
     getPrinters: vi.fn().mockResolvedValue([]),
     getSmartPlugs: vi.fn().mockResolvedValue([]),
     getSmartPlugStatus: vi.fn().mockResolvedValue({ state: 'OFF', reachable: true, device_name: null, energy: null }),

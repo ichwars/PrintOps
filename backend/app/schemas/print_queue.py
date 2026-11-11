@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, PlainSerializer, model_validator
 
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+
 
 # Custom serializer to ensure UTC datetimes have Z suffix
 def serialize_utc_datetime(dt: datetime | None) -> str | None:
@@ -97,7 +99,9 @@ class PrintQueueItemCreate(BaseModel):
     variants: list[QueueVariantCreate] | None = None
 
 
-class PrintQueueItemUpdate(BaseModel):
+class PrintQueueItemUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "print_queue"
+
     printer_id: int | None = None
     target_model: str | None = None  # Target printer model (mutually exclusive with printer_id)
     target_location: str | None = None  # Target location filter (only used with target_model)
@@ -107,6 +111,9 @@ class PrintQueueItemUpdate(BaseModel):
     require_previous_success: bool | None = None
     auto_off_after: bool | None = None
     manual_start: bool | None = None
+    # Set by the print dialog when the mapping deliberately puts a slot on a
+    # tray of another material, so the dispatch re-check keeps it (#2799).
+    skip_filament_check: bool | None = None
     ams_mapping: list[int] | None = None
     plate_id: int | None = None
     # Print options
@@ -138,6 +145,14 @@ class QueueVariantSummary(BaseModel):
     position: int
 
 
+class ColorSubstitution(BaseModel):
+    slot_id: int
+    type: str
+    wanted: str
+    got: str
+    tray: int
+
+
 class PrintQueueItemResponse(BaseModel):
     id: int
     printer_id: int | None  # None = unassigned
@@ -158,6 +173,7 @@ class PrintQueueItemResponse(BaseModel):
     # (#1496). Display-only — the ▶ click recomputes deficit against live
     # spool state.
     filament_short: bool = False
+    color_substitutions: list[ColorSubstitution] | None = None
     # User has acknowledged "Print Anyway" — scheduler skips the deficit check
     # for this item (#1698-followup).
     skip_filament_check: bool = False
@@ -263,8 +279,10 @@ class PrintQueueReorder(BaseModel):
         return self
 
 
-class PrintQueueBulkUpdate(BaseModel):
+class PrintQueueBulkUpdate(IgnoresNullForRequiredColumns):
     """Bulk update multiple queue items with the same values."""
+
+    __orm_table__ = "print_queue"
 
     item_ids: list[int]
     # Fields to update (all optional - only set fields are applied)
@@ -331,12 +349,14 @@ class PrintBatchCreate(BaseModel):
     notes: str | None = None
 
 
-class PrintBatchUpdate(BaseModel):
+class PrintBatchUpdate(IgnoresNullForRequiredColumns):
     """Edit an order's header or its per-plate targets while it runs.
 
     Every field is optional; ``plates`` replaces the full target set when
     given, so a plate omitted from the list has its target row removed.
     """
+
+    __orm_table__ = "print_batches"
 
     name: str | None = None
     status: Literal["active", "cancelled"] | None = None

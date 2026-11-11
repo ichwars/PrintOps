@@ -1,6 +1,41 @@
 // PrintOps Service Worker
-const CACHE_NAME = 'printops-v3';
+const CACHE_NAME = 'printops-v4';
 const STATIC_CACHE = 'printops-static-v3';
+const HASHED_ASSET = /^\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$/;
+const ENTRY_SCRIPT = /\/assets\/index-[A-Za-z0-9_-]{8}\.js/;
+const ENTRY_CACHE_KEY = '/__printops_active_build__';
+
+async function prunePreviousBuild(response) {
+  const entry = (await response.text()).match(ENTRY_SCRIPT)?.[0];
+  if (!entry) return;
+  const cache = await caches.open(CACHE_NAME);
+  const previous = await cache.match(ENTRY_CACHE_KEY);
+  const previousEntry = previous && await previous.text();
+  if (previousEntry === entry) return;
+  const keys = previousEntry ? await cache.keys() : [];
+  await cache.put(ENTRY_CACHE_KEY, new Response(entry));
+  await Promise.all(keys.filter((key) => {
+    const path = new URL(key.url).pathname;
+    return HASHED_ASSET.test(path) && path !== entry;
+  }).map((key) => cache.delete(key)));
+}
+
+function serveHashedAsset(event) {
+  const { request } = event;
+  const load = caches.match(request).then(async (cached) => {
+    if (cached) return { response: cached, fromNetwork: false };
+    return { response: await fetch(request), fromNetwork: true };
+  });
+  event.waitUntil(load.then(async ({ response, fromNetwork }) => {
+    const contentType = response.headers.get('content-type') || '';
+    if (fromNetwork && response.status === 200 && !contentType.includes('text/html')) {
+      const copy = response.clone();
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, copy);
+    }
+  }).catch(() => {}));
+  event.respondWith(load.then(({ response }) => response));
+}
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -63,7 +98,7 @@ self.addEventListener('activate', (event) => {
       const cacheNames = await caches.keys();
       await Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== STATIC_CACHE)
+          .filter((name) => name.startsWith('printops-') && name !== CACHE_NAME && name !== STATIC_CACHE)
           .map((name) => {
             console.log('[SW] Deleting old cache:', name);
             return caches.delete(name);
@@ -94,6 +129,15 @@ self.addEventListener('fetch', (event) => {
 
   // Skip WebSocket connections
   if (url.protocol === 'ws:' || url.protocol === 'wss:') {
+    return;
+  }
+
+  if (url.pathname === '/health' || request.headers.has('range')) {
+    return;
+  }
+
+  if (HASHED_ASSET.test(url.pathname)) {
+    serveHashedAsset(event);
     return;
   }
 
@@ -150,8 +194,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // JS/CSS assets - network first (Vite content-hashes filenames, so
-  // cache-busting is built in; network-first ensures new builds load immediately)
+  // Unversioned assets must revalidate against the network.
   if (
     url.pathname.startsWith('/assets/') ||
     url.pathname.endsWith('.js') ||
@@ -175,18 +218,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML pages - network first, fall back to cache
+  // HTML pages revalidate on every navigation and announce the current build.
+  const navigation = fetch(request);
+  event.waitUntil(navigation.then(async (response) => {
+    if (!response.ok) return;
+    const clone = response.clone();
+    const pruning = request.mode === 'navigate' && response.headers.get('content-type')?.includes('text/html')
+      ? prunePreviousBuild(response.clone())
+      : undefined;
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.all([cache.put(request, clone), pruning]);
+  }).catch(() => {}));
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, clone);
-          });
-        }
-        return response;
-      })
+    navigation
       .catch(() => {
         return caches.match(request).then((cached) => {
           if (cached) {

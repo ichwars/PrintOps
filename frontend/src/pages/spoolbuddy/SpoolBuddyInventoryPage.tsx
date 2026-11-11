@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useOutletContext } from 'react-router';
-import { Search, X, Package } from 'lucide-react';
+import { Search, X, Package, ScanLine } from 'lucide-react';
 import { api } from '../../api/client';
 import type { InventorySpool } from '../../api/client';
 import { resolveSpoolColorName, getSwatchStyle, spoolColorString } from '../../utils/colors';
@@ -10,6 +10,9 @@ import { formatSlotLabel } from '../../utils/amsHelpers';
 import { filterSpoolsByQuery } from '../../utils/inventorySearch';
 import { InventorySpoolInfoCard } from '../../components/spoolbuddy/InventorySpoolInfoCard';
 import { AssignToAmsModal } from '../../components/spoolbuddy/AssignToAmsModal';
+import { QrAssignTargetModal } from '../../components/QrAssignTargetModal';
+import { Button } from '../../components/Button';
+import { useAuth } from '../../contexts/AuthContext';
 import type { SpoolBuddyOutletContext } from '../../components/spoolbuddy/SpoolBuddyLayout';
 import { useToast } from '../../contexts/ToastContext';
 import { TextField } from '../../components/ui';
@@ -66,6 +69,9 @@ function SpoolCircle({ color, size = 56 }: { color: string; size?: number }) {
 export function SpoolBuddyInventoryPage() {
   const { sbState, selectedPrinterId } = useOutletContext<SpoolBuddyOutletContext>();
   const { t } = useTranslation();
+  const { hasPermission, loading: authLoading } = useAuth();
+  const [scanOpen, setScanOpen] = useState(false);
+  const canScan = !authLoading && hasPermission('inventory:read') && hasPermission('inventory:update');
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,6 +187,9 @@ export function SpoolBuddyInventoryPage() {
           )}
         </div>
 
+        {canScan && <Button variant="secondary" onClick={() => setScanOpen(true)}>
+          <ScanLine className="w-4 h-4" />{t('inventory.qrAssign.title')}
+        </Button>}
         {/* Filter pills — inline scrollable row */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           <FilterPill
@@ -236,6 +245,8 @@ export function SpoolBuddyInventoryPage() {
         )}
       </div>
 
+      {scanOpen && canScan && <QrAssignTargetModal key={String(spoolmanMode)} spoolmanMode={spoolmanMode}
+        onClose={() => setScanOpen(false)} />}
       {/* Detail modal — look up spool from live query data so it stays current */}
       {selectedSpoolId != null && (() => {
         const liveSpool = spools.find(s => s.id === selectedSpoolId);

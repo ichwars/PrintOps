@@ -21,6 +21,7 @@ from collections.abc import Callable
 import httpx
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 
 from backend.app.api.routes.library import _slicer_rejection_message
 from backend.app.core.config import settings as app_settings
@@ -316,7 +317,13 @@ class TestSliceLibraryFile:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_bed_type_override_patches_process_profile(self, async_client: AsyncClient, slice_test_setup):
+    @pytest.mark.parametrize(
+        ("bed_type", "expected"),
+        [("Textured PEI Plate", "Textured PEI Plate"), ("Cool Plate (SuperTack)", "Supertack Plate")],
+    )
+    async def test_bed_type_override_patches_process_profile(
+        self, async_client: AsyncClient, slice_test_setup, bed_type, expected
+    ):
         """#1337: when SliceRequest.bed_type is set, the process JSON sent to
         the sidecar must carry curr_bed_type with that exact value. Without
         the patch, slicing high-temp filaments on a "Cool Plate" process
@@ -343,7 +350,7 @@ class TestSliceLibraryFile:
                 "printer_preset_id": slice_test_setup["printer_id"],
                 "process_preset_id": slice_test_setup["process_id"],
                 "filament_preset_id": slice_test_setup["filament_id"],
-                "bed_type": "Textured PEI Plate",
+                "bed_type": bed_type,
             },
         )
         assert response.status_code == 202
@@ -354,9 +361,38 @@ class TestSliceLibraryFile:
         # override. Searching the raw body avoids parsing the multipart by
         # hand — the substring is unique enough since we control the JSON
         # being patched.
-        assert b'"curr_bed_type": "Textured PEI Plate"' in captured["body"], (
+        assert f'"curr_bed_type": "{expected}"'.encode() in captured["body"], (
             "bed_type override must appear in the process JSON sent to the sidecar"
         )
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_orca_only_bed_type_does_not_call_bambu_studio(self, async_client, db_session, slice_test_setup):
+        await db_session.execute(
+            update(SettingsModel).where(SettingsModel.key == "preferred_slicer").values(value="bambu_studio")
+        )
+        await db_session.commit()
+        calls = []
+
+        def record_call(request):
+            calls.append(request)
+            return httpx.Response(500)
+
+        _install_mock_sidecar(record_call)
+        response = await async_client.post(
+            f"/api/v1/library/files/{slice_test_setup['src_file_id']}/slice",
+            json={
+                "printer_preset_id": slice_test_setup["printer_id"],
+                "process_preset_id": slice_test_setup["process_id"],
+                "filament_preset_id": slice_test_setup["filament_id"],
+                "bed_type": "Textured Cool Plate",
+            },
+        )
+        assert response.status_code == 202
+        final = await _wait_for_job(async_client, response.json()["job_id"])
+        assert final["status"] == "failed", final
+        assert "requires OrcaSlicer" in str(final)
+        assert calls == []
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -1292,8 +1328,8 @@ class TestSliceArchiveResliceModel:
         assert new_id != source_id
 
         new_archive = await db_session.get(PrintArchive, new_id)
-        # The fix: the re-sliced archive reflects H2D — the printer it was
-        # sliced for — instead of inheriting X1C from the source archive.
+        assert new_archive.status == "archived" and new_archive.cost == 0.12
+        assert new_archive.started_at is None and new_archive.completed_at is None
         assert new_archive.sliced_for_model == "H2D"
         assert new_archive.extra_data.get("keep") == "value"
         assert "cost_source" not in new_archive.extra_data

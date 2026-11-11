@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugCreate, SmartPlugUpdate, DiscoveredTasmotaDevice } from '../api/client';
 import { Button } from './Button';
+import { selectPlaceholderOnFocus } from '../utils/secrets';
 import { LegacySelect, NumberField, Switch, TextArea, TextField , TimeField} from './ui';
 
 interface AddSmartPlugModalProps {
@@ -43,7 +44,6 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
   const [mqttStateTopic, setMqttStateTopic] = useState(plug?.mqtt_state_topic || '');
   const [mqttStatePath, setMqttStatePath] = useState(plug?.mqtt_state_path || '');
   const [mqttStateOnValue, setMqttStateOnValue] = useState(plug?.mqtt_state_on_value || '');
-  // REST fields
   const [restOnUrl, setRestOnUrl] = useState(plug?.rest_on_url || '');
   const [restOnBody, setRestOnBody] = useState(plug?.rest_on_body || '');
   const [restOffUrl, setRestOffUrl] = useState(plug?.rest_off_url || '');
@@ -262,9 +262,8 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
     setTestResult(null);
   };
 
-  // Test connection mutation
   const testMutation = useMutation({
-    mutationFn: () => api.testSmartPlugConnection(ipAddress, username || null, password || null),
+    mutationFn: () => api.testSmartPlugConnection(ipAddress, username || null, password || null, plug?.id),
     onSuccess: (result) => {
       setTestResult(result);
       setError(null);
@@ -279,7 +278,6 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
     },
   });
 
-  // Create mutation
   const createMutation = useMutation({
     mutationFn: (data: SmartPlugCreate) => api.createSmartPlug(data),
     onSuccess: () => {
@@ -1224,6 +1222,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                 <div>
                   <TextArea
                     value={restHeaders}
+                    onFocus={selectPlaceholderOnFocus}
                     onChange={(e) => setRestHeaders(e.target.value)}
                     placeholder={t('smartPlugs.restHeadersHint')}
                     rows={2}
@@ -1378,7 +1377,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                       setTestResult(null);
                       try {
                         const url = restOnUrl.trim() || restOffUrl.trim();
-                        const result = await api.testRESTConnection(url, restMethod, restHeaders.trim() || null);
+                        const result = await api.testRESTConnection(url, restMethod, restHeaders.trim() || null, plug?.id);
                         setTestResult({ success: result.success });
                         if (!result.success) {
                           setError(result.error || t('smartPlugs.addSmartPlug.connectionFailed'));
@@ -1494,6 +1493,7 @@ export function AddSmartPlugModal({ plug, onClose }: AddSmartPlugModalProps) {
                   <TextField
                     type="password"
                     value={password}
+                    onFocus={selectPlaceholderOnFocus}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="********"
                     className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"

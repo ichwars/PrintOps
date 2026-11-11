@@ -7,6 +7,7 @@ import { calculationsApi, type CalculationDetail } from '../../api/calculations'
 vi.mock('../../api/client', () => ({
   ApiError: class ApiError extends Error { status = 409; },
   api: {
+    getUiFlags: async () => ({}),
     getBusinessProfiles: vi.fn(), getBusinessProfileOptions: vi.fn(), getSettings: vi.fn(), getPrinters: vi.fn(), getEquipment: vi.fn(), getCustomers: vi.fn(), getProjects: vi.fn(), createProject: vi.fn(), getSpools: vi.fn(),
   },
 }));

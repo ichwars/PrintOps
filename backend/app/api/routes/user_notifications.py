@@ -2,12 +2,12 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
 from backend.app.models.user_email_pref import UserEmailPreference
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/user-notifications", tags=["user-notifications"])
 @router.get("/preferences", response_model=UserEmailPreferenceResponse)
 async def get_user_email_preferences(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.NOTIFICATIONS_USER_EMAIL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get the current user's email notification preferences.
 
@@ -55,7 +55,7 @@ async def get_user_email_preferences(
 async def update_user_email_preferences(
     data: UserEmailPreferenceUpdate,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.NOTIFICATIONS_USER_EMAIL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Update the current user's email notification preferences."""
     if current_user is None:

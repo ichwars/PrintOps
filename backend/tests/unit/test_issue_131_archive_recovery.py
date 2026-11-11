@@ -5,7 +5,7 @@ from __future__ import annotations
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from sqlalchemy import func, select
@@ -33,6 +33,42 @@ def _make_3mf(path: Path, *, plate: int = 1, slot: int = 1) -> None:
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("Metadata/slice_info.config", config)
         archive.writestr(f"Metadata/plate_{plate}.gcode", "G28\n")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("during_completion,completing", [(False, False), (True, False), (False, True)])
+async def test_recovery_prices_only_an_active_print(
+    during_completion, completing, db_session, printer_factory, archive_factory, tmp_path, monkeypatch
+):
+    from backend.app.core.config import settings
+    from backend.app.services import archive_cost_estimate, print_usage_lifecycle, spoolman_tracking
+
+    monkeypatch.setattr(settings, "base_dir", tmp_path)
+    monkeypatch.setattr(settings, "archive_dir", tmp_path / "archives")
+    schedule = Mock()
+    monkeypatch.setattr(archive_cost_estimate, "schedule_archive_cost_estimate", schedule)
+    monkeypatch.setattr(print_usage_lifecycle, "is_completing", lambda _: completing)
+    monkeypatch.setattr(spoolman_tracking, "attach_recovered_3mf", AsyncMock())
+    printer = await printer_factory()
+    row = await archive_factory(
+        printer.id,
+        with_run=False,
+        status="printing",
+        filename="Widget.3mf",
+        print_name="Widget",
+        file_path="",
+        extra_data={"_print_data": {"ams_mapping": [128]}},
+    )
+    candidate = tmp_path / "Widget.3mf"
+    _make_3mf(candidate, plate=2)
+    recovered = await try_recover_fallback_archive(
+        db_session, printer.id, "Widget.3mf", candidate, during_completion=during_completion
+    )
+    assert recovered.id == row.id
+    if during_completion or completing:
+        schedule.assert_not_called()
+    else:
+        schedule.assert_called_once_with(printer.id, row.id, ANY, ams_mapping=[128], plate_id=2)
 
 
 def test_internal_job_matching_is_exact():
@@ -330,7 +366,7 @@ async def test_usage_fallback_does_not_treat_dotted_prefix_as_same_name(
 async def test_fallback_timelapse_stays_under_archive_root(tmp_path):
     from backend.app.services.archive import ArchiveService
 
-    archive = MagicMock(id=1, file_path="", timelapse_path=None)
+    archive = MagicMock(id=1, file_path="", timelapse_path=None, deleted_at=None)
     db = AsyncMock()
     service = ArchiveService(db)
     service.get_archive = AsyncMock(return_value=archive)

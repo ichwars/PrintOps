@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { renderHook, waitFor, act, screen } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../../contexts/ToastContext';
@@ -266,6 +266,25 @@ describe('useWebSocket hook', () => {
   });
 
   describe('message handling', () => {
+    it('relays a failed plate check with its reason', async () => {
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 0; });
+      const { useWebSocket } = await import('../../hooks/useWebSocket');
+      renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
+      const ws = await waitForWs();
+      const listener = vi.fn();
+      window.addEventListener('plate-check-failed', listener);
+      try {
+        const detail = { printer_id: 1, printer_name: 'Printer A', reason: 'no_camera_frame' };
+        act(() => {
+          ws.open();
+          ws.simulateMessage({ type: 'plate_check_failed', ...detail });
+        });
+        await waitFor(() => expect(listener).toHaveBeenCalledWith(expect.objectContaining({ detail })));
+      } finally {
+        window.removeEventListener('plate-check-failed', listener);
+      }
+    });
+
     it('updates printer status in query cache on printer_status message', async () => {
       // Test the printer status update logic directly using setQueryData
       // The WebSocket handler with throttling is complex to test with fake timers,
@@ -473,8 +492,65 @@ describe('useWebSocket hook', () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['inventory-spools'] });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['spoolman-inventory-spools'] });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['inventory-locations'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['linked-spools'] });
 
       vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    it('refreshes all Spoolman slot readers after another client changes a slot', async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+        cb(0);
+        return 0;
+      });
+      const { useWebSocket } = await import('../../hooks/useWebSocket');
+
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      renderHook(() => useWebSocket(), {
+        wrapper: createWrapper(queryClient),
+      });
+
+      const ws = await waitForWs();
+
+      act(() => {
+        ws.open();
+      });
+
+      act(() => {
+        ws.simulateMessage({ type: 'spool_assignment_changed' });
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(6500);
+      });
+
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['spool-assignments'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['slotPresets'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['spoolman-slot-assignments'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['linked-spools'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['unlinked-spools'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['spoolman-inventory-spools'] });
+
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    it.each([
+      [true, true, 'printers.toast.assignmentVerified'],
+      [true, false, 'printers.toast.assignmentVerifiedNoKprofile'],
+      [false, undefined, 'printers.toast.assignmentNotConfirmed'],
+    ])('shows the observed slot result (%s, K-profile %s)', async (verified, kprofile, key) => {
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 0; });
+      const { useWebSocket } = await import('../../hooks/useWebSocket');
+      renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
+      const ws = await waitForWs();
+      act(() => { ws.open(); ws.simulateMessage({
+        type: 'spool_assignment_verified', printer_id: 1, printer_name: 'Printer A',
+        slot: 'AMS A1', verified, kprofile_applied: kprofile,
+      }); });
+      expect(await screen.findByText(key as string)).toBeInTheDocument();
       vi.unstubAllGlobals();
     });
 
@@ -677,63 +753,108 @@ describe('useWebSocket hook', () => {
       vi.useRealTimers();
     });
 
-    it('does NOT reconnect after an auth-rejection close (4401)', async () => {
-      // Regression: a 4401 (ws-token invalid/expired or caller lacks
-      // WEBSOCKET_CONNECT) used to reschedule connect() every 3s, spamming
-      // /auth/ws-token forever. It must be terminal now.
+    it('rechecks authentication and backs off if fresh sockets are closed with 4401', async () => {
       vi.useFakeTimers();
+      const recheck = vi.fn();
+      window.addEventListener('auth:recheck', recheck);
+      try {
+        const { useWebSocket } = await import('../../hooks/useWebSocket');
+        renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
+        await vi.advanceTimersByTimeAsync(0);
+        const first = wsInstances[0]!;
+        act(() => {
+          first.open();
+          first.simulateClose(4401);
+        });
+        expect(recheck).toHaveBeenCalledTimes(1);
 
-      const { useWebSocket } = await import('../../hooks/useWebSocket');
-      renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
+        await vi.advanceTimersByTimeAsync(3000);
+        const second = wsInstances[1]!;
+        expect(second).toBeDefined();
+        act(() => {
+          second.open();
+          second.simulateClose(4401);
+        });
+        expect(recheck).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(5999);
+        expect(wsInstances).toHaveLength(2);
+        await vi.advanceTimersByTimeAsync(1);
 
-      await vi.advanceTimersByTimeAsync(0);
-      const firstWs = wsInstances[wsInstances.length - 1]!;
-      act(() => {
-        firstWs.open();
-      });
-
-      const instanceCountBefore = wsInstances.length;
-
-      // Server rejects auth.
-      act(() => {
-        firstWs.simulateClose(4401);
-      });
-
-      // No reconnect even after the 3s window elapses.
-      await vi.advanceTimersByTimeAsync(3000);
-      expect(wsInstances.length).toBe(instanceCountBefore);
-
-      vi.useRealTimers();
+        const admitted = wsInstances[2]!;
+        act(() => {
+          admitted.open();
+          admitted.simulateMessage({ type: 'pong' });
+          admitted.simulateClose(4401);
+        });
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(wsInstances).toHaveLength(4);
+      } finally {
+        window.removeEventListener('auth:recheck', recheck);
+        vi.useRealTimers();
+      }
     });
 
-    it('does NOT open a socket or reconnect when ws-token mint returns 403', async () => {
-      // Mike/Forge's case: an authenticated user whose group lacks
-      // WEBSOCKET_CONNECT. POST /auth/ws-token returns 403; the hook must NOT
-      // fall through to a tokenless socket (server closes it 4401) and must NOT
-      // enter the reconnect loop — it degrades to REST polling instead.
+    it('backs off after refused handshakes and restarts with the normal delay after a connection', async () => {
       vi.useFakeTimers();
+      const recheck = vi.fn();
+      window.addEventListener('auth:recheck', recheck);
+      try {
+        const { useWebSocket } = await import('../../hooks/useWebSocket');
+        renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
+        await vi.advanceTimersByTimeAsync(0);
+        wsInstances[0]!.simulateClose(1006);
+        await vi.advanceTimersByTimeAsync(3000);
+        wsInstances[1]!.simulateClose(1006);
+        await vi.advanceTimersByTimeAsync(5999);
+        expect(wsInstances).toHaveLength(2);
+        await vi.advanceTimersByTimeAsync(1);
+        act(() => {
+          wsInstances[2]!.open();
+          wsInstances[2]!.simulateClose(1006);
+        });
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(wsInstances).toHaveLength(4);
+        expect(recheck).not.toHaveBeenCalled();
+      } finally {
+        window.removeEventListener('auth:recheck', recheck);
+        vi.useRealTimers();
+      }
+    });
 
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => ({
-          ok: false,
-          status: 403,
-          statusText: 'Forbidden',
-          headers: { get: () => null },
-          json: async () => ({ detail: 'Insufficient permissions' }),
-        })),
-      );
+    it('retries a temporary token-mint failure before opening a socket', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 503 }));
+        const { useWebSocket } = await import('../../hooks/useWebSocket');
+        renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(wsInstances).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(wsInstances).toHaveLength(1);
+        expect(wsInstances[0]!.url).toContain('token=test-ws-token');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
-      const { useWebSocket } = await import('../../hooks/useWebSocket');
-      renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
-
-      // Flush the token-mint rejection, then let the (would-be) reconnect
-      // window pass. No socket should ever be constructed.
-      await vi.advanceTimersByTimeAsync(0);
-      await vi.advanceTimersByTimeAsync(3000);
-      expect(wsInstances.length).toBe(0);
-
-      vi.useRealTimers();
+    it.each([401, 403])('rechecks auth without retrying when the token mint returns %s', async (status) => {
+      vi.useFakeTimers();
+      const recheck = vi.fn();
+      window.addEventListener('auth:recheck', recheck);
+      try {
+        vi.mocked(fetch).mockResolvedValueOnce(new Response(
+          JSON.stringify({ detail: status === 401 ? 'Authentication required' : 'Insufficient permissions' }),
+          { status },
+        ));
+        const { useWebSocket } = await import('../../hooks/useWebSocket');
+        renderHook(() => useWebSocket(), { wrapper: createWrapper(queryClient) });
+        await vi.advanceTimersByTimeAsync(30000);
+        expect(wsInstances).toHaveLength(0);
+        expect(recheck).toHaveBeenCalledTimes(1);
+      } finally {
+        window.removeEventListener('auth:recheck', recheck);
+        vi.useRealTimers();
+      }
     });
 
     it('does NOT reconnect when a close fires during unmount', async () => {

@@ -4,11 +4,32 @@ import asyncio
 import json
 import logging
 import tempfile
+from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 
 from backend.app.services.camera import get_ffmpeg_path
+from backend.app.utils.ffmpeg_limits import X264_BOUNDED_ARGS
 
 logger = logging.getLogger(__name__)
+PROBE_TIMEOUT_SECONDS = 60
+THUMBNAIL_TIMEOUT_SECONDS = 15
+ENCODE_TIMEOUT_SECONDS = 1200
+
+
+async def _kill_and_wait(process: asyncio.subprocess.Process) -> None:
+    with suppress(ProcessLookupError):
+        process.kill()
+    # Drain the pipes as well as reaping the child. A full pipe can hold wait().
+    await process.communicate()
+
+
+async def _communicate(process: asyncio.subprocess.Process, timeout: float) -> tuple[bytes, bytes]:
+    try:
+        return await asyncio.wait_for(process.communicate(), timeout)
+    except (TimeoutError, asyncio.CancelledError):
+        await _kill_and_wait(process)
+        raise
 
 
 class TimelapseProcessor:
@@ -40,7 +61,7 @@ class TimelapseProcessor:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await process.communicate()
+        stdout, stderr = await _communicate(process, PROBE_TIMEOUT_SECONDS)
 
         if process.returncode != 0:
             logger.error("ffprobe failed: %s", stderr.decode())
@@ -119,9 +140,13 @@ class TimelapseProcessor:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                await process.communicate()
+                try:
+                    await _communicate(process, THUMBNAIL_TIMEOUT_SECONDS)
+                except TimeoutError:
+                    logger.warning("Timelapse thumbnail at %.1f s timed out", timestamp)
+                    break
 
-                if output_path.exists():
+                if process.returncode == 0 and output_path.exists():
                     thumbnails.append((timestamp, output_path.read_bytes()))
 
         return thumbnails
@@ -134,6 +159,7 @@ class TimelapseProcessor:
         speed: float = 1.0,
         audio_path: Path | None = None,
         audio_volume: float = 1.0,
+        on_progress: Callable[[float], None] | None = None,
     ) -> bool:
         """Process video with trim, speed, and optional audio overlay.
 
@@ -148,8 +174,18 @@ class TimelapseProcessor:
         Returns:
             True if processing succeeded, False otherwise
         """
-        # Build FFmpeg command
-        cmd = [self.ffmpeg, "-y"]
+        expected_seconds = None
+        if on_progress is not None:
+            end = trim_end
+            if end is None:
+                try:
+                    end = (await self.get_info())["duration"]
+                except (TimeoutError, RuntimeError, ValueError):
+                    pass
+            if end is not None and end > trim_start:
+                expected_seconds = (end - trim_start) / speed
+
+        cmd = [self.ffmpeg, "-nostdin", "-loglevel", "error", "-y"]
 
         # Input seeking (fast seek before input)
         if trim_start > 0:
@@ -208,17 +244,19 @@ class TimelapseProcessor:
                 "fast",
                 "-crf",
                 "23",
+                *X264_BOUNDED_ARGS,
                 "-c:a",
                 "aac",
                 "-b:a",
                 "128k",
                 "-movflags",
                 "+faststart",  # Enable streaming
+                "-progress",
+                "pipe:1",
+                "-nostats",
                 str(output_path),
             ]
         )
-
-        logger.info("Processing timelapse: %s", " ".join(cmd))
 
         # Run FFmpeg
         process = await asyncio.create_subprocess_exec(
@@ -227,13 +265,36 @@ class TimelapseProcessor:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        _, stderr = await process.communicate()
+        assert process.stdout is not None and process.stderr is not None
+        try:
+            async with asyncio.timeout(ENCODE_TIMEOUT_SECONDS):
+                _, stderr = await asyncio.gather(
+                    self._read_progress(process.stdout, expected_seconds, on_progress),
+                    process.stderr.read(),
+                )
+                await process.wait()
+        except (TimeoutError, asyncio.CancelledError):
+            await _kill_and_wait(process)
+            output_path.unlink(missing_ok=True)
+            raise
 
         if process.returncode != 0:
-            logger.error("FFmpeg processing failed: %s", stderr.decode())
+            logger.error("FFmpeg processing failed: %s", stderr[-4096:].decode(errors="replace"))
+            output_path.unlink(missing_ok=True)
             return False
 
-        return output_path.exists()
+        return output_path.is_file() and output_path.stat().st_size > 0
+
+    @staticmethod
+    async def _read_progress(
+        stdout: asyncio.StreamReader, expected_seconds: float | None, on_progress: Callable[[float], None] | None
+    ) -> None:
+        async for line in stdout:
+            key, _, value = line.strip().partition(b"=")
+            if key != b"out_time_us" or not expected_seconds or on_progress is None:
+                continue
+            with suppress(ValueError):
+                on_progress(int(value) / 1_000_000 / expected_seconds)
 
     def _build_atempo_chain(self, speed: float) -> str:
         """Build atempo filter chain.

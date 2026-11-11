@@ -29,3 +29,37 @@ single-label formats reject values other than 1. Invalid positions return HTTP
 
 Transparent and multicolour swatches affect only the swatch itself. QR codes
 retain opaque black modules and a white background on every label format.
+
+## Custom label sheets
+
+Open **Custom sheet** to set the paper format, label size, rows and columns,
+margins and gaps. Use A4 or US Letter with labels of at least 40 × 20 mm.
+The sheet diagram shows which cells will be printed on the first sheet.
+The label preview shows the contents of one cell. PDF and PNG use the same
+geometry. Multiple PNG sheets are downloaded as a ZIP. The maximum PNG batch
+depends on the selected resolution.
+
+Use **Save as new template** to share a layout with other inventory users.
+Inventory readers can use saved layouts and print. Inventory editors can also
+create, replace and delete the shared templates. Selecting a saved template
+loads its geometry into the editor. Edits to that geometry apply to the current
+print. Use **Save changes** to update the shared template.
+
+## Scan and assign spools
+
+Use **Scan spool label** in the filament inventory, SpoolBuddy inventory or
+the AMS assignment dialog. Select an existing storage location or AMS slot,
+then read the label with the camera, a photo or the label link. Confirm the
+spool and destination shown in the dialog. A browser camera requires permission
+and a secure context. A photo or pasted link can be used when the camera is
+unavailable.
+
+New PrintOps labels carry the inventory type. Older PrintOps labels are
+resolved in the active inventory. Links must point to this PrintOps
+installation or its configured external URL. Spoolman mode also accepts
+Spoolman spool QR tags and links to the configured Spoolman instance.
+
+A storage selection updates the spool's storage record. An AMS selection
+moves the spool between slots in one database transaction, within the
+operator's printer permissions. The AMS dialog shows material differences
+before confirmation.

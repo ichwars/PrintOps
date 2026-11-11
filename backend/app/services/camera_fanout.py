@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import aclosing
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +42,15 @@ UpstreamFactory = Callable[[asyncio.Event], AsyncGenerator[bytes, None]]
 class MjpegBroadcaster:
     """Single upstream MJPEG stream, fanned out to N subscribers."""
 
-    def __init__(self, key: str, factory: UpstreamFactory) -> None:
+    def __init__(self, key: str, factory: UpstreamFactory, *, source_identity: tuple[str, ...] = ()) -> None:
         self._key = key
         self._factory = factory
+        self.source_identity = source_identity
         self._subscribers: list[asyncio.Queue[bytes]] = []
         self._lock = asyncio.Lock()
         self._pump_task: asyncio.Task | None = None
         self._grace_task: asyncio.Task | None = None
+        self._teardown_task: asyncio.Task | None = None
         # Disconnect event passed to the upstream generator so we can ask it to
         # stop reconnecting when the last subscriber leaves.
         self._upstream_disconnect = asyncio.Event()
@@ -103,53 +106,41 @@ class MjpegBroadcaster:
 
     async def force_shutdown(self) -> None:
         """Tear down immediately, kick all subscribers. Idempotent."""
-        pump_task = await self._mark_stopped_locked(notify_subscribers=True)
-        await self._await_pump_cancellation(pump_task)
+        await self._stop(only_if_idle=False)
 
     async def _grace_then_stop(self) -> None:
         try:
             await asyncio.sleep(_GRACE_SECONDS)
         except asyncio.CancelledError:
             return  # New subscriber arrived during grace
-        # Re-check under the lock — a subscriber may have rejoined between
-        # the sleep finishing and us acquiring the lock.
-        pump_task: asyncio.Task | None = None
-        async with self._lock:
-            if self._subscribers or self._stopped:
-                return
-            self._upstream_disconnect.set()
-            pump_task = self._pump_task
-            self._pump_task = None
-            self._grace_task = None
-            self._stopped = True
-        await self._await_pump_cancellation(pump_task)
+        await self._stop(only_if_idle=True)
 
-    async def _mark_stopped_locked(self, *, notify_subscribers: bool) -> asyncio.Task | None:
-        """Mark the broadcaster stopped and detach the pump task.
-
-        Caller MUST NOT hold ``self._lock`` (we acquire it here). Returns the
-        pump task (if any) so the caller can await its cancellation OUTSIDE
-        the lock — the pump's ``finally`` block needs the lock to wake up
-        subscribers, so we'd deadlock if we awaited it under the lock.
-        """
+    async def _stop(self, *, only_if_idle: bool) -> bool:
+        """Publish the teardown task before releasing the lock to other callers."""
         async with self._lock:
-            if self._stopped and self._pump_task is None:
-                return None
-            self._upstream_disconnect.set()
-            if notify_subscribers:
+            if only_if_idle and self._subscribers:
+                return False
+            if not self._stopped:
+                self._stopped = True
+                self._upstream_disconnect.set()
                 for queue in self._subscribers:
-                    try:
-                        queue.put_nowait(_UPSTREAM_GONE)
-                    except asyncio.QueueFull:
-                        pass
+                    if queue.full():
+                        queue.get_nowait()
+                    queue.put_nowait(_UPSTREAM_GONE)
                 self._subscribers.clear()
-            pump_task = self._pump_task
-            self._pump_task = None
-            self._stopped = True
-            if self._grace_task is not None and not self._grace_task.done():
-                self._grace_task.cancel()
+                if self._grace_task is not None and self._grace_task is not asyncio.current_task():
+                    self._grace_task.cancel()
                 self._grace_task = None
-            return pump_task
+                self._teardown_task = asyncio.create_task(self._await_pump_cancellation(self._pump_task))
+                self._pump_task = None
+            teardown = self._teardown_task
+        assert teardown is not None
+        await asyncio.shield(teardown)
+        return True
+
+    @property
+    def torn_down(self) -> bool:
+        return self._teardown_task is not None and self._teardown_task.done()
 
     async def _await_pump_cancellation(self, pump_task: asyncio.Task | None) -> None:
         if pump_task is None or pump_task.done():
@@ -165,19 +156,12 @@ class MjpegBroadcaster:
     async def _pump(self) -> None:
         """Drive the upstream generator and broadcast each chunk."""
         try:
-            async for chunk in self._factory(self._upstream_disconnect):
-                # Snapshot subscribers under lock so we don't iterate a list
-                # mutated by subscribe()/unsubscribe() while we are putting.
-                async with self._lock:
-                    targets = list(self._subscribers)
-                for queue in targets:
-                    try:
-                        queue.put_nowait(chunk)
-                    except asyncio.QueueFull:
-                        # Slow viewer — drop this frame for them. They'll catch
-                        # up on the next frame. Don't unsubscribe: a brief
-                        # browser stall shouldn't end the stream.
-                        pass
+            async with aclosing(self._factory(self._upstream_disconnect)) as frames:
+                async for chunk in frames:
+                    async with self._lock:
+                        for queue in self._subscribers:
+                            if not queue.full():
+                                queue.put_nowait(chunk)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -186,10 +170,9 @@ class MjpegBroadcaster:
             # Pump is exiting — wake up any subscribers still hanging on get().
             async with self._lock:
                 for queue in self._subscribers:
-                    try:
-                        queue.put_nowait(_UPSTREAM_GONE)
-                    except asyncio.QueueFull:
-                        pass
+                    if queue.full():
+                        queue.get_nowait()
+                    queue.put_nowait(_UPSTREAM_GONE)
 
 
 # Global registry. Keyed by printer_id (as str) so a chamber-mode printer
@@ -198,28 +181,37 @@ _broadcasters: dict[str, MjpegBroadcaster] = {}
 _registry_lock = asyncio.Lock()
 
 
-async def get_or_create_broadcaster(key: str, factory: UpstreamFactory) -> MjpegBroadcaster:
+async def get_or_create_broadcaster(
+    key: str, factory: UpstreamFactory, *, source_identity: tuple[str, ...] = ()
+) -> MjpegBroadcaster:
     """Return the live broadcaster for `key`, creating one if needed.
 
     A broadcaster that has been stopped (force shutdown or grace timeout) is
     replaced with a fresh instance — the caller will subscribe to the new one.
     """
-    async with _registry_lock:
-        existing = _broadcasters.get(key)
-        if existing is not None and not existing.stopped:
-            return existing
-        new_bc = MjpegBroadcaster(key, factory)
-        _broadcasters[key] = new_bc
-        return new_bc
+    while True:
+        async with _registry_lock:
+            existing = _broadcasters.get(key)
+            if existing is None or existing.torn_down:
+                broadcaster = MjpegBroadcaster(key, factory, source_identity=source_identity)
+                _broadcasters[key] = broadcaster
+                return broadcaster
+            if not existing.stopped and existing.source_identity == source_identity:
+                return existing
+        await existing.force_shutdown()
 
 
-async def shutdown_broadcaster(key: str) -> bool:
-    """Force-shutdown the broadcaster for `key`. Returns True if one was running."""
+async def shutdown_broadcaster(key: str, *, only_if_idle: bool = False) -> bool | None:
+    """Return True if stopped, False if absent, and None if viewers remain."""
     async with _registry_lock:
-        bc = _broadcasters.pop(key, None)
+        bc = _broadcasters.get(key)
     if bc is None:
         return False
-    await bc.force_shutdown()
+    if not await bc._stop(only_if_idle=only_if_idle):
+        return None
+    async with _registry_lock:
+        if _broadcasters.get(key) is bc:
+            _broadcasters.pop(key)
     return True
 
 
@@ -236,18 +228,9 @@ def active_broadcaster_keys() -> list[str]:
     return [k for k, bc in _broadcasters.items() if not bc.stopped]
 
 
-def get_subscriber_count(key: str) -> int:
-    """Return the number of live subscribers attached to ``key``, or 0.
-
-    Used by ``/camera/stop`` to decide whether to force-shutdown the broadcaster
-    or defer to natural cleanup. Other viewers (cam-wall tile, embedded viewer,
-    popup window) all subscribe to the same broadcaster, so a force-shutdown
-    triggered by one leaving viewer would kill the others' streams.
-    """
-    bc = _broadcasters.get(key)
-    if bc is None or bc.stopped:
-        return 0
-    return bc.subscriber_count
+def active_source_identity(key: str) -> tuple[str, ...] | None:
+    broadcaster = _broadcasters.get(key)
+    return broadcaster.source_identity if broadcaster is not None and not broadcaster.stopped else None
 
 
 # AsyncGenerator helper — turns a subscriber queue into an async generator
@@ -260,6 +243,7 @@ async def iter_subscriber(
     *,
     is_disconnected: Callable[[], Awaitable[bool]] | None = None,
     on_unsubscribe: Callable[[int], None] | None = None,
+    idle_check_seconds: float = 30.0,
 ) -> AsyncGenerator[bytes, None]:
     """Yield chunks from a subscriber queue until upstream ends or client leaves.
 
@@ -271,7 +255,7 @@ async def iter_subscriber(
     try:
         while True:
             try:
-                chunk = await asyncio.wait_for(queue.get(), timeout=30.0)
+                chunk = await asyncio.wait_for(queue.get(), timeout=idle_check_seconds)
             except asyncio.TimeoutError:
                 # No frame in 30s — check whether the client is still there.
                 # If yes, keep waiting; if no, bail out.

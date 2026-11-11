@@ -155,6 +155,58 @@ class TestEnrichCloudMetadata:
         assert c["filament"][0].filament_colour == "#FFFFFF"
 
 
+def _filament_tier(*presets: UnifiedPreset) -> dict[str, list[UnifiedPreset]]:
+    return {"printer": [], "process": [], "filament": list(presets)}
+
+
+class TestEnrichFilamentMaterial:
+    def test_stock_h2c_material_comes_from_agreeing_bambu_printers_and_cache_stays_raw(self):
+        h2c = UnifiedPreset(id="h2c", name="Generic PETG-CF @BBL H2C 0.4 nozzle", source="cloud")
+        standard = _filament_tier(
+            UnifiedPreset(id="x1c", name="Generic PETG-CF @BBL X1C", source="standard", filament_type="PETG-CF"),
+            UnifiedPreset(
+                id="h2d",
+                name="Generic PETG-CF @BBL H2D",
+                source="standard",
+                filament_type="PETG-CF",
+                filament_colour="#FF0000",
+            ),
+            UnifiedPreset(id="orca", name="Generic PETG-CF @System", source="standard", filament_type="PETG"),
+        )
+        cloud = _filament_tier(h2c)
+
+        _, enriched, _, _ = sp._enrich_cloud_metadata(_slot([]), cloud, _slot([]), standard)
+        assert enriched["filament"][0].filament_type == "PETG-CF"
+        assert enriched["filament"][0].filament_colour is None
+        assert h2c.filament_type is None
+
+        standard["filament"][1].filament_type = "PETG"
+        _, enriched, _, _ = sp._enrich_cloud_metadata(_slot([]), cloud, _slot([]), standard)
+        assert enriched["filament"][0].filament_type is None
+
+    def test_orca_material_follows_parents_without_using_coarse_generics_or_cycles(self):
+        standard = _filament_tier(
+            UnifiedPreset(id="x1c", name="Generic PETG-CF @BBL X1C", source="standard", filament_type="PETG-CF"),
+            UnifiedPreset(id="orca", name="Generic PETG-CF @System", source="standard", filament_type="PETG"),
+        )
+        orca = _filament_tier(
+            UnifiedPreset(id="a", name="My filament", source="orca_cloud", inherits="Generic PETG-CF @BBL H2C"),
+            UnifiedPreset(id="b", name="My faster filament", source="orca_cloud", inherits="My filament"),
+            UnifiedPreset(id="c", name="Loop A", source="orca_cloud", inherits="Loop B"),
+            UnifiedPreset(id="d", name="Loop B", source="orca_cloud", inherits="Loop A"),
+            UnifiedPreset(id="e", name="System generic", source="orca_cloud", inherits="Generic PETG-CF @System"),
+            UnifiedPreset(id="f", name="Own type", source="orca_cloud", inherits="My filament", filament_type="PLA"),
+        )
+        cloud = _filament_tier(
+            UnifiedPreset(id="custom", name="Generic PETG-CF @BBL H2C - Copy", source="cloud"),
+        )
+
+        orca_result, cloud_result, _, _ = sp._enrich_cloud_metadata(orca, cloud, _slot([]), standard)
+
+        assert [p.filament_type for p in orca_result["filament"]] == ["PETG-CF", "PETG-CF", None, None, None, "PLA"]
+        assert cloud_result["filament"][0].filament_type is None
+
+
 class TestEnrichCompatiblePrinters:
     """#2628: the same name bridge carries ``compatible_printers`` onto the
     tiers that don't ship one. Bambu Cloud never does — so a profile whose
@@ -327,6 +379,7 @@ class TestFetchOrcaCloudPresets:
                         "type": "filament",
                         "filament_type": ["PLA"],
                         "default_filament_colour": ["#000000"],
+                        "inherits": "Generic PLA @BBL X1C",
                     },
                 },
             ]
@@ -349,6 +402,8 @@ class TestFetchOrcaCloudPresets:
         # per-preset fetch to enrich filament_type / filament_colour).
         assert filament[0].filament_type == "PLA"
         assert filament[0].filament_colour == "#000000"
+        assert filament[0].inherits == "Generic PLA @BBL X1C"
+        assert "inherits" not in filament[0].model_dump()
 
     @pytest.mark.asyncio
     async def test_extracts_compatible_printers_from_content(self):
@@ -368,7 +423,7 @@ class TestFetchOrcaCloudPresets:
                     "content": {
                         "type": "filament",
                         "filament_type": ["PLA"],
-                        "compatible_printers": compat,
+                        "compatible_printers": ";".join(f'"{name}"' for name in compat),
                     },
                 },
                 {
@@ -376,7 +431,11 @@ class TestFetchOrcaCloudPresets:
                     "name": "Orca 0.20mm",
                     "content": {"type": "print", "compatible_printers": "Bambu Lab P2S 0.4 nozzle"},
                 },
-                {"id": "m1", "name": "Orca X1C", "content": {"type": "printer"}},
+                {
+                    "id": "m1",
+                    "name": "Orca X1C",
+                    "content": {"type": "printer", "inherits": " Bambu Lab X1 Carbon 0.4 nozzle "},
+                },
             ]
         )
         svc_mock.close = AsyncMock()
@@ -394,6 +453,7 @@ class TestFetchOrcaCloudPresets:
         assert slots["process"][0].compatible_printers == ["Bambu Lab P2S 0.4 nozzle"]
         # Printer presets have nothing to be compatible with.
         assert slots["printer"][0].compatible_printers is None
+        assert slots["printer"][0].model_dump()["printer_parent"] == "Bambu Lab X1 Carbon 0.4 nozzle"
 
     @pytest.mark.asyncio
     async def test_missing_or_malformed_compatible_printers_stays_none(self):
@@ -733,9 +793,13 @@ class TestFetchBundledPresets:
                 "process": [],
                 "filament": [],
             },
+            "http://ok",
         )
         # If `SlicerApiService` is constructed at all we've missed the cache.
-        with patch.object(sp, "SlicerApiService", side_effect=AssertionError("cache miss!")):
+        with (
+            patch.object(sp, "_resolve_slicer_api_url", AsyncMock(return_value="http://ok")),
+            patch.object(sp, "SlicerApiService", side_effect=AssertionError("cache miss!")),
+        ):
             slots = await sp._fetch_bundled_presets(MagicMock())
         assert slots["printer"][0].name == "Cached"
 
@@ -751,6 +815,7 @@ class TestFetchBundledPresets:
                 "process": [],
                 "filament": [],
             },
+            "http://ok",
         )
         svc_mock = MagicMock()
         svc_mock.list_bundled_profiles = AsyncMock(
@@ -904,3 +969,24 @@ class TestListPrinterModels:
 
         result = sp.list_printer_models()
         assert result is not PRINTER_MODEL_MAP
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bambu", [True, False])
+async def test_only_bambu_stock_twins_share_an_entry(bambu):
+    standard = _slot([("Stock X1C", "Stock X1C", "standard"), ("Own X1C", "Own X1C", "standard")])
+    cloud = _slot([("stock-cloud", "Stock X1C", "cloud"), ("private", "Own X1C", "cloud")])
+    cloud["printer"][0].stock = True
+    orca = _slot([("orca", "Stock X1C", "orca_cloud")])
+    with (
+        patch.object(sp, "_fetch_bundled_presets", AsyncMock(return_value=standard)),
+        patch.object(sp, "_fetch_cloud_presets", AsyncMock(return_value=(cloud, "ok"))),
+        patch.object(sp, "_fetch_orca_cloud_presets", AsyncMock(return_value=(orca, "ok"))),
+        patch.object(sp, "_fetch_local_presets", AsyncMock(return_value=sp._empty_slots())),
+        patch.object(sp, "_uses_bambu_stock", AsyncMock(return_value=bambu)),
+    ):
+        listing = await sp.list_unified_presets(MagicMock(), None, None, False)
+    assert [p.id for p in listing.orca_cloud.printer] == ["orca"]
+    assert [p.id for p in listing.cloud.printer] == ["stock-cloud", "private"]
+    assert [p.id for p in listing.standard.printer] == (["Own X1C"] if bambu else ["Stock X1C", "Own X1C"])
+    assert set(listing.stock_aliases) == ({"printer:standard:Stock X1C"} if bambu else set())

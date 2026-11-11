@@ -10,6 +10,7 @@ from backend.app.api.routes.obico import (
     get_printer_status,
     test_connection as obico_test_connection,
 )
+from backend.app.core.auth import OwnershipAccess
 from backend.app.services.obico_detection import obico_detection_service
 from backend.app.services.obico_smoothing import PrintState
 
@@ -50,12 +51,14 @@ async def test_printer_status_exposes_error_class_and_reason_without_reporting_s
 
 
 @pytest.mark.asyncio
-async def test_printer_reader_without_settings_permission_gets_class_but_not_internal_reason():
+async def test_printer_reader_without_settings_permission_gets_class_but_not_internal_reason(db_session):
     obico_detection_service._states[1] = PrintState()
     obico_detection_service._errors[1] = "ML API http://192.168.8.9:3333 refused"
     obico_detection_service._last_error = obico_detection_service._errors[1]
     user = MagicMock()
     user.has_permission.return_value = False
+    user.allowed_printer_ids = None
+    user.is_admin = False
     loaded = {"enabled": True, "enabled_printers": None}
 
     with patch.object(
@@ -63,7 +66,7 @@ async def test_printer_reader_without_settings_permission_gets_class_but_not_int
         "_load_settings",
         new=AsyncMock(return_value=loaded),
     ):
-        data = await get_printer_status(user=user)
+        data = await get_printer_status(db=db_session, access=OwnershipAccess(user, True))
 
     assert data["per_printer"][1]["class"] == "error"
     assert data["per_printer"][1]["error"] is None

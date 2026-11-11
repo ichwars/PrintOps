@@ -10,13 +10,14 @@ multi-copy fanout and the run dashboard.
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.user_printer_scope import prepare_printer_scope_write, validate_printer_grants
 from backend.app.models.slicer_pipeline import SlicerPipeline
 from backend.app.models.user import User
 from backend.app.schemas.slicer import PresetRef
@@ -65,7 +66,7 @@ def _to_response(row: SlicerPipeline) -> SlicerPipelineResponse:
 @router.get("/", response_model=SlicerPipelineListResponse)
 async def list_pipelines(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PIPELINES_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """List all pipelines, newest first. Soft-deleted rows are hidden."""
     result = await db.execute(
@@ -79,7 +80,7 @@ async def list_pipelines(
 async def create_pipeline(
     data: SlicerPipelineCreate,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PIPELINES_WRITE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Create a new pipeline."""
     row = SlicerPipeline(
@@ -103,7 +104,7 @@ async def create_pipeline(
 async def get_pipeline(
     pipeline_id: int,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PIPELINES_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Read one pipeline by id."""
     result = await db.execute(
@@ -123,9 +124,12 @@ async def update_pipeline(
     pipeline_id: int,
     data: SlicerPipelineUpdate,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PIPELINES_WRITE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Update a pipeline. Only fields present in the payload are written."""
+    if data.target_printer_id:
+        await prepare_printer_scope_write(db)
+        await validate_printer_grants(db, [data.target_printer_id])
     result = await db.execute(
         select(SlicerPipeline).where(
             SlicerPipeline.id == pipeline_id,
@@ -182,7 +186,7 @@ async def update_pipeline(
 async def delete_pipeline(
     pipeline_id: int,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PIPELINES_WRITE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Soft-delete a pipeline (sets is_deleted=True so PR B+ run history can
     still resolve pipeline metadata)."""

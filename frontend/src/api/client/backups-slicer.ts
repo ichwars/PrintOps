@@ -14,6 +14,7 @@ import type {
   ImportResponse,
   LocalBackupFile,
   LocalBackupStatus,
+  LoadedSpoolsResponse,
   LocalPreset,
   LocalPresetDetail,
   LocalPresetsResponse,
@@ -145,7 +146,7 @@ export const backupsSlicerMethods = {
   getSliceJob: (jobId: number) =>
     request<SliceJobState>(`/slice-jobs/${jobId}`),
 
-  // Unified slicer-preset listing — cloud + local + standard, deduped by name.
+  // Unified listing of imported, cloud and bundled slicer profiles.
   // Used by the SliceModal; see UnifiedPresetsResponse for the shape and
   // backend/app/api/routes/slicer_presets.py for the priority rules.
   // `refresh` bypasses the in-process cloud and bundled-preset caches on the
@@ -155,6 +156,8 @@ export const backupsSlicerMethods = {
     request<UnifiedPresetsResponse>(
       options?.refresh ? '/slicer/presets?refresh=true' : '/slicer/presets',
     ),
+
+  getSlicerLoadedSpools: () => request<LoadedSpoolsResponse>('/slicer/loaded-spools'),
 
   // Slicer Pipelines (#1425) — preset bundles the SliceModal can apply in
   // one click. CRUD is gated on PIPELINES_READ / PIPELINES_WRITE.

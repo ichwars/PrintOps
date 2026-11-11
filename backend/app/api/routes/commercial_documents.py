@@ -8,7 +8,7 @@ from hashlib import sha256
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,7 +17,7 @@ from backend.app.core.auth import (
     RequireAnyPermissionIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
 )
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.paths import resolve_data_dir, safe_join
 from backend.app.core.permissions import Permission
 from backend.app.models.commercial_document import CommercialDocument, DocumentArtifact
@@ -285,7 +285,7 @@ async def list_documents(
     customer_id: int | None = Query(default=None, gt=0),
     document_type: str | None = None,
     technical_status: str | None = Query(default=None, alias="status"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> list[CommercialDocumentRead]:
     statement = select(CommercialDocument).options(*_LOAD_OPTIONS)
@@ -306,7 +306,7 @@ async def list_documents(
 async def create_document(
     command: CommercialDocumentDraft,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_DRAFT),
 ) -> CommercialDocumentRead:
     _reject_inline_tax_override(request, command)
@@ -334,7 +334,7 @@ async def create_document(
 async def get_document(
     document_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> CommercialDocumentRead:
     try:
@@ -347,7 +347,7 @@ async def get_document(
 async def list_document_payments(
     document_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PAYMENTS_READ),
 ) -> list[DocumentPaymentRead]:
     try:
@@ -362,7 +362,7 @@ async def record_document_payment(
     document_id: int,
     command: RecordPaymentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.PAYMENTS_MANAGE),
 ) -> CommercialDocumentRead:
     try:
@@ -411,7 +411,7 @@ async def record_document_payment(
 async def list_document_artifacts(
     document_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> list[CommercialDocumentArtifactRead]:
     try:
@@ -444,7 +444,7 @@ async def get_document_artifact_manifest(
     document_id: int,
     artifact_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> dict:
     artifact = await _artifact_for_document(db, request, document_id, artifact_id)
@@ -459,7 +459,7 @@ async def download_document_artifact(
     document_id: int,
     artifact_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_EXPORT),
 ) -> Response:
     artifact = await _artifact_for_document(db, request, document_id, artifact_id)
@@ -539,7 +539,7 @@ async def patch_document(
     document_id: int,
     command: UpdateCommercialDocumentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_DRAFT),
 ) -> CommercialDocumentRead:
     _reject_inline_tax_override(request, command.document)
@@ -572,7 +572,7 @@ async def patch_document(
 async def validate_document(
     document_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.COMMERCIAL_DOCUMENTS_READ,
         Permission.COMMERCIAL_DOCUMENTS_DRAFT,
@@ -605,7 +605,7 @@ async def approve_document(
     document_id: int,
     command: VersionedDocumentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_APPROVE),
 ) -> CommercialDocumentRead:
     try:
@@ -637,7 +637,7 @@ async def issue_commercial_document(
     document_id: int,
     command: IssueDocumentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_ISSUE),
 ) -> CommercialDocumentRead:
     try:
@@ -670,7 +670,7 @@ async def create_document_successor(
     document_id: int,
     command: SuccessorDocumentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_CORRECT),
 ) -> CommercialDocumentRead:
     try:
@@ -705,7 +705,7 @@ async def correct_commercial_document(
     document_id: int,
     command: ReasonedDocumentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_CORRECT),
 ) -> CommercialDocumentRead:
     try:
@@ -728,7 +728,7 @@ async def cancel_commercial_document(
     document_id: int,
     command: ReasonedDocumentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_CORRECT),
 ) -> CommercialDocumentRead:
     try:
@@ -751,7 +751,7 @@ async def override_document_tax(
     document_id: int,
     command: TaxOverrideDocumentCommand,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(
         Permission.COMMERCIAL_DOCUMENTS_DRAFT,
         Permission.COMMERCIAL_DOCUMENTS_TAX_OVERRIDE,
@@ -786,7 +786,7 @@ async def override_document_tax(
 async def get_document_history(
     document_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_AUDIT_READ),
 ) -> list[DocumentAuditEventRead]:
     try:

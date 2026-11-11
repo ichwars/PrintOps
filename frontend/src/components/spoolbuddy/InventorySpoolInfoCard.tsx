@@ -6,6 +6,7 @@ import type { InventorySpool } from '../../api/client';
 import { spoolbuddyApi, api } from '../../api/client';
 import { SpoolIcon } from './SpoolIcon';
 import { spoolColorString } from '../../utils/colors';
+import { shownCostPerKg } from '../../utils/spoolCost';
 
 const DEFAULT_CORE_WEIGHT_KEY = 'spoolbuddy-default-core-weight';
 
@@ -109,6 +110,7 @@ export function InventorySpoolInfoCard({
   // Inventory fallback so gross is always populated across spools.
   const inventoryDerivedGrossWeight = Math.round(calculatedWeight);
   const resolvedGrossWeight = displayedGrossWeight ?? inventoryDerivedGrossWeight;
+  const costPerKg = shownCostPerKg(spool);
   const nozzleTempRange = (spool.nozzle_temp_min != null && spool.nozzle_temp_max != null)
     ? `${spool.nozzle_temp_min}-${spool.nozzle_temp_max}\u00B0C`
     : null;
@@ -230,10 +232,10 @@ export function InventorySpoolInfoCard({
             <span className="font-mono text-zinc-300">{nozzleTempRange}</span>
           </div>
         )}
-        {spool.cost_per_kg != null && spool.cost_per_kg > 0 && (
+        {costPerKg != null && costPerKg > 0 && (
           <div className="flex justify-between items-center">
             <span className="text-zinc-500">{t('spoolbuddy.inventory.costPerKg', 'Cost/kg')}</span>
-            <span className="font-mono text-zinc-300">{spool.cost_per_kg.toFixed(2)}/kg</span>
+            <span className="font-mono text-zinc-300">{costPerKg.toFixed(2)}/kg</span>
           </div>
         )}
         {kFactorSummary && (

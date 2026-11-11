@@ -113,3 +113,179 @@ describe('resolveSpoolColorName', () => {
     expect(resolveSpoolColorName('A99-Z9', '00000000')).toBe('Clear');
   });
 });
+
+describe('getColorName with a material (#2875)', () => {
+  beforeEach(() => {
+    __resetColorCatalogForTests();
+    // What the backend ships for a real Bambu catalog: the flat map can only
+    // keep one name for #FFFFFF, and the qualified map carries the rest.
+    setColorCatalog(
+      { ffffff: 'Jade White', '000000': 'Black' },
+      { 'pla matte|ffffff': 'Ivory White', 'pla matte|000000': 'Charcoal' },
+    );
+  });
+
+  it('returns the material-specific name when the caller knows the material', () => {
+    expect(getColorName('FFFFFFFF', 'PLA Matte')).toBe('Ivory White');
+    expect(getColorName('000000FF', 'PLA Matte')).toBe('Charcoal');
+  });
+
+  it('still returns the flat name for a material with no entry of its own', () => {
+    expect(getColorName('FFFFFFFF', 'PLA Basic')).toBe('Jade White');
+    expect(getColorName('FFFFFFFF', 'Some Third Party Filament')).toBe('Jade White');
+  });
+
+  it('ignores case and padding in the material, as tray_sub_brands is not normalized', () => {
+    expect(getColorName('FFFFFFFF', '  pla MATTE ')).toBe('Ivory White');
+  });
+
+  it('falls back to the flat name when no material is passed', () => {
+    expect(getColorName('FFFFFFFF')).toBe('Jade White');
+    expect(getColorName('FFFFFFFF', null)).toBe('Jade White');
+    expect(getColorName('FFFFFFFF', '')).toBe('Jade White');
+  });
+
+  it('keeps Clear ahead of any catalog lookup for a transparent spool', () => {
+    expect(getColorName('FFFFFF00', 'PLA Matte')).toBe('Clear');
+  });
+
+  it('falls back to HSL when neither map knows the hex', () => {
+    expect(getColorName('5F6367', 'PLA Matte')).toBe('Dark Gray');
+  });
+
+  it('survives a catalog with no qualified map at all', () => {
+    __resetColorCatalogForTests();
+    setColorCatalog({ ffffff: 'Jade White' });
+    expect(getColorName('FFFFFFFF', 'PLA Matte')).toBe('Jade White');
+  });
+
+  it('reads the hex from the last separator, so a material may contain one', () => {
+    // Material is free text -- users edit the colour catalog.
+    __resetColorCatalogForTests();
+    setColorCatalog({ ffffff: 'Jade White' }, { 'pla|matte|ffffff': 'Ivory White' });
+    expect(getColorName('FFFFFFFF', 'PLA|Matte')).toBe('Ivory White');
+  });
+
+  it('ignores malformed qualified keys instead of poisoning the map', () => {
+    __resetColorCatalogForTests();
+    setColorCatalog(
+      { ffffff: 'Jade White' },
+      { 'pla matte|nothex': 'Nope', '|ffffff': 'Nope', 'pla matte': 'Nope', 'pla matte|ffffff': 'Ivory White' },
+    );
+    expect(getColorName('FFFFFFFF', 'PLA Matte')).toBe('Ivory White');
+    expect(getColorName('FFFFFFFF')).toBe('Jade White');
+  });
+});
+
+describe('getColorName: nearest Bambu colour (#3279)', () => {
+  // A colour picked on the printer's touchscreen arrives as a hex a step or
+  // two off Bambu Studio's: Blue Grey is 5B6579 in the catalogue, the printer
+  // reports 5A657B. The exact lookup missed it and the hue bucket said "Blue".
+  const BAMBU = [
+    { hex: '5b6579', name: 'Blue Grey', material: 'PLA Basic' },
+    { hex: 'ff9016', name: 'Pumpkin Orange', material: 'PLA Basic' },
+    { hex: 'ff911a', name: 'Translucent Orange', material: 'PETG Translucent' },
+    { hex: 'a6a9aa', name: 'Silver', material: 'PLA Basic' },
+  ];
+
+  beforeEach(() => {
+    __resetColorCatalogForTests();
+    setColorCatalog({}, {}, BAMBU);
+  });
+
+  it('names a printer-palette hex by the Bambu colour it is a step away from', () => {
+    expect(getColorName('5A657BFF')).toBe('Blue Grey');
+    expect(getColorName('5A657B', 'PLA Basic')).toBe('Blue Grey');
+  });
+
+  it('keeps the hue bucket for a colour no Bambu entry is close to', () => {
+    expect(getColorName('123456')).toBe('Blue');
+  });
+
+  it('prefers the colour of the material the caller names', () => {
+    // FF9017 is nearer Pumpkin Orange (PLA Basic) than Translucent Orange (PETG).
+    expect(getColorName('FF9017')).toBe('Pumpkin Orange');
+    expect(getColorName('FF9017', 'PETG Translucent')).toBe('Translucent Orange');
+    expect(getColorName('FF9017', ' petg TRANSLUCENT ')).toBe('Translucent Orange');
+  });
+
+  it('looks in every Bambu range when the material is not one of them', () => {
+    expect(getColorName('5A657B', 'Generic PETG')).toBe('Blue Grey');
+  });
+
+  it('does not borrow another range\'s name when the material is a Bambu range', () => {
+    expect(getColorName('5A657B', 'PETG Translucent')).toBe('Blue');
+  });
+
+  it('never moves a different Bambu colour onto the file colour', () => {
+    // #3279's own pair: the file's A4AAAC is Silver, the tray's 5A657B Blue Grey.
+    expect(getColorName('A4AAAC')).toBe('Silver');
+  });
+
+  it('lets an exact catalogue name win over a nearer-sounding guess', () => {
+    __resetColorCatalogForTests();
+    setColorCatalog({ '5a657b': 'Slate' }, {}, BAMBU);
+    expect(getColorName('5A657B')).toBe('Slate');
+  });
+
+  it('forgets the old answers when the catalogue is replaced', () => {
+    expect(getColorName('5A657B')).toBe('Blue Grey');
+    setColorCatalog({}, {}, [{ hex: '5b6579', name: 'Renamed Grey', material: 'PLA Basic' }]);
+    expect(getColorName('5A657B')).toBe('Renamed Grey');
+  });
+
+  it('takes the first listed of two equally near colours', () => {
+    __resetColorCatalogForTests();
+    setColorCatalog({}, {}, [
+      { hex: '5b6579', name: 'Blue Grey', material: 'PLA Basic' },
+      { hex: '5b6579', name: 'Slate Grey', material: 'PLA Matte' },
+    ]);
+    expect(getColorName('5A657B')).toBe('Blue Grey');
+  });
+
+  it('stays within the material when it has Bambu colours of its own', () => {
+    // A PLA Basic slot at 8F8F8F is not Translucent Gray (PETG Translucent,
+    // 0.3 away) just because PLA Basic's Gray is further than the threshold.
+    __resetColorCatalogForTests();
+    setColorCatalog({}, {}, [
+      { hex: '8e8e8e', name: 'Translucent Gray', material: 'PETG Translucent' },
+      { hex: '8e9089', name: 'Gray', material: 'PLA Basic' },
+    ]);
+    expect(getColorName('8F8F8F', 'PLA Basic')).toBe('Gray');
+    expect(getColorName('8F8F8F', 'PLA Basic')).not.toBe('Translucent Gray');
+    expect(getColorName('8F8F8F', 'Some Third Party PLA')).toBe('Translucent Gray');
+  });
+
+  it("finds the material's own colour before another range's exact hex", () => {
+    // Pumpkin Orange (PLA Basic) owns FF9016 in the flat map; a PETG
+    // Translucent slot one step away from it is still Translucent Orange.
+    __resetColorCatalogForTests();
+    setColorCatalog({ ff9016: 'Pumpkin Orange' }, {}, BAMBU);
+    expect(getColorName('FF9016', 'PETG Translucent')).toBe('Translucent Orange');
+    expect(getColorName('FF9016')).toBe('Pumpkin Orange');
+  });
+
+  it("takes the material from the slot's preset when the printer sends none", () => {
+    // Without RFID the printer leaves tray_sub_brands empty but still reports
+    // the preset picked on its screen (GFA00 = Bambu PLA Basic).
+    __resetColorCatalogForTests();
+    setColorCatalog({}, {}, BAMBU, { GFA00: 'PLA Basic', GFG01: 'PETG Translucent' });
+    expect(getColorName('FF9017', '', 'GFG01')).toBe('Translucent Orange');
+    expect(getColorName('FF9017', null, 'gfa00')).toBe('Pumpkin Orange');
+    // tray_sub_brands, when there is one, is the more direct answer.
+    expect(getColorName('FF9017', 'PLA Basic', 'GFG01')).toBe('Pumpkin Orange');
+  });
+
+  it('keeps Clear for a transparent spool', () => {
+    expect(getColorName('5A657B00')).toBe('Clear');
+  });
+
+  it('ignores malformed entries', () => {
+    __resetColorCatalogForTests();
+    setColorCatalog({}, {}, [
+      { hex: 'zzzzzz', name: 'Nope', material: 'PLA Basic' },
+      { hex: '5b6579', name: '', material: 'PLA Basic' },
+    ]);
+    expect(getColorName('5A657B')).toBe('Blue');
+  });
+});

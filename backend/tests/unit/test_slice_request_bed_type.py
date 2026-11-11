@@ -30,11 +30,11 @@ class TestSliceRequestBedTypeField:
     def test_bed_type_accepts_canonical_values(self):
         for value in (
             "Cool Plate",
-            "Cool Plate (SuperTack)",
+            "Supertack Plate",
             "Engineering Plate",
             "High Temp Plate",
             "Textured PEI Plate",
-            "Smooth PEI Plate",
+            "Cool Plate (SuperTack)",
         ):
             req = SliceRequest(
                 printer_preset=PresetRef(source="local", id="1"),
@@ -42,7 +42,7 @@ class TestSliceRequestBedTypeField:
                 filament_preset=PresetRef(source="local", id="3"),
                 bed_type=value,
             )
-            assert req.bed_type == value
+            assert req.bed_type == ("Supertack Plate" if value == "Cool Plate (SuperTack)" else value)
 
     def test_bed_type_rejects_overlong_input(self):
         with pytest.raises(ValidationError):

@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type React from 'react';
-import { screen, waitFor, fireEvent, render as rtlRender } from '@testing-library/react';
+import { screen, waitFor, fireEvent, within, render as rtlRender } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
@@ -88,6 +88,22 @@ describe('PrintModal', () => {
   });
 
   describe('create mode', () => {
+    it('uses configured print defaults without reading protected settings', async () => {
+      const readProtectedSettings = vi.fn();
+      server.use(
+        http.get('/api/v1/settings/', () => {
+          readProtectedSettings();
+          return new HttpResponse(null, { status: 403 });
+        }),
+        http.get('/api/v1/settings/ui-flags', () => HttpResponse.json({ default_flow_cali: true })),
+      );
+      render(<PrintModal mode="create" archiveId={1} archiveName="Benchy"
+        initialSelectedPrinterIds={[1]} onClose={mockOnClose} onSuccess={mockOnSuccess} />);
+      const label = (await screen.findByText('Flow Calibration')).closest('label');
+      await waitFor(() => expect(label?.querySelector('.bg-bambu-green')).toBeInTheDocument());
+      expect(readProtectedSettings).not.toHaveBeenCalled();
+    });
+
     it('renders the modal title', () => {
       render(
         <PrintModal
@@ -1025,6 +1041,89 @@ describe('PrintModal', () => {
       expect((queueRequests[1] as { plate_id: number }).plate_id).toBe(3);
     });
 
+    // #3395: a reprint opens on the plate the archive printed, not plate 1.
+    async function submitAndCollect(preselectPlateId: number | null) {
+      const queueRequests: { plate_id: number }[] = [];
+      server.use(
+        http.post('/api/v1/queue/', async ({ request }) => {
+          queueRequests.push((await request.json()) as { plate_id: number });
+          return HttpResponse.json({ id: queueRequests.length, status: 'pending' });
+        }),
+      );
+      const user = userEvent.setup();
+      render(
+        <PrintModal
+          mode="create"
+          archiveId={1}
+          archiveName="MultiPlate.3mf"
+          preselectPlateId={preselectPlateId}
+          initialSelectedPrinterIds={[1]}
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
+      );
+      await waitFor(() => {
+        expect(screen.getByText('Select All 3 Plates')).toBeInTheDocument();
+      });
+      await user.click(document.querySelector('button[type="submit"]') as HTMLElement);
+      await waitFor(() => {
+        expect(queueRequests.length).toBe(1);
+      });
+      return queueRequests.map((r) => r.plate_id);
+    }
+
+    it('queues the pre-selected plate only', async () => {
+      expect(await submitAndCollect(3)).toEqual([3]);
+      expect(screen.getByTestId('selected-plates-summary')).toHaveTextContent('Plate 3');
+    });
+
+    it('falls back to the first plate when the file no longer has the pre-selected one', async () => {
+      expect(await submitAndCollect(9)).toEqual([1]);
+    });
+
+    it('names the selected plates beside the buttons, with their names', async () => {
+      server.use(
+        http.get('/api/v1/archives/:id/plates', () =>
+          HttpResponse.json({
+            ...multiPlateResponse,
+            plates: multiPlateResponse.plates.map((p) => (p.index === 2 ? { ...p, name: 'Lid' } : p)),
+          }),
+        ),
+      );
+      const user = userEvent.setup();
+      render(
+        <PrintModal mode="create" archiveId={1} archiveName="MultiPlate.3mf" preselectPlateId={2} onClose={mockOnClose} />
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId('selected-plates-summary')).toHaveTextContent('Plate 2: Lid');
+      });
+      await user.click(screen.getByText('Plate 3'));
+      expect(screen.getByTestId('selected-plates-summary')).toHaveTextContent('Plate 2: Lid, Plate 3');
+    });
+
+    it('scrolls the pre-selected plate into view', async () => {
+      const scrolled: string[] = [];
+      const original = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function (this: Element) {
+        scrolled.push(this.textContent ?? '');
+      };
+      try {
+        render(
+          <PrintModal mode="create" archiveId={1} archiveName="MultiPlate.3mf" preselectPlateId={3} onClose={mockOnClose} />
+        );
+        await waitFor(() => {
+          expect(scrolled.length).toBe(1);
+        });
+        expect(scrolled[0]).toContain('Part C');
+        // Once: picking another plate doesn't move the list again.
+        await userEvent.setup().click(screen.getByText('Plate 1'));
+        expect(scrolled.length).toBe(1);
+      } finally {
+        Element.prototype.scrollIntoView = original;
+      }
+    });
+
+
     it('creates one queue item per plate when submitting with select-all', async () => {
       const queueRequests: unknown[] = [];
       server.use(
@@ -1161,8 +1260,8 @@ describe('PrintModal', () => {
     // create path — that path bypasses injection and would leave the first copy stuck
     // on the plate for auto-eject setups.
     const withSnippets = () =>
-      http.get('/api/v1/settings/', () =>
-        HttpResponse.json({ gcode_snippets: { X1C: { start_gcode: '', end_gcode: 'M400' } } }),
+      http.get('/api/v1/settings/ui-flags', () =>
+        HttpResponse.json({ has_gcode_snippets: true }),
       );
 
     it('injection ON queues all copies and dispatches none immediately', async () => {
@@ -1752,5 +1851,102 @@ describe('PrintModal — per-plate quantity (#342)', () => {
 
     await waitFor(() => expect(queued.length).toBe(4)); // 2 plates × 2 printers
     expect(queued.every((q) => q.quantity === undefined)).toBe(true);
+  });
+});
+
+
+describe('PrintModal — a deliberate material substitution is acknowledged (#2799)', () => {
+  // The scheduler re-checks a stored mapping against the printer before
+  // dispatch, and a slot on a tray of another material is what a mapping meant
+  // for a different printer looks like. A user who picks such a tray by hand
+  // means it, so the dialog sends skip_filament_check, which the re-check
+  // honours.
+  const mockOnClose = vi.fn();
+  const PRINTERS = [
+    { id: 1, name: 'Printer 01', model: 'P2S', ip_address: '192.168.1.101', enabled: true, is_active: true },
+  ];
+
+  type Patched = { ams_mapping?: number[] | null; skip_filament_check?: boolean };
+  let patched: Patched[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    patched = [];
+    server.use(
+      http.get('/api/v1/printers/', () => HttpResponse.json(PRINTERS)),
+      http.get('/api/v1/archives/:id/plates', () => HttpResponse.json({ is_multi_plate: false, plates: [] })),
+      http.get('/api/v1/archives/:id/filament-requirements', () =>
+        HttpResponse.json({ filaments: [{ slot_id: 1, type: 'PLA', color: '#8B4513', tray_info_idx: '', used_grams: 50 }] }),
+      ),
+      // Tray 0 holds the PLA the plate asks for, tray 1 a PETG.
+      http.get('/api/v1/printers/:id/status', () =>
+        HttpResponse.json({
+          connected: true,
+          state: 'IDLE',
+          ams: [
+            {
+              id: 0,
+              tray: [
+                { id: 0, tray_type: 'PLA', tray_color: '8B4513FF' },
+                { id: 1, tray_type: 'PETG', tray_color: 'FFFFFFFF' },
+              ],
+            },
+          ],
+          vt_tray: [],
+        }),
+      ),
+      http.get('/api/v1/printers/:id/assignments', () => HttpResponse.json([])),
+      http.patch('/api/v1/queue/:id', async ({ request }) => {
+        patched.push((await request.json()) as Patched);
+        return HttpResponse.json({ id: 1, status: 'pending' });
+      }),
+    );
+  });
+
+  const pinnedItem = () => createMockQueueItem({ printer_id: 1, target_model: null } as Partial<PrintQueueItem>);
+
+  const pickTrayAndSave = async (option: number) => {
+    const user = userEvent.setup();
+    render(<PrintModal mode="edit-queue-item" archiveId={1} archiveName="Job" queueItem={pinnedItem()} onClose={mockOnClose} />);
+
+    const mappingHeader = await screen.findByText(/filament mapping/i);
+    const panel = mappingHeader.closest('.mb-4') as HTMLElement;
+    if (!within(panel).queryByRole('combobox')) await user.click(mappingHeader);
+    await user.click(await within(panel).findByRole('combobox'));
+    await user.click(within(await screen.findByRole('listbox')).getAllByRole('option')[option]);
+    await user.click(document.querySelector('button[type="submit"]') as HTMLElement);
+
+    await waitFor(() => expect(patched).toHaveLength(1));
+    return patched[0];
+  };
+
+  it('sends skip_filament_check when a slot is put on a tray of another material', async () => {
+    // Option 0 is the empty '-- Select slot --'; 1 is the PLA tray, 2 the PETG.
+    const saved = await pickTrayAndSave(2);
+
+    expect(saved.ams_mapping).toEqual([1]);
+    expect(saved.skip_filament_check).toBe(true);
+  });
+
+  it('does not treat a stored mapping the dialog opened with as a pick made here', async () => {
+    // A job queued before the dispatch re-check existed can carry a mapping
+    // made for another printer. Saving an unrelated edit must not enshrine it.
+    const user = userEvent.setup();
+    const item = createMockQueueItem({ printer_id: 1, target_model: null, ams_mapping: [1] } as Partial<PrintQueueItem>);
+    render(<PrintModal mode="edit-queue-item" archiveId={1} archiveName="Job" queueItem={item} onClose={mockOnClose} />);
+
+    await waitFor(() => expect(screen.getByText(/filament mapping/i)).toBeInTheDocument());
+    await user.click(document.querySelector('button[type="submit"]') as HTMLElement);
+
+    await waitFor(() => expect(patched).toHaveLength(1));
+    expect(patched[0].ams_mapping).toEqual([1]);
+    expect(patched[0].skip_filament_check).toBeUndefined();
+  });
+
+  it('sends nothing extra when the picked tray holds the material asked for', async () => {
+    const saved = await pickTrayAndSave(1);
+
+    expect(saved.ams_mapping).toEqual([0]);
+    expect(saved.skip_filament_check).toBeUndefined();
   });
 });

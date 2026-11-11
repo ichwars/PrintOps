@@ -19,8 +19,8 @@ import httpx
 from backend.app.api.routes._url_safety import (
     CLOUD_METADATA_HOSTNAMES,
     CLOUD_METADATA_IPS,
-    NUMERIC_IP_RE,
     canonical_url_hostname,
+    is_numeric_encoded_ip,
     unwrap_ipv4_mapped,
 )
 
@@ -173,10 +173,12 @@ def assert_safe_public_https_url(url: str) -> None:
     if not hostname:
         raise ValueError("icon URL must include a hostname")
 
+    if not hostname.isascii():
+        raise ValueError("icon URL must use an ASCII hostname (punycode for international names)")
     if hostname in CLOUD_METADATA_HOSTNAMES:
         raise ValueError("icon URL must not point to a cloud metadata endpoint")
 
-    if NUMERIC_IP_RE.match(hostname):
+    if is_numeric_encoded_ip(hostname):
         raise ValueError("icon URL must not use numeric-encoded IP addresses")
 
     try:

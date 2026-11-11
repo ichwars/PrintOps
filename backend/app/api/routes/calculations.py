@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import settings as app_settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.archive import PrintArchive
 from backend.app.models.commerce import CustomerOrder, Offer
@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/effective-defaults")
 async def get_effective_defaults(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> dict:
     return await calculation_service.effective_defaults(db)
@@ -73,7 +73,7 @@ async def get_effective_defaults(
 @router.post("/availability-preview", response_model=AvailabilityReportRead)
 async def preview_calculation_availability(
     variant: CalculationVariantInput,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> AvailabilityReportRead:
     try:
@@ -90,7 +90,7 @@ async def preview_calculation_availability(
 async def get_calculation_availability(
     calculation_id: int,
     variant_id: int | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> AvailabilityReportRead:
     try:
@@ -399,7 +399,7 @@ async def list_calculations(
     calculation_status: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationListResponse:
     page = await calculation_service.list_calculations(db, status=calculation_status, limit=limit, offset=offset)
@@ -413,7 +413,7 @@ async def list_calculations(
 @router.post("/", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED)
 async def create_calculation(
     data: CalculationCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ) -> CalculationDetail:
     try:
@@ -427,7 +427,7 @@ async def create_calculation(
 
 @router.get("/templates", response_model=list[CalculationTemplateRead])
 async def list_templates(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> list[CalculationTemplateRead]:
     return [CalculationTemplateRead.model_validate(item) for item in await calculation_service.list_templates(db)]
@@ -439,7 +439,7 @@ async def list_templates(
 async def instantiate_template(
     template_id: int,
     data: CalculationTemplateInstantiate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ) -> CalculationDetail:
     try:
@@ -454,7 +454,7 @@ async def instantiate_template(
 @router.get("/{calculation_id}", response_model=CalculationDetail)
 async def get_calculation(
     calculation_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationDetail:
     try:
@@ -469,7 +469,7 @@ async def get_calculation(
 async def update_calculation(
     calculation_id: int,
     data: CalculationUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ) -> CalculationDetail:
     try:
@@ -485,7 +485,7 @@ async def update_calculation(
 async def approve_calculation(
     calculation_id: int,
     data: CalculationApprove,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_APPROVE),
 ) -> CalculationRevisionRead:
     try:
@@ -503,7 +503,7 @@ async def approve_calculation(
 @router.get("/{calculation_id}/validation", response_model=CalculationValidationRead)
 async def validate_calculation(
     calculation_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> CalculationValidationRead:
     try:
@@ -516,7 +516,7 @@ async def validate_calculation(
 @router.post("/{calculation_id}/revise", response_model=CalculationDetail, status_code=status.HTTP_201_CREATED)
 async def revise_calculation(
     calculation_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ) -> CalculationDetail:
     try:
@@ -531,7 +531,7 @@ async def revise_calculation(
 @router.get("/{calculation_id}/revisions", response_model=list[CalculationRevisionRead])
 async def list_calculation_revisions(
     calculation_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_READ),
 ) -> list[CalculationRevisionRead]:
     try:
@@ -548,7 +548,7 @@ async def list_calculation_revisions(
 async def delete_calculation(
     calculation_id: int,
     expected_version: int = Query(gt=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ) -> Response:
     try:
@@ -572,7 +572,7 @@ async def delete_calculation(
 async def archive_calculation(
     calculation_id: int,
     expected_version: int = Query(gt=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_APPROVE),
 ) -> CalculationDetail:
     try:
@@ -588,7 +588,7 @@ async def archive_calculation(
 async def create_template(
     calculation_id: int,
     data: CalculationTemplateCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CALCULATIONS_UPDATE),
 ) -> CalculationTemplateRead:
     try:

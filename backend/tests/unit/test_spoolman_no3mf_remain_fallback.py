@@ -85,6 +85,8 @@ class TestStorePrintDataNo3mf:
         delete_result = MagicMock()
         db.execute = AsyncMock(side_effect=[delete_result])
         db.add = MagicMock()
+        db.get_bind = MagicMock(return_value=SimpleNamespace(dialect=SimpleNamespace(name="postgresql")))
+        db.scalar.return_value = 1
         db.commit = AsyncMock()
 
         printer_manager = MagicMock()
@@ -135,6 +137,8 @@ class TestStorePrintDataNo3mf:
         db = AsyncMock()
         db.execute = AsyncMock()
         db.add = MagicMock()
+        db.get_bind = MagicMock(return_value=SimpleNamespace(dialect=SimpleNamespace(name="postgresql")))
+        db.scalar.return_value = 1
         db.commit = AsyncMock()
 
         printer_manager = MagicMock()
@@ -170,10 +174,12 @@ class TestStorePrintDataNo3mf:
         db = AsyncMock()
         queue_item = SimpleNamespace(ams_mapping=None, plate_id=None)
         queue_result = MagicMock()
-        queue_result.scalar_one_or_none.return_value = queue_item
+        queue_result.scalars.return_value.first.return_value = queue_item
         delete_result = MagicMock()
         db.execute = AsyncMock(side_effect=[queue_result, delete_result])
         db.add = MagicMock()
+        db.get_bind = MagicMock(return_value=SimpleNamespace(dialect=SimpleNamespace(name="postgresql")))
+        db.scalar.return_value = 1
         db.commit = AsyncMock()
 
         printer_manager = MagicMock()
@@ -232,10 +238,11 @@ class TestReportUsageRemainDelta:
             tray_remain_start={"0-0": {"remain": 80, "tray_uuid": "AAAA"}},
         )
 
-        # Mock db.execute().scalar_one_or_none() -> tracking
         db = AsyncMock()
         select_result = MagicMock()
-        select_result.scalar_one_or_none.return_value = tracking
+        db.scalar.return_value = tracking
+        select_result.scalar_one_or_none.return_value = None
+        select_result.one_or_none.return_value = None
         db.execute = AsyncMock(return_value=select_result)
         db.delete = AsyncMock()
         db.commit = AsyncMock()
@@ -280,16 +287,16 @@ class TestReportUsageRemainDelta:
             slot_to_tray=None,
             tray_remain_start={"0-0": {"remain": 80, "tray_uuid": "AAAA"}},
         )
-        archive = SimpleNamespace(id=42, cost=None, filament_used_grams=200.0)
+        archive = SimpleNamespace(id=42, printer_id=1, started_at=None, cost=None, filament_used_grams=200.0)
 
         db = AsyncMock()
-        tracking_result = MagicMock()
-        tracking_result.scalar_one_or_none.return_value = tracking
+        db.scalar.return_value = tracking
+        history_result = MagicMock(one_or_none=MagicMock(return_value=None))
         archive_result = MagicMock()
         archive_result.scalar_one_or_none.return_value = archive
         count_result = MagicMock()
         count_result.scalar.return_value = 0
-        db.execute = AsyncMock(side_effect=[tracking_result, archive_result, count_result])
+        db.execute = AsyncMock(side_effect=[history_result, archive_result, count_result])
         db.delete = AsyncMock()
         db.commit = AsyncMock()
 
@@ -322,7 +329,8 @@ class TestReportUsageRemainDelta:
 
         assert run_cost == pytest.approx(8.0)
         assert archive.cost == 8.0
-        assert db.commit.await_count == 2
+        db.add_all.assert_called_once()
+        assert db.commit.await_count == 3
 
     @pytest.mark.asyncio
     async def test_remain_delta_keeps_archive_cost_on_reprint(self):
@@ -337,16 +345,16 @@ class TestReportUsageRemainDelta:
             slot_to_tray=None,
             tray_remain_start={"0-0": {"remain": 80, "tray_uuid": "AAAA"}},
         )
-        archive = SimpleNamespace(id=42, cost=12.5, filament_used_grams=200.0)
+        archive = SimpleNamespace(id=42, printer_id=1, started_at=None, cost=12.5, filament_used_grams=200.0)
 
         db = AsyncMock()
-        tracking_result = MagicMock()
-        tracking_result.scalar_one_or_none.return_value = tracking
+        db.scalar.return_value = tracking
+        history_result = MagicMock(one_or_none=MagicMock(return_value=None))
         archive_result = MagicMock()
         archive_result.scalar_one_or_none.return_value = archive
         count_result = MagicMock()
         count_result.scalar.return_value = 1
-        db.execute = AsyncMock(side_effect=[tracking_result, archive_result, count_result])
+        db.execute = AsyncMock(side_effect=[history_result, archive_result, count_result])
         db.delete = AsyncMock()
         db.commit = AsyncMock()
 
@@ -380,7 +388,8 @@ class TestReportUsageRemainDelta:
         client.use_spool.assert_awaited_once_with(7, 200.0)
         assert run_cost == pytest.approx(8.0)
         assert archive.cost == 12.5
-        assert db.commit.await_count == 1
+        db.add_all.assert_called_once()
+        assert db.commit.await_count == 2
 
     @pytest.mark.asyncio
     async def test_remain_delta_skips_swapped_spool(self):
@@ -398,7 +407,9 @@ class TestReportUsageRemainDelta:
 
         db = AsyncMock()
         select_result = MagicMock()
-        select_result.scalar_one_or_none.return_value = tracking
+        db.scalar.return_value = tracking
+        select_result.scalar_one_or_none.return_value = None
+        select_result.one_or_none.return_value = None
         db.execute = AsyncMock(return_value=select_result)
         db.delete = AsyncMock()
         db.commit = AsyncMock()
@@ -445,7 +456,9 @@ class TestReportUsageRemainDelta:
 
         db = AsyncMock()
         select_result = MagicMock()
-        select_result.scalar_one_or_none.return_value = tracking
+        db.scalar.return_value = tracking
+        select_result.scalar_one_or_none.return_value = None
+        select_result.one_or_none.return_value = None
         db.execute = AsyncMock(return_value=select_result)
         db.delete = AsyncMock()
         db.commit = AsyncMock()

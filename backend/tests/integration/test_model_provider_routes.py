@@ -4,7 +4,9 @@ Only HTTP transport is replaced: credentials, permission dependencies, error
 mapping, source dedupe and library persistence run through production code.
 """
 
+import zipfile
 from contextlib import asynccontextmanager
+from io import BytesIO
 from unittest.mock import patch
 
 import httpx
@@ -31,12 +33,15 @@ from backend.tests.integration.test_makerworld_apikey_auth import (
 @asynccontextmanager
 async def upstream(status=200, signed_url="https://makerworld.bblmw.com/cube.3mf"):
     requests = []
+    content = BytesIO()
+    with zipfile.ZipFile(content, "w") as archive:
+        archive.writestr("3D/3dmodel.model", "<model/>")
 
     def handle(request):
         requests.append(request)
         if request.url.host == "makerworld.bblmw.com":
-            return httpx.Response(200, content=b"PK\x03\x04offline-3mf", headers={"content-type": "image/png"})
-        if "/iot-service/" in request.url.path:
+            return httpx.Response(200, content=content.getvalue(), headers={"content-type": "image/png"})
+        if request.url.path.endswith("/f3mf") or "/iot-service/" in request.url.path:
             return httpx.Response(status, json={"url": signed_url, "name": "Cube%20One.3mf", "error": "Restricted"})
         if request.url.path.endswith("/instances"):
             return httpx.Response(200, json={"hits": [{"id": 10, "profileId": 456}]})
@@ -109,8 +114,10 @@ async def test_real_adapter_resolve_import_dedupe_thumbnail_and_owner(async_clie
         downloads = [r for r in requests if r.url.path == "/cube.3mf"]
         assert len(downloads) == 1
         assert "authorization" not in downloads[0].headers
-        manifests = [r for r in requests if "/iot-service/" in r.url.path]
-        assert all(r.url.params["model_id"] == "USmodel" for r in manifests)
+        manifests = [r for r in requests if r.url.path.endswith("/f3mf")]
+        assert manifests
+        assert all(r.url.path.endswith("/instance/10/f3mf") for r in manifests)
+        assert all(r.url.params["type"] == "download" for r in manifests)
 
 
 @pytest.mark.asyncio
@@ -149,7 +156,7 @@ async def test_real_adapter_denies_cloud_scope_and_isolates_request_credentials(
         )
         assert response.status_code == 401, response.text
         assert response.json()["detail"] == "Downloading files from MakerWorld requires a Bambu Cloud login"
-        assert len(requests) == 1 and "authorization" not in requests[0].headers
+        assert len(requests) == 2 and all("authorization" not in request.headers for request in requests)
         assert not client.is_closed
         assert (await db_session.execute(select(LibraryFile))).scalars().all() == []
 
@@ -183,7 +190,7 @@ async def test_real_adapter_preserves_upstream_error_mapping(async_client, db_se
             json={"model_id": 123},
         )
         assert response.status_code == expected, response.text
-        assert len(requests) == 2
+        assert len(requests) == (4 if status == 404 else 3)
         assert not client.is_closed
         if status in (401, 403):
             assert response.json()["detail"] == "Restricted"
@@ -201,13 +208,13 @@ async def test_real_adapter_download_and_thumbnail_ssrf_guard(async_client, db_s
             json={"model_id": 123},
         )
         assert response.status_code == 400, response.text
-        assert len(requests) == 2
+        assert len(requests) == 3
         thumbnail = await async_client.get(
             "/api/v1/makerworld/thumbnail",
             params={"url": "https://makerworld.bblmw.com.evil.test/a.png"},
         )
         assert thumbnail.status_code == 400
-        assert len(requests) == 2
+        assert len(requests) == 3
         assert not client.is_closed
 
 
@@ -290,8 +297,8 @@ async def test_retained_global_token_denied_without_cloud_scope(async_client, db
             )
             assert response.status_code == 401, response.text
             assert response.json()["detail"] == "Downloading files from MakerWorld requires a Bambu Cloud login"
-            assert len(requests) == 1
-            assert "authorization" not in requests[0].headers
+            assert len(requests) == 2
+            assert all("authorization" not in request.headers for request in requests)
             assert (await db_session.execute(select(LibraryFile))).scalars().all() == []
         assert not client.is_closed
         assert (await _global_rows(db_session))[CLOUD_TOKEN_KEY] == "retained-global-token"
@@ -320,7 +327,7 @@ async def test_retained_global_token_does_not_replace_authenticated_owner_token(
         )
         assert imported.status_code == 200, imported.text
         api_requests = [r for r in requests if r.url.host == "api.bambulab.com"]
-        assert len(api_requests) == 4
+        assert len(api_requests) == 5
         assert all(r.headers["authorization"] == "Bearer own-user-token" for r in api_requests)
         row = (await db_session.execute(select(LibraryFile))).scalar_one()
         assert row.created_by_id == admin.id
@@ -337,7 +344,7 @@ async def test_auth_disabled_anonymous_status_and_import_keep_global_token(async
         imported = await async_client.post("/api/v1/makerworld/import", json={"model_id": 123})
         assert imported.status_code == 200, imported.text
         api_requests = [r for r in requests if r.url.host == "api.bambulab.com"]
-        assert len(api_requests) == 2
+        assert len(api_requests) == 3
         assert all(r.headers["authorization"] == "Bearer anonymous-global-token" for r in api_requests)
         row = (await db_session.execute(select(LibraryFile))).scalar_one()
         assert row.created_by_id is None

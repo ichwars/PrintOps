@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.user import User
 from backend.app.schemas.commerce import (
@@ -51,7 +51,7 @@ def _http_error(error: Exception) -> HTTPException:
 @router.get("", response_model=list[OfferRead])
 async def list_offers(
     offer_status: str | None = Query(default=None, alias="status"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> list[OfferRead]:
     return [OfferRead.model_validate(item) for item in await offer_service.list_offers(db, offer_status)]
@@ -60,7 +60,7 @@ async def list_offers(
 @router.post("", response_model=OfferRead, status_code=status.HTTP_201_CREATED)
 async def create_offer(
     data: OfferCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_DRAFT),
 ) -> OfferRead:
     try:
@@ -75,7 +75,7 @@ async def create_offer(
 @router.get("/{offer_id}", response_model=OfferRead)
 async def get_offer(
     offer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> OfferRead:
     try:
@@ -98,7 +98,7 @@ async def _transition(db: AsyncSession, offer_id: int, data: VersionedTransition
 async def send_offer(
     offer_id: int,
     data: VersionedTransition,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_ISSUE),
 ) -> OfferRead:
     return await _transition(db, offer_id, data, "sent")
@@ -108,7 +108,7 @@ async def send_offer(
 async def reject_offer(
     offer_id: int,
     data: VersionedTransition,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_CORRECT),
 ) -> OfferRead:
     return await _transition(db, offer_id, data, "rejected")
@@ -118,7 +118,7 @@ async def reject_offer(
 async def accept_offer(
     offer_id: int,
     data: OfferAccept,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_APPROVE),
 ) -> AcceptanceRead:
     try:

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, getAuthSessionId, subscribeAuthSession, setStreamToken, getStreamToken, withStreamToken, setMediaToken, getMediaToken } from '../api/client';
+import { api, ApiError, getAuthSessionId, subscribeAuthSession, setStreamToken, getStreamToken, setMediaToken, getMediaToken } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
 type TokenKind = 'media' | 'camera';
@@ -34,6 +34,7 @@ export function rewriteMediaSrcWithToken(root: ParentNode, token: string, kind: 
   root.querySelectorAll<HTMLImageElement | HTMLVideoElement>('img[src*="/api/v1/"], video[src*="/api/v1/"]').forEach((el) => {
     const src = el.getAttribute('src') || '';
     if (tokenKindForUrl(src) !== kind) return;
+    if (kind === 'camera' && el.hasAttribute('data-camera-token-managed')) return;
     const url = new URL(src, window.location.origin);
     if (kind === 'camera' && explicitStreamToken && url.searchParams.get('token') === explicitStreamToken) return;
     if (url.searchParams.get('token') === token) return;
@@ -108,6 +109,19 @@ export function useStreamTokenSync() {
   }, [authEnabled, enabled, queryClient, user?.id, sessionId]);
 }
 
-export function useCameraStreamToken() {
-  return { withToken: withStreamToken };
+/** Use the current signed-in session or an explicitly shared camera link. */
+export function useCameraFeedAccess(sharedToken?: string | null) {
+  const { authEnabled, user, loading, hasPermission } = useAuth();
+  const sessionId = useSyncExternalStore(subscribeAuthSession, getAuthSessionId);
+  const canMint = !sharedToken && !loading && authEnabled && user !== null && hasPermission('camera:view');
+  const { data, error } = useQuery({
+    queryKey: ['camera-stream-token', user?.id ?? null, sessionId],
+    queryFn: api.getCameraStreamToken,
+    enabled: canMint,
+    staleTime: 50 * 60 * 1000,
+  });
+  const denied = error instanceof ApiError && (error.status === 401 || error.status === 403);
+  const token = sharedToken || (canMint && !denied ? data?.token : undefined);
+  const enabled = !!token || (!loading && !authEnabled);
+  return { enabled, token };
 }

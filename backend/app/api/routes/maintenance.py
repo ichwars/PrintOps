@@ -3,13 +3,14 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.maintenance import MaintenanceHistory, MaintenanceType, PrinterMaintenance
 from backend.app.models.printer import Printer
@@ -146,12 +147,19 @@ async def get_printer_total_hours(db: AsyncSession, printer_id: int) -> float:
 
 async def ensure_default_types(db: AsyncSession) -> None:
     """Ensure default maintenance types exist, remove stale/duplicate ones."""
-    result = await db.execute(
-        select(MaintenanceType).where(MaintenanceType.is_system.is_(True)).order_by(MaintenanceType.id)
-    )
-    existing = result.scalars().all()
-
+    query = select(MaintenanceType).where(MaintenanceType.is_system.is_(True)).order_by(MaintenanceType.id)
+    existing = (await db.scalars(query)).all()
     default_names = {t["name"] for t in DEFAULT_MAINTENANCE_TYPES}
+    if len(existing) == len(default_names) and {item.name for item in existing} == default_names:
+        return
+
+    # Serialize first-use initialization across dashboard readers and the
+    # background checker. Re-read after locking so both use the same type ids.
+    if db.get_bind().dialect.name == "postgresql":
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('printops.maintenance_types'))"))
+    else:
+        await db.execute(text("UPDATE maintenance_types SET id = id WHERE 0"))
+    existing = (await db.scalars(query)).all()
 
     # Remove stale system types no longer in defaults (e.g. renamed types)
     # and deduplicate: if concurrent requests created the same type twice,
@@ -183,7 +191,7 @@ async def ensure_default_types(db: AsyncSession) -> None:
 
 @router.get("/types", response_model=list[MaintenanceTypeResponse])
 async def get_maintenance_types(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_READ),
 ):
     """Get all maintenance types."""
@@ -199,7 +207,7 @@ async def get_maintenance_types(
 @router.post("/types", response_model=MaintenanceTypeResponse)
 async def create_maintenance_type(
     data: MaintenanceTypeCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_CREATE),
 ):
     """Create a custom maintenance type."""
@@ -222,7 +230,7 @@ async def create_maintenance_type(
 async def update_maintenance_type(
     type_id: int,
     data: MaintenanceTypeUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_UPDATE),
 ):
     """Update a maintenance type."""
@@ -243,7 +251,7 @@ async def update_maintenance_type(
 @router.delete("/types/{type_id}")
 async def delete_maintenance_type(
     type_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_DELETE),
 ):
     """Delete a maintenance type."""
@@ -264,7 +272,7 @@ async def delete_maintenance_type(
 
 @router.post("/types/restore-defaults")
 async def restore_default_maintenance_types(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_DELETE),
 ):
     """Restore deleted default maintenance types."""
@@ -281,6 +289,32 @@ async def restore_default_maintenance_types(
 
 
 # ============== Printer Maintenance ==============
+
+
+async def _get_or_create_maintenance_item(
+    db: AsyncSession, printer_id: int, type_id: int
+) -> tuple[PrinterMaintenance, bool]:
+    item = PrinterMaintenance(
+        printer_id=printer_id,
+        maintenance_type_id=type_id,
+        enabled=True,
+        last_performed_hours=0.0,
+    )
+    try:
+        async with db.begin_nested():
+            db.add(item)
+            await db.flush()
+    except IntegrityError:
+        existing = await db.scalar(
+            select(PrinterMaintenance).where(
+                PrinterMaintenance.printer_id == printer_id,
+                PrinterMaintenance.maintenance_type_id == type_id,
+            )
+        )
+        if existing is None:
+            raise
+        return existing, False
+    return item, True
 
 
 async def _get_printer_maintenance_internal(
@@ -326,36 +360,17 @@ async def _get_printer_maintenance_internal(
         item = existing_items.get(maint_type.id)
         default_interval_type = getattr(maint_type, "interval_type", "hours") or "hours"
 
-        if item:
-            interval = item.custom_interval_hours or maint_type.default_interval_hours
-            # Use custom interval type if set, otherwise use type's default
-            interval_type = getattr(item, "custom_interval_type", None) or default_interval_type
-            enabled = item.enabled
-            last_performed_hours = item.last_performed_hours
-            last_performed_at = item.last_performed_at
-            item_id = item.id
-        else:
-            # Only auto-create maintenance items for system types
-            # Custom types need to be manually assigned per printer
+        if item is None:
             if not maint_type.is_system:
                 continue
+            item, _ = await _get_or_create_maintenance_item(db, printer_id, maint_type.id)
 
-            # Create default entry for this printer/type
-            item = PrinterMaintenance(
-                printer_id=printer_id,
-                maintenance_type_id=maint_type.id,
-                enabled=True,
-                last_performed_hours=0.0,
-            )
-            db.add(item)
-            await db.flush()
-
-            interval = maint_type.default_interval_hours
-            interval_type = default_interval_type
-            enabled = True
-            last_performed_hours = 0.0
-            last_performed_at = None
-            item_id = item.id
+        interval = item.custom_interval_hours or maint_type.default_interval_hours
+        interval_type = item.custom_interval_type or default_interval_type
+        enabled = item.enabled
+        last_performed_hours = item.last_performed_hours
+        last_performed_at = item.last_performed_at
+        item_id = item.id
 
         # Calculate status based on interval type
         if interval_type == "days":
@@ -439,7 +454,7 @@ async def _get_printer_maintenance_internal(
 @router.get("/printers/{printer_id}", response_model=PrinterMaintenanceOverview)
 async def get_printer_maintenance(
     printer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_READ),
 ):
     """Get maintenance overview for a specific printer."""
@@ -448,7 +463,7 @@ async def get_printer_maintenance(
 
 @router.get("/overview", response_model=list[PrinterMaintenanceOverview])
 async def get_all_maintenance_overview(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_READ),
 ):
     """Get maintenance overview for all active printers."""
@@ -473,7 +488,7 @@ async def get_all_maintenance_overview(
 async def update_printer_maintenance(
     item_id: int,
     data: PrinterMaintenanceUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_UPDATE),
 ):
     """Update a printer maintenance item (e.g., custom interval, enabled)."""
@@ -499,7 +514,7 @@ async def update_printer_maintenance(
 async def assign_maintenance_type(
     printer_id: int,
     type_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_CREATE),
 ):
     """Assign a maintenance type to a specific printer (for custom types)."""
@@ -515,25 +530,9 @@ async def assign_maintenance_type(
     if not maint_type:
         raise HTTPException(status_code=404, detail="Maintenance type not found")
 
-    # Check if already assigned
-    result = await db.execute(
-        select(PrinterMaintenance).where(
-            PrinterMaintenance.printer_id == printer_id,
-            PrinterMaintenance.maintenance_type_id == type_id,
-        )
-    )
-    existing = result.scalar_one_or_none()
-    if existing:
+    item, created = await _get_or_create_maintenance_item(db, printer_id, type_id)
+    if not created:
         raise HTTPException(status_code=400, detail="Maintenance type already assigned to this printer")
-
-    # Create the assignment
-    item = PrinterMaintenance(
-        printer_id=printer_id,
-        maintenance_type_id=type_id,
-        enabled=True,
-        last_performed_hours=0.0,
-    )
-    db.add(item)
     await db.commit()
 
     # Re-fetch with relationship loaded for response serialization
@@ -552,7 +551,7 @@ async def assign_maintenance_type(
 @router.delete("/items/{item_id}")
 async def remove_maintenance_item(
     item_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_DELETE),
 ):
     """Remove a maintenance item (unassign a custom type from a printer)."""
@@ -579,7 +578,7 @@ async def remove_maintenance_item(
 async def perform_maintenance(
     item_id: int,
     data: PerformMaintenanceRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_UPDATE),
 ):
     """Mark maintenance as performed (reset the counter)."""
@@ -627,7 +626,7 @@ async def perform_maintenance(
 
     # Calculate status
     interval = item.custom_interval_hours or item.maintenance_type.default_interval_hours
-    interval_type = getattr(item.maintenance_type, "interval_type", "hours") or "hours"
+    interval_type = item.custom_interval_type or item.maintenance_type.interval_type or "hours"
     hours_since = current_hours - item.last_performed_hours
     hours_until = interval - hours_since
 
@@ -657,7 +656,7 @@ async def perform_maintenance(
 @router.get("/items/{item_id}/history", response_model=list[MaintenanceHistoryResponse])
 async def get_maintenance_history(
     item_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_READ),
 ):
     """Get maintenance history for a specific item."""
@@ -671,7 +670,7 @@ async def get_maintenance_history(
 
 @router.get("/summary")
 async def get_maintenance_summary(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_READ),
 ):
     """Get a summary of maintenance status across all printers."""
@@ -709,7 +708,7 @@ async def get_maintenance_summary(
 async def set_printer_hours(
     printer_id: int,
     total_hours: float,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.MAINTENANCE_UPDATE),
 ):
     """Set the total print hours for a printer (adjusts offset to match).

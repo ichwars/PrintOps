@@ -99,7 +99,7 @@ class RESTSmartPlugService:
             logger.warning("REST smart plug at %s timed out", url_for_log(url))
             return None
         except httpx.HTTPStatusError as e:
-            logger.warning("REST smart plug at %s returned error: %s", url_for_log(url), type(e).__name__)
+            logger.warning("REST smart plug at %s returned HTTP %s", url_for_log(url), e.response.status_code)
             return None
         except httpx.RequestError as e:
             logger.warning("Failed to connect to REST smart plug at %s: %s", url_for_log(url), type(e).__name__)
@@ -262,8 +262,8 @@ class RESTSmartPlugService:
             - success: bool
             - error: error message if failed
         """
-        if not self._validate_url(url):
-            return {"success": False, "error": "Invalid URL (loopback/link-local addresses are blocked)"}
+        if error := self._url_error(url):
+            return {"success": False, "error": f"URL blocked: {error}"}
 
         parsed_headers = self._parse_headers(headers)
 
@@ -275,11 +275,9 @@ class RESTSmartPlugService:
         except httpx.TimeoutException:
             return {"success": False, "error": "Connection timed out"}
         except httpx.HTTPStatusError as e:
-            return {"success": False, "error": f"HTTP {e.response.status_code}: {e.response.reason_phrase}"}
-        except httpx.RequestError as e:
-            return {"success": False, "error": f"Connection failed: {e}"}
+            return {"success": False, "error": f"HTTP {e.response.status_code}"}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": f"Connection failed ({type(e).__name__})"}
 
 
 # Singleton instance

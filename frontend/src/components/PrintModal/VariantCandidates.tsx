@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Layers, Printer as PrinterIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -73,6 +73,14 @@ export function VariantCandidates({
     });
     return out;
   }, [candidates, plateQueries]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    for (const [fileId, plates] of Object.entries(platesByFile)) {
+      const id = Number(fileId);
+      if (plateByFile[id] == null && plates.length > 0) onPlateChange(id, plates[0].index);
+    }
+  }, [platesByFile, plateByFile, onPlateChange, readOnly]);
 
   const move = (from: number, to: number) => {
     if (to < 0 || to >= candidates.length) return;

@@ -333,6 +333,44 @@ class TestExternalFolderScan:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_rescan_repairs_unchanged_compound_3mf_after_legacy_scan(self, async_client, db_session, tmp_path):
+        from sqlalchemy import select, update
+
+        from backend.app.models.library import LibraryFile
+        from backend.app.models.settings import Settings
+
+        ext_dir = tmp_path / "compound-rescan"
+        ext_dir.mkdir()
+        path = ext_dir / "source.gcode.3mf"
+        _write_test_3mf(path, ["3D/3dmodel.model"])
+        folder = (
+            await async_client.post(
+                "/api/v1/library/folders/external",
+                json={"name": "Compound Rescan", "external_path": str(ext_dir), "readonly": True},
+            )
+        ).json()
+        folder_id = folder["id"]
+        await async_client.post(f"/api/v1/library/folders/{folder_id}/scan")
+        file = await db_session.scalar(select(LibraryFile).where(LibraryFile.folder_id == folder_id))
+        assert file.file_type == "3mf"
+        file.file_type = "gcode.3mf"
+        await db_session.execute(
+            update(Settings)
+            .where(Settings.key == f"_backfill_3435_external_folder_{folder_id}")
+            .values(key=f"_backfill_132_external_folder_{folder_id}")
+        )
+        await db_session.commit()
+        before = path.stat().st_mtime_ns
+
+        response = await async_client.post(f"/api/v1/library/folders/{folder_id}/scan")
+
+        assert response.status_code == 200
+        await db_session.refresh(file)
+        assert file.file_type == "3mf"
+        assert path.stat().st_mtime_ns == before
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_rescan_does_not_reopen_unchanged_external_3mf(self, async_client, tmp_path, monkeypatch):
         from backend.app.api.routes import library as library_routes
 
@@ -360,16 +398,30 @@ class TestExternalFolderScan:
     async def test_scan_removes_deleted_files(
         self, async_client: AsyncClient, db_session, external_folder, external_dir
     ):
-        """Verify scan removes entries for files no longer on disk."""
+        """A vanished library file detaches history and cancels waiting prints."""
+        from sqlalchemy import select
+
+        from backend.app.models.library import LibraryFile
+        from backend.app.models.print_queue import PrintQueueItem
+
         await async_client.post(f"/api/v1/library/folders/{external_folder['id']}/scan")
 
-        # Delete a file from disk
-        (external_dir / "bracket.stl").unlink()
+        file_id = await db_session.scalar(select(LibraryFile.id).where(LibraryFile.filename == "benchy.3mf"))
+        waiting = PrintQueueItem(library_file_id=file_id, status="pending")
+        printing = PrintQueueItem(library_file_id=file_id, status="printing")
+        db_session.add_all([waiting, printing])
+        await db_session.commit()
+
+        (external_dir / "benchy.3mf").unlink()
 
         response = await async_client.post(f"/api/v1/library/folders/{external_folder['id']}/scan")
         result = response.json()
         assert result["removed"] == 1
         assert result["added"] == 0
+        await db_session.refresh(waiting)
+        await db_session.refresh(printing)
+        assert (waiting.library_file_id, waiting.status) == (None, "cancelled")
+        assert (printing.library_file_id, printing.status) == (None, "printing")
 
     @pytest.mark.asyncio
     @pytest.mark.integration

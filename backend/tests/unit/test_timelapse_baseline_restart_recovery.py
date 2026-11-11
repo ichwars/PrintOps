@@ -104,6 +104,9 @@ async def test_running_observed_skips_when_baseline_already_present():
     with (
         patch("backend.app.main.async_session") as mock_session_maker,
         patch("backend.app.main._list_timelapse_videos", new=AsyncMock()) as mock_list,
+        patch(
+            "backend.app.services.printer_archive_objects.restore_running_objects", new_callable=AsyncMock
+        ) as restore,
     ):
         from backend.app.main import on_print_running_observed
 
@@ -118,7 +121,8 @@ async def test_running_observed_skips_when_baseline_already_present():
             },
         )
 
-        # Neither the DB lookup nor the FTP scan should have run.
+        restore.assert_awaited_once()
+        # Object recovery is independent of the existing timelapse baseline.
         mock_session_maker.assert_not_called()
         mock_list.assert_not_called()
 

@@ -343,9 +343,18 @@ class TestPrinterManager:
         mock_loop.is_running.return_value = True
         manager._loop = mock_loop
 
-        manager.mark_printer_offline(1)
+        def close_pending_callback(coro, loop):
+            assert loop is mock_loop
+            coro.close()
+            return MagicMock()
 
-        # Callback should be scheduled via run_coroutine_threadsafe
+        with patch(
+            "backend.app.services.printer_manager.asyncio.run_coroutine_threadsafe",
+            side_effect=close_pending_callback,
+        ) as scheduled:
+            manager.mark_printer_offline(1)
+
+        scheduled.assert_called_once()
         mock_loop.is_running.assert_called()
         # State should be updated
         assert mock_client.state.connected is False
@@ -388,6 +397,7 @@ class TestPrinterManager:
             use_ams=True,
             nozzle_offset_cali=False,
             nozzle_mapping=None,
+            plate_uses_only_external=False,
         )
         assert result is True
 
@@ -1091,20 +1101,12 @@ class TestPrinterStateToDict:
 
         assert result["cover_url"] is None
 
-    def test_ams_ht_detection(self, mock_state):
-        """Verify AMS-HT is detected (1 tray vs 4)."""
-        mock_state.raw_data = {
-            "ams": [
-                {
-                    "id": 0,
-                    "tray": [{"id": 0}],  # Only 1 tray = AMS-HT
-                }
-            ]
-        }
-
+    @pytest.mark.parametrize("unit_id,expected", [(0, False), (6, False), (128, True), (135, True)])
+    def test_ams_ht_detection(self, mock_state, unit_id, expected):
+        """A sparse regular report remains regular; only HT unit ids prove HT."""
+        mock_state.raw_data = {"ams": [{"id": unit_id, "tray": [{"id": 0}]}]}
         result = printer_state_to_dict(mock_state)
-
-        assert result["ams"][0]["is_ams_ht"] is True
+        assert result["ams"][0]["is_ams_ht"] is expected
 
     def test_regular_ams_detection(self, mock_state):
         """Verify regular AMS is detected (4 trays)."""

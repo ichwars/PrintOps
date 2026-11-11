@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import select, update
@@ -14,6 +13,7 @@ from backend.app.core.config import settings
 from backend.app.models.archive import PrintArchive
 from backend.app.models.library import LibraryFile, LibraryFolder
 from backend.app.models.print_queue import PrintQueueItem
+from backend.app.services.queue_dispatch_state import fail_dispatch
 from backend.app.utils.library_paths import move_library_photos, remove_library_photos_dir
 from backend.app.utils.local_time import utcnow_naive
 from backend.app.utils.safe_path import assert_under, safe_join_under
@@ -63,6 +63,10 @@ async def release_queue_references(db: AsyncSession, file_ids: list[int]) -> int
             )
             cancelled += result.rowcount or 0
         logger.info("Library delete: cancelled %d queued item(s) whose source file was removed", cancelled)
+        if isinstance(db, AsyncSession):
+            from backend.app.services.print_batch import refresh_batches_for_items
+
+            await refresh_batches_for_items(db, [item_id for ids in waiting_by_file.values() for item_id in ids])
 
     await db.execute(
         update(PrintQueueItem).where(PrintQueueItem.library_file_id.in_(file_ids)).values(library_file_id=None)
@@ -179,8 +183,10 @@ async def consume_transient_library_source(
     """Detach all queue rows before deleting a consumed transient source."""
     archive = await db.get(PrintArchive, archive_id)
     if archive is not None:
-        archive.notes = library_file.notes
-        archive.external_url = library_file.external_url
+        if archive.notes is None:
+            archive.notes = library_file.notes
+        if archive.external_url is None:
+            archive.external_url = library_file.external_url
         if library_file.photos:
             archive_path = Path(archive.file_path)
             if archive_path.is_absolute():
@@ -202,22 +208,22 @@ async def consume_transient_library_source(
     await db.delete(library_file)
 
 
-async def fail_missing_library_source(db: AsyncSession, item: PrintQueueItem) -> None:
+async def fail_missing_library_source(db: AsyncSession, item: PrintQueueItem) -> bool:
     """Fail a queued job whose library source was trashed or deleted."""
     trashed_filename = (
         await db.execute(select(LibraryFile.filename).where(LibraryFile.id == item.library_file_id))
     ).scalar_one_or_none()
-    item.status = "failed"
-    item.error_message = (
+    message = (
         f"'{trashed_filename}' is in the library trash — restore it and queue the print again"
         if trashed_filename
         else "Library file not found — it was deleted after this job was queued"
     )
-    item.completed_at = datetime.now(timezone.utc)
-    await db.commit()
+    if not await fail_dispatch(db, item, message):
+        return False
     logger.error(
         "Queue item %s: library file %s is %s",
         item.id,
         item.library_file_id,
         "in the trash" if trashed_filename else "gone",
     )
+    return True

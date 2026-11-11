@@ -31,6 +31,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from backend.app.services.thumbnail_lighting import (
+    BACKGROUND_COLOR as _BACKGROUND_COLOR,
+    BAMBU_GREEN as _BAMBU_GREEN,
     VIEW_AZIMUTH,
     VIEW_ELEVATION,
     thumbnail_faces,
@@ -53,12 +55,6 @@ logger = logging.getLogger(__name__)
 # special-casing.
 _PLATE_PNG_SIZE = 512
 _PLATE_PNG_SMALL_SIZE = 128
-
-# Mirror stl_thumbnail.py's palette so archive cards rendered through
-# this path are visually consistent with the rest of PrintOps's library
-# thumbnails — same Bambu green on the same dark background.
-_BAMBU_GREEN = "#00AE42"
-_BACKGROUND_COLOR = "#1a1a1a"
 
 # Limits include all instances, not just a mesh's unique vertices.
 _RENDER_FACE_BUDGET = 200_000

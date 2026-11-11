@@ -8,6 +8,7 @@ import pytest
 
 from backend.app.api.routes import camera
 from backend.app.services.camera_profiles import CameraProfile
+from backend.app.services.camera_source import ExternalRtspSource
 
 
 @pytest.fixture
@@ -60,8 +61,8 @@ def jpeg(n):
     return b"\xff\xd8" + str(n).encode() + b"\xff\xd9"
 
 
-async def collect(count):
-    stream = camera.generate_go2rtc_mjpeg_stream(MagicMock(), "192.0.2.1", "P2S", printer_id=999)
+async def collect(count, source=None):
+    stream = camera.generate_go2rtc_mjpeg_stream(source or MagicMock(), "192.0.2.1", "P2S", printer_id=999)
     frames = []
     try:
         async for chunk in stream:
@@ -93,6 +94,18 @@ async def test_moving_picture_and_short_repeats_do_not_restart(streaming):
     assert len(await collect(150)) == 150
     restart.assert_not_awaited()
     assert len(opened) == 1
+
+
+@pytest.mark.asyncio
+async def test_external_rtsp_tolerates_slow_changes_after_reconnect(streaming):
+    sessions, opened, restart, _ = streaming
+    sessions.extend([[jpeg(1)] * 100, [jpeg(2)] * 45 + [jpeg(3)] * 10])
+    frames = await collect(75, ExternalRtspSource("rtsp://camera.test/live"))
+
+    restart.assert_awaited_once_with(999)
+    assert len(opened) == 2
+    assert frames.count(jpeg(2)) == 45
+    assert frames[-1] == jpeg(3)
 
 
 @pytest.mark.asyncio

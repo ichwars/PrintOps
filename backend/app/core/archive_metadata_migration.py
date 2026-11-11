@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import text
 
 from backend.app.core.config import settings
+from backend.app.utils.color_utils import filament_rgb
 from backend.app.utils.threemf_tools import (
     extract_bed_temperature_from_3mf,
     extract_bed_type_from_3mf,
@@ -14,6 +15,49 @@ from backend.app.utils.threemf_tools import (
 
 logger = logging.getLogger(__name__)
 _FLAG = "_printops_138_archive_metadata_done"
+
+
+async def repair_archive_metadata(conn, safe_execute) -> None:
+    await safe_execute(conn, "ALTER TABLE print_archives ADD COLUMN timelapse_plate_id INTEGER")
+    if conn.dialect.name == "postgresql":
+        await safe_execute(conn, "ALTER TABLE print_log_entries ALTER COLUMN filament_color TYPE VARCHAR(200)")
+    await repair_archive_plate_metadata(conn)
+    await repair_bare_filament_colors(conn)
+    await repair_offline_stop_reasons(conn)
+
+
+async def repair_offline_stop_reasons(conn) -> None:
+    """Keep the queue's offline detail while normalizing historical run reasons."""
+    async with conn.begin_nested():
+        for table in ("print_archives", "print_log_entries"):
+            await conn.execute(
+                text(f"UPDATE {table} SET failure_reason = :reason WHERE failure_reason = :old"),  # nosec B608
+                {"reason": "userCancelled", "old": "Stopped by user (printer was offline)"},
+            )
+
+
+async def repair_bare_filament_colors(conn) -> None:
+    """Normalize old MQTT colors without rewriting existing swatches or custom labels."""
+    async with conn.begin_nested():
+        for table in ("print_archives", "print_log_entries"):
+            # Table names come from the fixed tuple above.
+            rows = await conn.execute(
+                text(
+                    f"SELECT id, filament_color FROM {table} "  # nosec B608
+                    "WHERE filament_color IS NOT NULL AND filament_color != '' "
+                    "AND (filament_color NOT LIKE '#%' OR REPLACE(filament_color, ',#', '') LIKE '%,%')"
+                )
+            )
+            for row_id, color in rows.fetchall():
+                tokens = color.split(",")
+                repaired = ",".join(
+                    token if token.strip().startswith("#") else filament_rgb(token) or token for token in tokens
+                )
+                if repaired != color and len(repaired) <= 200:
+                    await conn.execute(
+                        text(f"UPDATE {table} SET filament_color = :new WHERE id = :id AND filament_color = :old"),  # nosec B608
+                        {"new": repaired, "id": row_id, "old": color},
+                    )
 
 
 async def _backfill_plate_ids(conn) -> None:

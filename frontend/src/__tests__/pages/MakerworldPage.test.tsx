@@ -69,7 +69,7 @@ function useAuthedHandlers(opts: {
     http.get('*/makerworld/status', () => HttpResponse.json(statusWithToken)),
     http.get('*/makerworld/recent-imports', () => HttpResponse.json(recent)),
     http.get('*/library/folders', () => HttpResponse.json([])),
-    http.get('*/settings/', () =>
+    http.get('*/settings/ui-flags', () =>
       HttpResponse.json({
         auto_archive: true,
         save_thumbnails: true,

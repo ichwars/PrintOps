@@ -7,6 +7,7 @@ needing a live sidecar in CI.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -251,6 +252,56 @@ class TestCheckEligibility:
 
 class TestRunPipeline:
     """POST /slicer-pipelines/{id}/run orchestrates slice + enqueue."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_legacy_unknown_bed_type_marks_pipeline_run_failed(
+        self, async_client, db_session, test_engine, pipeline_factory, library_file_factory
+    ):
+        from fastapi import HTTPException
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from backend.app.api.routes import library, pipeline_runs
+        from backend.app.models.pipeline_run import PipelineRun
+        from backend.app.models.slicer_pipeline import SlicerPipeline
+
+        created = await pipeline_factory(bed_type="Supertack Plate")
+        pipeline = await db_session.get(SlicerPipeline, created["id"])
+        pipeline.bed_type = "Cool Plate (SuperTack)"
+        await db_session.commit()
+        response = await async_client.get(f"/api/v1/slicer-pipelines/{pipeline.id}")
+        assert response.json()["bed_type"] == "Supertack Plate"
+        assert pipeline_runs._slice_request_from_pipeline(pipeline).bed_type == "Supertack Plate"
+
+        pipeline.bed_type = "Glass Plate"
+        src = await library_file_factory()
+        run = PipelineRun(pipeline_id=pipeline.id, source_library_file_id=src.id, copies=1)
+        db_session.add(run)
+        await db_session.commit()
+        callback = pipeline_runs._make_orchestration_callable(
+            run_id=run.id,
+            pipeline_id=pipeline.id,
+            src_kind="library_file",
+            src_id=src.id,
+            src_filename=src.filename,
+            src_path=pipeline_runs.app_settings.base_dir / src.file_path,
+            creator_user_id=None,
+            copies=1,
+        )
+        slice_model = AsyncMock()
+        with (
+            patch.object(pipeline_runs, "async_session", async_sessionmaker(test_engine, expire_on_commit=False)),
+            patch.object(library, "slice_and_persist", slice_model),
+            patch.object(pipeline_runs, "_publish_run_event", new=AsyncMock()),
+            pytest.raises(HTTPException, match="Glass Plate"),
+        ):
+            await callback(1)
+
+        slice_model.assert_not_awaited()
+        await db_session.refresh(run)
+        assert run.status == "failed"
+        assert run.completed_at is not None
+        assert "Edit the pipeline" in run.error_message
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -886,13 +937,14 @@ class TestPolishFollowUp:
         ``cancelled`` so the run doesn't sit forever showing ``queued`` /
         ``dispatching``."""
         from backend.app.models.pipeline_run import PipelineJob, PipelineRun
+        from backend.app.models.print_queue import PrintQueueItem
 
         printer = await printer_factory()
         pipe = await pipeline_factory(target_printer_id=printer.id)
         src = await library_file_factory()
-        # Simulate the state PR C leaves a successful dispatch in: run is
-        # 'dispatching' and the job has a queue_entry_id pointing at a
-        # PrintQueueItem that no longer exists.
+        queue_entry = PrintQueueItem(printer_id=printer.id, library_file_id=src.id, status="pending")
+        db_session.add(queue_entry)
+        await db_session.flush()
         run = PipelineRun(
             pipeline_id=pipe["id"],
             source_library_file_id=src.id,
@@ -905,13 +957,15 @@ class TestPolishFollowUp:
             PipelineJob(
                 pipeline_run_id=run.id,
                 copy_index=0,
-                queue_entry_id=999999,  # Doesn't exist — simulates manual delete from queue.
+                queue_entry_id=queue_entry.id,
                 assigned_printer_id=printer.id,
                 status="queued",
+                dispatched_at=datetime.now(timezone.utc),
             )
         )
         await db_session.commit()
-        await db_session.refresh(run)
+        removed = await async_client.delete(f"/api/v1/queue/{queue_entry.id}")
+        assert removed.status_code == 200 and removed.json()["deleted"], removed.text
 
         resp = await async_client.get(f"/api/v1/pipeline-runs/{run.id}")
         assert resp.status_code == 200, resp.text
@@ -1071,7 +1125,7 @@ class TestRunViaApiKey:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_key_without_cloud_scope_remains_anonymous(
+    async def test_key_owns_pipeline_run_without_cloud_access(
         self,
         async_client: AsyncClient,
         pipeline_factory,
@@ -1088,7 +1142,7 @@ class TestRunViaApiKey:
         printer = await printer_factory()
         pipeline = await pipeline_factory(target_printer_id=printer.id)
         source = await library_file_factory()
-        _, key = await self._admin_and_key(
+        admin, key = await self._admin_and_key(
             async_client,
             db_session,
             can_read_status=True,
@@ -1112,4 +1166,5 @@ class TestRunViaApiKey:
             )
 
         assert response.status_code == 202, response.text
-        assert enqueue.await_args.kwargs["owner_id"] is None
+        assert enqueue.await_args.kwargs["owner_id"] == admin.id
+        assert response.json()["created_by"] == admin.id

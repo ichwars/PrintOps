@@ -12,6 +12,10 @@ Screenshots gehören nicht in das Repository.
 | Authentifizierung | [Azure Entra ID](authentication/entra-id.md) | Einrichtung der OIDC-Anmeldung mit Microsoft Entra ID |
 | Bambu Lab | [Preset Sync API](bambu_lab_preset_sync_api.md) | Referenz der beobachteten Cloud-Endpunkte für Preset-Synchronisation |
 | Betrieb | [Docker-Laufzeitsicherheit](docker-runtime-security.md) | Root-Init, PUID/PGID, Capabilities und Volume-Rechte |
+| Betrieb | [Druckwarteschlange und Filamentzuordnung](print-queue-dispatch.md) | Druckerwechsel, Filamentbestätigung, externe Spulen, Trocknung und Stapel |
+| Betrieb | [Filamentverbrauch und Druckkosten](filament-consumption.md) | Teilverbrauch, Spulenwechsel, Gewichtssperren und Kosten pro Drucklauf |
+| Betrieb | [Druckerstatus und Filamentkennungen](printer-status-filament.md) | Gemeinsame AMS-Darstellung, H2D-Zuordnung, AMS Lite und Preset-IDs |
+| Betrieb | [Druckervideos und Timelapse](printer-video-files.md) | Dateiauswahl, Streaming-Downloads und größenabhängiges Zeitbudget beim Archivieren |
 | Betrieb | [Virtual Printer mit Docker / NAT](virtual-printer-docker-networking.md) | Gemeinsame IPv4-Zieladresse für Discovery und FTPS, Port-Mappings und Beispiele |
 | Migration | [Virtual-Printer-FTP-Port](migration-vp-ftp-port.md) | Umstellung des FTP-Ports und erforderliche Migrationsschritte |
 | Aufträge | [Auftragsverwaltung](order-management.md) | Unternehmensprofile, Kundenstammdaten, Berechtigungen und Nummernkreise |

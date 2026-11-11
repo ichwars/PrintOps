@@ -2,7 +2,7 @@
 
 from typing import NoReturn
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
@@ -16,7 +16,7 @@ from backend.app.core.auth import (
     require_permission_if_auth_enabled,
     security,
 )
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.lexware import LexwareConnection, LexwareResource
@@ -79,7 +79,7 @@ async def _require(request: Request, *permissions: Permission) -> None:
 
 @router.get("/connections", response_model=list[ConnectionRead])
 async def list_connections(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.ACCOUNTING_INTEGRATIONS_MANAGE,
         Permission.CUSTOMERS_READ,
@@ -104,7 +104,7 @@ async def test_connection(
 @router.post("/connections", response_model=ConnectionRead, status_code=201)
 async def create_connection(
     body: ConnectionCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ACCOUNTING_INTEGRATIONS_MANAGE),
 ):
     try:
@@ -144,7 +144,7 @@ async def create_connection(
 async def update_connection(
     connection_id: int,
     body: ConnectionUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ACCOUNTING_INTEGRATIONS_MANAGE),
 ):
     try:
@@ -175,7 +175,7 @@ async def update_connection(
 @router.delete("/connections/{connection_id}", status_code=204)
 async def disconnect_connection(
     connection_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ACCOUNTING_INTEGRATIONS_MANAGE),
 ):
     try:
@@ -193,7 +193,7 @@ async def disconnect_connection(
 @router.post("/connections/{connection_id}/sync", status_code=202)
 async def queue_sync(
     connection_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ACCOUNTING_INTEGRATIONS_MANAGE),
 ):
     try:
@@ -213,7 +213,7 @@ async def list_resources(
     connection_id: int,
     request: Request,
     kind: ResourceKind = Query(),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(Permission.CUSTOMERS_READ, Permission.INVENTORY_READ),
 ):
     await _require(request, Permission.CUSTOMERS_READ if kind == "contacts" else Permission.INVENTORY_READ)
@@ -261,7 +261,7 @@ async def preview_import(
     connection_id: int,
     body: LexwarePreviewRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ACCOUNTING_INTEGRATIONS_MANAGE),
 ):
     try:
@@ -279,7 +279,7 @@ async def import_resource(
     connection_id: int,
     body: LexwareImportRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ACCOUNTING_INTEGRATIONS_MANAGE),
 ):
     try:

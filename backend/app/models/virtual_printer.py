@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, false, func, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base
@@ -45,25 +45,25 @@ class VirtualPrinter(Base):
     mode: Mapped[str] = mapped_column(String(20), default=VP_MODE_ARCHIVE)  # archive|review|queue|proxy
     auto_dispatch: Mapped[bool] = mapped_column(Boolean, server_default="true")  # queue mode: auto-start or manual
     queue_force_color_match: Mapped[bool] = mapped_column(
-        Boolean, server_default="false"
+        Boolean, server_default=false()
     )  # queue mode: pin per-slot type+color from the 3MF onto the queue
     # item so the scheduler refuses to dispatch onto a printer with the wrong
     # filament loaded (#1188).
     gcode_injection: Mapped[bool] = mapped_column(
-        Boolean, server_default="false"
+        Boolean, server_default=false()
     )  # queue mode: opt this VP's Send/Print jobs into per-model G-code snippet
     # injection (#1516). Default off so existing gcode_snippets users don't
     # silently start injecting; no-op when no snippets exist for the model.
     model: Mapped[str | None] = mapped_column(String(50), nullable=True)  # SSDP model code (server mode)
     access_code: Mapped[str | None] = mapped_column(String(8), nullable=True)  # 8 chars (server mode)
     target_printer_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("printers.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("printers.id", ondelete="CASCADE"), nullable=True
     )  # proxy mode
     bind_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)  # dedicated IP (proxy mode)
     remote_interface_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)  # SSDP advertise IP
     advertised_ip: Mapped[str | None] = mapped_column(String(15), nullable=True)  # external IPv4 for SSDP/PASV
     tailscale_disabled: Mapped[bool] = mapped_column(
-        Boolean, server_default="true"
+        Boolean, server_default=true()
     )  # opt-in: user must explicitly enable; auto-detect only runs then
     serial_suffix: Mapped[str] = mapped_column(String(9), default="391800001")  # unique per printer
     position: Mapped[int] = mapped_column(Integer, default=0)

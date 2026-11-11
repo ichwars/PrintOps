@@ -13,13 +13,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from backend.tests.postgres.suite_databases import configure_postgres_suite
+
 # IMPORTANT: Set environment variables BEFORE any app imports
 # This must happen before settings/config are loaded
 os.environ["LOG_TO_FILE"] = "false"
 os.environ["DEBUG"] = "false"
+TEST_PG_URL = configure_postgres_suite()
+_pg_data_dir = tempfile.TemporaryDirectory(prefix="printops_test_pg_") if TEST_PG_URL else None
+if _pg_data_dir is not None:
+    os.environ["DATA_DIR"] = str(Path(_pg_data_dir.name) / "data")
+    os.environ["LOG_DIR"] = str(Path(_pg_data_dir.name) / "logs")
 
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
 
 # Ensure settings use our env vars - import and override before database import
 from backend.app.core.config import settings  # noqa: E402
@@ -39,10 +46,56 @@ def _cleanup_test_plate_cal_dir():
 
 atexit.register(_cleanup_test_plate_cal_dir)
 
-from backend.app.core.database import Base  # noqa: E402
+from backend.app.core.database import Base, _create_engine, load_all_models  # noqa: E402
+from backend.tests.postgres.fixture_schema import FixtureSchema  # noqa: E402
+
+_pg_fixture_schema = FixtureSchema()
 
 # Use in-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+if TEST_PG_URL is not None:
+
+    async def create_app_schema():
+        load_all_models()
+        engine = _create_engine(settings.database_url)
+        try:
+            async with engine.begin() as connection:
+                await connection.run_sync(Base.metadata.create_all)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(create_app_schema())
+
+
+def pytest_collection_modifyitems(items):
+    if TEST_PG_URL is not None:
+        marker = pytest.mark.skip(reason="SQLite-specific behavior")
+        for item in items:
+            if item.get_closest_marker("sqlite_only"):
+                item.add_marker(marker)
+
+
+@pytest.fixture(autouse=True)
+def reset_ftp_background_stalls():
+    from backend.app.services.bambu_ftp import _ftps_session_exhausted
+    from backend.app.services.ftp_background import _stalled_until
+
+    _stalled_until.clear()
+    _ftps_session_exhausted.clear()
+    yield
+    _stalled_until.clear()
+    _ftps_session_exhausted.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_printer_file_previews():
+    from backend.app.services.printer_file_cache import printer_file_cache
+
+    printer_file_cache.clear()
+    yield
+    printer_file_cache.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -140,79 +193,66 @@ def event_loop():
     loop.close()
 
 
+async def _finish_query_cancellations() -> None:
+    pending = [
+        task for task in asyncio.all_tasks() if getattr(task.get_coro(), "__qualname__", "") == "Connection._cancel"
+    ]
+    if pending:
+        await asyncio.wait(pending, timeout=5)
+
+
+async def _stop_test_background_tasks() -> None:
+    from backend.app.core.tasks import _background_tasks
+
+    loop = asyncio.get_running_loop()
+    pending = [task for task in _background_tasks if not task.done() and task.get_loop() is loop]
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.wait(pending, timeout=5)
+    await _finish_query_cancellations()
+
+
+async def _release_app_engine() -> None:
+    from backend.app.core.database import engine
+
+    await _stop_test_background_tasks()
+    if isinstance(engine, AsyncEngine):
+        await engine.dispose()
+    await _finish_query_cancellations()
+
+
+@pytest.fixture(autouse=True)
+async def release_app_engine_after_test():
+    yield
+    await _release_app_engine()
+
+
 @pytest.fixture
 async def test_engine():
     """Create a test database engine."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    engine = _create_engine(TEST_PG_URL) if TEST_PG_URL else create_async_engine(TEST_DATABASE_URL, echo=False)
 
-    # Import all models to register them
-    from backend.app.models import (
-        active_print_session,  # noqa: F401
-        ams_history,
-        ams_label,
-        api_key,
-        archive,
-        auth_ephemeral,
-        business_profile,
-        calculation_project,
-        calculation_slice,
-        color_catalog,
-        commerce,
-        customer,
-        document_configuration,
-        document_layout,
-        external_link,
-        filament,
-        filament_sku_settings,
-        group,
-        kprofile_note,
-        maintenance,
-        notification,
-        notification_template,
-        number_sequence,
-        oidc_provider,
-        print_log,
-        print_queue,
-        printer,
-        procurement,
-        project,
-        project_bom,
-        settings,
-        slot_preset,
-        small_part,
-        smart_plug,
-        smart_plug_energy_snapshot,  # noqa: F401
-        sponsor_toast_state,  # noqa: F401
-        spool,
-        spool_assignment,
-        spool_catalog,
-        spool_k_profile,
-        spool_refill_event,
-        spool_usage_history,
-        spoolbuddy_device,
-        spoolman_k_profile,
-        spoolman_slot_assignment,
-        stock_reservation,
-        user,
-        user_email_pref,
-        user_otp_code,
-        user_totp,
-        virtual_printer,
-        warehouse_number_sequence,
-    )
+    load_all_models()
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            if TEST_PG_URL:
+                await _pg_fixture_schema.reset(conn)
+            else:
+                await conn.run_sync(Base.metadata.create_all)
 
-    yield engine
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
-    # Allow aiosqlite's background thread to finish processing the close
-    # response before the per-function event loop shuts down, preventing
-    # "RuntimeError: Event loop is closed" in call_soon_threadsafe.
-    await asyncio.sleep(0.1)
+        yield engine
+    finally:
+        await _stop_test_background_tasks()
+        if TEST_PG_URL is None:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+        await engine.dispose()
+        await _finish_query_cancellations()
+        if TEST_PG_URL is None:
+            # Give the aiosqlite worker thread time to finish closing.
+            await asyncio.sleep(0.1)
 
 
 @pytest.fixture
@@ -258,12 +298,7 @@ async def async_client(test_engine, db_session) -> AsyncGenerator[AsyncClient, N
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
 
-        # The app lifespan called init_db() which used the module-level engine
-        # (not the test engine), creating aiosqlite connections. Dispose those
-        # connections so their background threads finish before the event loop closes.
-        from backend.app.core.database import engine as real_engine
-
-        await real_engine.dispose()
+        await _release_app_engine()
 
     app.dependency_overrides.clear()
 

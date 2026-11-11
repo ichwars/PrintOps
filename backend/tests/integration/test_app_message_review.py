@@ -4,7 +4,7 @@ import html
 import json
 import re
 import smtplib
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from email import message_from_string
 from urllib.parse import parse_qs
 
@@ -143,7 +143,9 @@ async def test_mixed_digest_is_complete_and_slack_valid(
                 event_type="app_message",
                 title=f"{index:02d}" + "x" * 118,
                 message=f"@channel **full body {index}**\nhttps://example.com/{index}",
-                created_at=datetime(2026, 10, 14, 10, 20),
+                created_at=(datetime.now(timezone.utc) - timedelta(days=1)).replace(
+                    hour=10, minute=20, second=0, microsecond=0, tzinfo=None
+                ),
             )
         )
     db_session.add(
@@ -153,7 +155,9 @@ async def test_mixed_digest_is_complete_and_slack_valid(
             title="Own print finished",
             message="Ordinary digest remains title-only",
             printer_name="Own printer",
-            created_at=datetime(2026, 10, 14, 10, 21),
+            created_at=(datetime.now(timezone.utc) - timedelta(days=1)).replace(
+                hour=10, minute=21, second=0, microsecond=0, tzinfo=None
+            ),
         )
     )
     await db_session.commit()
@@ -295,7 +299,7 @@ async def test_admin_cannot_grant_old_owner_keys(async_client, db_session, bindi
         await db_session.commit()
         await db_session.execute(delete(User).where(User.id == old_id))
         await db_session.commit()
-        replacement = User(username="replacement", is_active=True)
+        replacement = User(id=old_id, username="replacement", is_active=True)
         db_session.add(replacement)
         await db_session.flush()
         assert replacement.id == old_id
@@ -408,6 +412,9 @@ async def test_ordinary_digest_keeps_existing_summary_format(
         },
     )
     provider.daily_digest_enabled = True
+    created_at = (datetime.now(timezone.utc) - timedelta(days=1)).replace(
+        hour=10, minute=21, second=0, microsecond=0, tzinfo=None
+    )
     db_session.add(
         NotificationDigestQueue(
             provider_id=provider.id,
@@ -415,14 +422,16 @@ async def test_ordinary_digest_keeps_existing_summary_format(
             title="Own print",
             message="Not in existing summary",
             printer_name="Own printer",
-            created_at=datetime(2026, 10, 14, 10, 21),
+            created_at=created_at,
         )
     )
     await db_session.commit()
     monkeypatch.setattr(database, "async_session", async_sessionmaker(test_engine, expire_on_commit=False))
     await notification_service.send_digest(provider.id)
     assert consumer[0] == [
-        {"text": "*Daily Digest - 1 Events*\n== Print Complete (1) ==\n  10:21 [Own printer] Own print\n"}
+        {
+            "text": f"*Daily Digest - 1 Events*\n== Print Complete (1) ==\n  {created_at:%m-%d %H:%M} [Own printer] Own print\n"
+        }
     ]
     assert (await db_session.scalar(select(NotificationLog))).success is True
     assert not list(await db_session.scalars(select(NotificationDigestQueue)))

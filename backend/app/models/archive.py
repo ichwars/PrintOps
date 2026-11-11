@@ -8,6 +8,7 @@ from backend.app.core.database import Base
 
 class PrintArchive(Base):
     __tablename__ = "print_archives"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     printer_id: Mapped[int | None] = mapped_column(ForeignKey("printers.id"), nullable=True)
@@ -20,6 +21,7 @@ class PrintArchive(Base):
     content_hash: Mapped[str | None] = mapped_column(String(64))  # SHA256 hash for duplicate detection
     thumbnail_path: Mapped[str | None] = mapped_column(String(500))
     timelapse_path: Mapped[str | None] = mapped_column(String(500))
+    timelapse_plate_id: Mapped[int | None] = mapped_column(Integer)
     # Snapshot of timelapse filenames observed before this print. Persisted so
     # restart recovery cannot accidentally claim an earlier print's video.
     timelapse_baseline: Mapped[dict | None] = mapped_column(JSON)
@@ -59,6 +61,8 @@ class PrintArchive(Base):
     # print and keep the original row instead of cancel-then-create.
     subtask_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     plate_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    plate_estimates: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
+    source_library_file_id: Mapped[int | None] = mapped_column(ForeignKey("library_files.id", ondelete="SET NULL"))
 
     # Extended metadata (JSON blob for flexibility)
     extra_data: Mapped[dict | None] = mapped_column(JSON)

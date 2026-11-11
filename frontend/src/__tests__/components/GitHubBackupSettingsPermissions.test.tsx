@@ -113,3 +113,26 @@ describe('GitHubBackupSettings - github:restore gate', () => {
     );
   });
 });
+
+
+it('keeps full backup access restricted while allowing a delegated Git restore', async () => {
+  mockConfiguredBackup();
+  mockUserWith(['settings:read', 'settings:update', 'settings:backup', 'settings:restore', 'github:restore']);
+  server.use(
+    http.get('*/api/v1/local-backup/status', () =>
+      HttpResponse.json({ enabled: true, schedule: 'daily', time: '02:00', retention: 3, path: '/backup/fixture' }),
+    ),
+    http.get('*/api/v1/local-backup/backups', () =>
+      HttpResponse.json([{ filename: 'fixture.zip', size: 1024, created_at: '2026-01-01T00:00:00Z' }]),
+    ),
+  );
+  render(<GitHubBackupSettings />);
+
+  expect(await screen.findByRole('button', { name: /Restore from Git/i })).toBeEnabled();
+  expect(await screen.findByDisplayValue('/backup/fixture')).toBeDisabled();
+  expect(await screen.findByText('fixture.zip')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Restore' })).toBeDisabled();
+  expect(screen.queryByTitle('Download')).not.toBeInTheDocument();
+  expect(screen.queryByTitle('Restore')).not.toBeInTheDocument();
+});

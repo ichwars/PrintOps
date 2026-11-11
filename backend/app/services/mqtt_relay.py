@@ -217,16 +217,18 @@ class MQTTRelayService:
             retain=True,
         )
 
-    def _publish(self, topic: str, payload: dict, retain: bool = False):
-        """Publish message to MQTT broker."""
+    def _publish(self, topic: str, payload: dict, retain: bool = False) -> bool:
+        """Return whether the MQTT client accepted the outgoing message."""
         if not self.client or not self.connected:
-            return
+            return False
 
         try:
             with self._lock:
-                self.client.publish(topic, json.dumps(payload, default=str), qos=1, retain=retain)
+                result = self.client.publish(topic, json.dumps(payload, default=str), qos=1, retain=retain)
+            return result.rc == mqtt.MQTT_ERR_SUCCESS
         except Exception as e:
             logger.debug("MQTT publish error: %s", e)
+            return False
 
     def get_status(self) -> dict:
         """Get current MQTT relay status for API."""
@@ -283,12 +285,12 @@ class MQTTRelayService:
             retain=True,
         )
 
-    async def on_printer_online(self, printer_id: int, printer_name: str, printer_serial: str):
+    async def on_printer_online(self, printer_id: int, printer_name: str, printer_serial: str) -> bool:
         """Publish printer came online event."""
-        if not self.enabled or not self.connected:
-            return
+        if not self.enabled:
+            return False
 
-        self._publish(
+        return self._publish(
             f"{self.topic_prefix}/printers/{printer_serial}/online",
             {
                 "printer_id": printer_id,
@@ -298,12 +300,12 @@ class MQTTRelayService:
             },
         )
 
-    async def on_printer_offline(self, printer_id: int, printer_name: str, printer_serial: str):
+    async def on_printer_offline(self, printer_id: int, printer_name: str, printer_serial: str) -> bool:
         """Publish printer went offline event."""
-        if not self.enabled or not self.connected:
-            return
+        if not self.enabled:
+            return False
 
-        self._publish(
+        return self._publish(
             f"{self.topic_prefix}/printers/{printer_serial}/offline",
             {
                 "printer_id": printer_id,
@@ -368,6 +370,42 @@ class MQTTRelayService:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
+
+    async def on_run_event(self, phase, run, printer):
+        """Publish the committed start, terminal result or discard of a run."""
+        if not self.enabled or not self.connected or printer is None:
+            return
+
+        def utc_timestamp(value):
+            if value is None:
+                return None
+            return (
+                value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+            ).isoformat()
+
+        payload = {
+            "run_id": run.id,
+            "archive_id": run.archive_id,
+            "printer_id": run.printer_id,
+            "printer_name": run.printer_name or printer.name,
+            "printer_serial": printer.serial_number,
+            "print_name": run.print_name,
+            "plate_id": run.plate_id,
+            "status": run.status if phase != "discarded" else "discarded",
+            "started_at": utc_timestamp(run.started_at),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        if phase == "completed":
+            payload.update(
+                completed_at=utc_timestamp(run.completed_at),
+                duration_seconds=run.duration_seconds,
+                duration_unmeasured=bool(run.duration_unmeasured),
+                failure_reason=run.failure_reason,
+                filament_used_grams=run.filament_used_grams,
+                cost=run.cost,
+                energy_kwh=run.energy_kwh,
+            )
+        self._publish(f"{self.topic_prefix}/printers/{printer.serial_number}/run/{phase}", payload)
 
     async def on_ams_change(
         self,
@@ -500,8 +538,9 @@ class MQTTRelayService:
         maintenance_type: str,
         current_value: float,
         threshold: float,
+        unit: str = "hours",
     ):
-        """Publish maintenance alert triggered event."""
+        """Publish maintenance usage and threshold in hours or days."""
         if not self.enabled or not self.connected:
             return
 
@@ -513,6 +552,7 @@ class MQTTRelayService:
                 "maintenance_type": maintenance_type,
                 "current_value": current_value,
                 "threshold": threshold,
+                "unit": unit,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -625,6 +665,33 @@ class MQTTRelayService:
             },
         )
 
+    async def on_printer_filament_low(
+        self,
+        printer_id: int,
+        printer_name: str,
+        printer_serial: str,
+        slot: str,
+        remaining_percent: int,
+        color: str | None,
+        spool_id: int,
+    ) -> bool:
+        """Publish the spool crossing for the printer and slot that hold it."""
+        if not self.enabled:
+            return False
+        return self._publish(
+            f"{self.topic_prefix}/printers/{printer_serial}/filament/low",
+            {
+                "printer_id": printer_id,
+                "printer_name": printer_name,
+                "printer_serial": printer_serial,
+                "slot": slot,
+                "remaining_percent": remaining_percent,
+                "color": color,
+                "spool_id": spool_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
     # Smart Plug Events
 
     async def on_smart_plug_state(
@@ -657,9 +724,9 @@ class MQTTRelayService:
         self,
         plug_id: int,
         plug_name: str,
-        power: float,
-        energy_today: float,
-        energy_total: float,
+        power: float | None,
+        energy_today: float | None,
+        energy_total: float | None,
     ):
         """Publish smart plug energy update event."""
         if not self.enabled or not self.connected:

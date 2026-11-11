@@ -23,9 +23,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from backend.app.core.auth_time import AuthDateTime
 from backend.app.core.database import Base
 
 
@@ -43,7 +44,10 @@ class TokenType(str, Enum):
     PASSWORD_RESET = "password_reset"
     EMAIL_OTP_SETUP = "email_otp_setup"
     SLICER_DOWNLOAD = "slicer_download"
+    CAMERA_STREAM = "camera_stream"
     MEDIA = "media"
+    WEBSOCKET = "websocket"
+    REVOKED_JTI = "revoked_jti"
     NOTIFICATION_PHOTO = "notification_photo"
 
 
@@ -76,23 +80,23 @@ class AuthEphemeralToken(Base):
     # pre_auth + oidc_exchange: which user this session belongs to
     username: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
-    # oidc_state: which provider initiated the flow
+    # OIDC and connected-app flows use provider_id for their own resource.
+    # Camera and WebSocket tokens use it for the issuing API key.
     provider_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # media: immutable issuing user id (username remains the lookup key)
-    # oidc_state: replay-protection nonce embedded in the ID token
+    # Protocol-specific values. For API-key streams, nonce holds the key fingerprint.
     nonce: Mapped[str | None] = mapped_column(String(128), nullable=True)
-
-    # oidc_state: PKCE code verifier (S256 method)
     code_verifier: Mapped[str | None] = mapped_column(String(128), nullable=True)
-
-    # pre_auth: HttpOnly cookie value bound to this token to prevent token theft
-    # (XSS can read JS memory but cannot read HttpOnly cookies).
     challenge_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Signed-in credentials may continue only while their issuing JWT can.
+    issuer_identity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    issuer_jti: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    issuer_epoch: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    expires_at: Mapped[datetime] = mapped_column(AuthDateTime(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        AuthDateTime(),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
@@ -228,7 +232,7 @@ class AuthRateLimitEvent(Base):
     username: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(20), nullable=False)  # '2fa_attempt' | 'email_send'
     occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        AuthDateTime(),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )

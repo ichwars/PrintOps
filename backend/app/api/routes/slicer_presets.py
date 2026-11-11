@@ -1,12 +1,8 @@
 """Unified slicer-preset listing for the SliceModal (#wiki / Cloud-aware presets).
 
-Returns the printer/process/filament options grouped by source tier in
-priority order — cloud (per-user, live-fetched) > local (DB-backed
-imports) > standard (slicer-bundled stock fallback). Name-based dedup is
-applied so a preset that exists in multiple tiers only appears in the
-highest-priority one. Cloud failure modes (signed out / expired / network)
-are surfaced via a status field so the modal can render a precise banner
-without faking an "ok with empty list" response.
+Returns printer, process and filament options grouped by source. Equivalent
+Bambu stock profiles share a listing entry, with aliases for persisted
+bundled references. Each cloud source reports its own connection status.
 """
 
 from __future__ import annotations
@@ -14,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,12 +23,14 @@ from backend.app.api.routes.orca_cloud import (
     _build_authenticated_service as _build_orca_service,
     _load_credentials as _load_orca_credentials,
 )
-from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_ownership_permission
+from backend.app.api.routes.slicer_loaded_spools import router as loaded_spools_router
+from backend.app.core.auth import RequirePermissionIfAuthEnabled, is_auth_enabled, require_ownership_permission
 from backend.app.core.config import settings as app_settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.local_preset import LocalPreset
 from backend.app.models.user import User
+from backend.app.schemas.slicer import PresetRef
 from backend.app.schemas.slicer_presets import (
     UnifiedPreset,
     UnifiedPresetsBySlot,
@@ -51,10 +50,12 @@ from backend.app.services.slicer_api import (
     SlicerApiService,
 )
 from backend.app.utils.printer_models import PRINTER_MODEL_MAP
+from backend.app.utils.slicer_strings import first_slicer_string, slicer_strings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/slicer", tags=["Slicer Presets"])
+router.include_router(loaded_spools_router)
 
 
 # In-process cache for the bundled-profile list. The slicer sidecar walks a
@@ -63,7 +64,7 @@ router = APIRouter(prefix="/slicer", tags=["Slicer Presets"])
 # on every modal open. Per-user cache is unnecessary because bundled profiles
 # are global.
 _BUNDLED_TTL_S = 3600.0
-_bundled_cache: tuple[float, dict[str, list[UnifiedPreset]]] | None = None
+_bundled_cache: tuple[float, dict[str, list[UnifiedPreset]], str] | None = None
 
 # Per-user cache for the cloud preset list. Cache key is (user_id, token_hash):
 # keying on the token hash means a logout/login or token-change automatically
@@ -115,6 +116,8 @@ async def _fetch_cloud_presets(
     """
     if user is not None and not user.has_permission(Permission.CLOUD_AUTH.value):
         return _empty_slots(), "not_authenticated"
+    if user is None and await is_auth_enabled(db):
+        return _empty_slots(), "not_authenticated"
 
     token, _email, region = await get_stored_token(db, user)
     if not token:
@@ -154,13 +157,14 @@ async def _fetch_cloud_presets(
             # that share names with private ones get deduped out within the cloud
             # tier itself.
             seen_names: set[str] = set()
-            for entry in type_data.get("private", []) + type_data.get("public", []):
-                name = entry.get("name")
-                setting_id = entry.get("setting_id") or entry.get("id")
-                if not name or not setting_id or name in seen_names:
-                    continue
-                seen_names.add(name)
-                slots[slot].append(UnifiedPreset(id=setting_id, name=name, source="cloud"))
+            for stock, entries in ((False, type_data.get("private")), (True, type_data.get("public"))):
+                for entry in entries or []:
+                    name = entry.get("name")
+                    setting_id = entry.get("setting_id") or entry.get("id")
+                    if not name or not setting_id or name in seen_names:
+                        continue
+                    seen_names.add(name)
+                    slots[slot].append(UnifiedPreset(id=setting_id, name=name, source="cloud", stock=stock))
 
         # Cloud filament presets carry no metadata in this response on
         # purpose: the per-preset detail endpoint
@@ -194,6 +198,8 @@ async def _fetch_orca_cloud_presets(
     enrichment is free here.
     """
     if user is not None and not user.has_permission(Permission.ORCA_CLOUD_AUTH.value):
+        return _empty_slots(), "not_authenticated"
+    if user is None and await is_auth_enabled(db):
         return _empty_slots(), "not_authenticated"
 
     creds = await _load_orca_credentials(db, user)
@@ -243,29 +249,13 @@ async def _fetch_orca_cloud_presets(
             name = entry.get("name") or preset_id
             if not preset_id or not name:
                 continue
-            filament_type: str | None = None
-            filament_colour: str | None = None
+            preset = UnifiedPreset(id=str(preset_id), name=str(name), source="orca_cloud")
             if slot == "filament":
-                # Bambu/Orca filament profiles store these as single-element
-                # arrays (the historical multi-extruder shape). Extract the
-                # first non-empty element for both.
-                ft = content.get("filament_type")
-                if isinstance(ft, list) and ft and isinstance(ft[0], str):
-                    filament_type = ft[0]
-                elif isinstance(ft, str):
-                    filament_type = ft
-                fc = content.get("default_filament_colour")
-                if isinstance(fc, list) and fc and isinstance(fc[0], str):
-                    filament_colour = fc[0]
-                elif isinstance(fc, str):
-                    filament_colour = fc
-            preset = UnifiedPreset(
-                id=str(preset_id),
-                name=str(name),
-                source="orca_cloud",
-                filament_type=filament_type,
-                filament_colour=filament_colour,
-            )
+                preset.filament_type = first_slicer_string(content.get("filament_type"))
+                preset.filament_colour = first_slicer_string(content.get("default_filament_colour"))
+                preset.inherits = _first_scalar(content.get("inherits"))
+            elif slot == "printer":
+                preset.printer_parent = _first_scalar(content.get("inherits"))
             if slot in ("process", "filament"):
                 # The profile's own compatible-printer list, straight out of
                 # the content Orca already hands us (#2628). Without it the
@@ -295,6 +285,8 @@ async def _fetch_local_presets(db: AsyncSession) -> dict[str, list[UnifiedPreset
         preset = UnifiedPreset(id=str(p.id), name=p.name, source="local")
         if slot == "filament":
             preset.filament_type, preset.filament_colour = _parse_filament_metadata(p.setting)
+        elif slot == "printer":
+            preset.printer_parent = _first_scalar(p.inherits)
         if slot in ("process", "filament"):
             # Precise compatibility link — the slicer's own compatible_printers
             # list, captured at import time. Lets the SliceModal filter the
@@ -315,13 +307,7 @@ def _content_compatible_printers(content: dict) -> list[str] | None:
     name-based matcher, rather than treating "no data" as "compatible with
     nothing".
     """
-    raw = content.get("compatible_printers")
-    if isinstance(raw, str):
-        raw = [raw]
-    if not isinstance(raw, list):
-        return None
-    names = [s.strip() for s in raw if isinstance(s, str) and s.strip()]
-    return names or None
+    return slicer_strings(content.get("compatible_printers")) or None
 
 
 def _parse_compatible_printers(raw: str | None) -> list[str] | None:
@@ -336,8 +322,7 @@ def _parse_compatible_printers(raw: str | None) -> list[str] | None:
         return None
     if not isinstance(data, list):
         return None
-    names = [s for s in data if isinstance(s, str) and s.strip()]
-    return names or None
+    return slicer_strings(data) or None
 
 
 def _parse_filament_metadata(setting_json: str | None) -> tuple[str | None, str | None]:
@@ -354,15 +339,13 @@ def _parse_filament_metadata(setting_json: str | None) -> tuple[str | None, str 
         return None, None
     if not isinstance(data, dict):
         return None, None
-    return _first_scalar(data.get("filament_type")), _first_scalar(data.get("filament_colour"))
+    return first_slicer_string(data.get("filament_type")), first_slicer_string(data.get("filament_colour"))
 
 
 def _first_scalar(value: object) -> str | None:
     if isinstance(value, list) and value:
-        return value[0] if isinstance(value[0], str) else None
-    if isinstance(value, str) and value:
-        return value
-    return None
+        value = value[0]
+    return (value.strip() or None) if isinstance(value, str) else None
 
 
 async def _fetch_bundled_presets(db: AsyncSession, *, refresh: bool = False) -> dict[str, list[UnifiedPreset]]:
@@ -373,10 +356,9 @@ async def _fetch_bundled_presets(db: AsyncSession, *, refresh: bool = False) -> 
     """
     global _bundled_cache
     now = time.monotonic()
-    if not refresh and _bundled_cache and now - _bundled_cache[0] < _BUNDLED_TTL_S:
-        return _bundled_cache[1]
-
     api_url = await _resolve_slicer_api_url(db)
+    if not refresh and _bundled_cache and _bundled_cache[2] == api_url and now - _bundled_cache[0] < _BUNDLED_TTL_S:
+        return _bundled_cache[1]
     if not api_url:
         # No sidecar configured at all — return empty rather than caching, so
         # users who configure one mid-session see results on next open.
@@ -410,7 +392,7 @@ async def _fetch_bundled_presets(db: AsyncSession, *, refresh: bool = False) -> 
                 UnifiedPreset(id=name, name=name, source="standard", **extra),
             )
 
-    _bundled_cache = (now, slots)
+    _bundled_cache = (now, slots, api_url)
     return slots
 
 
@@ -444,6 +426,55 @@ async def _resolve_slicer_api_url(db: AsyncSession) -> str | None:
     return url or None
 
 
+_STOCK_BAMBU_FILAMENT = re.compile(r"(.+) @BBL [A-Z0-9]+(?: \d\.\d nozzle)?")
+
+
+def _stock_bambu_filament_base(name: str) -> str | None:
+    match = _STOCK_BAMBU_FILAMENT.fullmatch(name)
+    return match[1] if match else None
+
+
+def _enrich_cloud_filament_material(
+    orca_cloud: list[UnifiedPreset],
+    cloud: list[UnifiedPreset],
+    local: list[UnifiedPreset],
+    standard: list[UnifiedPreset],
+) -> None:
+    """Resolve Orca parents and match stock Bambu filaments across printers."""
+    stock_types: dict[str, set[str]] = {}
+    stock_presets: list[UnifiedPreset] = []
+    for preset in standard:
+        base = _stock_bambu_filament_base(preset.name)
+        if base and preset.filament_type:
+            stock_types.setdefault(base, set()).add(preset.filament_type)
+            stock_presets.append(preset)
+    unambiguous = {base: next(iter(types)) for base, types in stock_types.items() if len(types) == 1}
+    # Orca's bundled @System generics can report a coarser material (e.g. PETG for PETG-CF).
+    by_name: dict[str, str] = {}
+    for tier in (local, orca_cloud, stock_presets):
+        for preset in tier:
+            if preset.filament_type:
+                by_name.setdefault(preset.name, preset.filament_type)
+    parents = {preset.name: preset.inherits for preset in orca_cloud if preset.inherits}
+
+    for preset in (*orca_cloud, *cloud):
+        if preset.filament_type:
+            continue
+        name = preset.name
+        visited: set[str] = set()
+        while name not in visited:
+            visited.add(name)
+            if name in by_name:
+                preset.filament_type = by_name[name]
+                break
+            parent = parents.get(name)
+            if not parent:
+                base = _stock_bambu_filament_base(name)
+                preset.filament_type = unambiguous.get(base) if base else None
+                break
+            name = parent
+
+
 def _enrich_cloud_metadata(
     orca_cloud: dict[str, list[UnifiedPreset]],
     cloud: dict[str, list[UnifiedPreset]],
@@ -470,7 +501,8 @@ def _enrich_cloud_metadata(
     :func:`_fetch_cloud_presets`) inherits values from a same-named entry
     in ``local`` / ``orca_cloud`` / ``standard``. This is the only reason
     this function exists post-#1712 — without the enrich the Bambu Cloud
-    tier can't score in ``pickFilamentForSlot``.
+    tier can't score in ``pickFilamentForSlot``. Remaining gaps use the
+    Orca parent chain or an unambiguous stock Bambu material from the bundle.
 
     Compatibility merge (#2628): the same name bridge carries
     ``compatible_printers`` onto any process / filament entry that lacks it.
@@ -482,6 +514,10 @@ def _enrich_cloud_metadata(
     into a correctly-rejected mismatch. Only ever fills a gap: an entry that
     carries its own list keeps it.
     """
+    # Enrichment uses the current bundle and other tiers. Keep cached cloud inputs raw.
+    orca_cloud = {slot: [preset.model_copy() for preset in presets] for slot, presets in orca_cloud.items()}
+    cloud = {slot: [preset.model_copy() for preset in presets] for slot, presets in cloud.items()}
+
     # Build a name → metadata lookup from the tiers that carry it (local,
     # orca_cloud, standard). Bambu cloud is intentionally skipped — it
     # doesn't populate filament_type/colour in the list response. Take
@@ -502,6 +538,8 @@ def _enrich_cloud_metadata(
                 p.filament_type = t
             if p.filament_colour is None and c is not None:
                 p.filament_colour = c
+
+    _enrich_cloud_filament_material(orca_cloud["filament"], cloud["filament"], local["filament"], standard["filament"])
 
     # Compatibility bridge (#2628). Runs over both slots that carry the
     # list, and in both directions between the cloud tiers — whichever copy
@@ -543,7 +581,7 @@ def list_printer_models() -> dict[str, str]:
 
 @router.get("/presets", response_model=UnifiedPresetsResponse)
 async def list_unified_presets(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.LIBRARY_UPLOAD),
     api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
     refresh: bool = Query(
@@ -556,7 +594,7 @@ async def list_unified_presets(
         ),
     ),
 ) -> UnifiedPresetsResponse:
-    """List slicer presets across cloud / local / standard tiers, deduped by name.
+    """List slicer presets across the four source tiers.
 
     Drives the SliceModal preset dropdowns. Permission gate matches the
     slice action itself (``LIBRARY_UPLOAD``) so any user who can slice can
@@ -577,6 +615,13 @@ async def list_unified_presets(
     standard = await _fetch_bundled_presets(db, refresh=refresh)
 
     orca_cloud, cloud, local, standard = _enrich_cloud_metadata(orca_cloud, cloud, local, standard)
+    aliases = _stock_aliases(cloud, standard)
+    if aliases and not await _uses_bambu_stock(db):
+        aliases = {}
+    standard = {
+        slot: [preset for preset in presets if _stock_key(slot, preset.id) not in aliases]
+        for slot, presets in standard.items()
+    }
 
     return UnifiedPresetsResponse(
         orca_cloud=UnifiedPresetsBySlot(**orca_cloud),
@@ -585,13 +630,49 @@ async def list_unified_presets(
         standard=UnifiedPresetsBySlot(**standard),
         cloud_status=cloud_status,
         orca_cloud_status=orca_cloud_status,
+        stock_aliases=aliases,
     )
+
+
+def _stock_key(slot: str, preset_id: str) -> str:
+    return f"{slot}:standard:{preset_id}"
+
+
+async def _uses_bambu_stock(db: AsyncSession) -> bool:
+    from backend.app.api.routes.settings import get_setting
+
+    return (await get_setting(db, "preferred_slicer") or "bambu_studio") == "bambu_studio"
+
+
+def _stock_aliases(
+    cloud: dict[str, list[UnifiedPreset]], standard: dict[str, list[UnifiedPreset]]
+) -> dict[str, PresetRef]:
+    aliases = {}
+    for slot, presets in standard.items():
+        stock = {preset.name: preset.id for preset in cloud.get(slot, []) if preset.stock}
+        for preset in presets:
+            if cloud_id := stock.get(preset.name):
+                aliases[_stock_key(slot, preset.id)] = PresetRef(source="cloud", id=cloud_id)
+    return aliases
+
+
+def listed_stock_ref(aliases: dict[str, PresetRef], slot: str, ref: PresetRef) -> PresetRef:
+    return aliases.get(_stock_key(slot, ref.id), ref) if ref.source == "standard" else ref
+
+
+async def load_stock_aliases(db: AsyncSession, user: User | None) -> dict[str, PresetRef]:
+    if not await _uses_bambu_stock(db):
+        return {}
+    cloud, _ = await _fetch_cloud_presets(db, user)
+    if not any(cloud.values()):
+        return {}
+    return _stock_aliases(cloud, await _fetch_bundled_presets(db))
 
 
 @router.get("/preview-progress/{request_id}")
 async def get_preview_slice_progress(
     request_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: tuple[User | None, bool] = Depends(
         require_ownership_permission(
             Permission.LIBRARY_READ_ALL,
@@ -622,6 +703,10 @@ async def get_preview_slice_progress(
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(url)
+    except httpx.TimeoutException:
+        # Busy, not gone: a heavy slice can hold the progress answer past 5 s
+        # (TO-C14). Still 503, so the poller keeps trying.
+        raise HTTPException(status_code=503, detail="Slicer sidecar did not answer in time") from None
     except httpx.RequestError:
         # Sidecar unreachable: surface as 503 instead of 500 so the
         # frontend's poller can keep trying without flagging a hard error.

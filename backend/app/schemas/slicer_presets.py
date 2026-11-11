@@ -1,15 +1,15 @@
 """Pydantic schemas for the unified slicer-presets endpoint.
 
-The SliceModal pulls printer/process/filament options from three sources, in
-priority order: cloud (the user's Bambu Cloud account), local (DB-backed
-imported profiles), and standard (slicer-bundled stock profiles). The endpoint
-returns all three lists with name-based dedup applied so each preset appears
-exactly once across the response.
+The SliceModal lists imported, Orca Cloud, Bambu Cloud, and bundled presets.
+Equivalent Bambu stock entries are listed once and their older references
+resolve through stock_aliases.
 """
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from backend.app.schemas.slicer import PresetRef
 
 CloudStatus = Literal["ok", "not_authenticated", "expired", "unreachable"]
 
@@ -48,6 +48,11 @@ class UnifiedPreset(BaseModel):
     filament_type: str | None = None
     filament_colour: str | None = None
     compatible_printers: list[str] | None = None
+    # Printer parent exposed for compatibility matching.
+    printer_parent: str | None = None
+    # Internal parent used to enrich filament metadata.
+    inherits: str | None = Field(default=None, exclude=True)
+    stock: bool = Field(default=False, exclude=True)
 
 
 class UnifiedPresetsBySlot(BaseModel):
@@ -59,14 +64,13 @@ class UnifiedPresetsBySlot(BaseModel):
 
 
 class UnifiedPresetsResponse(BaseModel):
-    """Every tier carries its full preset list — no cross-tier dedup.
+    """Source tiers retain their presets except duplicate Bambu stock entries.
 
     Priority order: ``local > orca_cloud > cloud > standard``. The order
     drives auto-pick (first non-empty tier wins, name-lookup walks tiers
     in this order, filament scoring tiebreaks by per-tier bonus) and
     determines the visual rendering order of the SliceModal's optgroups,
-    but a name that exists in multiple tiers appears in EACH of their
-    groups so the user can pick any source.
+    while same-named imports and Orca profiles remain available separately.
 
     ``cloud_status`` / ``orca_cloud_status`` let the frontend show a banner
     explaining why a cloud tier is empty when the user expected to see it
@@ -80,3 +84,41 @@ class UnifiedPresetsResponse(BaseModel):
     standard: UnifiedPresetsBySlot = UnifiedPresetsBySlot()
     cloud_status: CloudStatus = "ok"
     orca_cloud_status: CloudStatus = "ok"
+    stock_aliases: dict[str, PresetRef] = Field(default_factory=dict)
+
+
+class LoadedSpoolPreset(BaseModel):
+    preset_id: str
+    preset_name: str
+    preset_source: str
+    tray_info_idx: str | None = None
+
+
+class LoadedSpoolTray(BaseModel):
+    ams_id: int
+    tray_id: int
+    tray_type: str | None = None
+    tray_sub_brands: str | None = None
+    tray_color: str | None = None
+    tray_info_idx: str | None = None
+    exists: bool | None = None
+    state: int | None = None
+    saved_preset: LoadedSpoolPreset | None = None
+
+
+class LoadedSpoolUnit(BaseModel):
+    id: int
+    trays: list[LoadedSpoolTray]
+
+
+class LoadedSpoolPrinter(BaseModel):
+    id: int
+    name: str
+    model: str | None = None
+    ams: list[LoadedSpoolUnit]
+    external: list[LoadedSpoolTray]
+    external_holders: int
+
+
+class LoadedSpoolsResponse(BaseModel):
+    printers: list[LoadedSpoolPrinter] = Field(default_factory=list)

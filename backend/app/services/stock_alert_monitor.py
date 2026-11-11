@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from time import monotonic
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from backend.app.models.notification import NotificationProvider
 from backend.app.models.procurement import ProcurementOffer, Supplier
@@ -226,6 +226,7 @@ class StockAlertMonitor:
             lead = 0
         spools = []
         history = {}
+        now = utc_now()
         if external:
             from backend.app.api.routes._spoolman_helpers import _map_spoolman_spool
 
@@ -234,31 +235,44 @@ class StockAlertMonitor:
                 return None
             try:
                 async with asyncio.timeout(5):
-                    raw_spools = await client.get_all_spools()
+                    raw_spools = await client.get_all_spools(allow_archived=True)
             except Exception as exc:
                 logger.debug("Stock forecast skipped: Spoolman unavailable: %s", exc)
                 return None
             for raw in raw_spools:
-                if raw.get("archived"):
-                    continue
                 try:
                     spool = _map_spoolman_spool(raw)
                 except ValueError:
                     continue
                 spool["created_at"] = _created_at(spool.get("created_at"))
-                spools.append(_stock_spool(spool, float(await _external_filament_reserved(db, str(spool["id"])))))
+                if raw.get("archived"):
+                    spool["archived_at"] = _created_at(spool["archived_at"]) or datetime(
+                        1970, 1, 1, tzinfo=timezone.utc
+                    )
+                    reserved = 0.0
+                else:
+                    reserved = float(await _external_filament_reserved(db, str(spool["id"])))
+                spools.append(_stock_spool(spool, reserved))
         else:
-            rows = await db.scalars(select(Spool).where(Spool.archived_at.is_(None)))
+            rows = await db.scalars(select(Spool).where(or_(Spool.archived_at.is_(None), Spool.weight_used > 0)))
             for spool in rows:
-                spools.append(_stock_spool(spool, float(await _filament_reserved(db, spool.id))))
-            records = await db.scalars(
-                select(SpoolUsageHistory).order_by(SpoolUsageHistory.created_at.desc()).limit(5000)
+                reserved = float(await _filament_reserved(db, spool.id)) if spool.archived_at is None else 0.0
+                spools.append(_stock_spool(spool, reserved))
+        id_column = SpoolUsageHistory.spoolman_spool_id if external else SpoolUsageHistory.spool_id
+        records = await db.execute(
+            select(id_column, SpoolUsageHistory.created_at, SpoolUsageHistory.weight_used)
+            .where(
+                id_column.is_not(None),
+                SpoolUsageHistory.spoolman_spool_id.is_not(None)
+                if external
+                else SpoolUsageHistory.spoolman_spool_id.is_(None),
             )
-            for record in records:
-                history.setdefault(record.spool_id, []).append(
-                    forecast.UsageRecord(record.created_at, record.weight_used)
-                )
-        return forecast.forecast_all(spools, history, settings, lead, utc_now())
+            .order_by(SpoolUsageHistory.created_at.desc())
+            .limit(5000)
+        )
+        for spool_id, created_at, weight_used in records:
+            history.setdefault(spool_id, []).append(forecast.UsageRecord(created_at, weight_used))
+        return forecast.forecast_all(spools, history, settings, lead, now)
 
 
 def _created_at(raw):
@@ -286,4 +300,8 @@ def _stock_spool(spool, reserved):
         created_at=value("created_at"),
         color_name_is_synthesized=bool(value("color_name_is_synthesized", False)),
         reserved_g=reserved,
+        archived_at=value("archived_at"),
+        first_used_at=_created_at(value("first_used_at")),
+        last_used_at=_created_at(value("last_used")),
+        usage_reset_baseline=value("usage_reset_baseline"),
     )

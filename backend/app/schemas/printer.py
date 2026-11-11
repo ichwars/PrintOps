@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from backend.app.core.logging_filters import redact_camera_url
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
 from backend.app.services.equipment_costs import calculate_hourly_rate, calculate_residual_value
 from backend.app.utils.printer_models import supports_nozzle_flow_type
 
@@ -49,6 +51,7 @@ class PrinterBase(BaseModel):
     external_camera_url: str | None = None
     external_camera_type: str | None = None  # "mjpeg", "rtsp", "snapshot", "usb"
     external_camera_enabled: bool = False
+    camera_light_auto: bool = False
     external_camera_snapshot_url: str | None = None  # Optional single-frame override; #1177
     camera_rotation: int = 0  # 0, 90, 180, 270 degrees
     acquisition_date: date | None = None
@@ -81,7 +84,9 @@ class PlateDetectionROI(BaseModel):
     h: float = Field(..., ge=0.0, le=1.0)  # Height %
 
 
-class PrinterUpdate(BaseModel):
+class PrinterUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "printers"
+
     name: str | None = None
     ip_address: str | None = Field(
         default=None,
@@ -98,6 +103,7 @@ class PrinterUpdate(BaseModel):
     external_camera_url: str | None = None
     external_camera_type: str | None = None
     external_camera_enabled: bool | None = None
+    camera_light_auto: bool | None = None
     external_camera_snapshot_url: str | None = None  # #1177
     camera_rotation: int | None = None  # 0, 90, 180, 270 degrees
     plate_detection_enabled: bool | None = None
@@ -132,6 +138,11 @@ class PrinterResponse(PrinterBase):
     class Config:
         from_attributes = True
 
+    @field_validator("external_camera_url", "external_camera_snapshot_url", mode="after")
+    @classmethod
+    def _camera_credentials(cls, value: str | None) -> str | None:
+        return redact_camera_url(value)
+
     @classmethod
     def from_orm_with_roi(cls, printer) -> "PrinterResponse":
         """Create response from ORM model, converting ROI fields to nested object."""
@@ -148,6 +159,7 @@ class PrinterResponse(PrinterBase):
             "external_camera_url": printer.external_camera_url,
             "external_camera_type": printer.external_camera_type,
             "external_camera_enabled": printer.external_camera_enabled,
+            "camera_light_auto": bool(getattr(printer, "camera_light_auto", False)),
             "external_camera_snapshot_url": printer.external_camera_snapshot_url,
             "camera_rotation": printer.camera_rotation,
             "is_active": printer.is_active,
@@ -206,6 +218,11 @@ class PrinterResponseWithSecret(PrinterResponse):
 
     access_code: str
 
+    @field_validator("external_camera_url", "external_camera_snapshot_url", mode="after")
+    @classmethod
+    def _camera_credentials(cls, value: str | None) -> str | None:
+        return value
+
 
 class HMSErrorResponse(BaseModel):
     code: str
@@ -241,6 +258,17 @@ def hms_error_responses(errors: list | None) -> list[HMSErrorResponse]:
     ]
 
 
+class ExtruderSlot(BaseModel):
+    ams_id: int | None = None
+    has_filament: bool
+
+
+class SlotCalibrationContext(BaseModel):
+    extruder: int
+    diameter: str
+    flow: str | None = None
+
+
 class AMSTray(BaseModel):
     id: int
     tray_color: str | None = None
@@ -251,6 +279,7 @@ class AMSTray(BaseModel):
     remain: int = 0
     k: float | None = None  # Pressure advance value (from tray or K-profile lookup)
     cali_idx: int | None = None  # Calibration index for K-profile lookup
+    calibration_context: SlotCalibrationContext | None = None
     tag_uid: str | None = None  # RFID tag UID (any tag)
     tray_uuid: str | None = None  # Bambu Lab spool UUID (32-char hex)
     nozzle_temp_min: int | None = None  # Min nozzle temperature
@@ -368,6 +397,11 @@ class PrinterControlConnection(BaseModel):
     active_control_path: str = "none"  # "local" | "cloud" | "none"
 
 
+class NextPause(BaseModel):
+    layer: int
+    minutes: int | None = None
+
+
 class PrinterStatus(BaseModel):
     id: int
     name: str
@@ -378,6 +412,7 @@ class PrinterStatus(BaseModel):
     gcode_file: str | None = None
     progress: float | None = None
     remaining_time: int | None = None
+    next_pause: NextPause | None = None
     layer_num: int | None = None
     total_layers: int | None = None
     temperatures: dict | None = None
@@ -385,6 +420,7 @@ class PrinterStatus(BaseModel):
     hms_errors: list[HMSErrorResponse] = []
     ams: list[AMSUnit] = []
     ams_exists: bool = False
+    extruder_slots: dict[str, ExtruderSlot] = {}
     vt_tray: list[AMSTray] = []  # Virtual tray / external spool(s)
     sdcard: bool = False  # SD card inserted
     store_to_sdcard: bool = False  # Store sent files on SD card
@@ -410,6 +446,7 @@ class PrinterStatus(BaseModel):
     active_extruder: int = 0
     # AMS mapping for dual nozzle: which AMS is connected to which nozzle
     ams_mapping: list[int] = []
+    print_ams_mapping: list[int] | None = None
     # Per-AMS extruder map: {ams_id: extruder_id} where 0=right, 1=left
     ams_extruder_map: dict[str, int] = {}
     # Filament Track Switch (FTS) accessory — when installed, AMS reports
@@ -417,6 +454,7 @@ class PrinterStatus(BaseModel):
     fila_switch: FilaSwitchResponse | None = None
     # Currently loaded tray (global ID): 254 = external spool, 255 = no filament
     tray_now: int = 255
+    current_backup_trays: dict[int, int] = {}
     expected_tray: int | None = None
     previous_tray: int | None = None
     # AMS status for filament change tracking
@@ -436,6 +474,8 @@ class PrinterStatus(BaseModel):
     big_fan1_speed: int | None = None  # Auxiliary fan
     big_fan2_speed: int | None = None  # Chamber/exhaust fan
     heatbreak_fan_speed: int | None = None  # Hotend heatbreak fan
+    left_aux_fan_speed: int | None = None  # Part 10, second aux (right on X2D)
+    exhaust_fan_present: bool | None = None
     # Firmware version (from info.module[name="ota"].sw_ver)
     firmware_version: str | None = None
     # Developer LAN mode: True = enabled, False = disabled (MQTT encryption), None = unknown
@@ -460,6 +500,7 @@ class PrinterStatus(BaseModel):
     # this to fetch plate metadata and show the plate name when the source 3MF is
     # multi-plate (#881 follow-up).
     current_archive_id: int | None = None
+    current_run_id: int | None = None
     # 1-indexed plate number parsed from gcode_file (e.g. /Metadata/plate_2.gcode).
     # Set for every active print regardless of plate count; the frontend decides
     # whether to render it based on current_archive_id's is_multi_plate flag.

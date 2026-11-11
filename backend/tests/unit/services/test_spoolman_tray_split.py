@@ -35,7 +35,9 @@ class _AsyncCtx:
 def _make_db(tracking):
     db = AsyncMock()
     select_result = MagicMock()
-    select_result.scalar_one_or_none.return_value = tracking
+    db.scalar.return_value = tracking
+    select_result.scalar_one_or_none.return_value = None
+    select_result.one_or_none.return_value = None
     db.execute = AsyncMock(return_value=select_result)
     db.delete = AsyncMock()
     db.commit = AsyncMock()

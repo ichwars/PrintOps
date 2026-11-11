@@ -1,0 +1,7 @@
+{
+  "name": "printops-backend-typecheck",
+  "private": true,
+  "devDependencies": {
+    "basedpyright": "1.40.2"
+  }
+}

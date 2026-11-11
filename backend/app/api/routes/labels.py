@@ -19,27 +19,31 @@ import zipfile
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.api.routes import label_templates, spool_label_scan
 from backend.app.api.routes._spoolman_helpers import _map_spoolman_spool
 from backend.app.api.routes.settings import get_setting
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.user import User
+from backend.app.schemas.label_template import SheetLayoutSpec
 from backend.app.services.filament_sku_identity import resolve_material_numbers
 from backend.app.services.label_renderer import (
     DEFAULT_LABEL_FIELDS,
     LabelData,
     LabelField,
+    LabelLayout,
     TemplateName,
+    get_sheet_capacity,
     pdf_to_pngs,
     render_label_preview_pdf,
     render_labels,
@@ -52,41 +56,37 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["labels"])
 
-_VALID_TEMPLATES: tuple[TemplateName, ...] = (
-    "ams_holder_74x33",
-    "ams_holder_75x55",
-    "box_40x30",
-    "box_62x29",
-    "avery_5160",
-    "avery_l7160",
-)
+router.include_router(label_templates.router)
+router.include_router(spool_label_scan.router)
 
 # Cap how many labels can be requested in one go. Sane upper bound for the
 # largest realistic batch (an Avery sheet at 30/page × ~10 pages).
 MAX_LABELS_PER_REQUEST = 500
+MAX_PNG_SHEET_PAGES_X_DPI = 15_000
 
 
 class LabelRenderOptions(BaseModel):
-    template: Literal[
-        "ams_holder_74x33",
-        "ams_holder_75x55",
-        "box_40x30",
-        "box_62x29",
-        "avery_5160",
-        "avery_l7160",
-    ]
+    template: TemplateName | Literal["custom"]
+    layout: SheetLayoutSpec | None = None
     # Black-and-white thermal printers: drop the colour swatch (prints as a
     # muddy grey block) and widen the text column instead (#1870).
     monochrome: bool = False
     fields: list[LabelField] | None = Field(default=None, max_length=12)
     format: Literal["pdf", "png"] = "pdf"
     dpi: Literal[203, 300, 600] = 300
-    start_position: int = Field(default=1, ge=1, le=30, strict=True)
+    start_position: int = Field(default=1, ge=1, strict=True)
 
     @model_validator(mode="after")
     def valid_sheet_position(self):
-        validate_start_position(self.template, self.start_position)
+        if (self.template == "custom") != (self.layout is not None):
+            raise ValueError("A layout is required only for a custom sheet")
+        validate_start_position(self.resolved_layout(), self.start_position)
         return self
+
+    def resolved_layout(self) -> LabelLayout:
+        if self.layout is not None:
+            return self.layout.to_layout()
+        return self.template
 
 
 class LabelRequest(LabelRenderOptions):
@@ -128,7 +128,7 @@ def _spool_to_label_data(spool: Spool, deeplink_base: str, *, material_number: s
         rgba=spool.rgba,
         extra_colors=_split_extra_colors(spool.extra_colors),
         storage_location=getattr(spool, "storage_location", None),
-        deeplink_url=f"{deeplink_base}/inventory?spool={spool.id}",
+        deeplink_url=f"{deeplink_base}/inventory?spool={spool.id}&source=inventory",
         material_number=material_number,
         nozzle_temp_min=spool.nozzle_temp_min,
         nozzle_temp_max=spool.nozzle_temp_max,
@@ -161,7 +161,7 @@ def _spoolman_dict_to_label_data(s: dict, deeplink_base: str, *, material_number
         rgba=mapped["rgba"],
         extra_colors=extra_colors,
         storage_location=mapped.get("storage_location"),
-        deeplink_url=f"{deeplink_base}/inventory?spool={mapped['id']}",
+        deeplink_url=f"{deeplink_base}/inventory?spool={mapped['id']}&source=spoolman",
         material_number=material_number,
         label_weight=mapped["label_weight"],
         note=mapped.get("note"),
@@ -202,18 +202,31 @@ def _stream_pdf(pdf: bytes, filename: str) -> StreamingResponse:
     )
 
 
+def _validate_png_sheet_size(body: LabelRenderOptions, label_count: int, request: Request) -> None:
+    if body.format != "png" or request.url.path.endswith("/preview"):
+        return
+    capacity = get_sheet_capacity(body.resolved_layout())
+    if capacity is None:
+        return
+    pages = (label_count + body.start_position + capacity - 2) // capacity
+    limit = MAX_PNG_SHEET_PAGES_X_DPI // body.dpi
+    if pages > limit:
+        raise HTTPException(422, f"PNG export allows up to {limit} sheet pages at {body.dpi} dpi")
+
+
 async def _label_response(
     body: LabelRenderOptions, data_list: list[LabelData], request: Request, prefix: str
 ) -> StreamingResponse:
     fields = DEFAULT_LABEL_FIELDS if body.fields is None else frozenset(body.fields)
     preview = request.url.path.endswith("/preview")
+    layout = body.resolved_layout()
 
     def render():
         if preview:
-            pdf = render_label_preview_pdf(body.template, data_list[0], monochrome=body.monochrome, fields=fields)
+            pdf = render_label_preview_pdf(layout, data_list[0], monochrome=body.monochrome, fields=fields)
             return pdf_to_pngs(pdf, body.dpi)[0], "image/png", f"{prefix}-preview.png"
         pdf = render_labels(
-            body.template, data_list, monochrome=body.monochrome, start_position=body.start_position, fields=fields
+            layout, data_list, monochrome=body.monochrome, start_position=body.start_position, fields=fields
         )
         if body.format == "pdf":
             return pdf, "application/pdf", f"{prefix}-{body.template}.pdf"
@@ -248,13 +261,11 @@ async def _label_response(
 async def render_local_inventory_labels(
     body: LabelRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> StreamingResponse:
     """Render labels for spools in the local inventory."""
-    if body.template not in _VALID_TEMPLATES:
-        raise HTTPException(400, f"Unknown template: {body.template}")
-
+    _validate_png_sheet_size(body, len(set(body.spool_ids)), request)
     result = await db.execute(select(Spool).where(Spool.id.in_(body.spool_ids)))
     spools = list(result.scalars().all())
 
@@ -278,13 +289,11 @@ async def render_local_inventory_labels(
 async def render_small_part_labels(
     body: SmallPartLabelRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> StreamingResponse:
     """Render labels for stocked material in the small-parts warehouse."""
-    if body.template not in _VALID_TEMPLATES:
-        raise HTTPException(400, f"Unknown template: {body.template}")
-
+    _validate_png_sheet_size(body, len(set(body.small_part_ids)), request)
     result = await db.execute(
         select(SmallPart)
         .where(SmallPart.id.in_(body.small_part_ids))
@@ -310,19 +319,15 @@ async def render_small_part_labels(
 async def render_spoolman_labels(
     body: LabelRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> StreamingResponse:
     """Render labels for spools tracked in Spoolman.
 
-    The Spoolman client doesn't expose a per-id endpoint, so this fetches the
-    full spool list and filters in-memory. For typical libraries (~50 spools)
-    that's negligible; for very large libraries this is the trade-off until
-    Spoolman gains a bulk filter.
+    Fetch active and archived spools once, then select the requested IDs.
+    This avoids one remote request per label and supports archived selections.
     """
-    if body.template not in _VALID_TEMPLATES:
-        raise HTTPException(400, f"Unknown template: {body.template}")
-
+    _validate_png_sheet_size(body, len(body.spool_ids), request)
     spoolman_on = (await get_setting(db, "spoolman_enabled") or "").lower() == "true"
     if not spoolman_on:
         raise HTTPException(400, "Spoolman integration is not enabled")
@@ -332,7 +337,7 @@ async def render_spoolman_labels(
         raise HTTPException(503, "Spoolman not reachable")
 
     try:
-        all_spools = await client.get_spools()
+        all_spools = await client.get_all_spools(allow_archived=True)
     except Exception as exc:
         logger.warning("Spoolman fetch failed during label render: %s", exc)
         raise HTTPException(502, "Failed to fetch spools from Spoolman") from exc

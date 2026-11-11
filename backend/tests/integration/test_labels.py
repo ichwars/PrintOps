@@ -199,6 +199,7 @@ class TestSpoolmanLabels:
         mock_client = MagicMock()
         mock_client.is_connected = True
         mock_client.get_spools = AsyncMock(return_value=[spoolman_spool])
+        mock_client.get_all_spools = mock_client.get_spools
 
         from backend.app.api.routes.labels import render_labels
 
@@ -229,6 +230,7 @@ class TestSpoolmanLabels:
         mock_client = MagicMock()
         mock_client.is_connected = True
         mock_client.get_spools = AsyncMock(return_value=[{"id": 1, "filament": {"name": "X", "material": "PLA"}}])
+        mock_client.get_all_spools = mock_client.get_spools
 
         with patch(
             "backend.app.api.routes.labels.get_spoolman_client",
@@ -240,6 +242,31 @@ class TestSpoolmanLabels:
             )
         assert resp.status_code == 404
         assert "99" in resp.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_renders_an_archived_spool(self, async_client: AsyncClient, db_session: AsyncSession):
+        """SM-C12: Spoolman leaves archived spools out of its plain list, so the
+        whole batch failed with a 404 when one was selected."""
+        from backend.app.models.settings import Settings
+
+        db_session.add(Settings(key="spoolman_enabled", value="true"))
+        await db_session.commit()
+        active = {"id": 1, "filament": {"name": "X", "material": "PLA"}}
+        archived = {"id": 2, "archived": True, "filament": {"name": "Y", "material": "PETG"}}
+        mock_client = MagicMock()
+        mock_client.is_connected = True
+        mock_client.get_spools = AsyncMock(return_value=[active])
+        mock_client.get_all_spools = AsyncMock(
+            side_effect=lambda allow_archived=False: [active, archived] if allow_archived else [active]
+        )
+
+        with patch("backend.app.api.routes.labels.get_spoolman_client", AsyncMock(return_value=mock_client)):
+            resp = await async_client.post(
+                "/api/v1/spoolman/labels", json={"spool_ids": [1, 2], "template": "box_62x29"}
+            )
+
+        assert resp.status_code == 200, resp.text
 
 
 # ── Validation cross-cutting ─────────────────────────────────────────────────
@@ -377,6 +404,7 @@ async def test_material_number_labels_use_existing_shared_sku_without_allocating
         await db_session.commit()
         client = MagicMock(is_connected=True)
         client.get_spools = AsyncMock(return_value=[remote])
+        client.get_all_spools = client.get_spools
         request_context = patch(
             "backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client
         )
@@ -421,6 +449,7 @@ async def test_spoolman_label_uses_actual_spool_size_after_native_weight_mapping
     }
     client = MagicMock(is_connected=True)
     client.get_spools = AsyncMock(return_value=[remote])
+    client.get_all_spools = client.get_spools
     client.update_spool = AsyncMock()
     with patch("backend.app.api.routes.labels.get_spoolman_client", new_callable=AsyncMock, return_value=client):
         response = await async_client.post(

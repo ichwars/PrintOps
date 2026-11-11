@@ -23,9 +23,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.routes.cloud import get_stored_token, resolve_api_key_cloud_owner
 from backend.app.api.routes.library import save_3mf_bytes_to_library
-from backend.app.core.auth import RequirePermissionIfAuthEnabled, is_auth_enabled
-from backend.app.core.database import get_db
+from backend.app.core.auth import RequirePermissionIfAuthEnabled, is_auth_enabled, resolve_optional_api_key
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import library_read_criteria, resolve_row_visibility
+from backend.app.models.api_key import APIKey
 from backend.app.models.library import LibraryFile, LibraryFolder
 from backend.app.models.user import User
 from backend.app.schemas.makerworld import (
@@ -154,7 +156,7 @@ async def proxy_thumbnail(
 
 @router.get("/status", response_model=MakerWorldStatus)
 async def get_status(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.MAKERWORLD_VIEW),
     api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
 ):
@@ -179,9 +181,10 @@ async def get_status(
 @router.post("/resolve", response_model=MakerWorldResolvedModel)
 async def resolve_url(
     body: MakerWorldResolveRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.MAKERWORLD_VIEW),
     api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Resolve a MakerWorld URL to full model metadata + plate list.
 
@@ -249,10 +252,12 @@ async def resolve_url(
     # (``...#profileId-{n}``) under this model. The frontend surfaces this
     # to mark imported plates in the instance picker.
     model_prefix = _canonical_url(model_id)
+    visibility = await resolve_row_visibility(db, current_user, api_key)
     existing_q = await db.execute(
         select(LibraryFile.id).where(
             (LibraryFile.source_url == model_prefix) | (LibraryFile.source_url.like(f"{model_prefix}#profileId-%")),
             LibraryFile.deleted_at.is_(None),
+            *library_read_criteria(visibility),
         )
     )
     already_imported = [row[0] for row in existing_q.all()]
@@ -269,9 +274,10 @@ async def resolve_url(
 @router.post("/import", response_model=MakerWorldImportResponse)
 async def import_instance(
     body: MakerWorldImportRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.MAKERWORLD_IMPORT),
     api_key_cloud_owner: User | None = Depends(resolve_api_key_cloud_owner),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Download a specific MakerWorld instance (plate configuration) and save
     the 3MF into the library.
@@ -280,6 +286,8 @@ async def import_instance(
     was imported before (any plate), that existing LibraryFile is returned and
     no new download happens.
     """
+    from backend.app.core.account_retirement import capture_account, require_current_account
+
     if body.folder_id is not None:
         folder_q = await db.execute(select(LibraryFolder).where(LibraryFolder.id == body.folder_id))
         target_folder = folder_q.scalar_one_or_none()
@@ -290,8 +298,69 @@ async def import_instance(
                 status_code=403,
                 detail="Cannot import into a read-only external folder",
             )
-        effective_folder_id: int | None = body.folder_id
+    cloud_token_user = current_user or api_key_cloud_owner
+    visibility = await resolve_row_visibility(db, current_user, api_key)
+    account = capture_account(visibility.user)
+    dedupe_within = library_read_criteria(visibility)
+    service = await _build_service(db, cloud_token_user)
+
+    try:
+        profile_id, manifest = await service.get_download_manifest(body.model_id, body.profile_id)
+    except MakerWorldError as exc:
+        await service.close()
+        raise _map_service_error(exc) from exc
+
+    # Keep the profile in the canonical URL so plates are deduplicated separately.
+    source_url = _canonical_url(body.model_id, profile_id)
+    signed_url = manifest["url"]
+    # Basename-strip any path components from the upstream filename so a
+    # malicious response (``name: "../../evil.3mf"``) can't persist a suspect
+    # string into the library row or the UI. On-disk storage uses a UUID
+    # filename regardless (see library.py), so this is defence-in-depth.
+    raw_name = manifest.get("name")
+    if isinstance(raw_name, str) and raw_name.strip():
+        # MakerWorld emits percent-encoded names (`%20` for spaces, etc.)
+        # because the same string round-trips through HTTP URLs in the
+        # CDN download path. Decode before persisting so the library
+        # row, the slice toast, and every later UI surface show the
+        # human-readable form.
+        suggested_name = os.path.basename(unquote(raw_name.strip())) or f"makerworld-{body.model_id}.3mf"
     else:
+        suggested_name = f"makerworld-{body.model_id}.3mf"
+    # Dedupe check upfront so we don't burn bandwidth re-downloading.
+    if source_url:
+        existing_q = await db.execute(
+            LibraryFile.active().where(LibraryFile.source_url == source_url, *dedupe_within).limit(1)
+        )
+        existing_row = existing_q.scalar_one_or_none()
+        if existing_row is not None:
+            await service.close()
+            response = MakerWorldImportResponse(
+                library_file_id=existing_row.id,
+                filename=existing_row.filename,
+                folder_id=existing_row.folder_id,
+                profile_id=profile_id,
+                was_existing=True,
+            )
+            await require_current_account(db, account)
+            return response
+
+    try:
+        file_bytes, download_filename = await service.download_3mf(signed_url)
+    except MakerWorldError as exc:
+        raise _map_service_error(exc) from exc
+    finally:
+        await service.close()
+
+    # Prefer the server-provided human-readable filename; the signed URL's
+    # path ends in a UUID that's not meaningful to users. Decode the
+    # fallback path-tail too — same percent-encoding round-trip applies
+    # there as on the manifest-supplied name.
+    filename = suggested_name if suggested_name.endswith(".3mf") else unquote(download_filename)
+
+    owner_id = await require_current_account(db, account)
+    effective_folder_id = body.folder_id
+    if effective_folder_id is None:
         # Default destination: a dedicated top-level "MakerWorld" folder. Keeps
         # imports out of the library root so power users can still organise
         # manually in subfolders, and auto-creates the folder on the first
@@ -310,113 +379,6 @@ async def import_instance(
             await db.flush()
         effective_folder_id = mw_folder.id
 
-    # API-keyed callers carry identity on the key, not in current_user — see
-    # the /status handler comment and #1777 / #1182. The same resolved user
-    # is reused for owner_id on save_3mf_bytes_to_library below so the
-    # library row is attributed to the key's owner rather than NULL.
-    cloud_token_user = current_user or api_key_cloud_owner
-    service = await _build_service(db, cloud_token_user)
-
-    # YASTL#51's iot-service endpoint needs the *alphanumeric* modelId
-    # (e.g. "US2bb73b106683e5"), not the integer design id from /models/{N}.
-    # Fetch design metadata to resolve it, and — in the same call — pick a
-    # default profileId from the response if the frontend didn't specify one.
-    try:
-        design = await service.get_design(body.model_id)
-    except MakerWorldError as exc:
-        await service.close()
-        raise _map_service_error(exc) from exc
-
-    alphanumeric_model_id = design.get("modelId")
-    if not isinstance(alphanumeric_model_id, str) or not alphanumeric_model_id:
-        await service.close()
-        raise HTTPException(
-            status_code=502,
-            detail="MakerWorld design metadata missing the modelId field",
-        )
-
-    profile_id = body.profile_id
-    if profile_id is None:
-        for instance in design.get("instances") or []:
-            pid = instance.get("profileId")
-            if isinstance(pid, int) and pid > 0:
-                profile_id = pid
-                break
-        if profile_id is None:
-            try:
-                envelope = await service.get_design_instances(body.model_id)
-            except MakerWorldError as exc:
-                await service.close()
-                raise _map_service_error(exc) from exc
-            for hit in envelope.get("hits") or []:
-                pid = hit.get("profileId")
-                if isinstance(pid, int) and pid > 0:
-                    profile_id = pid
-                    break
-        if profile_id is None:
-            await service.close()
-            raise HTTPException(
-                status_code=502,
-                detail="MakerWorld returned no instances for this model",
-            )
-
-    # Canonical URL includes profile_id so each plate gets its own library
-    # entry (see ``_canonical_url`` docstring).
-    source_url = _canonical_url(body.model_id, profile_id)
-
-    try:
-        manifest = await service.get_profile_download(profile_id, alphanumeric_model_id)
-    except MakerWorldError as exc:
-        await service.close()
-        raise _map_service_error(exc) from exc
-
-    signed_url = manifest.get("url")
-    # Basename-strip any path components from the upstream filename so a
-    # malicious response (``name: "../../evil.3mf"``) can't persist a suspect
-    # string into the library row or the UI. On-disk storage uses a UUID
-    # filename regardless (see library.py), so this is defence-in-depth.
-    raw_name = manifest.get("name")
-    if isinstance(raw_name, str) and raw_name.strip():
-        # MakerWorld emits percent-encoded names (`%20` for spaces, etc.)
-        # because the same string round-trips through HTTP URLs in the
-        # CDN download path. Decode before persisting so the library
-        # row, the slice toast, and every later UI surface show the
-        # human-readable form.
-        suggested_name = os.path.basename(unquote(raw_name.strip())) or f"makerworld-{body.model_id}.3mf"
-    else:
-        suggested_name = f"makerworld-{body.model_id}.3mf"
-    if not signed_url or not isinstance(signed_url, str):
-        await service.close()
-        raise HTTPException(status_code=502, detail="MakerWorld did not return a download URL")
-
-    # Dedupe check upfront so we don't burn bandwidth re-downloading.
-    if source_url:
-        existing_q = await db.execute(LibraryFile.active().where(LibraryFile.source_url == source_url).limit(1))
-        existing_row = existing_q.scalar_one_or_none()
-        if existing_row is not None:
-            await service.close()
-            return MakerWorldImportResponse(
-                library_file_id=existing_row.id,
-                filename=existing_row.filename,
-                folder_id=existing_row.folder_id,
-                profile_id=profile_id,
-                was_existing=True,
-            )
-
-    try:
-        file_bytes, download_filename = await service.download_3mf(signed_url)
-    except MakerWorldError as exc:
-        await service.close()
-        raise _map_service_error(exc) from exc
-    finally:
-        await service.close()
-
-    # Prefer the server-provided human-readable filename; the signed URL's
-    # path ends in a UUID that's not meaningful to users. Decode the
-    # fallback path-tail too — same percent-encoding round-trip applies
-    # there as on the manifest-supplied name.
-    filename = suggested_name if suggested_name.endswith(".3mf") else unquote(download_filename)
-
     library_file, was_existing = await save_3mf_bytes_to_library(
         db,
         file_bytes=file_bytes,
@@ -424,7 +386,8 @@ async def import_instance(
         folder_id=effective_folder_id,
         source_type=_SOURCE_TYPE,
         source_url=source_url,
-        owner_id=cloud_token_user.id if cloud_token_user else None,
+        owner_id=owner_id,
+        dedupe_within=dedupe_within,
     )
 
     return MakerWorldImportResponse(
@@ -439,8 +402,9 @@ async def import_instance(
 @router.get("/recent-imports", response_model=list[MakerWorldRecentImport])
 async def recent_imports(
     limit: int = 10,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.MAKERWORLD_VIEW),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Last N MakerWorld imports, newest first.
 
@@ -448,11 +412,11 @@ async def recent_imports(
     page can show a 'Recent imports' sidebar that persists across resolves.
     ``limit`` is clamped to ``[1, 50]`` to keep payloads sensible.
     """
-    _ = current_user  # permission gate only
+    visibility = await resolve_row_visibility(db, current_user, api_key)
     capped = max(1, min(50, int(limit)))
     result = await db.execute(
         LibraryFile.active()
-        .where(LibraryFile.source_type == _SOURCE_TYPE)
+        .where(LibraryFile.source_type == _SOURCE_TYPE, *library_read_criteria(visibility))
         .order_by(LibraryFile.created_at.desc())
         .limit(capped)
     )

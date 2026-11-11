@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files
+from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files, repair_compound_3mf_library_types
 
 
 def _write_3mf(path: Path, names: list[str]) -> bytes:
@@ -117,3 +117,30 @@ async def test_repair_is_one_shot_and_skips_external_mounts(migration_engine, tm
 
     assert rows == {1: "3mf", 2: "3mf"}
     assert flags == [("true",)]
+
+
+@pytest.mark.asyncio
+async def test_compound_type_repair_preserves_source_classification_on_restart(migration_engine, tmp_path):
+    source_path = tmp_path / "files/source.gcode.3mf"
+    _write_3mf(source_path, ["3D/3dmodel.model"])
+    _write_3mf(tmp_path / "files/sliced.gcode.3mf", ["Metadata/plate_1.gcode"])
+    _write_3mf(tmp_path / "files/external.gcode.3mf", ["3D/3dmodel.model"])
+    _write_3mf(tmp_path / "files/trashed.gcode.3mf", ["3D/3dmodel.model"])
+    _write_3mf(tmp_path / "files/next-source.gcode.3mf", ["3D/3dmodel.model"])
+
+    async with migration_engine.begin() as conn:
+        await _insert_file(conn, file_id=1, path="files/source.gcode.3mf", file_type="gcode.3mf")
+        await _insert_file(conn, file_id=2, path="files/sliced.gcode.3mf")
+        await _insert_file(conn, file_id=3, path="files/missing.gcode.3mf", file_type="gcode.3mf")
+        await _insert_file(conn, file_id=4, path="files/external.gcode.3mf", file_type="gcode.3mf", external=True)
+        await _insert_file(conn, file_id=5, path="files/trashed.gcode.3mf", file_type="gcode.3mf", deleted=True)
+        await repair_compound_3mf_library_types(conn, tmp_path)
+        await reclassify_sliced_3mf_library_files(conn, tmp_path)
+
+    async with migration_engine.begin() as conn:
+        await _insert_file(conn, file_id=6, path="files/next-source.gcode.3mf")
+        await repair_compound_3mf_library_types(conn, tmp_path)
+        await reclassify_sliced_3mf_library_files(conn, tmp_path)
+        rows = dict((await conn.execute(text("SELECT id, file_type FROM library_files"))).fetchall())
+
+    assert rows == {1: "3mf", 2: "gcode.3mf", 3: "gcode.3mf", 4: "gcode.3mf", 5: "3mf", 6: "3mf"}

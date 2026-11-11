@@ -83,8 +83,8 @@ export function SpoolBuddyWriteTagPage() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const device = devices[0];
@@ -430,8 +430,8 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
       spoolmanMode ? api.getSpoolmanInventorySpools(true) : api.getSpools(true),
   });
   const { data: settingsForForm } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const [viewMode, setViewMode] = useState<NewSpoolViewMode>('simple');

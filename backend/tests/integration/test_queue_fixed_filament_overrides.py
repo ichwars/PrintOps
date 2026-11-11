@@ -18,6 +18,7 @@ class TestFixedPrinterOverrides:
     ):
         file = tmp_path / "overrides.3mf"
         with zipfile.ZipFile(file, "w") as zf:
+            zf.writestr("Metadata/plate_2.gcode", "G28\n")
             zf.writestr(
                 "Metadata/slice_info.config",
                 '<config><plate><metadata key="index" value="2"/><filament id="2" type="PLA" color="FF0000FF" used_g="10"/></plate></config>',

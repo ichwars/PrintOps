@@ -6,6 +6,7 @@ from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.services.ambient_humidity import HumidityObservation, read_humidity
 from backend.app.services.automatic_drying_state import clear_pending, expire_pending, reconcile_pending
+from backend.app.services.queue_drying import queue_printer_sets
 
 
 async def check_auto_drying(
@@ -54,14 +55,8 @@ async def check_auto_drying(
     # Reconcile explicit stop authority; command publication never grants it.
     self._sync_drying_state()
 
-    # Find printers with scheduled items (for queue drying mode)
-    printers_with_scheduled: set[int] = set()
-    printers_with_items: set[int] = set()
-    for item in queue_items:
-        if item.printer_id:
-            printers_with_items.add(item.printer_id)
-            if item.scheduled_time and not item.manual_start:
-                printers_with_scheduled.add(item.printer_id)
+    # Model jobs count on every currently authorized candidate printer.
+    printers_with_scheduled, printers_with_ready_items = await queue_printer_sets(self, db, queue_items)
 
     # If only queue mode is on and no printers have scheduled items, stop drying
     # (but skip this short-circuit when print_drying_enabled is on — busy printers
@@ -84,7 +79,7 @@ async def check_auto_drying(
     # Get drying presets
     presets = await self._get_drying_presets(db)
 
-    # Determine if drying should be skipped for printers with pending items
+    # In block mode, leave a printer free when a job can start now.
     block_for_drying = await self._get_bool_setting(db, "queue_drying_block")
 
     # Get all active printers
@@ -156,10 +151,9 @@ async def check_auto_drying(
                     await self._stop_drying(pid)
                 logger.debug("Auto-drying: printer %d skipped — no enabled idle drying mode", pid)
                 continue
-            # When block mode is on, don't START new drying on printers with pending items.
-            # But allow already-drying printers through so humidity auto-stop logic still runs.
-            if block_for_drying and pid in printers_with_items and not self._drying_in_progress.get(pid):
-                logger.debug("Auto-drying: printer %d skipped — has pending items (block mode)", pid)
+            # Keep evaluating active cycles. A future job can use the idle time to pre-dry.
+            if block_for_drying and pid in printers_with_ready_items and not self._drying_in_progress.get(pid):
+                logger.debug("Auto-drying: printer %d skipped because a queue job is ready", pid)
                 continue
         if not printer_manager.is_connected(pid):
             logger.debug("Auto-drying: printer %d skipped — not connected", pid)

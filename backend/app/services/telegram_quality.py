@@ -263,7 +263,7 @@ async def apply_reaction(db, config_id, payload, *, commit=None, guard=None):
         ):
             return False
         can_all = user.has_permission(Permission.ARCHIVES_UPDATE_ALL.value)
-        if not can_inspect_run(user, can_all, archive, run):
+        if not can_inspect_run(user, can_all, archive, run, historical=bool(run.confirm_token_run_scoped)):
             return False
         if not can_all and not (
             user.has_permission(Permission.ARCHIVES_UPDATE_OWN.value)
@@ -278,6 +278,7 @@ async def apply_reaction(db, config_id, payload, *, commit=None, guard=None):
                 archive,
                 run_id=run.id,
                 token_hash=binding.token_hash,
+                historical=bool(run.confirm_token_run_scoped),
                 source="telegram",
                 good_quantity=run.quantity if good else 0,
                 reject_quantity=0 if good else run.quantity,

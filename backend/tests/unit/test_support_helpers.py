@@ -118,15 +118,9 @@ class TestCheckPort:
     async def test_unreachable_port(self):
         from backend.app.api.routes.support import _check_port
 
-        with (
-            patch(
-                "backend.app.api.routes.support.asyncio.open_connection",
-                side_effect=ConnectionRefusedError,
-            ),
-            patch(
-                "backend.app.api.routes.support.asyncio.wait_for",
-                side_effect=ConnectionRefusedError,
-            ),
+        with patch(
+            "backend.app.api.routes.support.asyncio.open_connection",
+            side_effect=ConnectionRefusedError,
         ):
             result = await _check_port("192.168.1.1", 8883, timeout=1.0)
 
@@ -137,10 +131,11 @@ class TestCheckPort:
     async def test_timeout(self):
         from backend.app.api.routes.support import _check_port
 
-        with patch(
-            "backend.app.api.routes.support.asyncio.wait_for",
-            side_effect=asyncio.TimeoutError,
-        ):
+        async def close_timed_out_connection(coro, timeout):
+            coro.close()
+            raise TimeoutError
+
+        with patch("backend.app.api.routes.support.asyncio.wait_for", side_effect=close_timed_out_connection):
             result = await _check_port("192.168.1.1", 8883, timeout=0.1)
 
         assert result is False

@@ -4,20 +4,23 @@ import { Circle, RotateCcw, Palette } from 'lucide-react';
 import { getColorName } from '../../utils/colors';
 import { canonicalFilamentType } from '../../utils/amsHelpers';
 import { useFilamentLabels } from './useFilamentLabels';
-import type { FilamentReqsData } from './types';
+import type { FilamentOverrideChoice, FilamentReqsData } from './types';
 import { Checkbox, LegacySelect } from '../ui';
 
 interface FilamentOverrideProps {
   filamentReqs: FilamentReqsData | undefined;
   availableFilaments: Array<{ type: string; color: string; tray_info_idx: string; tray_sub_brands: string; extruder_id: number | null }>;
-  overrides: Record<number, { type: string; color: string }>;
-  onChange: (overrides: Record<number, { type: string; color: string }>) => void;
+  overrides: Record<number, FilamentOverrideChoice>;
+  onChange: (overrides: Record<number, FilamentOverrideChoice>) => void;
 
   /** Per-slot force color match flags. Defaults to false (opt-in) when not provided. */
   forceColorMatch?: Record<number, boolean>;
   /** Called when a slot's force color match checkbox is toggled. */
   onForceColorMatchChange?: (slotId: number, value: boolean) => void;
 }
+
+const choiceValue = ({ type, color, tray_info_idx, tray_sub_brands }: FilamentOverrideChoice) =>
+  JSON.stringify([type, color, tray_info_idx ?? '', tray_sub_brands ?? '']);
 
 /**
  * Filament override UI for model-based queue assignment.
@@ -56,17 +59,15 @@ export function FilamentOverride({
     return null;
   }
 
-  const handleChange = (slotId: number, value: string) => {
-    if (value === '') {
-      // Reset to original
-      const next = { ...overrides };
-      delete next[slotId];
-      onChange(next);
+  const handleChange = (slotId: number, choice?: FilamentOverrideChoice) => {
+    const next = { ...overrides };
+    if (choice) {
+      const { type, color, tray_info_idx, tray_sub_brands } = choice;
+      next[slotId] = { type, color, tray_info_idx, tray_sub_brands };
     } else {
-      // Parse "TYPE|COLOR" value
-      const [type, color] = value.split('|');
-      onChange({ ...overrides, [slotId]: { type, color } });
+      delete next[slotId];
     }
+    onChange(next);
   };
 
   return (
@@ -99,25 +100,25 @@ export function FilamentOverride({
           return (
             <div key={req.slot_id} className="space-y-1">
               <div
-                className="grid items-center gap-2 text-xs"
-                style={{ gridTemplateColumns: '16px minmax(70px, 1fr) auto 2fr 20px' }}
+                className="grid grid-cols-[16px_minmax(0,1fr)_20px] items-center gap-2 text-xs sm:grid-cols-[16px_minmax(70px,1fr)_auto_2fr_20px]"
               >
                 {/* Original color swatch */}
                 <span title={`${t('printModal.originalFilament')}: ${resolvedName} - ${colorLabel}`}>
                   <Circle className="w-3 h-3" fill={req.color} stroke={req.color} />
                 </span>
                 {/* Original type + grams */}
-                <span className="text-white truncate">
+                <span className="col-span-2 truncate text-white sm:col-span-1">
                   {resolvedName} <span className="text-bambu-gray">({req.used_grams}g)</span>
                 </span>
                 {/* Arrow */}
                 <span className="text-bambu-gray">→</span>
                 {/* Override dropdown — only compatible (same-type) filaments */}
                 <LegacySelect
-                  value={isOverridden ? `${override.type}|${override.color}` : ''}
-                  onChange={(e) => handleChange(req.slot_id, e.target.value)}
+                  value={override ? choiceValue(compatible.find((f) => f.type === override.type && f.color === override.color
+                    && (!override.tray_info_idx || f.tray_info_idx === override.tray_info_idx)) ?? override) : ''}
+                  onChange={(e) => handleChange(req.slot_id, compatible.find(f => choiceValue(f) === e.target.value))}
                   disabled={compatible.length === 0}
-                  className={`flex-1 px-2 py-1 rounded border text-xs bg-bambu-dark-secondary focus:outline-none focus:ring-1 focus:ring-bambu-green ${
+                  className={`min-w-0 flex-1 px-2 py-1 rounded border text-xs bg-bambu-dark-secondary focus:outline-none focus:ring-1 focus:ring-bambu-green ${
                     isOverridden
                       ? 'border-blue-500/50 dark:border-blue-400/50 text-blue-700 dark:text-blue-400'
                       : 'border-bambu-gray/30 text-bambu-gray'
@@ -129,10 +130,10 @@ export function FilamentOverride({
                   {compatible.map((f, idx) => (
                     <option
                     key={`${f.type}-${f.color}-${f.tray_sub_brands}-${idx}`}
-                      value={`${f.type}|${f.color}`}
+                      value={choiceValue(f)}
                       className="bg-bambu-dark text-white"
                     >
-                    {f.tray_sub_brands || f.type} ({getColorName(f.color)})
+                    {f.tray_sub_brands || f.type} ({getColorName(f.color, f.tray_sub_brands, f.tray_info_idx)})
                     </option>
                   ))}
                 </LegacySelect>
@@ -140,7 +141,7 @@ export function FilamentOverride({
                 {isOverridden ? (
                   <button
                     type="button"
-                    onClick={() => handleChange(req.slot_id, '')}
+                    onClick={() => handleChange(req.slot_id)}
                     className="text-bambu-gray hover:text-white transition-colors"
                     title={t('printModal.resetToOriginal')}
                   >

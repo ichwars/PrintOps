@@ -33,12 +33,14 @@ from backend.app.services.bambu_ftp import (
     get_file_size_async,
     get_ftp_retry_settings,
     get_storage_info_async,
-    list_files_async,
+    list_files_result_async,
 )
 from backend.app.services.print_scheduler import (
     _DISPATCH_PROGRESS_BYTE_STEP,
     _DISPATCH_PROGRESS_MIN_INTERVAL_SECS,
 )
+from backend.app.services.printer_file_cache import printer_file_cache
+from backend.app.services.printer_file_preview import download_preview_bytes
 from backend.app.services.printer_file_stream import stream_printer_file, validate_printer_file_path
 from backend.app.utils.http import build_content_disposition
 from backend.app.utils.printer_file_response import PrinterFileStreamingResponse, first_download_chunk
@@ -116,10 +118,12 @@ async def list_printer_files(
 ):
     """List files on the printer at the specified path."""
     printer = await _load_printer_or_404(printer_id)
-    files = await list_files_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
+    listing = await list_files_result_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
+    files = listing.files
     for item in files:
         item["path"] = f"{path.rstrip('/')}/{item['name']}" if path != "/" else f"/{item['name']}"
-    return {"path": path, "files": files}
+    warnings = [] if listing.available else ["listing_timed_out" if listing.timed_out else "printer_unavailable"]
+    return {"path": path, "files": files, "warnings": warnings}
 
 
 @router.get("/{printer_id}/files/download")
@@ -203,9 +207,7 @@ async def get_printer_file_gcode(
 ):
     """Get gcode for a file stored on a printer for preview."""
     printer = await _load_printer_or_404(printer_id)
-    data = await download_file_bytes_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
-    if data is None:
-        raise HTTPException(404, f"File not found: {path}")
+    data = await download_preview_bytes(printer, path, download_file_bytes_async)
 
     lower = path.split("/")[-1].lower()
     if lower.endswith(".gcode"):
@@ -234,9 +236,7 @@ async def get_printer_file_plates(
     if not filename.lower().endswith(".3mf"):
         return {"printer_id": printer_id, "path": path, "filename": filename, "plates": [], "is_multi_plate": False}
 
-    data = await download_file_bytes_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
-    if data is None:
-        raise HTTPException(404, f"File not found: {path}")
+    data = await download_preview_bytes(printer, path, download_file_bytes_async)
 
     plates = []
     try:
@@ -377,6 +377,7 @@ def _parse_slice_plate_metadata(
                 plate_info["filaments"].append(
                     {
                         "slot_id": int(filament_id),
+                        "tray_info_idx": filament_elem.get("tray_info_idx") or "",
                         "type": filament_elem.get("type", ""),
                         "color": filament_elem.get("color", ""),
                         "used_grams": round(used_grams, 1),
@@ -428,9 +429,7 @@ async def get_printer_file_plate_thumbnail(
 ):
     """Get a plate thumbnail image from a printer-stored 3MF file."""
     printer = await _load_printer_or_404(printer_id)
-    data = await download_file_bytes_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
-    if data is None:
-        raise HTTPException(404, f"File not found: {path}")
+    data = await download_preview_bytes(printer, path, download_file_bytes_async)
 
     try:
         with zipfile.ZipFile(io.BytesIO(data), "r") as zf:
@@ -489,6 +488,8 @@ async def delete_printer_file(
     """Delete a file from the printer."""
     printer = await _load_printer_or_404(printer_id)
     result = await delete_file_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
+    if result != DeleteResult.FAILED:
+        printer_file_cache.forget(printer_id, path)
     if result == DeleteResult.NOT_FOUND:
         raise HTTPException(404, f"File not found on printer: {path}")
     if result == DeleteResult.FAILED:

@@ -10,8 +10,8 @@
 // - Tier order is local → orca_cloud → cloud → standard. Local imports
 //   outrank everything else because the user explicitly imported them
 //   for this install; standard (bundled) is the final fallback.
-// - The backend does NOT dedup tiers, so each helper walks all four
-//   and the caller relies on the order, not a single merged list.
+// - Each helper walks the four source tiers in order. Duplicate Bambu stock
+//   profiles can resolve through the listing's aliases.
 // - `pickProcessDefault` honours a 3MF's embedded process preset when
 //   it exists and isn't printer-incompatible; otherwise prefers a
 //   match-on-printer pick, then unknown-compat, then plain priority.
@@ -56,6 +56,10 @@ export function pickDefault(by: UnifiedPresetsResponse, slot: Slot): PresetRef |
   return null;
 }
 
+export function listedPresetRef(by: UnifiedPresetsResponse | undefined, slot: Slot, ref: PresetRef): PresetRef {
+  return by?.stock_aliases?.[`${slot}:${ref.source}:${ref.id}`] ?? ref;
+}
+
 // Resolve a PresetRef back to its UnifiedPreset within the named slot, or
 // null if it no longer resolves (e.g. the preset was deleted between the
 // listing fetch and selection).
@@ -65,7 +69,8 @@ export function findPreset(
   slot: Slot,
 ): UnifiedPreset | null {
   if (!ref) return null;
-  return by[ref.source][slot].find((p) => p.id === ref.id) ?? null;
+  const listed = listedPresetRef(by, slot, ref);
+  return by[listed.source][slot].find((p) => p.id === listed.id) ?? null;
 }
 
 // Find a preset by exact name across tiers (local → cloud → standard). Used
@@ -81,6 +86,21 @@ export function findPresetByName(
     if (p) return { source: p.source, id: p.id };
   }
   return null;
+}
+
+export function printerPresetParents(by: UnifiedPresetsResponse, preset: UnifiedPreset): string[] {
+  const parents: string[] = [];
+  const seen = new Set([preset.name]);
+  let current: UnifiedPreset | undefined = preset;
+  while (current?.printer_parent && !seen.has(current.printer_parent)) {
+    const name: string = current.printer_parent;
+    const source: PresetSource = current.source;
+    seen.add(name);
+    parents.push(name);
+    const matches = SLICE_MODAL_TIER_ORDER.flatMap((tier) => by[tier].printer.filter((entry) => entry.name === name));
+    current = matches.find((entry) => entry.source === source) ?? (matches.length === 1 ? matches[0] : undefined);
+  }
+  return parents;
 }
 
 // Process default: honour the process preset the 3MF was prepared with
@@ -177,9 +197,8 @@ export function pickFilamentForSlot(
   const reqType = required.type.trim().toUpperCase();
   const reqColor = normalizeColorForCompare(required.color);
 
-  let bestCompatible: { ref: PresetRef; score: number } | null = null;
-  let bestMismatch: { ref: PresetRef; score: number } | null = null;
-  let bestWrongType: { ref: PresetRef; score: number } | null = null;
+  // Prefer the requested material first, then printer compatibility within that material tier.
+  const bestByCompatibility: Array<{ ref: PresetRef; score: number } | undefined> = Array(4);
   for (const tier of SLICE_MODAL_TIER_ORDER) {
     for (const p of by[tier].filament) {
       let score = 0;
@@ -192,24 +211,12 @@ export function pickFilamentForSlot(
       }
       score += TIER_BONUS[tier];
       const ref = { source: p.source, id: p.id };
-      if (statesDifferentMaterial(p, reqType)) {
-        if (bestWrongType == null || score > bestWrongType.score) {
-          bestWrongType = { ref, score };
-        }
-      } else if (presetCompatibility(p, 'filament', printerName, compatIndex) === 'mismatch') {
-        if (bestMismatch == null || score > bestMismatch.score) {
-          bestMismatch = { ref, score };
-        }
-      } else if (bestCompatible == null || score > bestCompatible.score) {
-        bestCompatible = { ref, score };
-      }
+      const wrongMaterial = statesDifferentMaterial(p, reqType);
+      const wrongPrinter = presetCompatibility(p, 'filament', printerName, compatIndex) === 'mismatch';
+      const priority = (wrongMaterial ? 2 : 0) + (wrongPrinter ? 1 : 0);
+      const best = bestByCompatibility[priority];
+      if (!best || score > best.score) bestByCompatibility[priority] = { ref, score };
     }
   }
-  if (bestCompatible != null) return bestCompatible.ref;
-  if (bestMismatch != null) return bestMismatch.ref;
-  if (bestWrongType != null) return bestWrongType.ref;
-  // Final fallback when there are no filament presets at all (empty
-  // registry) — pickDefault returns null in that case too, but keeping the
-  // call mirrors the rest of the picker logic for shape consistency.
-  return pickDefault(by, 'filament');
+  return bestByCompatibility.find((candidate) => candidate != null)?.ref ?? null;
 }

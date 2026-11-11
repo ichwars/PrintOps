@@ -40,3 +40,15 @@ def observe_loaded_tray(state, was_running: bool, completion_triggered: bool, ca
         if callback:
             callback(tray, state.layer_num)
     state.last_loaded_tray = tray
+
+
+def unexpired_tray_target(state):
+    import time
+
+    target = state.pending_tray_target
+    since = getattr(state, "pending_tray_target_at", None)
+    if target is not None and since is not None and time.monotonic() - since > 120.0:
+        state.pending_tray_target = None
+        state.pending_tray_target_at = None
+        return None
+    return target

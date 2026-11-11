@@ -16,6 +16,17 @@ class TestNotificationsAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_provider_details_redact_a_preexisting_refused_header(
+        self, async_client: AsyncClient, notification_provider_factory
+    ):
+        provider = await notification_provider_factory(last_error="Illegal header name b'fixture-credential'")
+        response = await async_client.get(f"/api/v1/notifications/{provider.id}")
+
+        assert response.status_code == 200
+        assert response.json()["last_error"] == "Illegal header name [REDACTED]"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_list_notification_providers_empty(self, async_client: AsyncClient):
         """Verify empty list is returned when no providers exist."""
         response = await async_client.get("/api/v1/notifications/")

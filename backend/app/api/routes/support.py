@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.config import APP_VERSION, settings
 from backend.app.core.database import async_session
+from backend.app.core.fd_limit import collect_fd_usage
 from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.archive import PrintArchive
@@ -176,7 +177,7 @@ async def get_logs(
     limit: int = Query(200, ge=1, le=1000, description="Maximum number of entries to return"),
     level: str | None = Query(None, description="Filter by log level (DEBUG, INFO, WARNING, ERROR)"),
     search: str | None = Query(None, description="Search in message or logger name"),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Get recent application log entries with optional filtering."""
     entries, total_lines = read_log_entries(limit=limit, level_filter=level, search=search)
@@ -221,21 +222,10 @@ def _sanitize_path(path: str) -> str:
 
 
 def _detect_docker_network_mode() -> str:
-    """Detect Docker network mode by checking for host-level interfaces.
+    """Use the same network probe as printer diagnostics."""
+    from backend.app.services.printer_diagnostic import _detect_docker_network_mode as detect_mode
 
-    In host mode the container shares the host network namespace, so Docker
-    infrastructure interfaces (docker0, br-*, veth*) are visible.  In bridge
-    mode the container is isolated and only sees its own veth (named eth0).
-    """
-    try:
-        import socket
-
-        for _idx, name in socket.if_nameindex():
-            if name.startswith(("docker", "br-", "veth", "virbr")):
-                return "host"
-    except Exception:
-        pass
-    return "bridge"
+    return detect_mode()
 
 
 def _mask_subnet(subnet: str) -> str:
@@ -688,6 +678,7 @@ async def _collect_support_info() -> dict:
             "timezone": os.environ.get("TZ", ""),
         },
         "database": {},
+        "process": collect_fd_usage(),
         "printers": [],
         "settings": {},
     }
@@ -699,7 +690,7 @@ async def _collect_support_info() -> dict:
             info["docker"] = {
                 "container_memory_limit_bytes": mem_limit,
                 "container_memory_limit_formatted": _format_bytes(mem_limit) if mem_limit else None,
-                "network_mode_hint": _detect_docker_network_mode(),
+                "network_mode_hint": await asyncio.to_thread(_detect_docker_network_mode),
             }
         except Exception:
             logger.debug("Failed to collect Docker info", exc_info=True)
@@ -1099,14 +1090,7 @@ async def _collect_support_info() -> dict:
     except Exception:
         logger.debug("Failed to collect WebSocket info", exc_info=True)
 
-    # Active diagnostics — per-printer connection check, per-VP setup check,
-    # and the log-health scan. These all surface in the UI today (System page +
-    # bug-report bubble) but were never persisted into what the maintainer
-    # receives, so a "looks broken in printops" report arrived with no
-    # actionable signal beyond raw logs. The snapshot helper is fail-soft per
-    # probe and bounded by a per-probe wall-clock cap, so a hung interface
-    # adds at most ~15 s to bundle generation regardless of fleet size (probes
-    # run concurrently).
+    # The diagnostics snapshot bounds each probe and tolerates individual failures.
     try:
         from backend.app.services.diagnostic_snapshot import collect_diagnostic_snapshot
 
@@ -1220,7 +1204,7 @@ async def _get_recent_sanitized_logs(max_lines: int = 200) -> str:
 
 @router.get("/bundle")
 async def generate_support_bundle(
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_READ),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.SETTINGS_UPDATE),
 ):
     """Generate a support bundle ZIP file for issue reporting."""
     # Check if debug logging is enabled and collect sensitive values for redaction

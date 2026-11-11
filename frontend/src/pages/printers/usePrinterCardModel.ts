@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { formatPrintName } from '../../utils/printName';
 import { BED_TEMP_DEFAULTS, CHAMBER_TEMP_DEFAULTS, FAN_SPEED_DEFAULTS, NOZZLE_TEMP_DEFAULTS } from '../../utils/temperatureFanPresets';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +7,7 @@ import { usePrinterPendingQueue } from '../../hooks/usePrinterPendingQueue';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router';
 import { api, firmwareApi } from '../../api/client';
-import type { PrinterStatus, AMSUnit, SmartPlug } from '../../api/client';
+import type { PlateDetectionResult, PrinterStatus, AMSUnit, SmartPlug } from '../../api/client';
 import type { HeaterSensorKind } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
 import { getAmsLabel } from '../../utils/amsHelpers';
@@ -28,7 +28,6 @@ export function usePrinterCardModel(props: PrinterCardProps) {
   spoolmanEnabled = false,
   linkedSpools,
   spoolmanUrl,
-  spoolmanSyncMode,
   onGetAssignment,
   onUnassignSpool,
   spoolmanSpools,
@@ -151,14 +150,6 @@ const [heaterHistoryModal, setHeaterHistoryModal] = useState<{
     availableKinds: HeaterSensorKind[];
   } | null>(null);
 
-const [linkSpoolModal, setLinkSpoolModal] = useState<{
-    tagUid: string;
-    trayUuid: string;
-    printerId: number;
-    amsId: number;
-    trayId: number;
-  } | null>(null);
-
 const [assignSpoolModal, setAssignSpoolModal] = useState<{
     printerId: number;
     amsId: number;
@@ -181,18 +172,7 @@ const [configureSlotModal, setConfigureSlotModal] = useState<{
 
 const [showFirmwareModal, setShowFirmwareModal] = useState(false);
 
-const [plateCheckResult, setPlateCheckResult] = useState<{
-    is_empty: boolean;
-    confidence: number;
-    difference_percent: number;
-    message: string;
-    debug_image_url?: string;
-    needs_calibration: boolean;
-    light_warning?: boolean;
-    reference_count?: number;
-    max_references?: number;
-    roi?: { x: number; y: number; w: number; h: number };
-  } | null>(null);
+const [plateCheckResult, setPlateCheckResult] = useState<PlateDetectionResult | null>(null);
 
 const [isCheckingPlate, setIsCheckingPlate] = useState(false);
 
@@ -434,11 +414,11 @@ const formatRunoutSlotLabel = (globalId: number | null): string | null => {
     if (globalId === null) return null;
     if (globalId === 254) return t('printers.expectedSlot.external');
     if (globalId >= 128 && globalId <= 135) {
-      return amsLabels?.[globalId] || getAmsLabel(globalId, 1);
+      return amsLabels?.[globalId] || getAmsLabel(globalId);
     }
     const amsId = Math.floor(globalId / 4);
     const slot = globalId % 4;
-    const amsName = amsLabels?.[amsId] || getAmsLabel(amsId, 4);
+    const amsName = amsLabels?.[amsId] || getAmsLabel(amsId);
     return t('printers.expectedSlot.label', { ams: amsName, slot: slot + 1 });
   };
 
@@ -498,13 +478,15 @@ const { data: reprintUser } = useQuery({
 const currentPrintUser = printingQueueItems?.[0]?.created_by_username || reprintUser?.username;
 
 // Fetch last completed print for this printer
-const { data: lastPrints } = useQuery({
-    queryKey: ['archives', printer.id, 'last'],
-    queryFn: () => api.getArchives(printer.id, 1, 0),
-    enabled: status?.connected && status?.state !== 'RUNNING',
+const canReadLastPrint = status?.connected && status.state !== 'RUNNING' && status.state !== 'PAUSE'
+  && (hasPermission('archives:read_own') || hasPermission('archives:read_all'));
+const { data: lastCompletedPrint } = useQuery({
+    queryKey: ['archives', 'last-per-printer'],
+    queryFn: api.getLastArchivePerPrinter,
+    select: (prints) => prints.find((print) => print.printer_id === printer.id),
+    enabled: canReadLastPrint,
   });
-
-const lastPrint = lastPrints?.[0];
+const lastPrint = canReadLastPrint ? lastCompletedPrint : undefined;
 
 const isPrintingOrPaused = status?.state === 'RUNNING' || status?.state === 'PAUSE';
 
@@ -648,6 +630,15 @@ const deleteMutation = useMutation({
       queryClient.invalidateQueries({ queryKey: ['printers'] });
       queryClient.invalidateQueries({ queryKey: ['archives'] });
       queryClient.invalidateQueries({ queryKey: ['maintenanceOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['notification-providers'] });
+      queryClient.invalidateQueries({ queryKey: ['virtual-printers'] });
+      queryClient.invalidateQueries({ queryKey: ['virtual-printer-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      queryClient.invalidateQueries({ queryKey: ['smart-plugs'] });
+      queryClient.invalidateQueries({ queryKey: ['spool-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['obico-status'] });
     },
     onError: (error: Error) => showToast(error.message || t('printers.toast.failedToDelete'), 'error'),
   });
@@ -666,19 +657,6 @@ const forceRefreshMutation = useMutation({
       showToast(t('printers.forceRefreshSuccess'), 'success');
     },
     onError: (error: Error) => showToast(error.message || t('printers.toast.failedToSendCommand'), 'error'),
-  });
-
-const unlinkSpoolMutation = useMutation({
-    mutationFn: (spoolId: number) => api.unlinkSpool(spoolId),
-    onSuccess: (result) => {
-      showToast(t('spoolman.unlinkSuccess') || result?.message, 'success');
-      queryClient.invalidateQueries({ queryKey: ['linked-spools'] });
-      queryClient.invalidateQueries({ queryKey: ['unlinked-spools'] });
-      queryClient.invalidateQueries({ queryKey: ['spoolman-slot-assignments'] });
-    },
-    onError: (error: Error) => {
-      showToast(error.message || t('spoolman.unlinkFailed'), 'error');
-    },
   });
 
 // AMS drying mutations
@@ -820,7 +798,7 @@ const chamberTemperatureMutation = useMutation({
   });
 
 const fanSpeedMutation = useMutation({
-    mutationFn: ({ fan, speed }: { fan: 'part' | 'aux' | 'chamber'; speed: number }) =>
+    mutationFn: ({ fan, speed }: { fan: 'part' | 'aux' | 'aux2' | 'chamber'; speed: number }) =>
       api.setFanSpeed(printer.id, fan, speed),
     onMutate: async ({ fan, speed }) => {
       await queryClient.cancelQueries({ queryKey: ['printerStatus', printer.id] });
@@ -828,6 +806,7 @@ const fanSpeedMutation = useMutation({
       const fanField = {
         part: 'cooling_fan_speed',
         aux: 'big_fan1_speed',
+        aux2: 'left_aux_fan_speed',
         chamber: 'big_fan2_speed',
       }[fan];
       queryClient.setQueryData(['printerStatus', printer.id], (old: PrinterStatus | undefined) =>
@@ -1216,8 +1195,8 @@ const handleSaveRoi = async () => {
     }
   };
 
-// Close plate check modal on Escape key
-useEffect(() => {
+// Register Escape before the first frame of the result dialog.
+useLayoutEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && plateCheckResult) {
         closePlateCheckModal();
@@ -1398,7 +1377,7 @@ const footerIconButtonClass = '!h-8 !min-h-8 !w-8 !px-0 !py-0';
   return {
     printer, maintenanceInfo, viewMode, cardSize,
     amsThresholds, spoolmanEnabled, linkedSpools, spoolmanUrl,
-    spoolmanSyncMode, onGetAssignment, onUnassignSpool, spoolmanSpools,
+    onGetAssignment, onUnassignSpool, spoolmanSpools,
     spoolmanSlotAssignments, spoolmanLoading, onUnassignSpoolmanSpool, timeFormat,
     cameraViewMode, onOpenEmbeddedCamera, checkPrinterFirmware, dryingPresets,
     selectionMode, isSelected, onToggleSelect, nozzleTempPresets,
@@ -1422,7 +1401,7 @@ const footerIconButtonClass = '!h-8 !min-h-8 !w-8 !px-0 !py-0';
     dryingDuration, setDryingDuration, dryingRotateTray, setDryingRotateTray,
     dryingPopoverPos, setDryingPopoverPos, isDraggingFile, isDropUploading,
     printerActionsMenuRef, amsHistoryModal, setAmsHistoryModal, heaterHistoryModal,
-    setHeaterHistoryModal, linkSpoolModal, setLinkSpoolModal, assignSpoolModal,
+    setHeaterHistoryModal, assignSpoolModal,
     setAssignSpoolModal, configureSlotModal, setConfigureSlotModal, showFirmwareModal,
     setShowFirmwareModal, plateCheckResult, isCheckingPlate, isCalibrating,
     editingRoi, setEditingRoi, isSavingRoi, status,
@@ -1436,7 +1415,7 @@ const footerIconButtonClass = '!h-8 !min-h-8 !w-8 !px-0 !py-0';
     canUsePrinterControlAction, canUseTemperatureControls, canUseFanControls, canUseLightControl,
     getLocalPrinterControlUnavailableTitle, getPrinterControlUnavailableTitle, getControlActionTitle, canUsePrinterControl,
     activePrintName, retainedPrintJob, plateStatus, deleteMutation,
-    connectMutation, forceRefreshMutation, unlinkSpoolMutation, startDryingMutation,
+    connectMutation, forceRefreshMutation, startDryingMutation,
     stopDryingMutation, setAmsBackupMutation, powerControlMutation, toggleAutoOffMutation,
     runScriptMutation, stopPrintMutation, pausePrintMutation, resumePrintMutation,
     clearPlateMutation, nozzleTemperatureMutation, bedTemperatureMutation, chamberTemperatureMutation,

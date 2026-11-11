@@ -319,7 +319,7 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Devices', level: 1 })).toBeInTheDocument();
-        expect(screen.getByText('Manage default printers, cameras, FTP retry behavior, and virtual printer endpoints.')).toBeInTheDocument();
+        expect(screen.getByText('Manage default printers, FTP retries, and virtual printers.')).toBeInTheDocument();
       });
 
       navigateSettingsTab('printers-production', '&sub=pipelines');
@@ -372,12 +372,11 @@ describe('SettingsPage', () => {
       expect(within(left).getByRole('heading', { name: 'Printers' })).toBeInTheDocument();
       expect(within(right).getAllByText('Default Printer').length).toBeGreaterThan(0);
       expect(within(right).getByRole('heading', { name: 'Dryers' })).toBeInTheDocument();
-      expect(within(right).getByText('External Cameras')).toBeInTheDocument();
+      expect(within(right).queryByText('External Cameras')).not.toBeInTheDocument();
       expect(within(grid).getByTestId('device-layout-ftp')).toHaveClass('order-1');
       expect(within(grid).getByTestId('device-layout-default-printer')).toHaveClass('order-2');
       expect(within(grid).getByTestId('device-layout-printers')).toHaveClass('order-3');
       expect(within(grid).getByTestId('device-layout-dryers')).toHaveClass('order-4');
-      expect(within(grid).getByTestId('device-layout-camera')).toHaveClass('order-5');
       expect(virtualPrinters).not.toBeNull();
       expect(
         grid.compareDocumentPosition(virtualPrinters as Node) &
@@ -519,13 +518,12 @@ describe('SettingsPage', () => {
       });
     });
 
-    it('shows preferred slicer setting on Printers & Production', async () => {
+    it('keeps finish photo controls and removes the unused thumbnail switch', async () => {
       setSettingsTabUrl('printers-production', '&sub=print-process');
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Preferred Slicer')).toBeInTheDocument();
-      });
+      expect(await screen.findByText('Capture finish photo')).toBeInTheDocument();
+      expect(screen.queryByText('Save thumbnails')).not.toBeInTheDocument();
     });
 
     it('shows slicer dropdown with both options on Printers & Production', async () => {
@@ -906,7 +904,7 @@ describe('SettingsPage', () => {
       await clickSettingsSearchResult('Webhook');
 
       expect(await screen.findByText('Webhook Endpoints')).toBeInTheDocument();
-      expect(await screen.findByText('/api/v1/webhook/status')).toBeInTheDocument();
+      expect(await screen.findByText('/api/v1/webhook/printer/:id/status')).toBeInTheDocument();
       expect(window.location.search).toContain('tab=integrations');
       expect(window.location.search).toContain('sub=webhooks');
       expect(document.getElementById('card-webhooks')).not.toBeNull();
@@ -971,7 +969,7 @@ describe('SettingsPage', () => {
 
       await clickSettingsSearchResult('Camera');
 
-      expect(await screen.findByRole('button', { name: 'Devices' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByRole('button', { name: 'Cameras' })).toHaveClass('text-bambu-green');
       expect(await screen.findByText('External Cameras')).toBeInTheDocument();
       expect(window.location.search).toContain('tab=printers-production');
       expect(document.getElementById('card-camera')).not.toBeNull();
@@ -1386,10 +1384,9 @@ describe('SettingsPage', () => {
       setSettingsTabUrl('integrations');
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Notifications' })).toHaveClass('text-bambu-green');
-        expect(screen.getByText('Add Provider')).toBeInTheDocument();
-      });
+      expect(await screen.findByRole('button', { name: 'Notifications' })).toHaveClass('text-bambu-green');
+      expect(await screen.findByLabelText('Slicer pause warning lead time (minutes)')).toBeInTheDocument();
+      expect(screen.queryByText('Notification Language')).not.toBeInTheDocument();
     });
 
     it('can switch to Smart Home under Integrations', async () => {
@@ -1430,7 +1427,7 @@ describe('SettingsPage', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'API & Metrics' })).toHaveClass('text-bambu-green');
         expect(screen.getByText('API Keys')).toBeInTheDocument();
-        expect(screen.getByText('Camera API Tokens')).toBeInTheDocument();
+        expect(screen.queryByText('Camera API Tokens')).not.toBeInTheDocument();
         expect(screen.getByText('Prometheus Metrics')).toBeInTheDocument();
         expect(screen.getByText('API Browser')).toBeInTheDocument();
       });
@@ -1903,7 +1900,7 @@ describe('SettingsPage', () => {
         http.get('/api/v1/printers/', () => HttpResponse.json([mjpegPrinter])),
       );
 
-      setSettingsTabUrl('printers-production');
+      setSettingsTabUrl('printers-production', '&sub=cameras');
       render(<SettingsPage />);
 
       await waitFor(() => {
@@ -1918,7 +1915,7 @@ describe('SettingsPage', () => {
         ),
       );
 
-      setSettingsTabUrl('printers-production');
+      setSettingsTabUrl('printers-production', '&sub=cameras');
       render(<SettingsPage />);
 
       // Wait for the live-stream URL placeholder to render so we know the
@@ -1943,7 +1940,7 @@ describe('SettingsPage', () => {
           }),
         );
 
-        setSettingsTabUrl('printers-production');
+        setSettingsTabUrl('printers-production', '&sub=cameras');
         render(<SettingsPage />);
 
         const input = await waitFor(() =>

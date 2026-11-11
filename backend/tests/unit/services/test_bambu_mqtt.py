@@ -11,6 +11,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from backend.app.services.bambu_kprofiles import KProfileReadError
+
 
 class _RecordingMqttClient:
     def __init__(self):
@@ -2670,10 +2672,10 @@ class TestTrayNowDualNozzleH2DSetup:
         }
         mqtt_client._process_message(payload)
 
-        # Dual-nozzle was detected; AMS 0 on right extruder (active by default);
-        # snow is 0xFF00FF (unloaded), so falls through to ams_extruder_map fallback.
-        # Single AMS on extruder 0 → global_id = 0*4+2 = 2
+        # Its nozzle is known, but the unit map is first populated after tray_now.
         assert mqtt_client._is_dual_nozzle is True
+        assert mqtt_client.state.tray_now == 255
+        mqtt_client._process_message(_ams_payload(2))
         assert mqtt_client.state.tray_now == 2
 
 
@@ -2889,12 +2891,12 @@ class TestTrayNowDualNozzleH2DFallback(_H2DFixtureMixin):
         h2d_client._process_message(_ams_payload(1))
         assert h2d_client.state.tray_now == 5
 
-    def test_no_ams_on_extruder_uses_raw_slot(self, h2d_client):
-        """No AMS mapped to the active extruder → raw slot as global ID."""
+    def test_no_ams_on_extruder_keeps_current(self, h2d_client):
+        """The local slot cannot be placed without a unit map or fresh snow."""
         # All AMS on left extruder, but right is active
         h2d_client.state.ams_extruder_map = {"0": 1, "128": 1}
         h2d_client._process_message(_ams_payload(2))
-        assert h2d_client.state.tray_now == 2
+        assert h2d_client.state.tray_now == 255
 
     def test_single_ams_ht_on_extruder_returns_unit_id(self, h2d_client):
         """AMS-HT 128 alone on left extruder, slot 0 → global ID 128 (not 512)."""
@@ -2933,7 +2935,7 @@ class TestTrayNowDualNozzleH2DFallback(_H2DFixtureMixin):
         h2d_client.state.tray_now = 255
         # Slot 3 → excludes AMS-HT, but AMS 0 and AMS 1 both remain → ambiguous
         h2d_client._process_message(_ams_payload(3))
-        assert h2d_client.state.tray_now == 3  # raw slot fallback
+        assert h2d_client.state.tray_now == 255  # ambiguous slot keeps the previous tray
 
 
 # ---------------------------------------------------------------------------
@@ -3878,13 +3880,13 @@ class TestSendDryingCommand:
     def test_start_caches_target_for_badge(self, mqtt_client):
         """mode=1 send populates _drying_targets so the badge can render it."""
         mqtt_client.send_drying_command(ams_id=2, temp=65, duration=12, mode=1, filament="PETG")
-        assert mqtt_client._drying_targets[2] == {"filament": "PETG", "temp": 65}
+        assert mqtt_client._drying_targets[2] == {"filament": "PETG", "temp": 65, "duration_hours": 12}
 
     def test_start_overwrites_prior_target_for_same_ams(self, mqtt_client):
         """A second start on the same AMS replaces the cached target."""
         mqtt_client.send_drying_command(ams_id=0, temp=55, duration=4, mode=1, filament="PLA")
         mqtt_client.send_drying_command(ams_id=0, temp=70, duration=6, mode=1, filament="ABS")
-        assert mqtt_client._drying_targets[0] == {"filament": "ABS", "temp": 70}
+        assert mqtt_client._drying_targets[0] == {"filament": "ABS", "temp": 70, "duration_hours": 6}
 
     def test_stop_clears_target(self, mqtt_client):
         """mode=0 send drops the cache so the badge stops showing the target."""
@@ -3899,7 +3901,7 @@ class TestSendDryingCommand:
         mqtt_client.send_drying_command(ams_id=128, temp=80, duration=6, mode=1, filament="PA-CF")
         mqtt_client.send_drying_command(ams_id=0, temp=0, duration=0, mode=0)
         assert 0 not in mqtt_client._drying_targets
-        assert mqtt_client._drying_targets[128] == {"filament": "PA-CF", "temp": 80}
+        assert mqtt_client._drying_targets[128] == {"filament": "PA-CF", "temp": 80, "duration_hours": 6}
 
 
 class TestStartPrintAmsMapping:
@@ -5149,115 +5151,6 @@ class TestHMSFullCode:
         assert calls[0][1] == "07FF020000008011"
         assert calls[1][1] == "07FF8011"
         assert mqtt_client.state.hms_errors[0].actions == ["CHECK_ASSISTANT"]
-
-
-class TestForceReconnectRouting:
-    """#1136 — force_reconnect_stale_session routes between hard-reset (full
-    paho-client teardown, wipes the QoS 1 queue) and socket-close (the legacy
-    behaviour, safe to call from paho's own network thread). The routing
-    decision is based on whether an asyncio loop is running: hard-reset
-    requires loop_stop() which would deadlock if called from inside the
-    network thread itself."""
-
-    @pytest.fixture
-    def mqtt_client(self):
-        from unittest.mock import MagicMock
-
-        from backend.app.services.bambu_mqtt import BambuMQTTClient
-
-        client = BambuMQTTClient(
-            ip_address="192.168.1.100",
-            serial_number="TEST_HARD_RESET",
-            access_code="12345678",
-        )
-        client.state.connected = True
-        client._client = MagicMock()
-        return client
-
-    def test_routing_falls_back_to_socket_close_without_running_loop(self, mqtt_client):
-        """Sync caller → no asyncio loop → socket-close path (legacy behaviour
-        preserved for paho-thread callers like zombie detection)."""
-        mqtt_client.force_reconnect_stale_session("test")
-        mqtt_client._client.socket().close.assert_called()
-        # Old client is NOT torn down on this path; same-instance reconnect
-        # via paho's auto-reconnect handles it.
-        assert mqtt_client._client is not None
-
-    def test_routing_uses_hard_reset_when_loop_is_running(self, mqtt_client):
-        """Async caller → loop available → hard-reset path wipes the queue."""
-        import asyncio
-
-        original = mqtt_client._client
-        # Stub connect() so the rebuild doesn't open a real socket.
-        mqtt_client.connect = lambda loop=None: None
-
-        async def _trigger():
-            mqtt_client.force_reconnect_stale_session("test")
-
-        asyncio.run(_trigger())
-        original.disconnect.assert_called()
-        original.loop_stop.assert_called()
-        # connect() stub didn't repopulate _client, so it's None — the contract
-        # in production is that connect() builds a fresh mqtt.Client here.
-        assert mqtt_client._client is None
-
-    def test_marks_state_disconnected_and_broadcasts(self, mqtt_client):
-        """Both routing paths must broadcast the disconnected state once."""
-        broadcasts: list[bool] = []
-        mqtt_client.on_state_change = lambda s: broadcasts.append(s.connected)
-        mqtt_client.force_reconnect_stale_session("test")
-        assert mqtt_client.state.connected is False
-        assert mqtt_client._stale_reconnecting is True
-        assert broadcasts == [False]
-
-
-class TestHardResetClientDirect:
-    """Lower-level coverage of `_hard_reset_client` itself — the helper called
-    by the routing layer when a full paho-client teardown is safe. These tests
-    drive the helper directly so they don't depend on the routing decision."""
-
-    @pytest.fixture
-    def mqtt_client(self):
-        from unittest.mock import MagicMock
-
-        from backend.app.services.bambu_mqtt import BambuMQTTClient
-
-        client = BambuMQTTClient(
-            ip_address="192.168.1.100",
-            serial_number="TEST_HARD_DIRECT",
-            access_code="12345678",
-        )
-        client.state.connected = True
-        client._client = MagicMock()
-        # Stub connect() so the rebuild doesn't open a real socket.
-        client.connect = lambda loop=None: None
-        return client
-
-    def test_disconnects_and_stops_old_client(self, mqtt_client):
-        """Old paho client must receive DISCONNECT (broker drops session) +
-        loop_stop (network thread exits, taking its QoS 1 queue with it)."""
-        original = mqtt_client._client
-        mqtt_client._hard_reset_client()
-        original.disconnect.assert_called()
-        original.loop_stop.assert_called()
-
-    def test_clears_client_reference(self, mqtt_client):
-        """Old reference must go to None so subsequent code can't accidentally
-        publish through the dying client."""
-        mqtt_client._hard_reset_client()
-        assert mqtt_client._client is None
-
-    def test_swallows_disconnect_exception(self, mqtt_client):
-        """A failing disconnect() (e.g. paho already in error state) must not
-        propagate through async dispatch callers, and a single broken client
-        could brick every future dispatch."""
-        original = mqtt_client._client
-        original.disconnect.side_effect = RuntimeError("boom")
-        # No exception escapes the call (test would fail if it did).
-        mqtt_client._hard_reset_client()
-        # loop_stop is still attempted after the disconnect failure.
-        original.loop_stop.assert_called()
-        assert mqtt_client._client is None
 
 
 class TestStartPrintRecordsDispatchedPlate:
@@ -6700,10 +6593,8 @@ class TestKProfileRequestCorrelation:
 
     @pytest.mark.asyncio
     async def test_pending_entry_is_released_on_timeout(self, mqtt_client):
-        # A timed-out attempt must not leave its entry behind, or a later
-        # broadcast would be matched to a request nobody is waiting on.
-        profiles = await mqtt_client.get_kprofiles(nozzle_diameter="0.8", timeout=0.01, max_retries=1)
-        assert profiles == []
+        with pytest.raises(KProfileReadError):
+            await mqtt_client.get_kprofiles(nozzle_diameter="0.8", timeout=0.01, max_retries=1)
         assert mqtt_client._pending_kprofile_requests == {}
 
 

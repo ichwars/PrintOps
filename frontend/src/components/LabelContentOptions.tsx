@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, type SpoolLabelTemplate } from '../api/client';
+import { api, type SpoolLabelTemplate, type LabelSheetLayout } from '../api/client';
 import { DEFAULT_FIELDS, FIELDS, type LabelPreferences } from '../utils/labelPreferences';
 import { Checkbox, LegacySelect } from './ui';
 
@@ -10,8 +10,9 @@ interface Props {
   id?: number;
   preferences: LabelPreferences;
   onChange: (value: LabelPreferences) => void;
+  sheetLayout?: LabelSheetLayout | null;
 }
-export function LabelContentOptions({ source, id, preferences, onChange }: Props) {
+export function LabelContentOptions({ source, id, preferences, onChange, sheetLayout }: Props) {
   const { t } = useTranslation();
   const [template, setTemplate] = useState<SpoolLabelTemplate>('box_40x30');
   const [preview, setPreview] = useState<string>();
@@ -21,10 +22,11 @@ export function LabelContentOptions({ source, id, preferences, onChange }: Props
     let url: string | undefined;
     setPreview(undefined);
     setError('');
-    if (id === undefined) return;
+    if (id === undefined || sheetLayout === null) return;
     const timer = setTimeout(() => {
       const ids = source === 'small-parts' ? { small_part_ids: [id] } : { spool_ids: [id] };
-      api.previewLabels(source, { ...ids, template, fields: preferences.fields, monochrome: preferences.monochrome, dpi: 203 })
+      const geometry = sheetLayout ? { template: 'custom', layout: sheetLayout } : { template };
+      api.previewLabels(source, { ...ids, ...geometry, fields: preferences.fields, monochrome: preferences.monochrome, dpi: 203 })
         .then(blob => {
           if (cancelled) return;
           url = URL.createObjectURL(blob);
@@ -32,7 +34,7 @@ export function LabelContentOptions({ source, id, preferences, onChange }: Props
         }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)); });
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); if (url) URL.revokeObjectURL(url); };
-  }, [source, id, template, preferences.fields, preferences.monochrome]);
+  }, [source, id, template, sheetLayout, preferences.fields, preferences.monochrome]);
   return <div className="space-y-3 px-4 py-3 border-t border-bambu-dark-tertiary">
     <fieldset className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-white">
       <legend className="mb-2">{t('inventory.labels.content')}</legend>
@@ -53,10 +55,10 @@ export function LabelContentOptions({ source, id, preferences, onChange }: Props
         onChange={event => onChange({ ...preferences, dpi: Number(event.target.value) as 203 | 300 | 600 })}>
         {[203, 300, 600].map(dpi => <option key={dpi} value={dpi}>{dpi} dpi</option>)}
       </LegacySelect></label>}
-      <label>{t('inventory.labels.preview')} <LegacySelect aria-label={t('inventory.labels.preview')} value={template} className="bg-bambu-dark"
+      {sheetLayout === undefined && <label>{t('inventory.labels.preview')} <LegacySelect aria-label={t('inventory.labels.preview')} value={template} className="bg-bambu-dark"
         onChange={event => setTemplate(event.target.value as SpoolLabelTemplate)}>
         {([['ams_holder_74x33', 'amsHolderSmall'], ['ams_holder_75x55', 'amsHolderLarge'], ['box_40x30', 'box40x30'], ['box_62x29', 'box'], ['avery_l7160', 'averyL7160'], ['avery_5160', 'avery5160']] as const).map(([value, key]) => <option key={value} value={value}>{t(`inventory.labels.templates.${key}.label`)}</option>)}
-      </LegacySelect></label>
+      </LegacySelect></label>}
     </div>
     {preview && <img src={preview} alt={t('inventory.labels.previewAlt')} className="max-h-40 max-w-full bg-white rounded" />}
     {id === undefined && <p className="text-sm text-bambu-gray">{t('inventory.labels.previewNoSelection')}</p>}

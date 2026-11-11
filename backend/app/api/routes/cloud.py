@@ -4,6 +4,7 @@ Bambu Lab Cloud API Routes
 Handles authentication and profile management with Bambu Cloud.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -15,15 +16,18 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core import database
 from backend.app.core.auth import (
     RequirePermissionIfAuthEnabled,
     _user_from_api_key,
     _validate_api_key,
     require_permission_if_auth_enabled,
+    resolve_optional_api_key,
     security,
 )
-from backend.app.core.database import async_session, get_db
+from backend.app.core.database import DB_SESSION, async_session
 from backend.app.core.permissions import Permission
+from backend.app.core.tasks import spawn_background_task
 from backend.app.models.api_key import APIKey
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
@@ -59,7 +63,7 @@ async def _cloud_api_key_gate(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ) -> None:
     """Router-level dependency: enforce API-key cloud-access fences (#1182).
 
@@ -131,7 +135,7 @@ def cloud_caller(*permissions: Permission):
 async def resolve_api_key_cloud_owner(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ) -> User | None:
     """Route-level dep for non-/cloud/* endpoints that need to read the
     caller's stored Bambu Cloud token (e.g. the slice path resolving cloud
@@ -144,20 +148,10 @@ async def resolve_api_key_cloud_owner(
     this dep's result only when ``current_user`` is None.
 
     Unlike ``_cloud_api_key_gate`` (which 403s legacy/non-cloud keys at the
-    router level), this dep is permissive: it returns None instead of
-    raising, so a slice request via an API key without cloud scope still
-    runs against local presets. The downstream cloud-token check in
-    ``preset_resolver._resolve_cloud`` produces the right 400 if the
-    request actually selects a cloud preset.
+    router level), this dep returns None for keys without cloud scope. Local
+    presets remain available and a cloud preset requires a cloud identity.
     """
-    api_key_value: str | None = None
-    if x_api_key:
-        api_key_value = x_api_key
-    elif credentials and credentials.credentials.startswith("bb_"):
-        api_key_value = credentials.credentials
-    if api_key_value is None:
-        return None
-    api_key = await _validate_api_key(db, api_key_value)
+    api_key = await resolve_optional_api_key(credentials, x_api_key, db)
     if api_key is None or api_key.user_id is None or not api_key.can_access_cloud:
         return None
     return await _user_from_api_key(db, api_key)
@@ -254,6 +248,7 @@ async def store_token(db: AsyncSession, token: str, email: str, region: str, use
             .values(cloud_token=token, cloud_email=email, cloud_region=region, cloud_token_invalid_at=None)
         )
         await db.commit()
+        forget_cloud_presets_for_account(user.id)
         return
 
     # Fallback: global storage (auth disabled)
@@ -266,6 +261,7 @@ async def store_token(db: AsyncSession, token: str, email: str, region: str, use
             db.add(Settings(key=key, value=value))
     await _clear_cloud_token_invalid(db, None)
     await db.commit()
+    forget_cloud_presets_for_account(None)
 
 
 async def clear_token(db: AsyncSession, user: User | None = None) -> None:
@@ -285,6 +281,7 @@ async def clear_token(db: AsyncSession, user: User | None = None) -> None:
             .values(cloud_token=None, cloud_email=None, cloud_region=None, cloud_token_invalid_at=None)
         )
         await db.commit()
+        forget_cloud_presets_for_account(user.id)
         return
 
     # Fallback: global storage (auth disabled)
@@ -296,6 +293,7 @@ async def clear_token(db: AsyncSession, user: User | None = None) -> None:
     for setting in result.scalars().all():
         await db.delete(setting)
     await db.commit()
+    forget_cloud_presets_for_account(None)
 
 
 async def migrate_global_cloud_token_to_user(db: AsyncSession, user: User) -> bool:
@@ -399,7 +397,7 @@ async def build_authenticated_cloud(db: AsyncSession, user: User | None) -> Bamb
 
 @router.get("/status", response_model=CloudAuthStatus)
 async def get_auth_status(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """Get current cloud authentication status.
@@ -436,7 +434,7 @@ async def get_auth_status(
 @router.post("/login", response_model=CloudLoginResponse)
 async def login(
     request: CloudLoginRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -468,7 +466,7 @@ async def login(
     except BambuCloudAuthError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -476,7 +474,7 @@ async def login(
 @router.post("/verify", response_model=CloudLoginResponse)
 async def verify_code(
     request: CloudVerifyRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -513,7 +511,7 @@ async def verify_code(
     except BambuCloudAuthError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -521,7 +519,7 @@ async def verify_code(
 @router.post("/token", response_model=CloudAuthStatus)
 async def set_token(
     request: CloudTokenRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -539,15 +537,17 @@ async def set_token(
         await cloud.get_user_profile()
         await store_token(db, request.access_token, "token-auth", request.region, current_user)
         return CloudAuthStatus(is_authenticated=True, email="token-auth")
-    except BambuCloudError:
+    except BambuCloudAuthError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    except BambuCloudError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from None
     finally:
         await cloud.close()
 
 
 @router.post("/logout")
 async def logout(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """Log out of Bambu Cloud."""
@@ -558,7 +558,7 @@ async def logout(
 @router.get("/settings", response_model=SlicerSettingsResponse)
 async def get_slicer_settings(
     version: str = _SLICER_API_VERSION,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -599,6 +599,7 @@ async def get_slicer_settings(
                         user_id=s.get("user_id"),
                         updated_time=s.get("updated_time"),
                         is_custom=True,
+                        filament_id=s.get("filament_id") if isinstance(s.get("filament_id"), str) else None,
                     )
                 )
             # Public (default) presets
@@ -612,6 +613,7 @@ async def get_slicer_settings(
                         user_id=s.get("user_id"),
                         updated_time=s.get("updated_time"),
                         is_custom=False,
+                        filament_id=s.get("filament_id") if isinstance(s.get("filament_id"), str) else None,
                     )
                 )
             setattr(result, our_type, parsed)
@@ -621,7 +623,7 @@ async def get_slicer_settings(
         await clear_token(db, current_user)
         raise HTTPException(status_code=401, detail="Authentication expired")
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -629,7 +631,7 @@ async def get_slicer_settings(
 @router.get("/settings/{setting_id}")
 async def get_setting_detail(
     setting_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -648,7 +650,7 @@ async def get_setting_detail(
         await clear_token(db, current_user)
         raise HTTPException(status_code=401, detail="Authentication expired")
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -656,7 +658,7 @@ async def get_setting_detail(
 @router.get("/filaments", response_model=list[SlicerSetting])
 async def get_filament_presets(
     version: str = _SLICER_API_VERSION,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.FILAMENTS_READ),
 ):
     """
@@ -674,6 +676,7 @@ async def get_filament_presets(
 # API-key owners are isolated by User.id.
 _filament_cache: dict[int | None, dict[str, dict]] = {}
 _filament_cache_time: dict[int | None, float] = {}
+_filament_info_inflight: dict[tuple[int | None, int, str], asyncio.Future[dict | None]] = {}
 FILAMENT_CACHE_TTL = 300  # 5 minutes
 
 # Built-in filament ID → name mapping (fallback when cloud API and local profiles
@@ -736,6 +739,20 @@ _BUILTIN_FILAMENT_NAMES: dict[str, str] = {
     "GFU00": "Bambu TPU 95A HF",
     "GFU01": "Bambu TPU 95A",
     "GFU02": "Bambu TPU for AMS",
+    "GFA10": "Bambu PLA Tough+",
+    "GFA17": "Bambu PLA Translucent",
+    "GFA18": "Bambu PLA Lite",
+    "GFA19": "Bambu PLA Pure",
+    "GFG03": "Bambu PETG Matte",
+    "GFSNL02": "SUNLU PLA Matte",
+    "GFSNL03": "SUNLU PLA+",
+    "GFSNL04": "SUNLU PLA+ 2.0",
+    "GFSNL05": "SUNLU Silk PLA+",
+    "GFSNL06": "SUNLU PLA Marble",
+    "GFSNL07": "SUNLU Wood PLA",
+    "GFSNL08": "SUNLU PETG",
+    "GFU03": "Bambu TPU 90A",
+    "GFU04": "Bambu TPU 85A",
     **{filament_id: f"Generic {material}" for material, filament_id in GENERIC_FILAMENT_CATALOG.items()},
 }
 
@@ -823,10 +840,44 @@ async def _enrich_from_local_presets(
 _filament_id_to_setting_id = filament_id_to_setting_id
 
 
+async def _resolve_cloud_filament(
+    cloud: BambuCloudService, identity: int | None, setting_id: str, cache: dict[str, dict]
+) -> dict | None:
+    if _filament_cache.get(identity) is not cache:
+        return None
+    if setting_id in cache:
+        return cache[setting_id]
+    key = (identity, id(cache), setting_id)
+    pending = _filament_info_inflight.get(key)
+    if pending is not None:
+        return await asyncio.shield(pending)
+
+    pending = asyncio.get_running_loop().create_future()
+    _filament_info_inflight[key] = pending
+    info = None
+    try:
+        data = await cloud.get_setting_detail(_filament_id_to_setting_id(setting_id))
+        try:
+            k_value = float(data.get("setting", {}).get("pressure_advance"))
+        except (ValueError, TypeError):
+            k_value = None
+        info = {"name": data.get("name", ""), "k": k_value}
+        if _filament_info_inflight.get(key) is pending:
+            cache[setting_id] = info
+        return info
+    except Exception:
+        logger.warning("Failed to get cloud filament preset %s", setting_id)
+        return None
+    finally:
+        pending.set_result(info)
+        if _filament_info_inflight.get(key) is pending:
+            del _filament_info_inflight[key]
+
+
 @router.post("/filament-info")
 async def get_filament_info(
     setting_ids: list[str] = Body(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.FILAMENTS_READ),
 ):
     """
@@ -865,29 +916,10 @@ async def get_filament_info(
             try:
                 still_unresolved: list[str] = []
                 for setting_id in unresolved_ids:
-                    try:
-                        api_setting_id = _filament_id_to_setting_id(setting_id)
-                        data = await cloud.get_setting_detail(api_setting_id)
-                        setting = data.get("setting", {})
-                        name = data.get("name", "")
-                        k_value = setting.get("pressure_advance")
-                        if k_value is not None:
-                            try:
-                                k_value = float(k_value)
-                            except (ValueError, TypeError):
-                                k_value = None
-
-                        info = {"name": name, "k": k_value}
-                        cache[setting_id] = info
+                    info = await _resolve_cloud_filament(cloud, identity, setting_id, cache)
+                    if info is not None:
                         result[setting_id] = info
-
-                        if not name:
-                            still_unresolved.append(setting_id)
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to get cloud preset {setting_id} "
-                            f"(API ID: {_filament_id_to_setting_id(setting_id)}): {e}"
-                        )
+                    if not info or not info["name"]:
                         still_unresolved.append(setting_id)
 
                 unresolved_ids = still_unresolved
@@ -899,13 +931,12 @@ async def get_filament_info(
     # Phase 3: Try local profiles for any IDs still without a name
     if unresolved_ids:
         result = await _enrich_from_local_presets(unresolved_ids, result, db, cache)
-
-    return result
+    return result if _filament_cache.get(identity) is cache else {}
 
 
 @router.get("/devices", response_model=list[CloudDevice])
 async def get_devices(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.PRINTERS_READ),
 ):
     """
@@ -935,14 +966,14 @@ async def get_devices(
         await clear_token(db, current_user)
         raise HTTPException(status_code=401, detail="Authentication expired")
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
 
 @router.get("/firmware-updates", response_model=FirmwareUpdatesResponse)
 async def get_firmware_updates(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.FIRMWARE_READ),
 ):
     """
@@ -1010,7 +1041,7 @@ async def get_firmware_updates(
         await clear_token(db, current_user)
         raise HTTPException(status_code=401, detail="Authentication expired")
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -1018,7 +1049,7 @@ async def get_firmware_updates(
 @router.post("/settings")
 async def create_setting(
     request: SlicerSettingCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -1046,7 +1077,7 @@ async def create_setting(
         await clear_token(db, current_user)
         raise HTTPException(status_code=401, detail="Authentication expired")
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -1055,7 +1086,7 @@ async def create_setting(
 async def update_setting(
     setting_id: str,
     request: SlicerSettingUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -1078,7 +1109,7 @@ async def update_setting(
         await clear_token(db, current_user)
         raise HTTPException(status_code=401, detail="Authentication expired")
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -1086,7 +1117,7 @@ async def update_setting(
 @router.delete("/settings/{setting_id}", response_model=SlicerSettingDeleteResponse)
 async def delete_setting(
     setting_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = cloud_caller(Permission.CLOUD_AUTH),
 ):
     """
@@ -1108,7 +1139,7 @@ async def delete_setting(
         await clear_token(db, current_user)
         raise HTTPException(status_code=401, detail="Authentication expired")
     except BambuCloudError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await cloud.close()
 
@@ -1162,14 +1193,36 @@ async def get_builtin_filaments(
     return [{"filament_id": fid, "name": name} for fid, name in _BUILTIN_FILAMENT_NAMES.items()]
 
 
+def forget_cloud_presets_for_account(identity: int | None) -> None:
+    for key in [key for key in _filament_info_inflight if key[0] == identity]:
+        del _filament_info_inflight[key]
+    _filament_id_map_inflight.pop(identity, None)
+    _filament_id_name_cache.pop(identity, None)
+    _filament_id_name_cache_time.pop(identity, None)
+    _filament_cache.pop(identity, None)
+    _filament_cache_time.pop(identity, None)
+
+
+def forget_all_cloud_presets() -> None:
+    for cache in (
+        _filament_info_inflight,
+        _filament_id_map_inflight,
+        _filament_id_name_cache,
+        _filament_id_name_cache_time,
+        _filament_cache,
+        _filament_cache_time,
+    ):
+        cache.clear()
+
+
 # Per-cloud-identity filament_id → name mappings.
 _filament_id_name_cache: dict[int | None, dict[str, str]] = {}
 _filament_id_name_cache_time: dict[int | None, float] = {}
+_filament_id_map_inflight: dict[int | None, asyncio.Task] = {}
 
 
 @router.get("/filament-id-map")
 async def get_filament_id_map(
-    db: AsyncSession = Depends(get_db),
     current_user: User | None = cloud_caller(Permission.FILAMENTS_READ),
 ):
     """
@@ -1184,14 +1237,38 @@ async def get_filament_id_map(
 
     identity = current_user.id if current_user is not None else None
     cached = _filament_id_name_cache.get(identity, {})
-    if cached and time.time() - _filament_id_name_cache_time.get(identity, 0) < FILAMENT_CACHE_TTL:
-        return cached
+    if (
+        identity in _filament_id_name_cache
+        and time.time() - _filament_id_name_cache_time.get(identity, 0) < FILAMENT_CACHE_TTL
+    ):
+        return dict(cached)
 
-    cloud = await build_authenticated_cloud(db, current_user)
+    running = _filament_id_map_inflight.get(identity)
+    if running is None or running.done():
+        running = spawn_background_task(_build_filament_id_map(current_user, identity), name="cloud-filament-id-map")
+        _filament_id_map_inflight[identity] = running
+
+        def forget(done):
+            if _filament_id_map_inflight.get(identity) is done:
+                _filament_id_map_inflight.pop(identity, None)
+
+        running.add_done_callback(forget)
+    try:
+        result = await asyncio.shield(running)
+        return dict(result) if _filament_id_name_cache.get(identity) is result else {}
+    except Exception:
+        return dict(cached) if _filament_id_name_cache.get(identity) is cached else {}
+
+
+async def _build_filament_id_map(current_user, identity) -> dict[str, str]:
+    import time
+
+    async with database.async_session() as db:
+        cloud = await build_authenticated_cloud(db, current_user)
     if cloud is None or not cloud.is_authenticated:
         if cloud is not None:
             await cloud.close()
-        return cached
+        return {}
 
     try:
         data = await cloud.get_slicer_settings()
@@ -1204,7 +1281,10 @@ async def get_filament_id_map(
                 continue
             try:
                 detail = await cloud.get_setting_detail(setting_id)
-                fid = detail.get("filament_id", "")
+                # On the envelope normally; in the preset JSON under `setting`
+                # when not (the same fallback as slicer_filament_resolver).
+                nested = detail.get("setting")
+                fid = detail.get("filament_id") or (nested.get("filament_id") if isinstance(nested, dict) else "")
                 name = detail.get("name", "")
                 if fid and name:
                     # Strip printer/nozzle suffix: "Devil Design PLA Basic @Bambu Lab H2D 0.4 nozzle" → "Devil Design PLA Basic"
@@ -1213,11 +1293,11 @@ async def get_filament_id_map(
             except Exception:
                 pass
 
+        if _filament_id_map_inflight.get(identity) is not asyncio.current_task():
+            return {}
         _filament_id_name_cache[identity] = result
         _filament_id_name_cache_time[identity] = time.time()
         return result
-    except Exception:
-        return cached
     finally:
         await cloud.close()
 

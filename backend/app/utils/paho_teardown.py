@@ -8,6 +8,35 @@ logger = logging.getLogger(__name__)
 _CALLBACKS = ("on_connect", "on_disconnect", "on_subscribe", "on_message")
 
 
+def discard_queued_publishes(client) -> int | None:
+    """Discard unacknowledged commands before paho replays them on reconnect.
+
+    Paho 2.x resets the in-flight count before on_connect, then republishes
+    _out_messages after it returns. Keep the mutex while clearing that queue.
+    Return None if the pinned internals change, so the caller can diagnose it.
+    """
+    try:
+        with client._out_message_mutex:
+            held = len(client._out_messages)
+            client._out_messages.clear()
+    except AttributeError:
+        return None
+    return held
+
+
+def drop_previous_connection_commands(client, label: str, log: logging.Logger) -> None:
+    """Diagnose old commands discarded before paho's reconnect replay."""
+    dropped = discard_queued_publishes(client)
+    if dropped is None:
+        log.warning(
+            "[%s] Cannot clear paho's outbox on reconnect (paho internals changed); "
+            "commands from the previous connection may be sent again",
+            label,
+        )
+    elif dropped:
+        log.info("[%s] Dropped %d command(s) queued on the previous MQTT connection", label, dropped)
+
+
 def retire_paho_client(client, label: str) -> None:
     """Detach callbacks inline, then disconnect and stop on a daemon thread.
 
@@ -23,6 +52,9 @@ def retire_paho_client(client, label: str) -> None:
 
     def teardown() -> None:
         started = time.monotonic()
+        # A retired TLS handshake may still finish after callbacks are detached.
+        # Its old commands must not survive until that connection is established.
+        discard_queued_publishes(client)
         try:
             client.disconnect()
         except Exception:

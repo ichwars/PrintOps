@@ -256,12 +256,14 @@ class TestPollOneStateLifecycle:
         }
         status = MagicMock(state="RUNNING", task_name="job", subtask_name="")
 
-        # Seed state so the next frame crosses HIGH immediately
+        # Establish a clear background and then a sustained rise.
         from backend.app.services.obico_smoothing import PrintState
 
         seeded = PrintState()
         for _ in range(WARMUP_FRAMES + 500):
-            seeded.update(1.0)
+            seeded.update(0.0)
+        for _ in range(40):
+            seeded.update(2.0)
         svc._states[1] = seeded
         svc._state_keys[1] = "job"
         svc._action_fired[1] = False
@@ -597,3 +599,75 @@ class TestCheckPrinterUsesCachedFrameUrl:
             await svc._check_printer(1, status, settings)
 
         assert svc._last_error is None
+
+
+@pytest.mark.asyncio
+async def test_action_stays_latched_across_pause_and_reconnect_but_rearms_for_a_new_job(monkeypatch):
+    from types import SimpleNamespace
+
+    from backend.app.services.printer_manager import printer_manager
+
+    svc = ObicoDetectionService()
+    settings = {
+        "enabled_printers": None,
+        "ml_url": "http://obico:3333",
+        "external_url": "http://printops:8000",
+        "action": "pause_and_off",
+        "sensitivity": "medium",
+    }
+    status = SimpleNamespace(state="RUNNING", subtask_name="same file", subtask_id="1")
+    connected = True
+    monkeypatch.setattr(printer_manager, "get_all_statuses", lambda: {1: status})
+    monkeypatch.setattr(printer_manager, "is_connected", lambda _: connected)
+    monkeypatch.setattr(svc, "_capture_frame", AsyncMock(return_value=FAKE_JPEG))
+    action = AsyncMock()
+    monkeypatch.setattr(svc, "_dispatch_action", action)
+
+    response = MagicMock(status_code=200)
+    response.json.return_value = {"detections": []}
+    http = MagicMock()
+    http.get = AsyncMock(return_value=response)
+    http.__aenter__ = AsyncMock(return_value=http)
+    http.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr("backend.app.services.obico_detection.httpx.AsyncClient", lambda **_: http)
+    await svc._poll_once(settings)
+    first = svc._states[1]
+    for _ in range(500):
+        first.update(0)
+    for _ in range(30):
+        first.update(2)
+    response.json.return_value = {"detections": [["failure", 0.9], ["failure", 0.9]]}
+    await svc._poll_once(settings)
+    action.assert_awaited_once()
+
+    status.state = "PAUSE"
+    await svc._poll_once(settings)
+    assert svc._states[1] is first
+    connected = False
+    await svc._poll_once(settings)
+    assert svc.get_per_printer()[1]["class"] == "error"
+    connected = True
+    status.state = "RUNNING"
+    await svc._poll_once(settings)
+    assert svc._states[1] is first
+    action.assert_awaited_once()
+
+    status.subtask_id = "2"
+    response.json.return_value = {"detections": [["failure", "invalid"]]}
+    await svc._poll_once(settings)
+    second = svc._states[1]
+    assert second is not first and second.baseline is first.baseline
+    assert svc.get_per_printer()[1]["class"] == "error"
+    assert second.frame_count == 0
+    assert svc._action_fired[1] is False
+    response.json.return_value = {"detections": []}
+    await svc._poll_once(settings)
+    assert svc.get_per_printer()[1]["class"] == "safe"
+    assert second.frame_count == 1
+
+    status.state = "FINISH"
+    await svc._poll_once(settings)
+    assert svc.get_per_printer() == {}
+    assert svc._baselines[1] is first.baseline
+    svc.forget_printer(1)
+    assert 1 not in svc._baselines

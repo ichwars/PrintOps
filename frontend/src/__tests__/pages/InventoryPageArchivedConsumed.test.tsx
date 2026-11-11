@@ -17,7 +17,8 @@
  *      to un-archive it first.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
 import InventoryPageRouter from '../../pages/InventoryPage';
 import { http, HttpResponse } from 'msw';
@@ -158,7 +159,7 @@ const mockSpools = [
 describe('InventoryPage — Total Consumed includes archived (#1390 follow-up)', () => {
   beforeEach(() => {
     server.use(
-      http.get('/api/v1/settings/', () => HttpResponse.json(baseSettings)),
+      http.get('/api/v1/settings/ui-flags', () => HttpResponse.json(baseSettings)),
       http.get('/api/v1/inventory/spools', () => HttpResponse.json(mockSpools)),
       http.get('/api/v1/inventory/assignments', () => HttpResponse.json([])),
       http.get('/api/v1/spoolman/settings', () =>
@@ -205,5 +206,42 @@ describe('InventoryPage — Total Consumed includes archived (#1390 follow-up)',
       // just check the bulk-reset button rendered.
       expect(screen.getByRole('button', { name: /reset all counters/i })).toBeInTheDocument();
     });
+  });
+});
+
+// FO-C8: a reset of every counter where some or all failed (Spoolman refusing
+// them, spools deleted meanwhile) was shown as a green "Counter reset for N".
+describe('InventoryPage — resetting all counters says what failed', () => {
+  const resetAll = async (response: Record<string, unknown>) => {
+    server.use(
+      http.get('/api/v1/settings/ui-flags', () => HttpResponse.json(baseSettings)),
+      http.get('/api/v1/inventory/spools', () => HttpResponse.json(mockSpools)),
+      http.get('/api/v1/inventory/assignments', () => HttpResponse.json([])),
+      http.get('/api/v1/spoolman/settings', () => HttpResponse.json({ spoolman_enabled: 'false' })),
+      http.post('/api/v1/inventory/spools/reset-consumed-counter-bulk', () => HttpResponse.json(response)),
+    );
+    const user = userEvent.setup();
+    render(<InventoryPageRouter />);
+    await user.click(await screen.findByRole('button', { name: 'Reset all counters' }));
+    const modal = (await screen.findByText(/Reset the consumed-grams counter to 0 on all/)).closest('.fixed');
+    await user.click(within(modal as HTMLElement).getByRole('button', { name: 'Reset counter' }));
+  };
+
+  it('says so when none was reset', async () => {
+    await resetAll({ reset: 0, not_found: [1, 2] });
+
+    expect(await screen.findByText('No counter was reset: all 2 failed')).toBeInTheDocument();
+  });
+
+  it('says how many failed when some were', async () => {
+    await resetAll({ reset: 1, errors: [{ id: 2, status: 503, detail: 'down' }] });
+
+    expect(await screen.findByText('Counter reset for 1 spool(s), 1 failed')).toBeInTheDocument();
+  });
+
+  it('confirms a full reset as before', async () => {
+    await resetAll({ reset: 2, not_found: [] });
+
+    expect(await screen.findByText('Counter reset for 2 spool(s)')).toBeInTheDocument();
   });
 });

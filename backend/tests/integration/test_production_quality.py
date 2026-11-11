@@ -1,5 +1,7 @@
 """Quality is per production run; machine completion alone is not acceptance."""
 
+import re
+
 import pytest
 from sqlalchemy import func, select
 
@@ -541,6 +543,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
 
     from backend.app import main
     from backend.app.core.auth import create_access_token, get_password_hash
+    from backend.app.core.auth_websocket import WebSocketAccess
     from backend.app.core.websocket import ws_manager
     from backend.app.models.commerce import CustomerOrder
     from backend.app.models.group import Group
@@ -653,7 +656,10 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     monkeypatch.setattr("backend.app.api.routes.camera.is_stream_active", lambda _id: False)
 
     sockets = [
-        SimpleNamespace(state=SimpleNamespace(printops_principal_user_id=uid), send_text=AsyncMock())
+        SimpleNamespace(
+            state=SimpleNamespace(printops_live_access=WebSocketAccess(authenticated=True, user_id=uid)),
+            send_text=AsyncMock(),
+        )
         for uid in (owner.id, owner.id + 100, None)
     ]
     monkeypatch.setattr(ws_manager, "active_connections", sockets)
@@ -754,15 +760,19 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
                     json.loads(call.args[0]).get("type") == "print_confirm_request"
                     for call in other.send_text.call_args_list
                 )
-            assert not any("Actions" in request.headers for request in provider_requests), (
-                "no stale external capability"
-            )
             app_url = f"https://printops.example/archives?confirm={archive.id}&confirm_run={completed_run.id}"
             quality_requests = [request for request in provider_requests if app_url.encode() in request.content]
             assert len(quality_requests) == 1, (
                 "historical run must still reach its configured external quality provider"
             )
             assert b"outcome-link" not in quality_requests[0].content
+            actions = quality_requests[0].headers.get("Actions", "")
+            if old_token:
+                assert not actions
+            else:
+                link = re.search(r"/api/v1/archives/outcome-link/[A-Za-z0-9_-]{43}/good", actions)
+                assert link is not None
+                assert (await async_client.get(link.group())).status_code == 200
             prompt_log = await db_session.scalar(
                 select(NotificationLog).where(NotificationLog.event_type == "print_confirm_request")
             )
@@ -864,7 +874,10 @@ async def test_historical_quality_hint_keeps_owner_and_printer_guards(
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
+    from backend.app.core.auth_websocket import WebSocketAccess
+    from backend.app.core.permissions import Permission
     from backend.app.core.websocket import ws_manager
+    from backend.app.models.group import Group
     from backend.app.models.settings import Settings
     from backend.app.models.user import User
     from backend.app.services.print_confirmation import send_outcome_confirmation_hint
@@ -872,6 +885,7 @@ async def test_historical_quality_hint_keeps_owner_and_printer_guards(
     archive, _, _, run = quality_run
     owner = User(
         username="hint-owner",
+        groups=[Group(name="Hint permission", permissions=[Permission.ARCHIVES_UPDATE_OWN.value])],
         allowed_printer_ids=[archive.printer_id + 100] if blocked == "printer" else [archive.printer_id],
         is_active=blocked != "inactive",
     )
@@ -886,7 +900,10 @@ async def test_historical_quality_hint_keeps_owner_and_printer_guards(
     if blocked == "answered":
         run.good_quantity, run.reject_quantity, run.user_verdict = 4, 0, "good"
     await db_session.commit()
-    socket = SimpleNamespace(state=SimpleNamespace(printops_principal_user_id=owner.id), send_text=AsyncMock())
+    socket = SimpleNamespace(
+        state=SimpleNamespace(printops_live_access=WebSocketAccess(authenticated=True, user_id=owner.id)),
+        send_text=AsyncMock(),
+    )
     monkeypatch.setattr(ws_manager, "active_connections", [socket])
     assert await send_outcome_confirmation_hint(
         db_session,
@@ -1228,7 +1245,7 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
         assert rolled_back, "the temporary public token must be rolled back before historical fallback"
         assert len(requests) == (1 if changed_after_rollback is None else 0)
         if requests:
-            assert "Actions" not in requests[0].headers
+            assert "/outcome-link/" in requests[0].headers["Actions"]
             assert (
                 f"https://printops.example/archives?confirm={archive_id}&confirm_run={run_id}".encode()
                 in requests[0].content
@@ -1236,7 +1253,9 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
         async with sessions() as check:
             saved_run = await check.get(PrintLogEntry, run_id)
             saved_archive = await check.get(PrintArchive, archive_id)
-            assert saved_run.confirm_token_hash is None and saved_run.confirm_token_expires_at is None
+            assert bool(saved_run.confirm_token_run_scoped) is bool(requests)
+            assert (saved_run.confirm_token_hash is not None) is bool(requests)
+            assert (saved_run.confirm_token_expires_at is not None) is bool(requests)
             assert (saved_archive.status, saved_archive.started_at) == (next_status, next_start)
             assert (saved_archive.good_quantity, saved_archive.reject_quantity) == (None, None)
             if next_run_id is not None:
@@ -1255,3 +1274,74 @@ async def test_external_prompt_revalidates_after_next_copy_wins_the_current_clai
         assert len(requests) == (1 if changed_after_rollback is None else 0)
     finally:
         await engine.dispose()
+
+
+async def test_quality_hint_reaches_jwt_owner_and_full_archive_editor(quality_run, db_session, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from backend.app.core.auth_websocket import WebSocketAccess
+    from backend.app.core.permissions import Permission
+    from backend.app.core.websocket import ws_manager
+    from backend.app.models.group import Group
+    from backend.app.models.settings import Settings
+    from backend.app.models.user import User
+    from backend.app.services.print_confirmation import send_outcome_confirmation_hint
+
+    archive, _, _, run = quality_run
+    owners = Group(name="Own outcomes", permissions=[Permission.ARCHIVES_UPDATE_OWN.value])
+    user = User(username="print-owner", groups=[owners])
+    viewer = User(username="other-owner", groups=[owners])
+    admin = User(username="archive-editor", role="admin")
+    db_session.add_all([user, viewer, admin, Settings(key="auth_enabled", value="true")])
+    await db_session.flush()
+    archive.created_by_id = user.id
+    await db_session.commit()
+
+    access = [
+        WebSocketAccess(authenticated=True, user_id=user.id),
+        WebSocketAccess(authenticated=True, user_id=viewer.id),
+        WebSocketAccess(authenticated=True, user_id=admin.id),
+        WebSocketAccess(authenticated=True, user_id=user.id, api_key_id=99),
+    ]
+    sockets = [
+        SimpleNamespace(state=SimpleNamespace(printops_live_access=entry), send_text=AsyncMock()) for entry in access
+    ]
+    monkeypatch.setattr(ws_manager, "active_connections", sockets)
+    assert await send_outcome_confirmation_hint(db_session, archive.id, run.id, run.printer_id)
+    assert [socket.send_text.await_count for socket in sockets] == [1, 0, 1, 0]
+
+
+async def test_new_run_confirmation_link_answers_its_original_printer_after_reuse(
+    async_client, quality_run, db_session, printer_factory
+):
+    from datetime import datetime, timedelta
+
+    from backend.app.services.print_confirmation import issue_confirmation_token
+
+    archive, _, _, first = quality_run
+    first.started_at = archive.started_at = datetime(2026, 11, 11, 10)
+    first.confirm_requested = True
+    token = await issue_confirmation_token(db_session, archive, run_id=first.id, run_scoped=True)
+    assert token
+    second_printer = await printer_factory()
+    archive.printer_id = second_printer.id
+    archive.status = "printing"
+    archive.started_at = first.started_at + timedelta(minutes=15)
+    other = PrintLogEntry(
+        archive_id=archive.id, printer_id=second_printer.id, status="printing", started_at=archive.started_at
+    )
+    db_session.add(other)
+    await db_session.commit()
+
+    url = f"/api/v1/archives/outcome-link/{token}"
+    assert (await async_client.get(f"{url}/good")).status_code == 200
+    await db_session.refresh(first)
+    assert first.user_verdict is None
+    assert (await async_client.post(f"{url}/good")).status_code == 200
+    assert (await async_client.post(f"{url}/reject")).status_code == 200
+    await db_session.refresh(first)
+    await db_session.refresh(other)
+    await db_session.refresh(archive)
+    assert (first.good_quantity, first.reject_quantity, first.user_verdict) == (4, 0, "good")
+    assert archive.user_verdict is None and other.user_verdict is None

@@ -19,14 +19,19 @@ from backend.app.models.virtual_printer import (
     VP_MODE_QUEUE,
     normalize_vp_mode,
 )
+from backend.app.services.print_defaults import default_print_options
+from backend.app.services.queue_announcements import announce_queue_jobs_added
+from backend.app.services.queue_source_metadata import store_slicer_ams_mapping
 from backend.app.services.virtual_printer.bind_server import BindServer
 from backend.app.services.virtual_printer.certificate import CertificateService
 from backend.app.services.virtual_printer.ftp_server import VirtualPrinterFTPServer, compute_passive_port_slice
 from backend.app.services.virtual_printer.mqtt_bridge import MQTTBridge
 from backend.app.services.virtual_printer.mqtt_server import SimpleMQTTServer
+from backend.app.services.virtual_printer.queue_options import mapping_reaches_plate, queue_options
 from backend.app.services.virtual_printer.ssdp_server import SSDPProxy, VirtualPrinterSSDPServer
 from backend.app.services.virtual_printer.tcp_proxy import SlicerProxyManager, TCPProxy
 from backend.app.utils.advertised_address import validate_advertised_ip
+from backend.app.utils.printer_models import is_dual_nozzle_model, normalize_printer_model_id
 
 if TYPE_CHECKING:
     from backend.app.services.printer_manager import PrinterManager
@@ -230,6 +235,7 @@ class VirtualPrinterInstance:
         # `_RECENT_QUEUE_ITEM_TTL` are evicted opportunistically on each
         # queue-add.
         self._recent_queue_items: dict[str, tuple[list[int], float]] = {}
+        self._recent_queue_slots: dict[str, dict[int, tuple[int, tuple[int, ...]]]] = {}
 
         # Per-instance services
         self._proxy: SlicerProxyManager | None = None
@@ -387,103 +393,85 @@ class VirtualPrinterInstance:
         # MQTT lands just past the bumped wait ceiling.
         await self._restamp_recent_queue_item(stash_key, data)
 
-    async def _restamp_recent_queue_item(self, stash_key: str, data: dict) -> None:
-        """Patch slicer-driven fields onto a queue item the MQTT command missed.
+    def _captured_queue_options(self, data):
+        if not data:
+            return {}
+        bound = self.target_printer_id is not None
+        model = VIRTUAL_PRINTER_MODELS.get(self.model, self.model)
+        client = self._printer_manager.get_client(self.target_printer_id) if bound and self._printer_manager else None
+        live_model = getattr(client, "model", None)
+        dual_nozzle = is_dual_nozzle_model(live_model if isinstance(live_model, str) else model)
+        if client is not None and getattr(client, "_is_dual_nozzle", False) is True:
+            dual_nozzle = True
+        return queue_options(
+            data,
+            bound=bound,
+            keep_ams=bound and not self.queue_force_color_match,
+            keep_nozzle=bound or normalize_printer_model_id(model) != "H2C",
+            dual_nozzle=dual_nozzle,
+        )
 
-        ``_add_to_print_queue`` waits up to ``_SLICER_OPTIONS_WAIT_TIMEOUT``
-        for the slicer's MQTT ``project_file`` before committing the queue
-        item. If the MQTT command arrives after that window — observed in
-        the field at ~2.1 s on H2C / wireless setups (#1780 round 3) — the
-        row was already written with settings defaults. This method runs
-        on the late MQTT path: it looks up the most recent queue items
-        committed for this filename and patches in the slicer's
-        ``nozzle_mapping`` + workflow flags, but only while the items are
-        still ``pending`` (scheduler hasn't dispatched them yet).
-        """
+    async def _restamp_recent_queue_item(self, stash_key: str, data: dict) -> None:
+        """Apply late slicer options only before the queue row has been claimed."""
+        import json
+
+        from sqlalchemy import select, update
+
+        from backend.app.models.archive import PrintArchive
+        from backend.app.models.print_queue import PrintQueueItem
+
         if not self._session_factory:
             return
-        entry = self._recent_queue_items.get(stash_key)
+        entry = self._recent_queue_items.pop(stash_key, None)
+        slots_by_item = self._recent_queue_slots.pop(stash_key, {})
         if entry is None:
             return
         queue_item_ids, committed_at = entry
         if time.monotonic() - committed_at > _RECENT_QUEUE_ITEM_TTL:
-            self._recent_queue_items.pop(stash_key, None)
             return
-
-        import json
-
-        # Mirror the field set `_add_to_print_queue` reads off slicer_opts.
-        # MQTT uses `bed_leveling` (single L); the column is `bed_levelling`.
-        # `nozzles_info` is intentionally not stamped — column kept for
-        # legacy rows but never written; see PrintQueueItem.nozzles_info.
-        patch: dict = {}
-        for mqtt_field, column in (
-            ("bed_leveling", "bed_levelling"),
-            ("flow_cali", "flow_cali"),
-            ("vibration_cali", "vibration_cali"),
-            ("layer_inspect", "layer_inspect"),
-            ("timelapse", "timelapse"),
-            ("use_ams", "use_ams"),
-        ):
-            if mqtt_field in data:
-                patch[column] = bool(data[mqtt_field])
-
-        raw = data.get("nozzle_mapping")
-        if raw is not None:
-            if isinstance(raw, str):
-                try:
-                    raw = json.loads(raw)
-                except json.JSONDecodeError:
-                    logger.warning(
-                        "[VP %s] Late MQTT nozzle_mapping is unparseable JSON, dropping: %r",
-                        self.name,
-                        raw,
-                    )
-                    raw = None
-            if raw is not None:
-                patch["nozzle_mapping"] = json.dumps(raw)
-
+        patch = self._captured_queue_options(data)
         if not patch:
-            self._recent_queue_items.pop(stash_key, None)
             return
 
-        from sqlalchemy import select, update
-
-        from backend.app.models.print_queue import PrintQueueItem
-
+        mapping = json.loads(patch["ams_mapping"]) if "ams_mapping" in patch else None
+        short = {
+            item_id
+            for item_id in queue_item_ids
+            if mapping is not None and not mapping_reaches_plate(mapping, slots_by_item.get(item_id, (0, ()))[1])
+        }
+        shared_filter = (
+            PrintQueueItem.status == "pending",
+            PrintQueueItem.dispatching_at.is_(None),
+            PrintQueueItem.printer_id.is_not_distinct_from(self.target_printer_id),
+        )
+        short_patch = {key: value for key, value in patch.items() if key != "ams_mapping"}
         try:
             async with self._session_factory() as db:
-                # Only stamp items still pending; once the scheduler has
-                # picked the row up we can't safely race the dispatcher.
-                result = await db.execute(
-                    select(PrintQueueItem.id).where(
+                for ids, values in (
+                    (set(queue_item_ids) - short, patch),
+                    (short, short_patch),
+                ):
+                    if ids and values:
+                        await db.execute(
+                            update(PrintQueueItem).where(PrintQueueItem.id.in_(ids), *shared_filter).values(**values)
+                        )
+                if mapping is not None:
+                    archive_ids = select(PrintQueueItem.archive_id).where(
                         PrintQueueItem.id.in_(queue_item_ids),
                         PrintQueueItem.status == "pending",
+                        PrintQueueItem.printer_id == self.target_printer_id,
                     )
-                )
-                eligible_ids = [row[0] for row in result.all()]
-                if not eligible_ids:
-                    self._recent_queue_items.pop(stash_key, None)
-                    return
-                await db.execute(update(PrintQueueItem).where(PrintQueueItem.id.in_(eligible_ids)).values(**patch))
+                    archives = await db.scalars(
+                        select(PrintArchive)
+                        .where(PrintArchive.id.in_(archive_ids), PrintArchive.deleted_at.is_(None))
+                        .with_for_update()
+                    )
+                    plates = [plate_id for item_id, (plate_id, _) in slots_by_item.items() if item_id not in short]
+                    for archive in archives:
+                        store_slicer_ams_mapping(archive, self.target_printer_id, mapping, plates)
                 await db.commit()
-                logger.info(
-                    "[VP %s] Late slicer MQTT for %s — retroactively stamped %s onto queue item(s) %s",
-                    self.name,
-                    stash_key,
-                    sorted(patch.keys()),
-                    eligible_ids,
-                )
-        except Exception as e:
-            logger.error(
-                "[VP %s] Failed to retroactively stamp queue item(s) %s for %s: %s",
-                self.name,
-                queue_item_ids,
-                stash_key,
-                e,
-            )
-        finally:
-            self._recent_queue_items.pop(stash_key, None)
+        except Exception:
+            logger.exception("[VP %s] Could not apply late slicer options for %s", self.name, stash_key)
 
     def _schedule_finish_release(self, filename: str, delay: float = 1.5) -> None:
         """Re-set gcode_state=FINISH on the VP after the project_file ack.
@@ -619,9 +607,21 @@ class VirtualPrinterInstance:
             logger.debug("[VP %s] Metadata title peek failed for %s: %s", self.name, file_path.name, e)
 
         try:
+            from sqlalchemy import select
+
+            from backend.app.core.user_printer_scope import prepare_printer_scope_write
             from backend.app.models.pending_upload import PendingUpload
+            from backend.app.models.virtual_printer import VirtualPrinter
 
             async with self._session_factory() as db:
+                # Serialize with deletion so an upload cannot outlive the directory that holds it.
+                await prepare_printer_scope_write(db)
+                if (
+                    await db.scalar(select(VirtualPrinter.id).where(VirtualPrinter.id == self.id).with_for_update())
+                    is None
+                ):
+                    file_path.unlink(missing_ok=True)
+                    return
                 pending = PendingUpload(
                     filename=file_path.name,
                     file_path=str(file_path),
@@ -711,75 +711,10 @@ class VirtualPrinterInstance:
                 name_source = await get_setting(db, "virtual_printer_archive_name_source")
                 prefer_filename = name_source == "filename"
 
-                # Read workflow defaults from settings. Without this the
-                # PrintQueueItem below would fall back to the column-level
-                # defaults and ignore the user's workflow preferences (#1235).
-                # Fallbacks match AppSettings defaults in schemas/settings.py.
-                # The slicer-side options captured above (if any) take
-                # precedence per-field over these defaults.
-                def _bool_setting(value: str | None, default: bool) -> bool:
-                    return value.lower() == "true" if value is not None else default
-
-                def _slicer_or(field_mqtt: str, settings_default: bool) -> bool:
-                    """Slicer's MQTT value if present, else the settings default.
-
-                    Slicer payloads carry both bool and int (0/1) shapes
-                    depending on firmware family — coerce via bool() so
-                    `0`/`False` and `1`/`True` both work.
-                    """
-                    if slicer_opts is not None and field_mqtt in slicer_opts:
-                        return bool(slicer_opts[field_mqtt])
-                    return settings_default
-
-                # Note the MQTT field names differ from PrintOps's column
-                # names: MQTT uses `bed_leveling` (single L) while the
-                # column / settings key use `bed_levelling` (double L).
-                bed_levelling = _slicer_or(
-                    "bed_leveling", _bool_setting(await get_setting(db, "default_bed_levelling"), True)
-                )
-                flow_cali = _slicer_or("flow_cali", _bool_setting(await get_setting(db, "default_flow_cali"), False))
-                vibration_cali = _slicer_or(
-                    "vibration_cali", _bool_setting(await get_setting(db, "default_vibration_cali"), True)
-                )
-                layer_inspect = _slicer_or(
-                    "layer_inspect", _bool_setting(await get_setting(db, "default_layer_inspect"), False)
-                )
-                timelapse = _slicer_or("timelapse", _bool_setting(await get_setting(db, "default_timelapse"), False))
-
-                # H2C dual-nozzle-rack slicer-pick preservation (#1780).
-                # BambuStudio's project_file MQTT command for rack-swap models
-                # (O1C2 today) carries `nozzle_mapping` — a per-filament array
-                # of physical nozzle position IDs (`list[int]`). Forward it
-                # verbatim onto the queue item so the dispatcher can replay it
-                # in its own project_file command. Without this the H2C
-                # firmware falls back to "last matching nozzle" auto-pick and
-                # ignores the user's Bambu Studio choice. Every other model
-                # has it absent from slicer_opts, so the capture is a
-                # transparent no-op there. (`nozzles_info` was also captured
-                # in the original fix but BambuStudio never actually sends it
-                # — verified via wire capture on H2C — so only `nozzle_mapping`
-                # is forwarded now.)
-                nozzle_mapping_json: str | None = None
-                if slicer_opts is not None:
-                    raw = slicer_opts.get("nozzle_mapping")
-                    if raw is not None:
-                        # BambuStudio's NetworkAgent embeds this as parsed
-                        # JSON in the project_file body (matching the
-                        # ams_mapping shape PrintOps already consumes as
-                        # list[int]). Accept a JSON-encoded string defensively
-                        # in case any path arrives stringified.
-                        if isinstance(raw, str):
-                            try:
-                                raw = json.loads(raw)
-                            except json.JSONDecodeError:
-                                logger.warning(
-                                    "[VP %s] Slicer nozzle_mapping is unparseable JSON, dropping: %r",
-                                    self.name,
-                                    raw,
-                                )
-                                raw = None
-                        if raw is not None:
-                            nozzle_mapping_json = json.dumps(raw)
+                options = {"use_ams": True, **await default_print_options(db)}
+                options.update(self._captured_queue_options(slicer_opts or {}))
+                ams_mapping_json = options.pop("ams_mapping", None)
+                ams_mapping = json.loads(ams_mapping_json) if ams_mapping_json else None
 
                 service = ArchiveService(db)
                 archive = await service.archive_print(
@@ -830,6 +765,8 @@ class VirtualPrinterInstance:
                     # force_color_match=True when the per-VP setting is on, so
                     # upgraders keep the old behaviour by default.
                     queue_item_ids: list[int] = []
+                    queue_item_slots = {}
+                    mapped_plates = []
                     for offset, plate_id in enumerate(plate_ids, start=1):
                         required_filament_types_json: str | None = None
                         filament_overrides_json: str | None = None
@@ -853,6 +790,8 @@ class VirtualPrinterInstance:
                                 if overrides:
                                     filament_overrides_json = json.dumps(overrides)
 
+                        slots = tuple(row["slot_id"] for row in requirements)
+                        fits = ams_mapping is not None and mapping_reaches_plate(ams_mapping, slots)
                         queue_item = PrintQueueItem(
                             printer_id=self.target_printer_id,
                             target_model=target_model,
@@ -863,25 +802,18 @@ class VirtualPrinterInstance:
                             manual_start=not self.auto_dispatch,
                             required_filament_types=required_filament_types_json,
                             filament_overrides=filament_overrides_json,
-                            bed_levelling=bed_levelling,
-                            flow_cali=flow_cali,
-                            vibration_cali=vibration_cali,
-                            layer_inspect=layer_inspect,
-                            timelapse=timelapse,
-                            # Per-VP opt-in for auto-print G-code injection (#1516).
-                            # Default off; when on, the scheduler still no-ops unless
-                            # gcode_snippets are configured for the target model, so it's
-                            # effectively "inject when enabled AND snippets exist".
+                            ams_mapping=ams_mapping_json if fits else None,
                             gcode_injection=self.gcode_injection,
-                            # H2C rack-swap slicer pick (#1780). Captured above;
-                            # stamped on every plate so a multi-plate Send All keeps
-                            # the same nozzle pick across plates rather than only the
-                            # first one (mirrors the #1697 / #1188 per-plate loop fix).
-                            nozzle_mapping=nozzle_mapping_json,
+                            **options,
                         )
                         db.add(queue_item)
                         await db.flush()  # populate queue_item.id before logging
                         queue_item_ids.append(queue_item.id)
+                        queue_item_slots[queue_item.id] = (plate_id, slots)
+                        if fits:
+                            mapped_plates.append(plate_id)
+                    if ams_mapping is not None:
+                        store_slicer_ams_mapping(archive, self.target_printer_id, ams_mapping, mapped_plates)
                     await db.commit()
                     # Track the freshly-committed queue items so
                     # `on_print_command` can retroactively stamp slicer-side
@@ -893,7 +825,11 @@ class VirtualPrinterInstance:
                     now = time.monotonic()
                     cutoff = now - _RECENT_QUEUE_ITEM_TTL
                     self._recent_queue_items = {k: v for k, v in self._recent_queue_items.items() if v[1] > cutoff}
-                    self._recent_queue_items[file_path.name] = (list(queue_item_ids), now)
+                    self._recent_queue_slots = {
+                        key: value for key, value in self._recent_queue_slots.items() if key in self._recent_queue_items
+                    }
+                    self._recent_queue_items[file_path.name] = (queue_item_ids, now)
+                    self._recent_queue_slots[file_path.name] = queue_item_slots
                     # Last-chance check: MQTT for this filename could have
                     # arrived during ANY await between the initial pop and
                     # now — wait_for itself, archive_print, db.flush,
@@ -911,6 +847,7 @@ class VirtualPrinterInstance:
                             file_path.name,
                         )
                         await self._restamp_recent_queue_item(file_path.name, late_opts)
+                    await announce_queue_jobs_added(queue_item_ids, session_factory=self._session_factory)
                     if len(queue_item_ids) == 1:
                         logger.info("[VP %s] Added to queue: %s", self.name, queue_item_ids[0])
                     else:
@@ -1463,8 +1400,11 @@ class VirtualPrinterManager:
             # row read before the migration window finishes would otherwise
             # trip the "changed" branch and bounce every VP at boot.
             db_mode = normalize_vp_mode(vp.mode)
+            # The Tailscale flag controls what the card shows, so updating it need not interrupt uploads.
+            instance.tailscale_disabled = vp.tailscale_disabled
             changed = (
                 instance.mode != db_mode
+                or instance.name != vp.name
                 or instance.model != (vp.model or DEFAULT_VIRTUAL_PRINTER_MODEL)
                 or instance.access_code != (vp.access_code or "")
                 or instance.bind_ip != (vp.bind_ip or "")
@@ -1509,7 +1449,10 @@ class VirtualPrinterManager:
                     serial_suffix=vp.serial_suffix,
                     target_printer_ip=target_ip,
                     target_printer_serial=target_serial,
+                    target_printer_id=vp.target_printer_id,
                     auto_dispatch=vp.auto_dispatch,
+                    queue_force_color_match=vp.queue_force_color_match,
+                    gcode_injection=vp.gcode_injection,
                     bind_ip=vp.bind_ip or "",
                     remote_interface_ip=vp.remote_interface_ip or "",
                     advertised_ip=vp.advertised_ip or "",
@@ -1546,20 +1489,23 @@ class VirtualPrinterManager:
 
     async def remove_instance(self, vp_id: int) -> None:
         """Stop and remove a single VP instance."""
-        instance = self._instances.pop(vp_id, None)
+        instance = self._instances.get(vp_id)
         if instance:
             if instance.is_proxy:
                 await instance.stop_proxy()
             else:
                 await instance.stop_server()
+            if self._instances.get(vp_id) is instance:
+                del self._instances[vp_id]
             logger.info("Removed VP instance: %s", instance.name)
 
     async def stop_all(self) -> None:
         """Shutdown all virtual printer services."""
         logger.info("Stopping all virtual printer services...")
 
-        for vp_id in list(self._instances.keys()):
-            await self.remove_instance(vp_id)
+        async with self._sync_lock:
+            for vp_id in list(self._instances):
+                await self.remove_instance(vp_id)
 
         logger.info("All virtual printer services stopped")
 

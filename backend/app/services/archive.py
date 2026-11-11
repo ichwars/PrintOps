@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import html
 import json
@@ -6,18 +7,21 @@ import os
 import re
 import shutil
 import zipfile
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from defusedxml import ElementTree as ET
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from backend.app.core.config import settings
 from backend.app.core.tasks import spawn_background_task
 from backend.app.models.archive import PrintArchive
-from backend.app.models.filament import Filament
 from backend.app.models.printer import Printer
+from backend.app.services.archive_timelapse import ANY_RUN
+from backend.app.utils.local_time import calendar_bounds
 from backend.app.utils.safe_path import PathTraversalError, safe_join_under
 from backend.app.utils.threemf_tools import bed_temperature_from_config
 
@@ -354,6 +358,8 @@ class ThreeMFParser:
                     used_filament_ids.discard(0)
                     if used_filament_ids:
                         self.metadata["_slice_filament_ids"] = used_filament_ids
+                        if self.plate_number or len(plates) == 1:
+                            self._temperature_filament = min((i for i in used_filament_ids if i > 0), default=1) - 1
 
                     # Collect per-slot filament usage for tracking & notifications
                     filament_slots = []
@@ -526,7 +532,8 @@ class ThreeMFParser:
                 if key in data:
                     val = data[key]
                     if isinstance(val, list) and val:
-                        self.metadata["nozzle_temperature"] = int(float(val[0]))
+                        index = getattr(self, "_temperature_filament", 0)
+                        self.metadata["nozzle_temperature"] = int(float(val[index if index < len(val) else 0]))
                     elif isinstance(val, (int, float, str)):
                         self.metadata["nozzle_temperature"] = int(float(val))
                     break
@@ -963,22 +970,19 @@ class ProjectPageParser:
             return False
 
 
-async def _null_print_log_thumbnail_paths(db: AsyncSession, archive_id: int) -> None:
-    """NULL thumbnail_path on PrintLogEntry rows linked to *archive_id*.
-
-    Called from both soft- and hard-delete paths before the archive's files
-    leave disk. The FK on PrintLogEntry.archive_id is ON DELETE SET NULL so
-    log rows survive the archive — without this clear, their cached
-    thumbnail_path would still point at a deleted file and the print-log
-    view would 404-storm on every render (#1348 follow-up). Lazy-NULL on
-    the GET route self-heals stragglers (e.g. failed prints that never had
-    a thumbnail written), but eager clear here avoids the one-time storm.
-    """
+async def _clear_archived_run_media(db: AsyncSession, archive_id: int) -> None:
+    """Clear file references from print runs that outlive their archive's files."""
     from sqlalchemy import update as sa_update
 
     from backend.app.models.print_log import PrintLogEntry
+    from backend.app.services.print_log_run import discard_print_runs
 
-    await db.execute(sa_update(PrintLogEntry).where(PrintLogEntry.archive_id == archive_id).values(thumbnail_path=None))
+    await discard_print_runs(db, PrintLogEntry.archive_id == archive_id)
+    await db.execute(
+        sa_update(PrintLogEntry)
+        .where(PrintLogEntry.archive_id == archive_id)
+        .values(thumbnail_path=None, timelapse_path=None, timelapse_baseline=None, photos=None)
+    )
 
 
 async def _delete_related_queue_items(db: AsyncSession, archive_id: int) -> int:
@@ -1041,6 +1045,24 @@ async def _count_related_queue_items(db: AsyncSession, archive_id: int) -> tuple
     return int(total or 0), int(printing or 0)
 
 
+async def lock_archive_queue_for_deletion(db: AsyncSession, archive_filter, *, owner_id: int | None = None) -> int:
+    """Serialize archive and queue deletion with the scheduler's dispatch claim."""
+    from backend.app.models.print_queue import PrintQueueItem
+
+    archive_ids = select(PrintArchive.id).where(archive_filter)
+    if db.get_bind().dialect.name == "sqlite":
+        await db.execute(text("UPDATE print_queue SET id = id WHERE 0"))
+    else:
+        await db.execute(archive_ids.order_by(PrintArchive.id).with_for_update())
+    linked = PrintQueueItem.archive_id.in_(archive_ids)
+    if owner_id is not None:
+        linked = or_(linked, PrintQueueItem.created_by_id == owner_id)
+    statuses = await db.scalars(
+        select(PrintQueueItem.status).where(linked).order_by(PrintQueueItem.id).with_for_update()
+    )
+    return sum(queue_status == "printing" for queue_status in statuses)
+
+
 class ArchiveService:
     """Service for archiving print jobs."""
 
@@ -1057,7 +1079,9 @@ class ArchiveService:
                 sha256.update(chunk)
         return sha256.hexdigest()
 
-    async def get_duplicate_hashes_and_names(self) -> tuple[set[str], set[tuple[str, str]]]:
+    async def get_duplicate_hashes_and_names(
+        self, visible: tuple[ColumnElement[bool], ...] = ()
+    ) -> tuple[set[str], set[tuple[str, str]]]:
         """Get all content hashes and (print name, hash) pairs that appear more than once.
 
         For hashes: returns all hashes with > 1 archive (true duplicates).
@@ -1074,7 +1098,7 @@ class ArchiveService:
         # duplicate even though the user only sees one row.
         result = await self.db.execute(
             select(PrintArchive.content_hash)
-            .where(PrintArchive.content_hash.isnot(None), PrintArchive.deleted_at.is_(None))
+            .where(PrintArchive.content_hash.isnot(None), PrintArchive.deleted_at.is_(None), *visible)
             .group_by(PrintArchive.content_hash)
             .having(func.count(PrintArchive.id) > 1)
         )
@@ -1088,6 +1112,7 @@ class ArchiveService:
                 PrintArchive.print_name.isnot(None),
                 PrintArchive.content_hash.isnot(None),
                 PrintArchive.deleted_at.is_(None),
+                *visible,
             )
             .group_by(func.lower(PrintArchive.print_name), PrintArchive.content_hash)
             .having(func.count(PrintArchive.id) > 1)
@@ -1102,6 +1127,8 @@ class ArchiveService:
         content_hash: str | None = None,
         print_name: str | None = None,
         makerworld_model_id: str | None = None,
+        *,
+        visible: tuple[ColumnElement[bool], ...] = (),
     ) -> list[dict]:
         """Find duplicate archives based on hash or name matching.
 
@@ -1114,11 +1141,10 @@ class ArchiveService:
             result = await self.db.execute(
                 select(PrintArchive)
                 .where(
-                    and_(
-                        PrintArchive.content_hash == content_hash,
-                        PrintArchive.id != archive_id,
-                        PrintArchive.deleted_at.is_(None),
-                    )
+                    PrintArchive.content_hash == content_hash,
+                    PrintArchive.id != archive_id,
+                    PrintArchive.deleted_at.is_(None),
+                    *visible,
                 )
                 .order_by(PrintArchive.created_at.desc())
                 .limit(10)
@@ -1137,7 +1163,7 @@ class ArchiveService:
         # Prefer strict name+hash matching when hash exists; fallback to name-only for legacy/manual
         # archives that may not have a content_hash.
         if print_name or makerworld_model_id:
-            conditions = [PrintArchive.id != archive_id, PrintArchive.deleted_at.is_(None)]
+            conditions = [PrintArchive.id != archive_id, PrintArchive.deleted_at.is_(None), *visible]
 
             name_conditions = []
             if print_name:
@@ -1198,6 +1224,8 @@ class ArchiveService:
         prefer_filename_for_name: bool = False,
         plate_id: int | None = None,
         update_archive_id: int | None = None,
+        started_at: datetime | None = None,
+        source_library_file_id: int | None = None,
     ) -> PrintArchive | None:
         """Archive a 3MF file with metadata.
 
@@ -1218,9 +1246,12 @@ class ArchiveService:
                 metadata. Used by virtual-printer flows so users who rename a job in
                 BambuStudio's "send to printer" dialog see that name instead of the
                 creator-baked title (#1152).
+            started_at: Detected print start, before a potentially slow download.
+                Applied only to a newly created printing archive.
             update_archive_id: Complete an existing file-less fallback archive
                 instead of creating a second row. Existing print history and
                 user/business fields are preserved.
+            source_library_file_id: Library file whose bytes this archive stores.
         """
         # Verify printer exists if specified
         if printer_id is not None:
@@ -1250,8 +1281,11 @@ class ArchiveService:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         display_stem = resolve_display_stem(original_filename if original_filename else source_file.name)
         archive_name = f"{timestamp}_{display_stem}"
+        if source_library_file_id is not None:
+            archive_name = f"{timestamp}_{uuid4().hex}_{display_stem}"
         # Use "unassigned" folder for archives without a printer
         printer_folder = str(printer_id) if printer_id is not None else "unassigned"
+        owns_directory = recovery_archive is None
         if recovery_archive is not None:
             from backend.app.utils.archive_paths import archive_dir as resolve_archive_dir
 
@@ -1262,7 +1296,13 @@ class ArchiveService:
             )
         else:
             archive_dir = safe_join_under(settings.archive_dir, printer_folder, archive_name, http=False)
-        archive_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            archive_dir.mkdir(parents=True, exist_ok=not owns_directory)
+        except FileExistsError:
+            archive_dir = safe_join_under(
+                settings.archive_dir, printer_folder, f"{uuid4().hex}_{archive_name}", http=False
+            )
+            archive_dir.mkdir(parents=True)
 
         # Copy 3MF file with an explicit fsync'd loop (avoids a sendfile
         # short-read quirk that silently truncated 3MF archives on some
@@ -1321,9 +1361,16 @@ class ArchiveService:
             filename = print_data.get("filename", "")
             match = re.search(r"plate_(\d+)", filename)
             if match and plate_number is None:
-                plate_number = int(match.group(1))
+                from backend.app.services.threemf_identity import has_sliced_plate
+
+                inferred = int(match.group(1))
+                if has_sliced_plate(dest_file, inferred):
+                    plate_number = inferred
 
         # Parse 3MF metadata
+        from backend.app.utils.threemf_tools import extract_plate_estimates_from_3mf
+
+        estimates = await asyncio.to_thread(extract_plate_estimates_from_3mf, dest_file)
         parser = ThreeMFParser(dest_file, plate_number=plate_number)
         metadata = parser.parse()
         if plate_number is None:
@@ -1344,28 +1391,12 @@ class ArchiveService:
 
         # Determine status and timestamps
         status = print_data.get("status", "completed") if print_data else "archived"
-        started_at = datetime.now(timezone.utc) if status == "printing" else None
+        started_at = (started_at or datetime.now(timezone.utc)) if status == "printing" else None
         completed_at = datetime.now(timezone.utc) if status in ("completed", "failed", "archived") else None
 
-        # Calculate cost based on filament usage and type
-        cost = None
-        filament_grams = metadata.get("filament_used_grams")
-        filament_type = metadata.get("filament_type")
-        if filament_grams and filament_type:
-            # For multi-material prints, use the first filament type for cost calculation
-            primary_type = filament_type.split(",")[0].strip()
-            # Look up filament cost_per_kg from database
-            filament_result = await self.db.execute(select(Filament).where(Filament.type == primary_type).limit(1))
-            filament = filament_result.scalar_one_or_none()
-            if filament:
-                cost = round((filament_grams / 1000) * filament.cost_per_kg, 2)
-            else:
-                # Use default filament cost from settings
-                from backend.app.api.routes.settings import get_setting
+        from backend.app.services.print_cost_estimate import estimate_filament_cost
 
-                default_cost_setting = await get_setting(self.db, "default_filament_cost")
-                default_cost_per_kg = float(default_cost_setting) if default_cost_setting else 25.0
-                cost = round((filament_grams / 1000) * default_cost_per_kg, 2)
+        cost = await estimate_filament_cost(self.db, metadata.get("filament_used_grams"), metadata.get("filament_type"))
 
         # Calculate quantity from printable objects count
         # printable_objects is a dict of {identify_id: name} for non-skipped objects
@@ -1374,6 +1405,13 @@ class ArchiveService:
         if printable_objects and isinstance(printable_objects, dict):
             quantity = len(printable_objects)
             logger.debug("Auto-detected %s parts from 3MF printable objects", quantity)
+
+        from backend.app.core.printer_lifecycle import lock_existing_printer
+
+        if printer_id is not None and not await lock_existing_printer(self.db, printer_id):
+            if owns_directory:
+                shutil.rmtree(archive_dir, ignore_errors=True)
+            return None
 
         if recovery_archive is not None:
             existing_extra = dict(recovery_archive.extra_data or {})
@@ -1387,6 +1425,7 @@ class ArchiveService:
             recovery_archive.file_path = str(dest_file.relative_to(settings.base_dir))
             recovery_archive.file_size = dest_file.stat().st_size
             recovery_archive.content_hash = content_hash
+            recovery_archive.plate_estimates = estimates
             if thumbnail_path:
                 recovery_archive.thumbnail_path = thumbnail_path
             if recovery_archive.plate_id is None:
@@ -1445,10 +1484,19 @@ class ArchiveService:
             project_id=project_id,
             subtask_id=subtask_id,
             plate_id=plate_number,
+            plate_estimates=estimates,
+            source_library_file_id=source_library_file_id,
         )
 
+        from sqlalchemy.exc import IntegrityError
+
         self.db.add(archive)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            if owns_directory:
+                shutil.rmtree(archive_dir, ignore_errors=True)
+            raise
         await self.db.refresh(archive)
 
         return archive
@@ -1479,8 +1527,7 @@ class ArchiveService:
         archive.status = status
         if completed_at:
             archive.completed_at = completed_at
-        if failure_reason:
-            archive.failure_reason = failure_reason
+        archive.failure_reason = failure_reason
 
         await self.db.commit()
         return True
@@ -1493,15 +1540,10 @@ class ArchiveService:
         date_to: date | None = None,
         limit: int = 50,
         offset: int = 0,
-        visible_to_user_id: int | None = None,
-        allowed_printer_ids: set[int] | None = None,
+        visible: tuple[ColumnElement[bool], ...] = (),
+        tz: str | None = None,
     ) -> list[PrintArchive]:
-        """List archives with optional filtering.
-
-        ``visible_to_user_id`` scopes results to archives that user owns. Used
-        when the caller has ARCHIVES_READ_OWN but not ARCHIVES_READ_ALL — pass
-        ``None`` to skip the filter (caller has read-all or auth is disabled).
-        """
+        """List visible archives with optional filters."""
         from sqlalchemy.orm import selectinload
 
         query = (
@@ -1510,7 +1552,7 @@ class ArchiveService:
             # Hide soft-deleted rows from the listings (#1343). The stats
             # endpoint deliberately does NOT add this filter so deleted
             # archives keep contributing to Quick Stats.
-            .where(PrintArchive.deleted_at.is_(None))
+            .where(PrintArchive.deleted_at.is_(None), *visible)
             .order_by(PrintArchive.created_at.desc())
         )
 
@@ -1520,21 +1562,11 @@ class ArchiveService:
         if project_id:
             query = query.where(PrintArchive.project_id == project_id)
 
-        if date_from:
-            dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+        dt_from, dt_to = calendar_bounds(date_from, date_to, tz)
+        if dt_from is not None:
             query = query.where(PrintArchive.created_at >= dt_from)
-
-        if date_to:
-            dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+        if dt_to is not None:
             query = query.where(PrintArchive.created_at <= dt_to)
-
-        if visible_to_user_id is not None:
-            query = query.where(PrintArchive.created_by_id == visible_to_user_id)
-
-        if allowed_printer_ids is not None:
-            query = query.where(
-                or_(PrintArchive.printer_id.is_(None), PrintArchive.printer_id.in_(allowed_printer_ids))
-            )
 
         query = query.limit(limit).offset(offset)
         result = await self.db.execute(query)
@@ -1560,7 +1592,7 @@ class ArchiveService:
 
         dir_to_delete = self._resolve_archive_dir_for_delete(archive)
 
-        await _null_print_log_thumbnail_paths(self.db, archive_id)
+        await _clear_archived_run_media(self.db, archive_id)
         await _delete_related_queue_items(self.db, archive_id)
         archive.deleted_at = datetime.now(timezone.utc)
         await self.db.commit()
@@ -1602,7 +1634,7 @@ class ArchiveService:
             return None
         return archive_dir
 
-    async def delete_archive(self, archive_id: int) -> bool:
+    async def delete_archive(self, archive_id: int, *, purge_stats: bool = False) -> bool:
         """Delete an archive and its files."""
         archive = await self.get_archive(archive_id)
         if not archive:
@@ -1617,7 +1649,18 @@ class ArchiveService:
         # the rmtree below, so the path on any surviving log entry (archive_id
         # gets SET NULL by the FK) would otherwise point at a missing file
         # and produce 404 storms in the print-log view (#1348-followup).
-        await _null_print_log_thumbnail_paths(self.db, archive_id)
+        if purge_stats:
+            from sqlalchemy import delete
+
+            from backend.app.models.print_log import INCLUDE_OPEN_RUNS, PrintLogEntry
+
+            await self.db.execute(
+                delete(PrintLogEntry)
+                .where(PrintLogEntry.archive_id == archive_id)
+                .execution_options(**{INCLUDE_OPEN_RUNS: True})
+            )
+        else:
+            await _clear_archived_run_media(self.db, archive_id)
 
         # Delete database record FIRST — if the commit fails (e.g. database locked
         # during concurrent bulk deletes), the files stay on disk and nothing is lost.
@@ -1635,60 +1678,29 @@ class ArchiveService:
         archive_id: int,
         timelapse_data: bytes,
         filename: str = "timelapse.mp4",
+        *,
+        expected_started_at=ANY_RUN,
+        replace: bool = True,
+        plate_id: int | None = None,
+        run_id: int | None = None,
+        printer_id: int | None = None,
     ) -> bool:
-        """Attach a timelapse video to an archive.
+        from backend.app.services.archive_timelapse import attach
 
-        Non-MP4 videos (e.g. AVI from P1S) are saved as-is and a background
-        task converts them to MP4 for browser compatibility.
-        """
-        import asyncio
-
-        archive = await self.get_archive(archive_id)
-        if not archive:
-            return False
-
-        from backend.app.utils.archive_paths import archive_dir as resolve_archive_dir
-
-        # File-less fallback archives own a stable directory under archive_dir.
-        archive_dir = resolve_archive_dir(
-            archive,
-            base_dir=settings.base_dir,
-            archive_root=settings.archive_dir,
+        return await attach(
+            self,
+            archive_id,
+            timelapse_data,
+            filename,
+            settings=settings,
+            converter=_convert_timelapse_to_mp4,
+            spawn=spawn_background_task,
+            expected_started_at=expected_started_at,
+            replace=replace,
+            plate_id=plate_id,
+            run_id=run_id,
+            printer_id=printer_id,
         )
-        archive_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save timelapse - use thread pool to avoid blocking event loop
-        # (timelapse files can be 100MB+, sync write blocks for seconds).
-        # `filename` ultimately comes from a printer's FTP listing (compromised-
-        # printer threat model) or a query param on /archives/{id}/timelapse/select;
-        # the safe-join helper rejects ``..`` segments and absolute paths so a
-        # crafted name can't escape the archive directory. Use http=False so a
-        # service-layer reject surfaces as a return False (matching the existing
-        # not-found contract) rather than a 400 raised from inside a background
-        # task.
-        try:
-            timelapse_file = safe_join_under(archive_dir, filename, http=False)
-        except PathTraversalError:
-            logger.warning(
-                "Refusing to attach timelapse with unsafe filename %r to archive %s",
-                filename,
-                archive_id,
-            )
-            return False
-        await asyncio.to_thread(timelapse_file.write_bytes, timelapse_data)
-
-        # Update archive record
-        archive.timelapse_path = str(timelapse_file.relative_to(settings.base_dir))
-        await self.db.commit()
-
-        # For non-MP4 videos (e.g. AVI from P1S), kick off background conversion
-        if not filename.lower().endswith(".mp4"):
-            spawn_background_task(
-                _convert_timelapse_to_mp4(archive_id, timelapse_file),
-                name=f"timelapse-convert-{archive_id}",
-            )
-
-        return True
 
 
 async def _convert_timelapse_to_mp4(archive_id: int, source_path: Path) -> None:
@@ -1713,7 +1725,9 @@ async def _convert_timelapse_to_mp4(archive_id: int, source_path: Path) -> None:
         )
         return
 
-    mp4_path = source_path.with_suffix(".mp4")
+    from backend.app.services.archive_timelapse import commit_conversion, reserve_conversion_path
+
+    mp4_path = reserve_conversion_path(source_path)
 
     try:
         cmd = [
@@ -1764,19 +1778,9 @@ async def _convert_timelapse_to_mp4(archive_id: int, source_path: Path) -> None:
                 mp4_path.unlink()
             return
 
-        # Update DB path to the new MP4 file
         async with async_session() as db:
-            from backend.app.models.archive import PrintArchive
-
-            result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-            archive = result.scalar_one_or_none()
-            if archive:
-                archive.timelapse_path = str(mp4_path.relative_to(settings.base_dir))
-                await db.commit()
-
-        # Remove original non-MP4 file
-        if source_path.exists():
-            source_path.unlink()
+            if not await commit_conversion(db, archive_id, source_path, mp4_path, settings=settings):
+                return
 
         logger.info(
             "Converted timelapse to MP4 for archive %s (%s → %s)",

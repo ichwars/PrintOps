@@ -134,6 +134,8 @@ async def _report_with_state(state, *, current_mode: str = "true"):
             "backend.app.services.spoolman_tracking._resolve_spool_id_via_slot_assignment",
             AsyncMock(return_value=None),
         ),
+        patch("backend.app.services.spoolman_tracking.claim_spoolman_tracking", AsyncMock(return_value=tracking)),
+        patch("backend.app.services.spoolman_tracking.record_spoolman_usage", AsyncMock()),
         patch("backend.app.services.spoolman_tracking._apply_spool_colors_to_archive", apply_colors),
         patch("backend.app.services.spoolman_tracking._apply_spoolman_costs_to_archive", AsyncMock()),
         patch("backend.app.services.printer_manager.printer_manager", manager),

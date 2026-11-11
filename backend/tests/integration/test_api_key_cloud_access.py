@@ -414,3 +414,46 @@ class TestSliceRouteCloudOwnerResolution:
             db=db_session,
         )
         assert owner is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_slicer_presets_use_only_the_selected_cloud_identity(async_client, db_session, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from backend.app.api.routes import slicer_presets
+    from backend.app.models.settings import Settings
+
+    await _setup_auth_with_admin(async_client)
+    owner = await db_session.scalar(select(User).where(User.username == "cloudadmin"))
+    scoped, scoped_hash, scoped_prefix = generate_api_key()
+    unscoped, unscoped_hash, unscoped_prefix = generate_api_key()
+    db_session.add_all(
+        [
+            Settings(key="bambu_cloud_token", value="retained-global-fixture"),
+            APIKey(
+                name="Cloud", key_hash=scoped_hash, key_prefix=scoped_prefix, user_id=owner.id, can_access_cloud=True
+            ),
+            APIKey(name="Local", key_hash=unscoped_hash, key_prefix=unscoped_prefix, user_id=owner.id),
+        ]
+    )
+    await db_session.commit()
+    bambu = AsyncMock(return_value=(None, None, "global"))
+    orca = AsyncMock(return_value=SimpleNamespace(token=None))
+    monkeypatch.setattr(slicer_presets, "get_stored_token", bambu)
+    monkeypatch.setattr(slicer_presets, "_load_orca_credentials", orca)
+    monkeypatch.setattr(slicer_presets, "_fetch_bundled_presets", AsyncMock(return_value=slicer_presets._empty_slots()))
+    url = "/api/v1/slicer/presets"
+
+    local = await async_client.get(url, headers={"X-API-Key": unscoped, "Authorization": f"Bearer {scoped}"})
+    assert local.status_code == 200
+    assert local.json()["cloud_status"] == local.json()["orca_cloud_status"] == "not_authenticated"
+    bambu.assert_not_awaited()
+    orca.assert_not_awaited()
+
+    cloud = await async_client.get(url, headers={"X-API-Key": "invalid", "Authorization": f"Bearer {scoped}"})
+    assert cloud.status_code == 200
+    for loader in (bambu, orca):
+        loader.assert_awaited_once()
+        assert loader.await_args.args[1].id == owner.id

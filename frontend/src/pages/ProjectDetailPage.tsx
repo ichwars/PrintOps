@@ -128,7 +128,7 @@ function ArchiveGrid({ archives, t }: { archives: Archive[]; t: TFunction }) {
       {archives.map((archive) => (
         <Link
           key={archive.id}
-          to={`/archives?search=${encodeURIComponent(archive.print_name || '')}`}
+          to={`/archives?highlight=${archive.id}`}
           className="group relative aspect-square rounded-lg bg-bambu-dark border border-bambu-dark-tertiary overflow-hidden hover:border-bambu-green transition-colors"
         >
           {archive.thumbnail_path ? (
@@ -234,8 +234,8 @@ export function ProjectDetailPage() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const { data: linkedFolders } = useQuery({

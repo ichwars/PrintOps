@@ -2,6 +2,14 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from backend.app.models.project import (
+    DEFAULT_PROJECT_PRIORITY,
+    DEFAULT_PROJECT_STATUS,
+    normalize_project_priority,
+    normalize_project_status,
+)
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+
 
 def _validate_project_url(value: str | None) -> str | None:
     """Reject anything that isn't an http(s) URL — the URL is rendered as a
@@ -29,7 +37,7 @@ class ProjectCreate(BaseModel):
     notes: str | None = None
     tags: str | None = None
     due_date: datetime | None = None
-    priority: str = "normal"
+    priority: str = DEFAULT_PROJECT_PRIORITY
     budget: float | None = None
     parent_id: int | None = None  # For sub-projects
     url: str | None = None
@@ -40,8 +48,10 @@ class ProjectCreate(BaseModel):
         return _validate_project_url(v)
 
 
-class ProjectUpdate(BaseModel):
+class ProjectUpdate(IgnoresNullForRequiredColumns):
     """Schema for updating a project."""
+
+    __orm_table__ = "projects"
 
     name: str | None = None
     description: str | None = None
@@ -123,7 +133,7 @@ class ProjectResponse(BaseModel):
     attachments: list | None = None
     tags: str | None = None
     due_date: datetime | None = None
-    priority: str = "normal"
+    priority: str = DEFAULT_PROJECT_PRIORITY
     budget: float | None = None
     is_template: bool = False
     template_source_id: int | None = None
@@ -213,8 +223,10 @@ class BOMItemCreate(BaseModel):
     remarks: str | None = None
 
 
-class BOMItemUpdate(BaseModel):
+class BOMItemUpdate(IgnoresNullForRequiredColumns):
     """Schema for updating a BOM item."""
+
+    __orm_table__ = "project_bom_items"
 
     name: str | None = None
     quantity_needed: int | None = None
@@ -303,13 +315,23 @@ class ProjectImport(BaseModel):
     name: str
     description: str | None = None
     color: str | None = None
-    status: str = "active"
+    status: str = DEFAULT_PROJECT_STATUS
     target_count: int | None = None
     target_parts_count: int | None = None
     notes: str | None = None
     tags: str | None = None
     due_date: datetime | None = None
-    priority: str = "normal"
+    priority: str = DEFAULT_PROJECT_PRIORITY
     budget: float | None = None
     bom_items: list[BOMItemExport] = []
     linked_folders: list[LinkedFolderExport] = []
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _legacy_priority(cls, value: object) -> str:
+        return normalize_project_priority(value)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _legacy_status(cls, value: object) -> str:
+        return normalize_project_status(value)

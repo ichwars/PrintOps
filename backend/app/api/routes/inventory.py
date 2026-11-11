@@ -6,18 +6,21 @@ import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.app.api.routes import filament_profile_defaults, inventory_usage
 from backend.app.core.auth import (
+    OwnershipAccess,
     RequireAnyPermissionIfAuthEnabled,
     RequirePermissionIfAuthEnabled,
     require_auth_if_enabled,
+    require_permission_with_key,
 )
 from backend.app.core.catalog_defaults import DEFAULT_COLOR_CATALOG, DEFAULT_SPOOL_CATALOG
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.ams_label import AmsLabel
@@ -33,6 +36,7 @@ from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.stock_reservation import StockReservationAllocation
 from backend.app.models.user import User
 from backend.app.schemas.location import LocationCreate, LocationResponse, LocationUpdate
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
 from backend.app.schemas.spool import (
     SpoolAssignmentCreate,
     SpoolAssignmentResponse,
@@ -43,13 +47,15 @@ from backend.app.schemas.spool import (
     normalize_effect_type,
     normalize_extra_colors,
 )
-from backend.app.schemas.spool_usage import SpoolUsageHistoryResponse
 from backend.app.schemas.warehouse_number_sequence import (
     WarehouseNumberSequenceCreate,
     WarehouseNumberSequenceResponse,
     WarehouseNumberSequenceUpdate,
 )
-from backend.app.services import warehouse_number_sequence as warehouse_number_sequence_service
+from backend.app.services import spool_swaps, warehouse_number_sequence as warehouse_number_sequence_service
+from backend.app.services.ams_assignment_lock import get_ams_assignment_lock
+from backend.app.services.ams_slot_presence import _find_tray_in_ams_data as _find_tray_in_ams_data
+from backend.app.services.assignment_verification import register_sent_assignment
 from backend.app.services.filament_sku_identity import enrich_material_numbers, ensure_sku
 from backend.app.services.location_service import (
     DUPLICATE_LOCATION_NAME,
@@ -58,13 +64,14 @@ from backend.app.services.location_service import (
     get_location_by_id,
     get_location_by_name,
     location_name_key,
+    lock_entered_spool_weight,
     prepare_internal_spool_payload,
     protect_warehouse_location,
     rename_location as rename_location_record,
 )
 from backend.app.services.orca_filament_lookup import _ORCA_PROFILE_ID, orca_cloud_caller
 from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
-from backend.app.services.slicer_filament_resolver import resolve_slicer_filament
+from backend.app.services.slicer_filament_resolver import resolve_slicer_filament, reusable_slot_filament_id
 from backend.app.services.spool_csv import (
     MAX_CSV_IMPORT_BYTES,
     ImportPreview,
@@ -73,16 +80,17 @@ from backend.app.services.spool_csv import (
     serialize,
 )
 from backend.app.services.spool_filament_presets import resolve_spool_preset
+from backend.app.services.spool_relocation import INTERNAL, lock_spool_assignment
+from backend.app.services.spool_slot_release import announce_freed_slots, release_slots
 from backend.app.services.spoolman import SpoolmanClient, get_spoolman_client, init_spoolman_client
 from backend.app.services.tag_conflict import tag_conflict
+from backend.app.utils.filament_finish import finish_generic_id
 from backend.app.utils.filament_ids import (
-    GENERIC_FILAMENT_IDS,
     filament_id_to_setting_id,
     normalize_slicer_filament,
 )
 from backend.app.utils.filament_types import (
     generic_filament_id,
-    is_material_name,
     nozzle_temp_range,
     printer_filament_type,
     tray_sub_brand,
@@ -91,9 +99,9 @@ from backend.app.utils.tag_normalization import normalize_tag_uid, normalize_tra
 
 logger = logging.getLogger(__name__)
 
-_GENERIC_ID_VALUES = set(GENERIC_FILAMENT_IDS.values())
-
 router = APIRouter(prefix="/inventory", tags=["inventory"])
+router.include_router(filament_profile_defaults.router)
+router.include_router(inventory_usage.router)
 
 # Bounded read size for the CSV import body so a chunked upload with no
 # Content-Length can't stream past the cap into memory before we notice.
@@ -105,7 +113,7 @@ FILAMENT_COLORS_API = "https://filamentcolors.xyz/api"
 
 @router.get("/number-sequences", response_model=list[WarehouseNumberSequenceResponse])
 async def list_warehouse_number_sequences(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     return await warehouse_number_sequence_service.list_number_sequences(db)
@@ -118,7 +126,7 @@ async def list_warehouse_number_sequences(
 )
 async def create_warehouse_number_sequence(
     data: WarehouseNumberSequenceCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     try:
@@ -137,7 +145,7 @@ async def create_warehouse_number_sequence(
 async def update_warehouse_number_sequence(
     sequence_id: int,
     data: WarehouseNumberSequenceUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     try:
@@ -161,6 +169,7 @@ async def apply_spool_to_slot_via_mqtt(
     tray_id: int,
     current_tray_info_idx: str = "",
     current_tray_type: str = "",
+    current_tray_sub_brands: str = "",
     assignment: SpoolAssignment | None = None,
     orca_lookup_allowed: bool = True,
     orca_generic_fallback: bool = True,
@@ -203,19 +212,23 @@ async def apply_spool_to_slot_via_mqtt(
         tray_type = printer_filament_type(type_override)
 
     if not tray_info_idx:
-        if (
-            not preset.configured
-            and current_tray_info_idx
-            and current_tray_info_idx not in _GENERIC_ID_VALUES
-            and not current_tray_info_idx.startswith("PFUS")
-            and not current_tray_info_idx.startswith("PFCN")
-            and not is_material_name(current_tray_info_idx)
-            and current_tray_type
-            and printer_filament_type(current_tray_type).upper() == tray_type.upper()
-        ):
-            tray_info_idx = current_tray_info_idx
+        reused = (
+            ""
+            if preset.configured
+            else reusable_slot_filament_id(
+                current_tray_info_idx,
+                current_tray_type,
+                current_tray_sub_brands,
+                tray_type,
+                f"{spool.material or ''} {spool.subtype or ''}",
+            )
+        )
+        if reused:
+            tray_info_idx = reused
         elif tray_type:
-            tray_info_idx = generic_filament_id(spool.material, tray_type)
+            tray_info_idx = finish_generic_id(
+                tray_type, f"{spool.material or ''} {spool.subtype or ''}"
+            ) or generic_filament_id(spool.material, tray_type)
 
     if tray_info_idx and not setting_id:
         setting_id = filament_id_to_setting_id(tray_info_idx)
@@ -255,7 +268,7 @@ async def apply_spool_to_slot_via_mqtt(
     if not effective_tray_info_idx and _ORCA_PROFILE_ID.fullmatch((preset.slicer_filament or "").removeprefix("orca_")):
         return False
 
-    client.ams_set_filament_setting(
+    sent = client.ams_set_filament_setting(
         ams_id=ams_id,
         tray_id=tray_id,
         tray_info_idx=effective_tray_info_idx,
@@ -266,6 +279,8 @@ async def apply_spool_to_slot_via_mqtt(
         nozzle_temp_max=temp_max,
         setting_id=effective_setting_id,
     )
+    if sent is False:
+        return False
 
     if matching_kp and matching_kp.cali_idx is not None:
         # filament_id for cali_sel must match the preset under which the kp
@@ -314,6 +329,17 @@ async def apply_spool_to_slot_via_mqtt(
         tray_type=tray_type,
         setting_id=effective_setting_id,
     )
+    register_sent_assignment(
+        client,
+        state,
+        ams_id,
+        tray_id,
+        effective_tray_info_idx,
+        tray_color,
+        matching_kp.cali_idx
+        if matching_kp and matching_kp.cali_idx is not None
+        else (-1 if context is not None else None),
+    )
     logger.info(
         "Auto-configured AMS slot ams=%d tray=%d for spool %d on printer %d",
         ams_id,
@@ -342,7 +368,9 @@ class CatalogEntryCreate(BaseModel):
     weight: int
 
 
-class CatalogEntryUpdate(BaseModel):
+class CatalogEntryUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "spool_catalog"
+
     name: str
     weight: int
 
@@ -395,7 +423,9 @@ class ColorEntryCreate(BaseModel):
         return normalize_effect_type(v)
 
 
-class ColorEntryUpdate(BaseModel):
+class ColorEntryUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "color_catalog"
+
     manufacturer: str
     color_name: str
     hex_color: str = Field(..., pattern=_HEX_COLOR_PATTERN)
@@ -429,7 +459,7 @@ class ColorByMaterialResult(BaseModel):
 
 @router.get("/catalog", response_model=list[CatalogEntryResponse])
 async def get_spool_catalog(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Get all spool catalog entries."""
@@ -440,7 +470,7 @@ async def get_spool_catalog(
 @router.post("/catalog", response_model=CatalogEntryResponse)
 async def add_catalog_entry(
     entry: CatalogEntryCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Add a new spool catalog entry."""
@@ -455,7 +485,7 @@ async def add_catalog_entry(
 async def update_catalog_entry(
     entry_id: int,
     entry: CatalogEntryUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Update a spool catalog entry."""
@@ -473,7 +503,7 @@ async def update_catalog_entry(
 @router.delete("/catalog/{entry_id}")
 async def delete_catalog_entry(
     entry_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Delete a spool catalog entry."""
@@ -489,7 +519,7 @@ async def delete_catalog_entry(
 @router.post("/catalog/bulk-delete")
 async def bulk_delete_catalog_entries(
     data: BulkDeleteIdsRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Delete multiple spool catalog entries by ID."""
@@ -505,7 +535,7 @@ async def bulk_delete_catalog_entries(
 
 @router.post("/catalog/reset")
 async def reset_spool_catalog(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Reset spool catalog to defaults."""
@@ -555,14 +585,24 @@ async def _spool_counts_for_locations(
     db: AsyncSession,
     locations: list[Location],
     settings: dict[str, str],
+    *,
+    strict: bool = False,
 ) -> dict[int, int]:
+    """Spools at each location. In Spoolman mode they are Spoolman's; when it
+    can't be read the built-in counts are shown instead, which ``strict``
+    refuses with a 503 (SM-C13): the built-in table holds no Spoolman spools,
+    so a location still in use would count as empty and could be deleted."""
     if _spoolman_is_enabled(settings):
         client = await _ensure_spoolman_client(settings)
+        if not client and strict:
+            raise HTTPException(status_code=503, detail="Spoolman is unavailable")
         if client:
             try:
                 spools = await client.get_all_spools(allow_archived=False)
-            except Exception:
+            except Exception as exc:
                 logger.warning("Failed to fetch Spoolman spools for location counts", exc_info=True)
+                if strict:
+                    raise HTTPException(status_code=503, detail="Spoolman is unavailable") from exc
             else:
                 # Use the canonical key helper so this matches what the
                 # migration backfill, Location.name_key, and every other
@@ -600,7 +640,7 @@ def _location_to_response(location: Location, spool_count: int) -> LocationRespo
 
 @router.get("/locations", response_model=list[LocationResponse])
 async def list_locations(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """List all storage locations with spool counts."""
@@ -614,7 +654,7 @@ async def list_locations(
 @router.post("/locations", response_model=LocationResponse, status_code=201)
 async def create_location(
     data: LocationCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Create a storage location."""
@@ -638,7 +678,7 @@ async def create_location(
 async def update_location(
     location_id: int,
     data: LocationUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Update a storage location (rename propagates to assigned spools)."""
@@ -694,7 +734,7 @@ async def update_location(
 @router.delete("/locations/{location_id}")
 async def delete_location(
     location_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Delete a storage location when no inventory is assigned."""
@@ -707,7 +747,7 @@ async def delete_location(
         raise HTTPException(status_code=404, detail="Location not found")
 
     settings = await _load_settings_map(db)
-    counts = await _spool_counts_for_locations(db, [location], settings)
+    counts = await _spool_counts_for_locations(db, [location], settings, strict=True)
     if counts.get(location.id, 0) > 0:
         raise HTTPException(status_code=409, detail="Location has spools assigned and cannot be deleted")
 
@@ -722,7 +762,7 @@ async def delete_location(
 
 @router.get("/colors", response_model=list[ColorEntryResponse])
 async def get_color_catalog(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Get all color catalog entries."""
@@ -736,47 +776,74 @@ async def get_color_catalog(
 
 @router.get("/colors/map")
 async def get_color_name_map(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_auth_if_enabled),
 ):
-    """Compact {hex: name} map for frontend color-name resolution.
+    """Color names qualified by product line, including the printer palette."""
+    from backend.app.api.routes.cloud import _BUILTIN_FILAMENT_NAMES
 
-    Not gated on INVENTORY_READ — every page that renders a spool color needs
-    this, including read-only views available to users without inventory access.
-    Normalized to lowercase 6-char hex without '#'. When multiple catalog entries
-    share the same hex (different materials or manufacturers), Bambu Lab wins,
-    then default entries, then the first encountered.
-    """
     result = await db.execute(
         select(
             ColorCatalogEntry.hex_color,
             ColorCatalogEntry.color_name,
             ColorCatalogEntry.manufacturer,
             ColorCatalogEntry.is_default,
+            ColorCatalogEntry.material,
         )
     )
-    mapping: dict[str, tuple[str, int]] = {}  # hex → (name, priority); higher priority wins
-    for hex_color, color_name, manufacturer, is_default in result.all():
+    # hex → (name, priority, manufacturer); higher priority wins, first on a tie
+    mapping: dict[str, tuple[str, int, str]] = {}
+    by_material: dict[str, tuple[str, int, str]] = {}  # "material|hex" → same
+    bambu: list[dict[str, str]] = []
+    for hex_color, color_name, manufacturer, is_default, material in result.all():
         if not hex_color or not color_name:
             continue
         key = hex_color.lstrip("#").lower()[:6]
         if len(key) != 6:
             continue
+        brand = (manufacturer or "").strip().lower()
+        if brand == "bambu lab":
+            bambu.append({"hex": key, "name": color_name, "material": (material or "").strip()})
         priority = 0
-        if manufacturer and manufacturer.strip().lower() == "bambu lab":
+        if brand == "bambu lab":
             priority += 2
         if is_default:
             priority += 1
         existing = mapping.get(key)
         if existing is None or priority > existing[1]:
-            mapping[key] = (color_name, priority)
-    return {"colors": {k: v[0] for k, v in mapping.items()}}
+            mapping[key] = (color_name, priority, brand)
+        material_key = (material or "").strip().lower()
+        if material_key:
+            # Split on the LAST separator when reading these back: a material is
+            # free text and may itself contain a '|'.
+            qualified = f"{material_key}|{key}"
+            existing = by_material.get(qualified)
+            if existing is None or priority > existing[1]:
+                by_material[qualified] = (color_name, priority, brand)
+
+    colors = {k: v[0] for k, v in mapping.items()}
+    qualified_colors = {}
+    for qualified, (name, _, brand) in by_material.items():
+        flat = mapping.get(qualified.rsplit("|", 1)[1])
+        if flat and flat[0] != name and flat[2] == brand:
+            qualified_colors[qualified] = name
+    preset_materials = {
+        preset: name.removeprefix("Bambu ").strip()
+        for preset, name in _BUILTIN_FILAMENT_NAMES.items()
+        if name.startswith("Bambu ")
+    }
+    return {
+        "colors": colors,
+        "by_material": qualified_colors,
+        "bambu": bambu,
+        "preset_materials": preset_materials,
+    }
 
 
 @router.post("/colors", response_model=ColorEntryResponse)
 async def add_color_entry(
     entry: ColorEntryCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Add a new color catalog entry."""
@@ -799,7 +866,7 @@ async def add_color_entry(
 async def update_color_entry(
     entry_id: int,
     entry: ColorEntryUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Update a color catalog entry."""
@@ -821,7 +888,7 @@ async def update_color_entry(
 @router.delete("/colors/{entry_id}")
 async def delete_color_entry(
     entry_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Delete a color catalog entry."""
@@ -837,7 +904,7 @@ async def delete_color_entry(
 @router.post("/colors/bulk-delete")
 async def bulk_delete_color_entries(
     data: BulkDeleteIdsRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Delete multiple color catalog entries by ID."""
@@ -853,7 +920,7 @@ async def bulk_delete_color_entries(
 
 @router.post("/colors/reset")
 async def reset_color_catalog(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Reset color catalog to defaults."""
@@ -879,7 +946,7 @@ async def lookup_color(
     manufacturer: str,
     color_name: str,
     material: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Look up a color by manufacturer and color name."""
@@ -901,7 +968,7 @@ async def lookup_color(
 async def get_color_by_material(
     hex: str,
     material: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_auth_if_enabled),
 ):
     """Disambiguated hex→name lookup that respects material context.
@@ -968,7 +1035,7 @@ async def get_color_by_material(
 async def search_colors(
     manufacturer: str | None = None,
     material: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Search colors by manufacturer and/or material."""
@@ -1100,7 +1167,7 @@ async def sync_from_filamentcolors(
 @router.get("/spools", response_model=list[SpoolResponse])
 async def list_spools(
     include_archived: bool = False,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """List all spools, excluding archived by default."""
@@ -1121,7 +1188,7 @@ async def list_spools(
 
 @router.get("/spools/export")
 async def export_spools_csv(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Export the active inventory as CSV (same schema the importer accepts)."""
@@ -1145,7 +1212,7 @@ async def export_spools_csv(
 async def import_spools_csv(
     file: UploadFile = File(...),
     dry_run: bool = Query(False),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Import spools from a CSV file.
@@ -1185,7 +1252,7 @@ async def import_spools_csv(
     created = 0
     for row in preview.rows:
         if row.status == "valid" and row.spool is not None:
-            db.add(Spool(**row.spool))
+            db.add(Spool(**lock_entered_spool_weight(dict(row.spool), set())))
             await ensure_sku(db, row.spool)
             created += 1
 
@@ -1206,7 +1273,7 @@ async def get_spool_by_tag(
     tray_uuid: str | None = None,
     tag_uid: str | None = None,
     include_archived: bool = False,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(Permission.INVENTORY_READ, Permission.INVENTORY_UPDATE),
 ):
     """Find a single spool by its NFC ``tray_uuid`` and/or ``tag_uid``.
@@ -1248,7 +1315,7 @@ async def get_spool_by_tag(
 @router.get("/spools/{spool_id}", response_model=SpoolResponse)
 async def get_spool(
     spool_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Get a single spool with k_profiles."""
@@ -1263,16 +1330,19 @@ async def get_spool(
 @router.post("/spools", response_model=SpoolResponse)
 async def create_spool(
     spool_data: SpoolCreate,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.INVENTORY_UPDATE)),
 ):
     """Create a new spool."""
+    from backend.app.services.filament_profile_defaults import apply_product_defaults
+
     try:
         payload = await prepare_internal_spool_payload(db, spool_data.model_dump(), set(spool_data.model_fields_set))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     spool = Spool(**payload)
     db.add(spool)
+    await apply_product_defaults(db, spool, access.printer_ids)
     await ensure_sku(db, spool)
     await db.commit()
     await db.refresh(spool)
@@ -1286,10 +1356,12 @@ async def create_spool(
 @router.post("/spools/bulk", response_model=list[SpoolResponse])
 async def bulk_create_spools(
     data: SpoolBulkCreate,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.INVENTORY_UPDATE)),
 ):
     """Create multiple identical spools."""
+    from backend.app.services.filament_profile_defaults import copy_profiles, matching_defaults
+
     spools = []
     fields_set = set(data.spool.model_fields_set)
     try:
@@ -1300,6 +1372,9 @@ async def bulk_create_spools(
         spool = Spool(**payload)
         db.add(spool)
         spools.append(spool)
+    defaults = await matching_defaults(db, spools[0])
+    for spool in spools:
+        await copy_profiles(db, spool, defaults, access.printer_ids)
     await ensure_sku(db, spools[0])
     await db.commit()
     ids = [s.id for s in spools]
@@ -1314,7 +1389,7 @@ async def bulk_create_spools(
 async def update_spool(
     spool_id: int,
     spool_data: SpoolUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Update a spool."""
@@ -1332,6 +1407,8 @@ async def update_spool(
     if "weight_used" in update_data and "weight_locked" not in update_data:
         update_data["weight_locked"] = True
 
+    if "last_dried_at" in update_data:
+        update_data.update(last_dried_temp=None, last_dried_hours=None)
     for field, value in update_data.items():
         setattr(spool, field, value)
     await ensure_sku(db, spool)
@@ -1344,28 +1421,42 @@ async def update_spool(
     return response
 
 
+async def _lock_spools_for_delete(db: AsyncSession, ids: list[int]) -> list[Spool]:
+    if db.get_bind().dialect.name == "sqlite":
+        await db.execute(text("UPDATE spool SET id = id WHERE 0"))
+    spools = (await db.scalars(select(Spool).where(Spool.id.in_(ids)).order_by(Spool.id).with_for_update())).all()
+    found = [spool.id for spool in spools]
+    allocation = await db.scalar(
+        select(StockReservationAllocation.id).where(StockReservationAllocation.spool_id.in_(found)).limit(1)
+    )
+    if allocation is not None:
+        raise HTTPException(409, "A spool is referenced by a stock reservation")
+    return list(spools)
+
+
 @router.delete("/spools/{spool_id}")
 async def delete_spool(
     spool_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Hard delete a spool."""
-    result = await db.execute(select(Spool).where(Spool.id == spool_id))
-    spool = result.scalar_one_or_none()
-    if not spool:
+    spools = await _lock_spools_for_delete(db, [spool_id])
+    if not spools:
         raise HTTPException(404, "Spool not found")
-
+    spool = spools[0]
+    freed = await release_slots(db, [spool_id])
     await db.delete(spool)
     await db.commit()
     await ws_manager.broadcast({"type": "inventory_changed"})
+    await announce_freed_slots(freed)
     return {"status": "deleted"}
 
 
 @router.post("/spools/{spool_id}/archive", response_model=SpoolResponse)
 async def archive_spool(
     spool_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Soft-delete a spool by setting archived_at."""
@@ -1376,17 +1467,19 @@ async def archive_spool(
     if not spool:
         raise HTTPException(404, "Spool not found")
 
+    freed = await release_slots(db, [spool.id])
     spool.archived_at = datetime.now(timezone.utc)
     await db.commit()
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool_id))
     await ws_manager.broadcast({"type": "inventory_changed"})
+    await announce_freed_slots(freed)
     return result.scalar_one()
 
 
 @router.post("/spools/{spool_id}/restore", response_model=SpoolResponse)
 async def restore_spool(
     spool_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Restore an archived spool."""
@@ -1406,7 +1499,7 @@ async def restore_spool(
 async def refill_spool(
     spool_id: int,
     data: SpoolRefillRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Record a refill and reduce the spool's consumed weight."""
@@ -1438,7 +1531,7 @@ async def refill_spool(
 @router.post("/spools/{spool_id}/reset-consumed-counter", response_model=SpoolResponse)
 async def reset_spool_consumed_counter(
     spool_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Zero the displayed "Total Consumed" counter without touching remaining.
@@ -1470,7 +1563,7 @@ async def reset_spool_consumed_counter(
 @router.post("/spools/reset-consumed-counter-bulk")
 async def bulk_reset_spool_consumed_counter(
     payload: dict,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Bulk-stamp baseline = weight_used across the given spool IDs.
@@ -1492,7 +1585,8 @@ async def bulk_reset_spool_consumed_counter(
         spool.weight_used_baseline = spool.weight_used or 0
     await db.commit()
     await ws_manager.broadcast({"type": "inventory_changed"})
-    return {"reset": len(spools)}
+    found = {spool.id for spool in spools}
+    return {"reset": len(spools), "not_found": [sid for sid in spool_ids if sid not in found]}
 
 
 class BulkUpdateRequest(BaseModel):
@@ -1513,7 +1607,7 @@ class SpoolMergeRequest(BaseModel):
 @router.post("/spools/bulk-update")
 async def bulk_update_spools(
     payload: BulkUpdateRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Apply the same partial update to every listed spool.
@@ -1539,6 +1633,8 @@ async def bulk_update_spools(
     spools = {s.id: s for s in result.scalars().all()}
     not_found = [sid for sid in payload.ids if sid not in spools]
     updated_ids: list[int] = []
+    if "last_dried_at" in prepared:
+        prepared.update(last_dried_temp=None, last_dried_hours=None)
     for sid, spool in spools.items():
         for field, value in prepared.items():
             setattr(spool, field, value)
@@ -1553,26 +1649,27 @@ async def bulk_update_spools(
 @router.post("/spools/bulk-delete")
 async def bulk_delete_spools(
     payload: BulkIdsRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Hard-delete every listed spool. Unknown IDs are returned in not_found."""
-    result = await db.execute(select(Spool).where(Spool.id.in_(payload.ids)))
-    spools = list(result.scalars().all())
+    spools = await _lock_spools_for_delete(db, payload.ids)
     found_ids = {s.id for s in spools}
     not_found = [sid for sid in payload.ids if sid not in found_ids]
+    freed = await release_slots(db, list(found_ids))
     for spool in spools:
         await db.delete(spool)
     await db.commit()
     if spools:
         await ws_manager.broadcast({"type": "inventory_changed"})
+    await announce_freed_slots(freed)
     return {"deleted": len(spools), "not_found": not_found}
 
 
 @router.post("/spools/bulk-archive")
 async def bulk_archive_spools(
     payload: BulkIdsRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Soft-archive every listed spool (sets archived_at). Already-archived spools are left alone and counted in already_archived."""
@@ -1585,6 +1682,7 @@ async def bulk_archive_spools(
     archived: list[int] = []
     already: list[int] = []
     now = datetime.now(timezone.utc)
+    freed = await release_slots(db, list(found_ids))
     for spool in spools:
         if spool.archived_at is not None:
             already.append(spool.id)
@@ -1594,13 +1692,14 @@ async def bulk_archive_spools(
     await db.commit()
     if archived:
         await ws_manager.broadcast({"type": "inventory_changed"})
+    await announce_freed_slots(freed)
     return {"archived": len(archived), "already_archived": already, "not_found": not_found}
 
 
 @router.post("/spools/bulk-restore")
 async def bulk_restore_spools(
     payload: BulkIdsRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Restore every listed archived spool. Non-archived rows are no-ops counted in already_active."""
@@ -1625,7 +1724,7 @@ async def bulk_restore_spools(
 @router.post("/spools/merge")
 async def merge_spools(
     payload: SpoolMergeRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Merge duplicate local spools into a chosen target spool.
@@ -1679,6 +1778,15 @@ async def merge_spools(
         [value for value in [target.last_used, *[source.last_used for source in sources]] if value is not None],
         default=target.last_used,
     )
+    latest_drying = max(
+        (spool for spool in (target, *sources) if spool.last_dried_at is not None),
+        key=lambda spool: spool.last_dried_at,
+        default=None,
+    )
+    if latest_drying is not None:
+        target.last_dried_at = latest_drying.last_dried_at
+        target.last_dried_temp = latest_drying.last_dried_temp
+        target.last_dried_hours = latest_drying.last_dried_hours
     for field_name in ("tag_uid", "tray_uuid", "data_origin", "tag_type", "encode_time", "cost_per_kg"):
         if getattr(target, field_name) is None:
             for source in sources:
@@ -1712,7 +1820,7 @@ async def merge_spools(
 @router.get("/assignments", response_model=list[SpoolAssignmentResponse])
 async def list_assignments(
     printer_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_VIEW_ASSIGNMENTS),
 ):
     """List spool assignments, optionally filtered by printer."""
@@ -1744,12 +1852,8 @@ async def list_assignments(
                         continue
 
     all_serials = set(serial_map.values())
-    synthetic_keys: dict[str, tuple[int, int]] = {}
     for a in assignments:
-        if (a.printer_id, a.ams_id) not in serial_map:
-            synthetic = f"p{a.printer_id}a{a.ams_id}"
-            synthetic_keys[synthetic] = (a.printer_id, a.ams_id)
-            all_serials.add(synthetic)
+        all_serials.add(f"p{a.printer_id}a{a.ams_id}")
 
     label_by_serial: dict[str, str] = {}
     if all_serials:
@@ -1763,9 +1867,8 @@ async def list_assignments(
         sn = serial_map.get((a.printer_id, a.ams_id))
         if sn and sn in label_by_serial:
             resp.ams_label = label_by_serial[sn]
-        elif not sn:
-            synthetic = f"p{a.printer_id}a{a.ams_id}"
-            resp.ams_label = label_by_serial.get(synthetic)
+        else:
+            resp.ams_label = label_by_serial.get(f"p{a.printer_id}a{a.ams_id}")
         responses.append(resp)
 
     return responses
@@ -1774,14 +1877,16 @@ async def list_assignments(
 @router.post("/assignments", response_model=SpoolAssignmentResponse)
 async def assign_spool(
     data: SpoolAssignmentCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.INVENTORY_UPDATE)),
     http_request: Request = None,
 ):
     """Assign a spool to an AMS slot and auto-configure via MQTT."""
-    from backend.app.services import slot_unlink_grace
     from backend.app.services.ams_slot_presence import spool_present
     from backend.app.services.printer_manager import printer_manager
+
+    if not access.allows_printer(data.printer_id):
+        raise HTTPException(404, "Printer not found")
 
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == data.spool_id))
     spool = result.scalar_one_or_none()
@@ -1796,6 +1901,7 @@ async def assign_spool(
     fingerprint_color = None
     fingerprint_type = None
     current_tray_info_idx = ""
+    current_tray_sub_brands = ""
     tray_state: int | None = None
     slot_presence: bool | None = None
     state = printer_manager.get_status(data.printer_id)
@@ -1810,6 +1916,7 @@ async def assign_spool(
                     fingerprint_color = vt.get("tray_color", "")
                     fingerprint_type = vt.get("tray_type", "")
                     current_tray_info_idx = vt.get("tray_info_idx", "")
+                    current_tray_sub_brands = vt.get("tray_sub_brands", "")
                     raw_state = vt.get("state")
                     if isinstance(raw_state, int):
                         tray_state = raw_state
@@ -1833,91 +1940,96 @@ async def assign_spool(
                 fingerprint_color = tray.get("tray_color", "")
                 fingerprint_type = tray.get("tray_type", "")
                 current_tray_info_idx = tray.get("tray_info_idx", "")
+                current_tray_sub_brands = tray.get("tray_sub_brands", "")
                 raw_state = tray.get("state")
                 if isinstance(raw_state, int):
                     tray_state = raw_state
 
-    # 3. Upsert assignment (replace if same printer+ams+tray)
-    existing = await db.execute(
-        select(SpoolAssignment).where(
-            SpoolAssignment.printer_id == data.printer_id,
-            SpoolAssignment.ams_id == data.ams_id,
-            SpoolAssignment.tray_id == data.tray_id,
-        )
-    )
-    old = existing.scalar_one_or_none()
-    if old:
-        await db.delete(old)
-        await db.flush()
-
-    assignment = SpoolAssignment(
-        spool_id=data.spool_id,
-        printer_id=data.printer_id,
-        ams_id=data.ams_id,
-        tray_id=data.tray_id,
-        fingerprint_color=fingerprint_color,
-        fingerprint_type=fingerprint_type,
-    )
-    db.add(assignment)
-    await db.commit()
-    await db.refresh(assignment)
-    slot_unlink_grace.forget_slot(data.printer_id, data.ams_id, data.tray_id)
-
-    slot_is_definitely_empty = slot_presence is not True and tray_state in (9, 10)
-    configured = False
-    if not slot_is_definitely_empty:
-        try:
-            cloud_user, allowed = (
-                await orca_cloud_caller(http_request, db, current_user)
-                if http_request is not None
-                else (current_user, True)
+    # 3. Upsert assignment (replace if same printer+ams+tray), under the lock
+    # the AMS change handler writes the printer's slots with.
+    target = (data.printer_id, data.ams_id, data.tray_id)
+    async with lock_spool_assignment(
+        db, INTERNAL, data.spool_id, target, move=data.move, printer_ids=access.printer_ids
+    ) as old_slots:
+        vacated = [(row.printer_id, row.ams_id, row.tray_id) for row in old_slots]
+        for row in old_slots:
+            await db.delete(row)
+        existing = await db.execute(
+            select(SpoolAssignment).where(
+                SpoolAssignment.printer_id == data.printer_id,
+                SpoolAssignment.ams_id == data.ams_id,
+                SpoolAssignment.tray_id == data.tray_id,
             )
-            configured = await apply_spool_to_slot_via_mqtt(
-                db=db,
-                current_user=cloud_user,
-                orca_lookup_allowed=allowed,
-                spool=spool,
-                printer_id=data.printer_id,
-                ams_id=data.ams_id,
-                tray_id=data.tray_id,
-                current_tray_info_idx=current_tray_info_idx,
-                current_tray_type=fingerprint_type or "",
-                assignment=assignment,
+        )
+        old = existing.scalar_one_or_none()
+        if old:
+            await db.delete(old)
+            await db.flush()
+
+        assignment = SpoolAssignment(
+            spool_id=data.spool_id,
+            printer_id=data.printer_id,
+            ams_id=data.ams_id,
+            tray_id=data.tray_id,
+            fingerprint_color=fingerprint_color,
+            fingerprint_type=fingerprint_type,
+        )
+        db.add(assignment)
+        await spool_swaps.record_assignment(
+            db, data.printer_id, data.ams_id, data.tray_id, data.spool_id, spool_swaps.INVENTORY
+        )
+        await db.commit()
+        await db.refresh(assignment)
+
+        slot_is_definitely_empty = slot_presence is not True and tray_state in (9, 10)
+        configured = False
+        if not slot_is_definitely_empty:
+            try:
+                cloud_user, allowed = (
+                    await orca_cloud_caller(http_request, db, access.user)
+                    if http_request is not None
+                    else (access.user, True)
+                )
+                configured = await apply_spool_to_slot_via_mqtt(
+                    db=db,
+                    current_user=cloud_user,
+                    orca_lookup_allowed=allowed,
+                    spool=spool,
+                    printer_id=data.printer_id,
+                    ams_id=data.ams_id,
+                    tray_id=data.tray_id,
+                    current_tray_info_idx=current_tray_info_idx,
+                    current_tray_type=fingerprint_type or "",
+                    current_tray_sub_brands=current_tray_sub_brands,
+                    assignment=assignment,
+                )
+            except Exception as e:
+                logger.warning("MQTT auto-configure failed for spool %d: %s", spool.id, e)
+        pending_config = slot_is_definitely_empty or not configured
+
+        result = await db.execute(
+            select(SpoolAssignment)
+            .options(
+                selectinload(SpoolAssignment.spool).selectinload(Spool.k_profiles),
+                selectinload(SpoolAssignment.printer),
             )
-        except Exception as e:
-            logger.warning("MQTT auto-configure failed for spool %d: %s", spool.id, e)
-    pending_config = slot_is_definitely_empty or not configured
-
-    result = await db.execute(
-        select(SpoolAssignment)
-        .options(
-            selectinload(SpoolAssignment.spool).selectinload(Spool.k_profiles),
-            selectinload(SpoolAssignment.printer),
+            .where(SpoolAssignment.id == assignment.id)
         )
-        .where(SpoolAssignment.id == assignment.id)
-    )
-    resp = result.scalar_one()
-    response = SpoolAssignmentResponse.model_validate(resp)
-    response.configured = configured
-    response.pending_config = pending_config
+        resp = result.scalar_one()
+        response = SpoolAssignmentResponse.model_validate(resp)
+        response.configured = configured
+        response.pending_config = pending_config
 
-    if pending_config:
-        logger.info(
-            "Pre-configured assignment: spool %d → printer %d AMS%d-T%d (slot empty, will configure on insert)",
-            spool.id,
-            data.printer_id,
-            data.ams_id,
-            data.tray_id,
-        )
+        if pending_config:
+            logger.info(
+                "Pre-configured assignment: spool %d → printer %d AMS%d-T%d (slot empty, will configure on insert)",
+                spool.id,
+                data.printer_id,
+                data.ams_id,
+                data.tray_id,
+            )
 
-    await ws_manager.broadcast(
-        {
-            "type": "spool_assignment_changed",
-            "printer_id": data.printer_id,
-            "ams_id": data.ams_id,
-            "tray_id": data.tray_id,
-        }
-    )
+    await announce_freed_slots([*vacated, target])
 
     return response
 
@@ -1927,23 +2039,24 @@ async def unassign_spool(
     printer_id: int,
     ams_id: int,
     tray_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Unassign a spool from an AMS slot."""
-    result = await db.execute(
-        select(SpoolAssignment).where(
-            SpoolAssignment.printer_id == printer_id,
-            SpoolAssignment.ams_id == ams_id,
-            SpoolAssignment.tray_id == tray_id,
+    async with get_ams_assignment_lock(printer_id):
+        result = await db.execute(
+            select(SpoolAssignment).where(
+                SpoolAssignment.printer_id == printer_id,
+                SpoolAssignment.ams_id == ams_id,
+                SpoolAssignment.tray_id == tray_id,
+            )
         )
-    )
-    assignment = result.scalar_one_or_none()
-    if not assignment:
-        raise HTTPException(404, "Assignment not found")
+        assignment = result.scalar_one_or_none()
+        if not assignment:
+            raise HTTPException(404, "Assignment not found")
 
-    await db.delete(assignment)
-    await db.commit()
+        await db.delete(assignment)
+        await db.commit()
 
     await ws_manager.broadcast(
         {
@@ -1987,7 +2100,7 @@ def _validate_tag_input(
 async def link_tag_to_spool(
     spool_id: int,
     data: LinkTagRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Link an RFID tag_uid/tray_uuid to an existing spool."""
@@ -2066,178 +2179,21 @@ async def link_tag_to_spool(
     return result.scalar_one()
 
 
-# ── Usage History ─────────────────────────────────────────────────────────────
-
-
-@router.get("/spools/{spool_id}/usage", response_model=list[SpoolUsageHistoryResponse])
-async def get_spool_usage_history(
-    spool_id: int,
-    limit: int = 50,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
-):
-    """Get usage history for a specific spool."""
-    from backend.app.models.spool_usage_history import SpoolUsageHistory
-
-    # Verify spool exists
-    spool_result = await db.execute(select(Spool).where(Spool.id == spool_id))
-    if not spool_result.scalar_one_or_none():
-        raise HTTPException(404, "Spool not found")
-
-    result = await db.execute(
-        select(SpoolUsageHistory)
-        .where(SpoolUsageHistory.spool_id == spool_id)
-        .order_by(SpoolUsageHistory.created_at.desc())
-        .limit(limit)
-    )
-    return list(result.scalars().all())
-
-
-@router.get("/usage", response_model=list[SpoolUsageHistoryResponse])
-async def get_all_usage_history(
-    limit: int = 100,
-    printer_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
-):
-    """Get global usage history, optionally filtered by printer."""
-    from backend.app.models.spool_usage_history import SpoolUsageHistory
-
-    query = select(SpoolUsageHistory).order_by(SpoolUsageHistory.created_at.desc()).limit(limit)
-    if printer_id is not None:
-        query = query.where(SpoolUsageHistory.printer_id == printer_id)
-    result = await db.execute(query)
-    return list(result.scalars().all())
-
-
-@router.delete("/spools/{spool_id}/usage")
-async def clear_spool_usage_history(
-    spool_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
-):
-    """Clear usage history for a spool."""
-    from backend.app.models.spool_usage_history import SpoolUsageHistory
-
-    result = await db.execute(select(SpoolUsageHistory).where(SpoolUsageHistory.spool_id == spool_id))
-    for row in result.scalars().all():
-        await db.delete(row)
-    await db.commit()
-    return {"status": "cleared"}
-
-
 # ── AMS Weight Sync ──────────────────────────────────────────────────────────
 
 
 @router.post("/sync-ams-weights")
 async def sync_weights_from_ams(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
-    """Force-sync spool weight_used from live AMS remain% data.
+    """Explicitly sync idle printers' spool weights from live AMS telemetry."""
+    from backend.app.services.ams_weight_sync import sync_builtin_weights
 
-    Overwrites the database weight_used for every assigned spool using the
-    current AMS remain% from connected printers.  This is a manual recovery
-    tool — it bypasses the normal "only increase" guard.
-    """
-    from backend.app.services.printer_manager import printer_manager
-
-    result = await db.execute(select(SpoolAssignment).options(selectinload(SpoolAssignment.spool)))
-    assignments = list(result.scalars().all())
-    logger.info("AMS weight sync: found %d assignments", len(assignments))
-
-    synced = 0
-    skipped = 0
-
-    for assignment in assignments:
-        spool = assignment.spool
-        if not spool:
-            logger.debug("AMS weight sync: assignment %d has no spool", assignment.id)
-            skipped += 1
-            continue
-
-        if spool.weight_locked:
-            logger.debug("AMS weight sync: spool %d is weight-locked, skipping", spool.id)
-            skipped += 1
-            continue
-
-        state = printer_manager.get_status(assignment.printer_id)
-        if not state or not state.raw_data:
-            logger.info(
-                "AMS weight sync: printer %d not connected, skipping spool %d",
-                assignment.printer_id,
-                spool.id,
-            )
-            skipped += 1
-            continue
-
-        ams_raw = state.raw_data.get("ams", [])
-        if isinstance(ams_raw, dict):
-            ams_raw = ams_raw.get("ams", [])
-        tray = _find_tray_in_ams_data(ams_raw, assignment.ams_id, assignment.tray_id)
-        if not tray:
-            logger.info(
-                "AMS weight sync: no tray data for spool %d (printer %d AMS%d-T%d)",
-                spool.id,
-                assignment.printer_id,
-                assignment.ams_id,
-                assignment.tray_id,
-            )
-            skipped += 1
-            continue
-
-        remain_raw = tray.get("remain")
-        if remain_raw is None:
-            logger.debug("AMS weight sync: no remain value for spool %d", spool.id)
-            skipped += 1
-            continue
-
-        try:
-            remain_val = int(remain_raw)
-        except (TypeError, ValueError):
-            skipped += 1
-            continue
-
-        if remain_val < 0 or remain_val > 100:
-            logger.debug("AMS weight sync: invalid remain=%s for spool %d", remain_raw, spool.id)
-            skipped += 1
-            continue
-
-        lw = spool.label_weight or 1000
-        new_used = round(lw * (100 - remain_val) / 100.0, 1)
-        old_used = spool.weight_used or 0
-
-        if round(old_used, 1) != new_used:
-            logger.info(
-                "AMS weight sync: spool %d weight_used %s -> %s (remain=%d%%)",
-                spool.id,
-                old_used,
-                new_used,
-                remain_val,
-            )
-            spool.weight_used = new_used
-            synced += 1
-        else:
-            skipped += 1
-
-    await db.commit()
-    return {"synced": synced, "skipped": skipped}
+    return await sync_builtin_weights(db)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _find_tray_in_ams_data(ams_data: list, ams_id: int, tray_id: int) -> dict | None:
-    """Find a specific tray in the AMS data structure."""
-    if not ams_data:
-        return None
-    for ams_unit in ams_data:
-        if int(ams_unit.get("id", -1)) != ams_id:
-            continue
-        for tray in ams_unit.get("tray", []):
-            if int(tray.get("id", -1)) == tray_id:
-                return tray
-    return None
 
 
 # ── Filament SKU Settings (reorder forecasting) ───────────────────────────────
@@ -2275,7 +2231,7 @@ class FilamentSkuSettingsUpsert(BaseModel):
 
 @router.get("/sku-settings", response_model=list[FilamentSkuSettingsResponse])
 async def list_sku_settings(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(Permission.INVENTORY_READ, Permission.INVENTORY_FORECAST_READ),
 ):
     """List all filament SKU reorder settings."""
@@ -2287,7 +2243,7 @@ async def list_sku_settings(
 @router.post("/sku-settings", response_model=FilamentSkuSettingsResponse)
 async def upsert_sku_settings(
     data: FilamentSkuSettingsUpsert,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.INVENTORY_FORECAST_WRITE, Permission.INVENTORY_UPDATE
     ),
@@ -2349,7 +2305,7 @@ class ShoppingListItemStatusUpdate(BaseModel):
 
 @router.get("/shopping-list", response_model=list[ShoppingListItemResponse])
 async def get_shopping_list(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(Permission.INVENTORY_READ, Permission.INVENTORY_FORECAST_READ),
 ):
     """Get the filament shopping list."""
@@ -2377,7 +2333,7 @@ async def get_shopping_list(
 @router.post("/shopping-list", response_model=ShoppingListItemResponse)
 async def add_to_shopping_list(
     data: ShoppingListItemCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.INVENTORY_FORECAST_WRITE, Permission.INVENTORY_UPDATE
     ),
@@ -2414,7 +2370,7 @@ async def add_to_shopping_list(
 async def update_shopping_list_status(
     item_id: int,
     data: ShoppingListItemStatusUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.INVENTORY_FORECAST_WRITE, Permission.INVENTORY_UPDATE
     ),
@@ -2457,7 +2413,7 @@ async def update_shopping_list_status(
 @router.delete("/shopping-list/{item_id}")
 async def remove_from_shopping_list(
     item_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.INVENTORY_FORECAST_WRITE, Permission.INVENTORY_UPDATE
     ),
@@ -2476,7 +2432,7 @@ async def remove_from_shopping_list(
 
 @router.delete("/shopping-list")
 async def clear_shopping_list(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.INVENTORY_FORECAST_WRITE, Permission.INVENTORY_UPDATE
     ),
@@ -2499,7 +2455,7 @@ class CreateSpoolFromSlotRequest(BaseModel):
 @router.post("/spools/from-slot", response_model=SpoolResponse)
 async def create_spool_from_slot(
     req: CreateSpoolFromSlotRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Explicit user action: create an inventory spool from an AMS slot's current tray data.
@@ -2549,17 +2505,20 @@ async def create_spool_from_slot(
     if not is_valid_tag(tray.get("tag_uid", ""), tray.get("tray_uuid", "")):
         raise HTTPException(status_code=400, detail="Slot has no RFID tag")
 
-    spool = await create_spool_from_tray(db, tray)
-    await auto_assign_spool(
-        req.printer_id,
-        req.ams_id,
-        req.tray_id,
-        spool,
-        printer_manager,
-        db,
-        tray_info_idx=tray.get("tray_info_idx", ""),
-    )
-    await db.commit()
+    # Under the slot lock from the first write: on SQLite the spool insert takes
+    # the write lock, which an AMS update holding the slot lock would wait for.
+    async with get_ams_assignment_lock(req.printer_id):
+        spool = await create_spool_from_tray(db, tray)
+        await auto_assign_spool(
+            req.printer_id,
+            req.ams_id,
+            req.tray_id,
+            spool,
+            printer_manager,
+            db,
+            tray_info_idx=tray.get("tray_info_idx", ""),
+        )
+        await db.commit()
     await ws_manager.broadcast({"type": "inventory_changed"})
     await ws_manager.broadcast(
         {

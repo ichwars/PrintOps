@@ -65,7 +65,7 @@ class TestExtractFilamentDataFromMqtt:
         }
         result = _extract_filament_data_from_mqtt(data)
         # Order is by ascending global tray id, colors uppercased.
-        assert result == {"filament_type": "PLA,PETG,ABS", "filament_color": "FF0000,00FF00,0000FF"}
+        assert result == {"filament_type": "PLA,PETG,ABS", "filament_color": "#FF0000,#00FF00,#0000FF"}
 
     def test_ams_mapping_narrows_to_used_slots(self):
         """The slicer's slot-per-print-filament mapping wins — only used
@@ -88,7 +88,7 @@ class TestExtractFilamentDataFromMqtt:
         }
         # Print uses slots 3 then 0 then 1 (slot 2 untouched, no entry).
         result = _extract_filament_data_from_mqtt(data, ams_mapping=[3, 0, 1])
-        assert result == {"filament_type": "TPU,PLA,PETG", "filament_color": "FFFF00,FF0000,00FF00"}
+        assert result == {"filament_type": "TPU,PLA,PETG", "filament_color": "#FFFF00,#FF0000,#00FF00"}
 
     def test_ams_mapping_with_vt_tray_sentinels_filtered_out(self):
         """ams_mapping entries equal to -1 represent the VT tray (external
@@ -108,7 +108,7 @@ class TestExtractFilamentDataFromMqtt:
             }
         }
         result = _extract_filament_data_from_mqtt(data, ams_mapping=[-1, 0, 1])
-        assert result == {"filament_type": "PLA,PETG", "filament_color": "FF0000,00FF00"}
+        assert result == {"filament_type": "PLA,PETG", "filament_color": "#FF0000,#00FF00"}
 
     def test_dual_ams_global_ids_use_unit4_offset(self):
         """A dual-AMS rig has unit 0 → trays 0-3, unit 1 → trays 4-7.
@@ -122,7 +122,7 @@ class TestExtractFilamentDataFromMqtt:
             }
         }
         result = _extract_filament_data_from_mqtt(data, ams_mapping=[4, 0])
-        assert result == {"filament_type": "PETG-CF,PLA", "filament_color": "112233,FF0000"}
+        assert result == {"filament_type": "PETG-CF,PLA", "filament_color": "#112233,#FF0000"}
 
     def test_mapping_pointing_at_unknown_slot_falls_through_to_known_only(self):
         data = {
@@ -134,7 +134,7 @@ class TestExtractFilamentDataFromMqtt:
         }
         # Slot 7 isn't in our AMS — entry skipped, only slot 0 remains.
         result = _extract_filament_data_from_mqtt(data, ams_mapping=[7, 0])
-        assert result == {"filament_type": "PLA", "filament_color": "FF0000"}
+        assert result == {"filament_type": "PLA", "filament_color": "#FF0000"}
 
     def test_mapping_entirely_unknown_returns_empty(self):
         """If every mapped slot is unknown the helper returns {} rather
@@ -241,10 +241,17 @@ class TestOnPrintStartCallbackShape:
             "ams_mapping": [0],
         }
         result = _extract_filament_data_from_mqtt(wrapper, ams_mapping=[0])
-        # The 6-char rgba `FFFFFF` is what the AMS reports (with `FF` alpha
-        # tail trimmed by the catalog) — the helper preserves whatever the
-        # firmware sends.
-        assert result == {"filament_type": "PETG", "filament_color": "FFFFFFFF"}
+        # A firmware RGBA report becomes a CSS RGB swatch.
+        assert result == {"filament_type": "PETG", "filament_color": "#FFFFFF"}
+
+    def test_ams_ht_mapping_uses_unit_id_and_normalizes_rgba(self):
+        data = {
+            "ams": {"ams": [_ams_unit(0, [_tray(0, "PLA", "FFFFFF")]), _ams_unit(128, [_tray(0, "PETG", "00ae42ff")])]}
+        }
+        assert _extract_filament_data_from_mqtt(data, ams_mapping=[128]) == {
+            "filament_type": "PETG",
+            "filament_color": "#00AE42",
+        }
 
     def test_wrapper_with_no_ams_mapping_falls_back_to_all_loaded(self):
         """Wrapper shape without an ams_mapping behaves the same as the
@@ -258,7 +265,7 @@ class TestOnPrintStartCallbackShape:
         }
         wrapper = {"raw_data": inner}
         result = _extract_filament_data_from_mqtt(wrapper)
-        assert result == {"filament_type": "PLA,PETG", "filament_color": "FF0000,00FF00"}
+        assert result == {"filament_type": "PLA,PETG", "filament_color": "#FF0000,#00FF00"}
 
     def test_inner_shape_still_supported_after_wrapper_lookup(self):
         """Existing callers that pass the inner shape directly (e.g. the
@@ -270,7 +277,7 @@ class TestOnPrintStartCallbackShape:
         }
         assert _extract_filament_data_from_mqtt(inner) == {
             "filament_type": "ASA",
-            "filament_color": "112233",
+            "filament_color": "#112233",
         }
 
     def test_wrapper_with_missing_raw_data_returns_empty(self):
@@ -289,5 +296,5 @@ class TestOnPrintStartCallbackShape:
         }
         assert _extract_filament_data_from_mqtt(wrapper) == {
             "filament_type": "PLA",
-            "filament_color": "FF0000",
+            "filament_color": "#FF0000",
         }

@@ -17,6 +17,7 @@ import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { Toggle } from './Toggle';
 import { ConfirmModal } from './ConfirmModal';
+import { ArchiveMergeButton } from './ArchiveMergeButton';
 import { Checkbox, LegacySelect } from './ui';
 import {
   api,
@@ -337,6 +338,7 @@ export function GitHubRestoreModal({ onClose }: GitHubRestoreModalProps) {
                     )}
                   </div>
                 ))}
+                {result.results.archives?.restored > 0 && <ArchiveMergeButton />}
                 <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-300 dark:border-yellow-500/30">
                   <p className="text-xs text-yellow-700 dark:text-yellow-200">
                     {t('backup.restoreFromGit.reloadHint')}

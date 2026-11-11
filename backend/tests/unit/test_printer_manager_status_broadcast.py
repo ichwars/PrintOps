@@ -1,4 +1,4 @@
-"""Regression tests for ``PrinterManager._broadcast_status_change`` and
+"""Regression tests for ``PrinterManager.broadcast_status_change`` and
 its wiring from ``set_awaiting_plate_clear`` (#1128).
 
 The bug: ``awaiting_plate_clear`` is a PrintOps-side flag, so toggling it
@@ -37,7 +37,7 @@ def _close_unawaited(coro):
 
     ``set_awaiting_plate_clear`` evaluates the coroutine expressions
     ``self._persist_awaiting_plate_clear(...)`` and
-    ``self._broadcast_status_change(...)`` before passing them to
+    ``self.broadcast_status_change(...)`` before passing them to
     ``_schedule_async``. When that target is patched, the coroutine objects
     leak — Python's ``__del__`` then emits ``coroutine was never awaited``
     during GC, and when GC runs late enough that warning hits the interpreter
@@ -189,7 +189,7 @@ class TestBroadcastStatusChange:
                 new_callable=AsyncMock,
             ) as send_status,
         ):
-            await manager._broadcast_status_change(7)
+            await manager.broadcast_status_change(7)
 
         send_status.assert_awaited_once()
         printer_id_arg, payload_arg = send_status.await_args.args
@@ -213,7 +213,7 @@ class TestBroadcastStatusChange:
                 new_callable=AsyncMock,
             ) as send_status,
         ):
-            await manager._broadcast_status_change(999)
+            await manager.broadcast_status_change(999)
 
         send_status.assert_not_awaited()
 
@@ -222,7 +222,7 @@ class TestBroadcastStatusChange:
         """The broadcast is a courtesy, not a correctness path — if the
         WS layer is down, the flag is already mutated in-memory and
         persisted. Letting an exception bubble out of
-        ``_broadcast_status_change`` would surface as an
+        ``broadcast_status_change`` would surface as an
         ``Exception in scheduled callback`` traceback in the log AND
         prevent the persistence coroutine from completing if both were
         gathered together. Swallow + warn instead."""
@@ -236,7 +236,7 @@ class TestBroadcastStatusChange:
             ),
         ):
             # Must not raise.
-            await manager._broadcast_status_change(7)
+            await manager.broadcast_status_change(7)
 
 
 class TestEndToEndUnderRunningLoop:

@@ -51,6 +51,7 @@ function renderCameraPage(printerId: number, search = '', nextPublicLink?: strin
                 {nextPublicLink && <Link to={nextPublicLink}>Change public link</Link>}
                 <Routes>
                   <Route path="/cameras/:printerId" element={<CameraPage />} />
+                  <Route path="/printers" element={<p>Back at printers</p>} />
                 </Routes>
               </ToastProvider>
             </ThemeProvider>
@@ -62,6 +63,19 @@ function renderCameraPage(printerId: number, search = '', nextPublicLink?: strin
 }
 
 describe('CameraPage', () => {
+  it('offers an in-app back action on the iOS home screen', async () => {
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+    try {
+      renderCameraPage(1);
+      const back = await screen.findByRole('button', { name: 'Back' });
+      expect(screen.queryByRole('button', { name: 'Open camera overlay' })).not.toBeInTheDocument();
+      fireEvent.click(back);
+      expect(await screen.findByText('Back at printers')).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(navigator, 'standalone');
+    }
+  });
+
   const originalTitle = document.title;
 
   beforeEach(() => {
@@ -123,6 +137,25 @@ describe('CameraPage', () => {
       });
       expect(document.querySelector('video')).toBeNull();
       expect(screen.getByRole('button', { name: 'Snapshot' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('retries a snapshot after a brief delay when the live frame is pending', async () => {
+      localStorage.setItem(preferenceKey, JSON.stringify({ version: 1, mode: 'snapshot' }));
+      const view = renderCameraPage(1);
+      await waitFor(() => {
+        expect(view.container.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
+      });
+
+      vi.useFakeTimers();
+      try {
+        const image = view.container.querySelector('img')!;
+        const firstSource = image.getAttribute('src');
+        fireEvent.error(image);
+        await act(async () => { vi.advanceTimersByTime(2000); });
+        expect(view.container.querySelector('img')?.getAttribute('src')).not.toBe(firstSource);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('waits for the signed-in identity before opening its saved snapshot', async () => {

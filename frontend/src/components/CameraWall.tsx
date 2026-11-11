@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { cameraWallGrid } from '../utils/cameraWallSize';
 import { NumberField } from './ui';
 import { useQueries } from '@tanstack/react-query';
 import { Settings as SettingsIcon } from 'lucide-react';
@@ -36,7 +37,9 @@ interface CameraWallProps {
   onChangeSnapshotIntervalSec: (next: number) => void;
   onChangeStatusMode: (next: CameraTileStatusMode) => void;
   statuses?: Map<number, CameraWallStatus | undefined>;
+  cameraToken?: string | null;
   showSettings?: boolean;
+  tileSize?: number;
 }
 
 const MIN_MAX_LIVE = 1;
@@ -56,7 +59,9 @@ export function CameraWall({
   onChangeSnapshotIntervalSec,
   onChangeStatusMode,
   statuses,
+  cameraToken,
   showSettings: settingsEnabled = true,
+  tileSize = 2,
 }: CameraWallProps) {
   const { t } = useTranslation();
   const tileRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
@@ -254,7 +259,7 @@ export function CameraWall({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className={`grid gap-3 ${cameraWallGrid(tileSize)}`} data-testid="camwall-grid">
         {printers.map((p) => {
           const mode = modeByPrinter.get(p.id) ?? 'paused';
           return (
@@ -266,6 +271,7 @@ export function CameraWall({
               data-printer-id={p.id}
             >
               <CameraTile
+                cameraToken={cameraToken}
                 printerId={p.id}
                 printerName={p.name}
                 cameraRotation={p.camera_rotation}

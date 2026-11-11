@@ -1,12 +1,12 @@
 import logging
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path
+from fastapi import APIRouter, Body, HTTPException, Path
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.spool import Spool
 from backend.app.models.spool_k_profile import SpoolKProfile
@@ -35,7 +35,7 @@ router = APIRouter()
 @router.get("/spools/{spool_id}/k-profiles", response_model=list[SpoolKProfileResponse])
 async def list_k_profiles(
     spool_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """List K-profiles for a spool."""
@@ -47,7 +47,7 @@ async def list_k_profiles(
 async def replace_k_profiles(
     spool_id: int,
     profiles: list[SpoolKProfileBase],
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Replace all K-profiles for a spool (batch save)."""
@@ -79,7 +79,7 @@ logger = logging.getLogger(__name__)
 @spoolman_router.get("/spools/{spool_id}/k-profiles")
 async def get_spoolman_k_profiles(
     spool_id: int = Path(..., gt=0),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> list[dict]:
     """Return all local K-value calibration profiles for a Spoolman spool."""
@@ -95,7 +95,7 @@ async def get_spoolman_k_profiles(
 async def save_spoolman_k_profiles(
     spool_id: int = Path(..., gt=0),
     profiles: list[SpoolKProfileBase] = Body(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ) -> list[dict]:
     """Replace all K-value calibration profiles for a Spoolman spool."""

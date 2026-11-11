@@ -223,3 +223,54 @@ class TestWebhookCancelPrint:
                 headers={"X-API-Key": api_key_data},
             )
         assert resp.status_code == 409
+
+
+@pytest.mark.parametrize("action", ["stop", "cancel"])
+@pytest.mark.parametrize("sent", [True, False])
+async def test_webhook_stops_a_paused_print_and_marks_only_a_sent_command(
+    action, sent, async_client, api_key_data, printer_row, monkeypatch
+):
+    from backend.app import main
+    from backend.app.services.printer_manager import printer_manager
+
+    monkeypatch.setattr(main, "_user_stopped_printers", set())
+    stop = MagicMock(return_value=sent)
+    monkeypatch.setattr(printer_manager, "stop_print", stop)
+    monkeypatch.setattr(printer_manager, "get_status", lambda _: PrinterState(connected=True, state="PAUSE"))
+    response = await async_client.post(
+        f"/api/v1/webhook/printer/{printer_row.id}/{action}", headers={"X-API-Key": api_key_data}
+    )
+    assert response.status_code == (200 if sent else 503), response.text
+    stop.assert_called_once_with(printer_row.id)
+    assert (printer_row.id in main._user_stopped_printers) is sent
+
+
+async def test_hms_stop_marks_the_print_before_the_acknowledgement(async_client, printer_row, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from backend.app import main
+    from backend.app.api.routes import printers_controls
+
+    monkeypatch.setattr(main, "_user_stopped_printers", set())
+    observed = []
+    client = SimpleNamespace(_last_message_time=10)
+
+    def acknowledge():
+        observed.append(printer_row.id in main._user_stopped_printers)
+        client._last_message_time += 1
+
+    def execute(*args):
+        asyncio.get_running_loop().call_soon(acknowledge)
+        return True
+
+    client.execute_hms_action = MagicMock(side_effect=execute)
+    monkeypatch.setattr(printers_controls, "printer_manager", SimpleNamespace(get_client=lambda _: client))
+    monkeypatch.setattr(printers_controls, "_hms_action_ack_wait_seconds", lambda: 0)
+    response = await async_client.post(
+        f"/api/v1/printers/{printer_row.id}/hms/execute-action",
+        json={"print_error": "03008001", "action": "STOP_PRINTING", "job_id": "123"},
+    )
+    assert response.status_code == 200, response.text
+    assert observed == [True]
+    client.execute_hms_action.assert_called_once_with("03008001", "STOP_PRINTING", "123")

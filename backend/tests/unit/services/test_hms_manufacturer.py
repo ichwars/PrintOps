@@ -103,3 +103,35 @@ def test_mqtt_completion_payload_keeps_the_resolved_description_and_firmware_act
     assert fault["description"] == mqtt.state.hms_errors[0].description
     assert fault["full_code"] == "0300020000010008" and fault["severity"] == 1
     assert fault["job_id"] == "job-7" and fault["actions"] == mqtt.state.hms_errors[0].actions
+
+
+def test_hms_flicker_beside_another_fault_is_suppressed_until_rearmed(monkeypatch):
+    from backend.app import main
+    from backend.app.services.bambu_mqtt import HMSError
+
+    for name in ("_notified_hms_errors", "_hms_print_state", "_hms_forget_when_gone"):
+        monkeypatch.setattr(main, name, {})
+    clock = [100.0]
+    monkeypatch.setattr(main.time, "monotonic", lambda: clock[0])
+    first, second = [
+        HMSError(
+            code=f"0x{value:x}",
+            attr=0x03000200,
+            module=3,
+            severity=1,
+            description="Manufacturer warning",
+            full_code=f"030002000001{value:04X}",
+        )
+        for value in (8, 9)
+    ]
+    assert main._take_new_hms_faults(1, [first, second], "RUNNING") == [first, second]
+    clock[0] += 60
+    assert main._take_new_hms_faults(1, [second], "RUNNING") == []
+    clock[0] += 64
+    assert main._take_new_hms_faults(1, [first, second], "RUNNING") == []
+    assert main._take_new_hms_faults(1, [first, second], "PAUSE") == []
+    assert main._take_new_hms_faults(1, [second], "PAUSE") == []
+    assert main._take_new_hms_faults(1, [first, second], "PAUSE") == [first]
+    clock[0] += 601
+    assert main._take_new_hms_faults(1, [first], "PAUSE") == []
+    assert main._take_new_hms_faults(1, [first, second], "PAUSE") == [second]

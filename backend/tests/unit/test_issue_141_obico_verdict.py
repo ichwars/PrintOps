@@ -141,11 +141,12 @@ async def test_print_end_clears_verdict_and_error_state():
 
 
 @pytest.mark.asyncio
-async def test_disconnect_clears_verdict_and_error_state():
+async def test_disconnect_hides_the_verdict_but_keeps_the_running_print_state():
     service = ObicoDetectionService()
     service._states[1] = PrintState()
     service._state_keys[1] = "job"
     service._last_class[1] = "safe"
+    service._action_fired[1] = True
     service._errors[1] = "camera failed"
     manager = MagicMock()
     manager.get_all_statuses.return_value = {1: _status()}
@@ -157,6 +158,6 @@ async def test_disconnect_clears_verdict_and_error_state():
     ):
         await service._poll_once(SETTINGS)
 
-    assert service.get_per_printer() == {}
-    assert service._last_class == {}
-    assert service._errors == {}
+    assert service.get_per_printer()[1]["class"] == "error"
+    assert service.get_per_printer()[1]["error"] == "Printer is disconnected"
+    assert service._action_fired[1] is True

@@ -168,6 +168,18 @@ class BambuCloudAuthError(BambuCloudError):
     pass
 
 
+def _cloud_json(response: httpx.Response) -> dict:
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        return data
+    raise BambuCloudError(
+        _detect_cloudflare_challenge(response) or f"Invalid response from Bambu Cloud (HTTP {response.status_code})"
+    )
+
+
 _shared_http_client: httpx.AsyncClient | None = None
 
 
@@ -243,10 +255,11 @@ class BambuCloudService:
                 },
             )
 
+            if response.status_code >= 500 and not _detect_cloudflare_challenge(response):
+                raise BambuCloudError(f"Bambu Cloud returned HTTP {response.status_code}")
             try:
                 data = response.json()
-            except Exception as json_err:
-                logger.error("Failed to parse login response: %s, body: %s", json_err, response.text[:500])
+            except ValueError:
                 cf_message = _detect_cloudflare_challenge(response)
                 return {
                     "success": False,
@@ -290,9 +303,8 @@ class BambuCloudService:
             error_msg = data.get("message") or data.get("error") or "Login failed"
             return {"success": False, "needs_verification": False, "message": error_msg}
 
-        except Exception as e:
-            logger.error("Login request failed: %s", e)
-            raise BambuCloudAuthError(f"Login request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def verify_code(self, email: str, code: str) -> dict:
         """
@@ -308,10 +320,11 @@ class BambuCloudService:
                 },
             )
 
+            if response.status_code >= 500 and not _detect_cloudflare_challenge(response):
+                raise BambuCloudError(f"Bambu Cloud returned HTTP {response.status_code}")
             try:
                 data = response.json()
-            except Exception as json_err:
-                logger.error("Failed to parse email-verify response: %s, body: %s", json_err, response.text[:500])
+            except ValueError:
                 cf_message = _detect_cloudflare_challenge(response)
                 return {"success": False, "message": cf_message or "Invalid response from Bambu Cloud"}
             logger.debug("Email verify response: status=%s, hasToken=%s", response.status_code, "accessToken" in data)
@@ -322,9 +335,8 @@ class BambuCloudService:
 
             return {"success": False, "message": data.get("message", "Verification failed")}
 
-        except Exception as e:
-            logger.error("Email verification failed: %s", e)
-            raise BambuCloudAuthError(f"Verification failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def _fetch_csrf_token(self, web_origin: str, client: httpx.AsyncClient | None = None) -> str | None:
         """Seed Bambu's web-origin CSRF cookie and return its value."""
@@ -420,10 +432,11 @@ class BambuCloudService:
                 logger.warning("TOTP verification returned empty response (status %s)", response.status_code)
                 return {"success": False, "message": "Bambu Cloud returned empty response. Please try again."}
 
+            if response.status_code >= 500 and not _detect_cloudflare_challenge(response):
+                raise BambuCloudError(f"Bambu Cloud returned HTTP {response.status_code}")
             try:
                 data = response.json()
-            except Exception as json_err:
-                logger.error("Failed to parse TOTP response: %s, body: %s", json_err, response.text[:500])
+            except ValueError:
                 cf_message = _detect_cloudflare_challenge(response)
                 return {"success": False, "message": cf_message or "Invalid response from Bambu Cloud"}
 
@@ -464,10 +477,8 @@ class BambuCloudService:
 
             return {"success": False, "message": error_msg}
 
-        except Exception as e:
-            logger.error("TOTP verification failed: %s", e)
-            # Return error instead of raising - don't trigger 401/500
-            return {"success": False, "message": f"TOTP verification error: {e}"}
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     def _set_tokens(self, data: dict):
         """Set tokens from login response."""
@@ -651,12 +662,14 @@ class BambuCloudService:
             )
 
             if response.status_code == 200:
-                return response.json()
+                return _cloud_json(response)
 
+            if response.status_code in (401, 403) and not _detect_cloudflare_challenge(response):
+                raise BambuCloudAuthError("Invalid token")
             raise BambuCloudError(f"Failed to get profile: {response.status_code}")
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def get_slicer_settings(self, version: str = _SLICER_API_VERSION) -> dict:
         """
@@ -679,15 +692,15 @@ class BambuCloudService:
                 params={"version": version},
             )
 
-            data = response.json()
+            data = _cloud_json(response)
 
             if response.status_code == 200:
                 return data
 
             raise BambuCloudError(f"Failed to get settings: {response.status_code}")
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def get_setting_detail(self, setting_id: str) -> dict:
         """Get detailed information for a specific setting/preset."""
@@ -702,14 +715,14 @@ class BambuCloudService:
             )
 
             if response.status_code == 200:
-                return response.json()
+                return _cloud_json(response)
 
-            # Include body so a future contract change is self-diagnostic from logs.
-            body = (response.text or "")[:200]
-            raise BambuCloudError(f"Failed to get setting detail: {response.status_code} {body}")
+            # Keep the API's validation hint while excluding intermediary error pages.
+            hint = (response.text or "")[:200] if response.status_code < 500 else ""
+            raise BambuCloudError(f"Failed to get setting detail: {response.status_code} {hint}".rstrip())
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def create_setting(
         self, preset_type: str, name: str, base_id: str, setting: dict, version: str = "2.0.0.0"
@@ -749,7 +762,7 @@ class BambuCloudService:
                 f"{self.base_url}/v1/iot-service/api/slicer/setting", headers=self._get_headers(), json=payload
             )
 
-            data = response.json()
+            data = _cloud_json(response)
 
             if response.status_code in (200, 201):
                 return data
@@ -757,8 +770,8 @@ class BambuCloudService:
             error_msg = data.get("message") or data.get("error") or f"HTTP {response.status_code}"
             raise BambuCloudError(f"Failed to create setting: {error_msg}")
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def update_setting(self, setting_id: str, name: str | None = None, setting: dict | None = None) -> dict:
         """
@@ -834,7 +847,7 @@ class BambuCloudService:
                 f"{self.base_url}/v1/iot-service/api/slicer/setting", headers=self._get_headers(), json=payload
             )
 
-            data = response.json()
+            data = _cloud_json(response)
 
             if response.status_code == 200:
                 return data
@@ -842,8 +855,8 @@ class BambuCloudService:
             error_msg = data.get("message") or data.get("error") or f"HTTP {response.status_code}"
             raise BambuCloudError(f"Failed to update setting: {error_msg}")
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def delete_setting(self, setting_id: str) -> dict:
         """
@@ -868,12 +881,12 @@ class BambuCloudService:
             if response.status_code in (200, 204):
                 return {"success": True, "message": "Setting deleted"}
 
-            data = response.json() if response.content else {}
+            data = _cloud_json(response) if response.content else {}
             error_msg = data.get("message") or data.get("error") or f"HTTP {response.status_code}"
             raise BambuCloudError(f"Failed to delete setting: {error_msg}")
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def get_devices(self) -> dict:
         """Get list of bound devices."""
@@ -886,12 +899,12 @@ class BambuCloudService:
             )
 
             if response.status_code == 200:
-                return response.json()
+                return _cloud_json(response)
 
             raise BambuCloudError(f"Failed to get devices: {response.status_code}")
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def get_firmware_version(self, device_id: str) -> dict:
         """
@@ -914,14 +927,14 @@ class BambuCloudService:
             )
 
             if response.status_code == 200:
-                data = response.json()
+                data = _cloud_json(response)
                 # API wraps response in 'data' field
                 return data.get("data", data)
 
             raise BambuCloudError(f"Failed to get firmware version: {response.status_code}")
 
-        except httpx.RequestError as e:
-            raise BambuCloudError(f"Request failed: {e}")
+        except httpx.RequestError as error:
+            raise BambuCloudError("Bambu Cloud is unreachable") from error
 
     async def close(self):
         """Close the HTTP client we own. No-op when sharing an app-scoped client."""

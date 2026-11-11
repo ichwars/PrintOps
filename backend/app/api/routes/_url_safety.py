@@ -28,6 +28,17 @@ CLOUD_METADATA_IPS = frozenset(
         ipaddress.ip_address("100.100.100.200"),
         # AWS IMDS IPv6
         ipaddress.ip_address("fd00:ec2::254"),
+        # Tencent Cloud and Scaleway
+        ipaddress.ip_address("169.254.0.23"),
+        ipaddress.ip_address("169.254.42.42"),
+        ipaddress.ip_address("fd00:42::42"),
+        # Oracle Cloud, GCP and Akamai/Linode IPv6
+        ipaddress.ip_address("fd00:c1::a9fe:a9fe"),
+        ipaddress.ip_address("fd20:ce::254"),
+        ipaddress.ip_address("fd00:a9fe:a9fe::1"),
+        # AWS EKS Pod Identity Agent and OpenStack IPv6
+        ipaddress.ip_address("fd00:ec2::23"),
+        ipaddress.ip_address("fe80::a9fe:a9fe"),
     }
 )
 
@@ -35,15 +46,19 @@ CLOUD_METADATA_HOSTNAMES = frozenset(
     {
         "metadata.google.internal",
         "metadata.goog",
+        "metadata.google",
+        "metadata",
+        "instance-data",
+        "instance-data.ec2.internal",
+        "metadata.tencentyun.com",
+        "api.metadata.cloud.ibm.com",
     }
 )
 
 
-# libc and browsers parse numeric-encoded IP forms (decimal ``2130706433``
-# for 127.0.0.1, hex ``0x7f000001``) but Python's ``ipaddress.ip_address``
-# raises ValueError on these, so they slip past the IP-class checks if
-# not caught first. Used by both guards to reject up-front.
-NUMERIC_IP_RE = re.compile(r"^(0x[0-9a-f]+|[0-9]+)$", re.I)
+# URL clients and resolvers also recognize short, octal, hexadecimal and
+# single-number IPv4 forms that ipaddress cannot classify.
+_NUMERIC_IP_PART = re.compile(r"(?:0x[0-9a-f]*|[0-9]+)", re.IGNORECASE)
 
 
 def canonical_url_hostname(hostname: str | None) -> str:
@@ -51,10 +66,21 @@ def canonical_url_hostname(hostname: str | None) -> str:
     return (hostname or "").rstrip(".").lower()
 
 
+def is_numeric_encoded_ip(hostname: str) -> bool:
+    """Recognize numeric IPv4 spellings outside standard dotted decimal."""
+    if not all(_NUMERIC_IP_PART.fullmatch(part) for part in hostname.split(".")):
+        return False
+    try:
+        ipaddress.IPv4Address(hostname)
+    except ValueError:
+        return True
+    return False
+
+
 def unwrap_ipv4_mapped(
     addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
-    """Return the underlying IPv4 for an IPv4-mapped IPv6 address, else return *addr*.
+    """Return the underlying IPv4 or remove the IPv6 scope for policy comparisons.
 
     ``::ffff:127.0.0.1`` and similar mapped forms must be unwrapped before
     the per-class checks (``is_private``, ``is_loopback``, …) — otherwise
@@ -63,6 +89,8 @@ def unwrap_ipv4_mapped(
     """
     if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
         return addr.ipv4_mapped
+    if isinstance(addr, ipaddress.IPv6Address) and addr.scope_id is not None:
+        return ipaddress.IPv6Address(str(addr).partition("%")[0])
     return addr
 
 
@@ -76,10 +104,12 @@ def assert_safe_lan_service_url(url: str, *, label: str) -> None:
     if not hostname:
         raise ValueError(f"{label} must include a hostname")
 
+    if not hostname.isascii():
+        raise ValueError(f"{label} must use an ASCII hostname (punycode for international names)")
     if hostname in CLOUD_METADATA_HOSTNAMES:
         raise ValueError(f"{label} must not point to a cloud metadata endpoint")
 
-    if NUMERIC_IP_RE.match(hostname):
+    if is_numeric_encoded_ip(hostname):
         raise ValueError(f"{label} must not use numeric-encoded IP addresses; use standard dotted-decimal notation")
 
     try:
@@ -94,3 +124,5 @@ def assert_safe_lan_service_url(url: str, *, label: str) -> None:
 
     if effective.is_multicast or effective.is_unspecified:
         raise ValueError(f"{label} must not point to a multicast or unspecified address")
+    if isinstance(effective, ipaddress.IPv4Address) and effective.is_link_local:
+        raise ValueError(f"{label} must not point to an IPv4 link-local address")

@@ -14,10 +14,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.config import settings
-from backend.app.core.logging_filters import URL_CREDENTIALS_PATTERN
+from backend.app.core.logging_filters import (
+    URL_CREDENTIALS_PATTERN,
+    redact_log_secrets,
+    redact_url_credentials,
+)
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
+from backend.app.utils.safe_logging import url_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +30,9 @@ logger = logging.getLogger(__name__)
 # The trace_id is left as part of the message group — callers that need it can
 # parse it out; the log-health scanner does not.
 LOG_LINE_PATTERN = re.compile(r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\s+(\w+)\s+\[([^\]]+)\]\s+(.*)$")
+_DEVICE_URL_LOGGERS = frozenset({"backend.app.services.rest_smart_plug", "httpx"})
+_DEVICE_URL_IN_TEXT = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]{0,63}://\S+")
+_REST_ERROR_TAIL = re.compile(r"(invalid URL: |headers JSON: |returned error: |REST smart plug at \S+?: )[^\r\n]*")
 _LDAP_RDN = r"(?:CN|OU|DC|UID|O|L|ST|C|SN|GN|DN|E|MAIL|STREET|GIVENNAME|SURNAME)=[^,\n<>;+:]+"
 _LDAP_DN_PATTERN = re.compile(rf"(?i)\b{_LDAP_RDN}(?:\s*,\s*{_LDAP_RDN})+")
 
@@ -49,6 +57,11 @@ def parse_log_line(line: str) -> LogEntry | None:
             message=match.group(4),
         )
     return None
+
+
+def _redact_device_log(text: str) -> str:
+    text = _REST_ERROR_TAIL.sub(r"\1[REDACTED]", text)
+    return _DEVICE_URL_IN_TEXT.sub(lambda match: url_for_log(match.group()), text)
 
 
 def read_log_entries(
@@ -110,6 +123,10 @@ def read_log_entries(
                     if multi_line_buffer:
                         current_entry.message += "\n" + "\n".join(reversed(multi_line_buffer))
                     multi_line_buffer = []
+                    message = redact_log_secrets(current_entry.message)
+                    if current_entry.logger_name in _DEVICE_URL_LOGGERS:
+                        message = _redact_device_log(message)
+                    current_entry.message = redact_url_credentials(message) or ""
                 elif line.strip():
                     # Continuation of multi-line log entry (will be attached to next parsed entry)
                     multi_line_buffer.append(line.rstrip())
@@ -146,7 +163,18 @@ def sanitize_log_content(content: str, sensitive_strings: dict[str, str] | None 
     Regex passes additionally redact credentials in URLs, emails, LDAP DNs,
     serials, and IP addresses that were not captured by exact matching.
     """
-    # First, replace known sensitive values (database-aware exact matching)
+    # Redact device URLs while the original logger name is still available.
+    lines = content.splitlines(keepends=True)
+    device_log = False
+    for index, line in enumerate(lines):
+        match = LOG_LINE_PATTERN.match(line)
+        if match:
+            device_log = match[3] in _DEVICE_URL_LOGGERS
+        if device_log:
+            lines[index] = _redact_device_log(line)
+    content = redact_log_secrets("".join(lines))
+
+    # Replace known sensitive values (database-aware exact matching).
     # This catches printer names, usernames, and other arbitrary user-chosen strings
     # that regex patterns cannot detect
     if sensitive_strings:

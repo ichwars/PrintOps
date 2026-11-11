@@ -68,6 +68,12 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[tool.basedpyright]
+include = ["backend/app"]
+typeCheckingMode = "standard"
+pythonVersion = "3.13"
+pythonPlatform = "Linux"
+
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 python_files = ["test_*.py"]
@@ -78,6 +84,7 @@ filterwarnings = [
 ]
 markers = [
     "docker: marks tests that run in Docker integration environment",
+    "sqlite_only: exercises SQLite-specific behavior",
     "requires_verapdf: marks tests that execute the pinned veraPDF runtime",
 ]
 

@@ -11,20 +11,40 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.library import get_library_dir
-from backend.app.core.auth import RequirePermissionIfAuthEnabled, require_media_token_permission
+from backend.app.core.auth import (
+    OwnershipAccess,
+    RequirePermissionIfAuthEnabled,
+    require_media_token_permission,
+    require_ownership_permission,
+    require_permission_with_key,
+    resolve_optional_api_key,
+)
 from backend.app.core.config import settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import (
+    archive_read_access,
+    archive_read_criteria,
+    library_read_criteria,
+    resolve_row_visibility,
+    visible_archive_names,
+)
+from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
-from backend.app.models.library import LibraryFile, LibraryFolder
 from backend.app.models.print_log import PrintLogEntry
-from backend.app.models.print_queue import PrintQueueItem
-from backend.app.models.project import Project
+from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
+from backend.app.models.project import (
+    PROJECT_PRIORITIES,
+    PROJECT_STATUSES,
+    Project,
+    normalize_project_priority,
+    normalize_project_status,
+)
 from backend.app.models.project_bom import ProjectBOMItem
 from backend.app.models.user import User
 from backend.app.schemas.project import (
@@ -44,8 +64,13 @@ from backend.app.schemas.project import (
     TimelineEvent,
 )
 from backend.app.services import project_lifecycle
+from backend.app.services.project_library_transfer import (
+    add_imported_files,
+    export_linked_library,
+    link_imported_folder,
+)
 from backend.app.utils.http import build_content_disposition
-from backend.app.utils.library_files import classify_file_type
+from backend.app.utils.local_time import to_naive_utc
 from backend.app.utils.safe_path import safe_join_under
 
 logger = logging.getLogger(__name__)
@@ -371,10 +396,11 @@ async def compute_subtree_stats(db: AsyncSession, root_id: int) -> _SubtreeRepor
 @router.get("/", response_model=list[ProjectListResponse])
 async def list_projects(
     status: str | None = None,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_READ)),
 ):
     """List all projects with basic stats."""
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
     query = select(Project)
     if status:
         query = query.where(Project.status == status)
@@ -443,7 +469,7 @@ async def list_projects(
         # Get archive previews (up to 6 most recent)
         archives_result = await db.execute(
             select(PrintArchive)
-            .where(PrintArchive.project_id == project.id)
+            .where(PrintArchive.project_id == project.id, *archive_read_criteria(visibility))
             .order_by(PrintArchive.created_at.desc())
             .limit(6)
         )
@@ -491,14 +517,16 @@ async def list_projects(
 @router.post("/", response_model=ProjectResponse)
 async def create_project(
     data: ProjectCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_CREATE),
 ):
     """Create a new project."""
-    # Verify parent exists if specified
+    if data.priority not in PROJECT_PRIORITIES:
+        raise HTTPException(400, "Invalid priority")
+    parent_id = data.parent_id or None
     parent_name = None
-    if data.parent_id:
-        parent_result = await db.execute(select(Project).where(Project.id == data.parent_id))
+    if parent_id:
+        parent_result = await db.execute(select(Project).where(Project.id == parent_id))
         parent = parent_result.scalar_one_or_none()
         if not parent:
             raise HTTPException(status_code=400, detail="Parent project not found")
@@ -515,7 +543,7 @@ async def create_project(
         due_date=data.due_date,
         priority=data.priority,
         budget=data.budget,
-        parent_id=data.parent_id,
+        parent_id=parent_id,
         url=data.url,
     )
     db.add(project)
@@ -556,7 +584,7 @@ async def create_project(
 
 @router.get("/templates", response_model=list[ProjectListResponse])
 async def list_templates(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
 ):
     """List all project templates."""
@@ -597,7 +625,7 @@ async def list_templates(
 async def create_project_from_template(
     template_id: int,
     name: str = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_CREATE),
 ):
     """Create a new project from a template."""
@@ -684,7 +712,7 @@ async def create_project_from_template(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
 ):
     """Get a project by ID with detailed stats."""
@@ -737,7 +765,7 @@ async def get_project(
 async def update_project(
     project_id: int,
     data: ProjectUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
 ):
     """Update a project."""
@@ -755,7 +783,7 @@ async def update_project(
     if data.color is not None:
         project.color = data.color
     if data.status is not None:
-        if data.status not in ["active", "completed", "archived"]:
+        if data.status not in PROJECT_STATUSES:
             raise HTTPException(status_code=400, detail="Invalid status")
         project.status = data.status
     if data.target_count is not None:
@@ -769,7 +797,7 @@ async def update_project(
     if data.due_date is not None:
         project.due_date = data.due_date
     if data.priority is not None:
-        if data.priority not in ["low", "normal", "high", "urgent"]:
+        if data.priority not in PROJECT_PRIORITIES:
             raise HTTPException(status_code=400, detail="Invalid priority")
         project.priority = data.priority
     if "budget" in data.model_fields_set:
@@ -840,7 +868,7 @@ async def update_project(
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_DELETE),
 ):
     """Delete a project. Archives and queue items will have project_id set to NULL."""
@@ -853,10 +881,12 @@ async def list_project_archives(
     project_id: int,
     limit: int = 100,
     offset: int = 0,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    db: AsyncSession = DB_SESSION,
+    user: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """List archives in a project."""
+    visibility = await resolve_row_visibility(db, user, api_key)
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
     if not result.scalar_one_or_none():
@@ -871,7 +901,7 @@ async def list_project_archives(
     query = (
         select(PrintArchive)
         .options(selectinload(PrintArchive.project), selectinload(PrintArchive.created_by))
-        .where(PrintArchive.project_id == project_id)
+        .where(PrintArchive.project_id == project_id, *archive_read_criteria(visibility))
         .order_by(PrintArchive.created_at.desc())
         .limit(limit)
         .offset(offset)
@@ -884,7 +914,7 @@ async def list_project_archives(
 
     # Load run aggregates so multi-run archives' time/accuracy badge is
     # suppressed consistently with the main archives list endpoint (#1608).
-    run_aggregates = await _load_run_aggregates(db, [a.id for a in archives])
+    run_aggregates = await _load_run_aggregates(db, [a.id for a in archives], archive_read_access(visibility))
 
     return [archive_to_response(a, run_aggregate=run_aggregates.get(a.id)) for a in archives]
 
@@ -892,17 +922,25 @@ async def list_project_archives(
 @router.get("/{project_id}/queue")
 async def list_project_queue(
     project_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    db: AsyncSession = DB_SESSION,
+    user: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """List queue items in a project."""
+    visibility = await resolve_row_visibility(db, user, api_key)
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get queue items
-    query = select(PrintQueueItem).where(PrintQueueItem.project_id == project_id).order_by(PrintQueueItem.position)
+    conditions = visibility.criteria(
+        PrintQueueItem.created_by_id, Permission.QUEUE_READ_ALL, Permission.QUEUE_READ_OWN, PrintQueueItem.printer_id
+    )
+    query = (
+        select(PrintQueueItem)
+        .where(PrintQueueItem.project_id == project_id, *conditions)
+        .order_by(PrintQueueItem.position)
+    )
     result = await db.execute(query)
     items = result.scalars().all()
 
@@ -913,74 +951,90 @@ async def list_project_queue(
 async def add_archives_to_project(
     project_id: int,
     data: BatchAddArchives,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_UPDATE)),
 ):
     """Batch add archives to a project."""
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Update archives
-    updated = 0
-    for archive_id in data.archive_ids:
-        result = await db.execute(select(PrintArchive).where(PrintArchive.id == archive_id))
-        archive = result.scalar_one_or_none()
-        if archive:
-            archive.project_id = project_id
-            updated += 1
-
-    return {"message": f"Added {updated} archives to project"}
+    conditions = visibility.criteria(
+        PrintArchive.created_by_id,
+        Permission.ARCHIVES_UPDATE_ALL,
+        Permission.ARCHIVES_UPDATE_OWN,
+        PrintArchive.printer_id,
+        key_permission=Permission.PROJECTS_UPDATE,
+    )
+    result = await db.execute(
+        update(PrintArchive)
+        .where(PrintArchive.id.in_(data.archive_ids), PrintArchive.deleted_at.is_(None), *conditions)
+        .values(project_id=project_id)
+    )
+    await db.commit()
+    return {"message": f"Added {result.rowcount} archives to project", "count": result.rowcount}
 
 
 @router.post("/{project_id}/add-queue")
 async def add_queue_items_to_project(
     project_id: int,
     data: BatchAddQueueItems,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_UPDATE)),
 ):
     """Batch add queue items to a project."""
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Update queue items
-    updated = 0
-    for item_id in data.queue_item_ids:
-        result = await db.execute(select(PrintQueueItem).where(PrintQueueItem.id == item_id))
-        item = result.scalar_one_or_none()
-        if item:
-            item.project_id = project_id
-            updated += 1
-
-    return {"message": f"Added {updated} queue items to project"}
+    conditions = visibility.criteria(
+        PrintQueueItem.created_by_id,
+        Permission.QUEUE_UPDATE_ALL,
+        Permission.QUEUE_UPDATE_OWN,
+        PrintQueueItem.printer_id,
+        key_permission=Permission.PROJECTS_UPDATE,
+    )
+    result = await db.execute(
+        update(PrintQueueItem)
+        .where(PrintQueueItem.id.in_(data.queue_item_ids), *conditions)
+        .values(project_id=project_id)
+    )
+    await db.commit()
+    return {"message": f"Added {result.rowcount} queue items to project", "count": result.rowcount}
 
 
 @router.post("/{project_id}/remove-archives")
 async def remove_archives_from_project(
     project_id: int,
     data: BatchAddArchives,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_UPDATE)),
 ):
     """Remove archives from a project (sets project_id to NULL)."""
-    updated = 0
-    for archive_id in data.archive_ids:
-        result = await db.execute(
-            select(PrintArchive).where(
-                PrintArchive.id == archive_id,
-                PrintArchive.project_id == project_id,
-            )
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
+    conditions = visibility.criteria(
+        PrintArchive.created_by_id,
+        Permission.ARCHIVES_UPDATE_ALL,
+        Permission.ARCHIVES_UPDATE_OWN,
+        PrintArchive.printer_id,
+        key_permission=Permission.PROJECTS_UPDATE,
+    )
+    result = await db.execute(
+        update(PrintArchive)
+        .where(
+            PrintArchive.id.in_(data.archive_ids),
+            PrintArchive.deleted_at.is_(None),
+            PrintArchive.project_id == project_id,
+            *conditions,
         )
-        archive = result.scalar_one_or_none()
-        if archive:
-            archive.project_id = None
-            updated += 1
-
-    return {"message": f"Removed {updated} archives from project"}
+        .values(project_id=None)
+    )
+    await db.commit()
+    return {"message": f"Removed {result.rowcount} archives from project", "count": result.rowcount}
 
 
 def get_project_attachments_dir(project_id: int) -> Path:
@@ -1063,7 +1117,7 @@ ALLOWED_ATTACHMENT_EXTENSIONS = {
 async def upload_attachment(
     project_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
 ):
     """Upload an attachment to a project."""
@@ -1141,7 +1195,7 @@ async def upload_attachment(
 async def download_attachment(
     project_id: int,
     filename: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
 ):
     """Download an attachment from a project."""
@@ -1179,7 +1233,7 @@ async def download_attachment(
 async def delete_attachment(
     project_id: int,
     filename: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
 ):
     """Delete an attachment from a project."""
@@ -1230,7 +1284,7 @@ async def delete_attachment(
 async def upload_project_cover_image(
     project_id: int,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
 ):
     """Upload (or replace) the project's cover image (#1155).
@@ -1292,7 +1346,7 @@ async def upload_project_cover_image(
 @router.get("/{project_id}/cover-image")
 async def get_project_cover_image(
     project_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_media_token_permission(Permission.PROJECTS_READ)),
 ):
     """Stream the project's cover image (#1155).
@@ -1325,7 +1379,7 @@ async def get_project_cover_image(
 @router.delete("/{project_id}/cover-image")
 async def delete_project_cover_image(
     project_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
 ):
     """Remove the project's cover image (#1155)."""
@@ -1352,13 +1406,35 @@ async def delete_project_cover_image(
 # ============ Phase 7: BOM Endpoints ============
 
 
+def _bom_item_response(item: ProjectBOMItem, archive_names: dict[int, str | None]) -> BOMItemResponse:
+    archive_id = item.archive_id if item.archive_id in archive_names else None
+    return BOMItemResponse(
+        id=item.id,
+        project_id=item.project_id,
+        name=item.name,
+        quantity_needed=item.quantity_needed,
+        quantity_acquired=item.quantity_acquired,
+        unit_price=item.unit_price,
+        sourcing_url=item.sourcing_url,
+        archive_id=archive_id,
+        archive_name=archive_names.get(archive_id) if archive_id is not None else None,
+        stl_filename=item.stl_filename,
+        remarks=item.remarks,
+        sort_order=item.sort_order,
+        is_complete=item.quantity_acquired >= item.quantity_needed,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
 @router.get("/{project_id}/bom", response_model=list[BOMItemResponse])
 async def list_bom_items(
     project_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_READ)),
 ):
     """List all BOM items for a project."""
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
     if not result.scalar_one_or_none():
@@ -1372,49 +1448,28 @@ async def list_bom_items(
     )
     items = result.scalars().all()
 
-    response = []
-    for item in items:
-        # Get archive name if linked
-        archive_name = None
-        if item.archive_id:
-            archive_result = await db.execute(select(PrintArchive.print_name).where(PrintArchive.id == item.archive_id))
-            archive_name = archive_result.scalar()
-
-        response.append(
-            BOMItemResponse(
-                id=item.id,
-                project_id=item.project_id,
-                name=item.name,
-                quantity_needed=item.quantity_needed,
-                quantity_acquired=item.quantity_acquired,
-                unit_price=item.unit_price,
-                sourcing_url=item.sourcing_url,
-                archive_id=item.archive_id,
-                archive_name=archive_name,
-                stl_filename=item.stl_filename,
-                remarks=item.remarks,
-                sort_order=item.sort_order,
-                is_complete=item.quantity_acquired >= item.quantity_needed,
-                created_at=item.created_at,
-                updated_at=item.updated_at,
-            )
-        )
-
-    return response
+    archive_names = await visible_archive_names(db, (item.archive_id for item in items), visibility)
+    return [_bom_item_response(item, archive_names) for item in items]
 
 
 @router.post("/{project_id}/bom", response_model=BOMItemResponse)
 async def create_bom_item(
     project_id: int,
     data: BOMItemCreate,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_UPDATE)),
 ):
     """Add a BOM item to a project."""
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
+
+    archive_id = data.archive_id or None
+    archive_names = await visible_archive_names(db, [archive_id], visibility)
+    if archive_id is not None and archive_id not in archive_names:
+        raise HTTPException(404, "Archive not found")
 
     # Get max sort order
     max_order_result = await db.execute(
@@ -1428,7 +1483,7 @@ async def create_bom_item(
         quantity_needed=data.quantity_needed,
         unit_price=data.unit_price,
         sourcing_url=data.sourcing_url,
-        archive_id=data.archive_id,
+        archive_id=archive_id,
         stl_filename=data.stl_filename,
         remarks=data.remarks,
         sort_order=max_order + 1,
@@ -1437,29 +1492,7 @@ async def create_bom_item(
     await db.flush()
     await db.refresh(item)
 
-    # Get archive name if linked
-    archive_name = None
-    if item.archive_id:
-        archive_result = await db.execute(select(PrintArchive.print_name).where(PrintArchive.id == item.archive_id))
-        archive_name = archive_result.scalar()
-
-    return BOMItemResponse(
-        id=item.id,
-        project_id=item.project_id,
-        name=item.name,
-        quantity_needed=item.quantity_needed,
-        quantity_acquired=item.quantity_acquired,
-        unit_price=item.unit_price,
-        sourcing_url=item.sourcing_url,
-        archive_id=item.archive_id,
-        archive_name=archive_name,
-        stl_filename=item.stl_filename,
-        remarks=item.remarks,
-        sort_order=item.sort_order,
-        is_complete=item.quantity_acquired >= item.quantity_needed,
-        created_at=item.created_at,
-        updated_at=item.updated_at,
-    )
+    return _bom_item_response(item, archive_names)
 
 
 @router.patch("/{project_id}/bom/{item_id}", response_model=BOMItemResponse)
@@ -1467,10 +1500,11 @@ async def update_bom_item(
     project_id: int,
     item_id: int,
     data: BOMItemUpdate,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_UPDATE)),
 ):
     """Update a BOM item."""
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
     result = await db.execute(
         select(ProjectBOMItem).where(
             ProjectBOMItem.id == item_id,
@@ -1481,6 +1515,10 @@ async def update_bom_item(
 
     if not item:
         raise HTTPException(status_code=404, detail="BOM item not found")
+
+    if data.archive_id not in (None, 0):
+        if data.archive_id not in await visible_archive_names(db, [data.archive_id], visibility):
+            raise HTTPException(404, "Archive not found")
 
     if data.name is not None:
         item.name = data.name
@@ -1502,36 +1540,15 @@ async def update_bom_item(
     await db.flush()
     await db.refresh(item)
 
-    # Get archive name if linked
-    archive_name = None
-    if item.archive_id:
-        archive_result = await db.execute(select(PrintArchive.print_name).where(PrintArchive.id == item.archive_id))
-        archive_name = archive_result.scalar()
-
-    return BOMItemResponse(
-        id=item.id,
-        project_id=item.project_id,
-        name=item.name,
-        quantity_needed=item.quantity_needed,
-        quantity_acquired=item.quantity_acquired,
-        unit_price=item.unit_price,
-        sourcing_url=item.sourcing_url,
-        archive_id=item.archive_id,
-        archive_name=archive_name,
-        stl_filename=item.stl_filename,
-        remarks=item.remarks,
-        sort_order=item.sort_order,
-        is_complete=item.quantity_acquired >= item.quantity_needed,
-        created_at=item.created_at,
-        updated_at=item.updated_at,
-    )
+    archive_names = await visible_archive_names(db, [item.archive_id], visibility)
+    return _bom_item_response(item, archive_names)
 
 
 @router.delete("/{project_id}/bom/{item_id}")
 async def delete_bom_item(
     project_id: int,
     item_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
 ):
     """Delete a BOM item."""
@@ -1554,7 +1571,7 @@ async def delete_bom_item(
 @router.post("/{project_id}/create-template", response_model=ProjectResponse)
 async def create_template_from_project(
     project_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_CREATE),
 ):
     """Create a template from an existing project."""
@@ -1635,15 +1652,24 @@ async def create_template_from_project(
 # ============ Phase 9: Timeline Endpoint ============
 
 
+def _timeline_queue_name(item: PrintQueueItem) -> str | None:
+    if item.archive is not None:
+        return item.archive.print_name or item.archive.filename
+    if item.library_file is not None:
+        return (item.library_file.file_metadata or {}).get("print_name") or item.library_file.filename
+    return next((variant.library_file.filename for variant in item.variants if variant.library_file), None)
+
+
 @router.get("/{project_id}/timeline", response_model=list[TimelineEvent])
 async def get_project_timeline(
     project_id: int,
     limit: int = 50,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    db: AsyncSession = DB_SESSION,
+    user: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
     """Get timeline of events for a project."""
-    # Verify project exists
+    visibility = await resolve_row_visibility(db, user, api_key)
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
@@ -1664,7 +1690,7 @@ async def get_project_timeline(
     # Get archives and add events
     archives_result = await db.execute(
         select(PrintArchive)
-        .where(PrintArchive.project_id == project_id)
+        .where(PrintArchive.project_id == project_id, *archive_read_criteria(visibility))
         .order_by(PrintArchive.created_at.desc())
         .limit(limit)
     )
@@ -1696,10 +1722,20 @@ async def get_project_timeline(
                 )
             )
 
-    # Get queue items
+    library_scope = library_read_criteria(visibility)
     queue_result = await db.execute(
         select(PrintQueueItem)
-        .where(PrintQueueItem.project_id == project_id)
+        .where(
+            PrintQueueItem.project_id == project_id,
+            PrintQueueItem.status.in_(("pending", "printing")),
+            *visibility.printer_criteria(PrintQueueItem.printer_id),
+            *visibility.criteria(PrintQueueItem.created_by_id, Permission.QUEUE_READ_ALL, Permission.QUEUE_READ_OWN),
+        )
+        .options(
+            selectinload(PrintQueueItem.archive.and_(*archive_read_criteria(visibility))),
+            selectinload(PrintQueueItem.library_file.and_(*library_scope)),
+            selectinload(PrintQueueItem.variants).selectinload(PrintQueueVariant.library_file.and_(*library_scope)),
+        )
         .order_by(PrintQueueItem.created_at.desc())
         .limit(limit)
     )
@@ -1712,7 +1748,7 @@ async def get_project_timeline(
                     event_type="print_started",
                     timestamp=item.started_at or item.created_at,
                     title="Print started",
-                    description=item.print_name,
+                    description=_timeline_queue_name(item),
                     metadata={"queue_item_id": item.id},
                 )
             )
@@ -1722,13 +1758,13 @@ async def get_project_timeline(
                     event_type="queued",
                     timestamp=item.created_at,
                     title="Added to queue",
-                    description=item.print_name,
+                    description=_timeline_queue_name(item),
                     metadata={"queue_item_id": item.id},
                 )
             )
 
     # Sort by timestamp descending
-    events.sort(key=lambda e: e.timestamp, reverse=True)
+    events.sort(key=lambda event: to_naive_utc(event.timestamp), reverse=True)
 
     return events[:limit]
 
@@ -1740,8 +1776,10 @@ async def get_project_timeline(
 async def export_project(
     project_id: int,
     format: str = "zip",  # "zip" (with files) or "json" (metadata only)
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_READ),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(
+        require_ownership_permission(Permission.PROJECTS_READ, Permission.PROJECTS_READ, include_api_key=True)
+    ),
 ):
     """Export a project. Use format=zip (default) for full export with files, or format=json for metadata only."""
     result = await db.execute(select(Project).where(Project.id == project_id))
@@ -1769,50 +1807,8 @@ async def export_project(
         for item in bom_items
     ]
 
-    # Get linked folders and their files
-    folders_result = await db.execute(
-        select(LibraryFolder).where(LibraryFolder.project_id == project_id).order_by(LibraryFolder.name)
-    )
-    linked_folders = folders_result.scalars().all()
-
-    folders_export = []
-    files_to_include = []  # (archive_path, zip_path)
-
-    for folder in linked_folders:
-        # Get files in this folder
-        files_result = await db.execute(
-            LibraryFile.active().where(LibraryFile.folder_id == folder.id).order_by(LibraryFile.filename)
-        )
-        files = files_result.scalars().all()
-
-        folder_files = []
-        for f in files:
-            folder_files.append(
-                {
-                    "filename": f.filename,
-                    "file_type": f.file_type,
-                    "notes": f.notes,
-                }
-            )
-            # Add file to include in ZIP
-            library_dir = get_library_dir()
-            file_path = library_dir / f.file_path
-            if file_path.exists():
-                zip_path = f"files/{folder.name}/{f.filename}"
-                files_to_include.append((file_path, zip_path))
-                # Also include thumbnail if exists
-                if f.thumbnail_path:
-                    thumb_path = library_dir / f.thumbnail_path
-                    if thumb_path.exists():
-                        thumb_zip_path = f"files/{folder.name}/.thumbnails/{f.filename}.png"
-                        files_to_include.append((thumb_path, thumb_zip_path))
-
-        folders_export.append(
-            {
-                "name": folder.name,
-                "files": folder_files,
-            }
-        )
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
+    folders_export, files_to_include = await export_linked_library(db, project_id, visibility)
 
     # Build project JSON
     project_data = {
@@ -1861,8 +1857,10 @@ async def export_project(
 @router.post("/import", response_model=ProjectResponse)
 async def import_project(
     data: ProjectImport,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_CREATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(
+        require_ownership_permission(Permission.PROJECTS_CREATE, Permission.PROJECTS_CREATE, include_api_key=True)
+    ),
 ):
     """Import a project with optional BOM items and linked folders."""
     # Create the project
@@ -1897,68 +1895,22 @@ async def import_project(
         )
         db.add(bom_item)
 
-    # Create linked folders in library
-    for folder_data in data.linked_folders:
-        # Check if folder with this name already exists at root level
-        existing_result = await db.execute(
-            select(LibraryFolder).where(
-                LibraryFolder.name == folder_data.name,
-                LibraryFolder.parent_id.is_(None),
-            )
-        )
-        existing_folder = existing_result.scalar_one_or_none()
-
-        if existing_folder:
-            # Link existing folder to project
-            existing_folder.project_id = project.id
-        else:
-            # Create new folder linked to project
-            new_folder = LibraryFolder(
-                name=folder_data.name,
-                project_id=project.id,
-                is_external=False,
-                external_readonly=False,
-                external_show_hidden=False,
-            )
-            db.add(new_folder)
-
-    await db.flush()
-    await db.refresh(project)
-
-    stats = await compute_project_stats(db, project.id, project.target_count, project.target_parts_count)
-
-    return ProjectResponse(
-        id=project.id,
-        name=project.name,
-        description=project.description,
-        color=project.color,
-        status=project.status,
-        target_count=project.target_count,
-        target_parts_count=project.target_parts_count,
-        notes=project.notes,
-        attachments=project.attachments,
-        url=project.url,
-        cover_image_filename=project.cover_image_filename,
-        tags=project.tags,
-        due_date=project.due_date,
-        priority=project.priority,
-        budget=project.budget,
-        is_template=project.is_template,
-        template_source_id=project.template_source_id,
-        parent_id=project.parent_id,
-        parent_name=None,
-        children=[],
-        created_at=project.created_at,
-        updated_at=project.updated_at,
-        stats=stats,
-    )
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
+    for name in dict.fromkeys(folder.name for folder in data.linked_folders):
+        safe_join_under(get_library_dir(), name)
+        await link_imported_folder(db, name, project.id, visibility)
+    response = await _imported_project_response(db, project)
+    await db.commit()
+    return response
 
 
 @router.post("/import/file", response_model=ProjectResponse)
 async def import_project_file(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_CREATE),
+    db: AsyncSession = DB_SESSION,
+    access: OwnershipAccess = Depends(
+        require_ownership_permission(Permission.PROJECTS_CREATE, Permission.PROJECTS_CREATE, include_api_key=True)
+    ),
 ):
     """Import a project from a ZIP or JSON file."""
     if not file.filename:
@@ -1979,6 +1931,8 @@ async def import_project_file(
 
                 # Get list of files in the ZIP
                 zip_files = {name: zf.read(name) for name in zf.namelist() if name.startswith("files/")}
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON file")
         except zipfile.BadZipFile:
             raise HTTPException(status_code=400, detail="Invalid ZIP file")
     elif filename_lower.endswith(".json"):
@@ -1995,13 +1949,13 @@ async def import_project_file(
         name=data.get("name", "Imported Project"),
         description=data.get("description"),
         color=data.get("color"),
-        status=data.get("status", "active"),
+        status=normalize_project_status(data.get("status")),
         target_count=data.get("target_count"),
         target_parts_count=data.get("target_parts_count"),
         notes=data.get("notes"),
         tags=data.get("tags"),
         due_date=datetime.fromisoformat(data["due_date"]) if data.get("due_date") else None,
-        priority=data.get("priority", 0),
+        priority=normalize_project_priority(data.get("priority")),
         budget=data.get("budget"),
     )
     db.add(project)
@@ -2022,93 +1976,31 @@ async def import_project_file(
         )
         db.add(bom_item)
 
-    # Create linked folders and files
-    library_dir = get_library_dir()
-    for folder_data in data.get("linked_folders", []):
-        folder_name = folder_data.get("name")
-        if not folder_name:
-            continue
+    visibility = await resolve_row_visibility(db, access.user, access.api_key)
+    owner_id = visibility.user.id if visibility.user is not None else None
+    written_paths: list[Path] = []
+    folder_names = dict.fromkeys(entry.get("name") for entry in data.get("linked_folders", []) if entry.get("name"))
+    try:
+        for name in folder_names:
+            safe_join_under(get_library_dir(), name)
+            folder = await link_imported_folder(db, name, project.id, visibility)
+            add_imported_files(db, folder, zip_files, owner_id, written_paths)
+        response = await _imported_project_response(db, project)
+        await db.commit()
+    except BaseException:
+        for path in written_paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("Could not remove a file from a failed project import", exc_info=True)
+        raise
+    return response
 
-        # Containment check on the folder name — refuses absolute paths and
-        # ``..`` traversal in ``project.json[linked_folders[*].name]``. The
-        # previous code did ``library_dir / folder_name`` directly, which
-        # collapses to ``Path(folder_name)`` when folder_name is absolute
-        # and lets ``..`` escape after mkdir.
-        folder_path = safe_join_under(library_dir, folder_name)
 
-        # Check if folder exists
-        existing_result = await db.execute(
-            select(LibraryFolder).where(
-                LibraryFolder.name == folder_name,
-                LibraryFolder.parent_id.is_(None),
-            )
-        )
-        existing_folder = existing_result.scalar_one_or_none()
-
-        if existing_folder:
-            # Link existing folder to project
-            existing_folder.project_id = project.id
-            folder = existing_folder
-        else:
-            # Create new folder
-            folder = LibraryFolder(
-                name=folder_name,
-                project_id=project.id,
-                is_external=False,
-                external_readonly=False,
-                external_show_hidden=False,
-            )
-            db.add(folder)
-            await db.flush()
-
-            # Create folder on disk
-            folder_path.mkdir(parents=True, exist_ok=True)
-
-        # Import files for this folder from ZIP
-        folder_prefix = f"files/{folder_name}/"
-        for zip_path, file_content in zip_files.items():
-            if not zip_path.startswith(folder_prefix):
-                continue
-            if "/.thumbnails/" in zip_path:
-                continue  # Skip thumbnails, we'll regenerate them
-
-            relative_path = zip_path[len(folder_prefix) :]
-            if not relative_path:
-                continue
-
-            # Containment check on the per-entry relative path. ZIP names
-            # can carry ``..`` segments by spec; without resolve + parent
-            # containment, ``files/<folder>/../../../etc/x`` escapes
-            # ``library_dir`` entirely. ``relative_path`` is split into
-            # parts because ``safe_join_under`` rejects parts that start
-            # with ``/``, and a single combined string would hide an
-            # embedded ``..`` segment behind a forward slash.
-            file_disk_path = safe_join_under(
-                library_dir,
-                folder_name,
-                *Path(relative_path).parts,
-            )
-            file_disk_path.parent.mkdir(parents=True, exist_ok=True)
-            file_disk_path.write_bytes(file_content)
-
-            file_type = classify_file_type(relative_path, file_disk_path)
-
-            # Create library file record
-            lib_file = LibraryFile(
-                folder_id=folder.id,
-                filename=relative_path,
-                file_path=f"{folder_name}/{relative_path}",
-                file_type=file_type,
-                file_size=len(file_content),
-                is_external=False,
-            )
-            db.add(lib_file)
-
+async def _imported_project_response(db: AsyncSession, project: Project) -> ProjectResponse:
     await db.flush()
     await db.refresh(project)
-
     stats = await compute_project_stats(db, project.id, project.target_count, project.target_parts_count)
-
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -2128,8 +2020,6 @@ async def import_project_file(
         is_template=project.is_template,
         template_source_id=project.template_source_id,
         parent_id=project.parent_id,
-        parent_name=None,
-        children=[],
         created_at=project.created_at,
         updated_at=project.updated_at,
         stats=stats,

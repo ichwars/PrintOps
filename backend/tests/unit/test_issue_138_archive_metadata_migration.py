@@ -8,9 +8,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import backend.app.models  # noqa: F401
-from backend.app.core.archive_metadata_migration import repair_archive_plate_metadata
+from backend.app.core.archive_metadata_migration import repair_archive_plate_metadata, repair_bare_filament_colors
 from backend.app.core.database import Base
 from backend.app.models.archive import PrintArchive
+from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
 
@@ -21,6 +22,7 @@ def _write_3mf(path) -> None:
         "curr_bed_type": "Cool Plate",
         "cool_plate_temp_initial_layer": ["35", "0"],
         "textured_plate_temp_initial_layer": ["0", "70"],
+        "nozzle_temperature_initial_layer": ["210", "255"],
     }
     slice_info = """<config>
       <plate><metadata key="index" value="1"/><metadata key="curr_bed_type" value="Cool Plate"/><filament id="1" used_g="8"/></plate>
@@ -31,6 +33,30 @@ def _write_3mf(path) -> None:
         archive.writestr("Metadata/slice_info.config", slice_info)
         archive.writestr("Metadata/plate_1.gcode", "; layer_height = 0.20\n")
         archive.writestr("Metadata/plate_2.gcode", "; layer_height = 0.08\n")
+
+
+def test_nozzle_temperature_follows_the_used_filament(tmp_path):
+    from backend.app.services.archive import ThreeMFParser
+
+    source = tmp_path / "multi.3mf"
+    _write_3mf(source)
+    assert ThreeMFParser(source, 2).parse()["nozzle_temperature"] == 255
+    assert ThreeMFParser(source).parse()["nozzle_temperature"] == 210
+
+
+@pytest.mark.asyncio
+async def test_existing_bare_colors_are_repaired_in_archives_and_runs(test_engine, db_session):
+    archive = PrintArchive(filename="fallback.3mf", file_path="", file_size=0, filament_color="ff8800ff,#00AE42,Custom")
+    run = PrintLogEntry(status="completed", filament_color="112233,#445566,abcdef")
+    db_session.add_all([archive, run])
+    await db_session.commit()
+    async with test_engine.begin() as conn:
+        await repair_bare_filament_colors(conn)
+        await repair_bare_filament_colors(conn)
+    await db_session.refresh(archive)
+    await db_session.refresh(run)
+    assert archive.filament_color == "#FF8800,#00AE42,Custom"
+    assert run.filament_color == "#112233,#445566,#ABCDEF"
 
 
 @pytest.mark.asyncio

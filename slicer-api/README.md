@@ -162,8 +162,8 @@ the pinned application source and engine unchanged:
 
 | File | SHA256 |
 |---|---|
-| `package.json` | `6c472adc721b40835444d1fd1ada08b7b0f1ef913d71208cf8109befbcb05775` |
-| `package-lock.json` | `9c4ebf729f6592b7dc800b425a563fba76a88147eb37d6d40699068ac962d296` |
+| `package.json` | `4f6a2758d521fd719f09f046888e612966fcba0b0746c623106d982dbaad876d` |
+| `package-lock.json` | `0354a9687a59d93a924a4f229d9b81136bcf6f8966894908a299c757d65d31c7` |
 
 The development overlay uses exact `fix-esm-import-path` 1.10.3 in place of
 `tsc-esm-fix` and its unpatched glob/parser dependency chain. Vitest 4.1.12

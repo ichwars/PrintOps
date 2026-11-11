@@ -1,11 +1,11 @@
 """API routes for notification template management."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.notification_template import DEFAULT_TEMPLATES, NotificationTemplate
 from backend.app.models.user import User
@@ -23,41 +23,13 @@ from backend.app.services.notification_service import notification_service
 router = APIRouter(prefix="/notification-templates", tags=["notification-templates"])
 
 
-# Event type display names
-EVENT_NAMES = {
-    "print_start": "Print Started",
-    "print_complete": "Print Completed",
-    "print_failed": "Print Failed",
-    "print_stopped": "Print Stopped",
-    "print_progress": "Print Progress",
-    "printer_offline": "Printer Offline",
-    "printer_error": "Printer Error",
-    "filament_low": "Filament Low",
-    "maintenance_due": "Maintenance Due",
-    "test": "Test Notification",
-    # Queue notifications
-    "queue_job_added": "Queue Job Added",
-    "queue_job_assigned": "Queue Job Assigned",
-    "queue_job_started": "Queue Job Started",
-    "queue_job_waiting": "Queue Job Waiting",
-    "queue_job_skipped": "Queue Job Skipped",
-    "queue_job_failed": "Queue Job Failed",
-    "queue_completed": "Queue Completed",
-    # User management
-    "user_created": "Welcome Email",
-    "password_reset": "Password Reset",
-    # User email print notifications
-    "user_print_start": "User Print Started Email",
-    "user_print_complete": "User Print Completed Email",
-    "user_print_failed": "User Print Failed Email",
-    "user_print_stopped": "User Print Stopped Email",
-}
+EVENT_NAMES = {template["event_type"]: template["name"] for template in DEFAULT_TEMPLATES}
 
 
 @router.get("", response_model=list[NotificationTemplateResponse])
 @router.get("/", response_model=list[NotificationTemplateResponse])
 async def get_templates(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.NOTIFICATION_TEMPLATES_READ),
 ):
     """Get all notification templates."""
@@ -83,7 +55,7 @@ async def get_variables(
 @router.get("/{template_id}", response_model=NotificationTemplateResponse)
 async def get_template(
     template_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.NOTIFICATION_TEMPLATES_READ),
 ):
     """Get a single notification template."""
@@ -98,7 +70,7 @@ async def get_template(
 async def update_template(
     template_id: int,
     update: NotificationTemplateUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.NOTIFICATION_TEMPLATES_UPDATE),
 ):
     """Update a notification template."""
@@ -124,7 +96,7 @@ async def update_template(
 @router.post("/{template_id}/reset", response_model=NotificationTemplateResponse)
 async def reset_template(
     template_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.NOTIFICATION_TEMPLATES_UPDATE),
 ):
     """Reset a notification template to its default values."""

@@ -37,12 +37,18 @@ class FilamentLowMonitor:
     def __init__(self):
         self._next_check = 0.0
         self._state = FilamentLowState()
+        self._relayed: set[tuple] = set()
 
     async def tick(self, db):
         now = monotonic()
         if now < self._next_check:
             return
         self._next_check = now + 30
+        from backend.app.services.mqtt_relay import mqtt_relay
+
+        relay = mqtt_relay.enabled and mqtt_relay.connected
+        if not mqtt_relay.enabled:
+            self._relayed.clear()
         try:
             providers = list(
                 await db.scalars(
@@ -51,12 +57,13 @@ class FilamentLowMonitor:
                     )
                 )
             )
-            if not providers:
+            if not providers and not relay:
                 return
-            await self._state.load(db)
+            if providers:
+                await self._state.load(db)
             threshold = _threshold(await setting_value(db, "low_stock_threshold", "20"))
             external = await spoolman_owns_assignments(db)
-            slots = await self._slots(db, external, providers)
+            slots = await self._slots(db, external, providers, fleet_wide=relay)
             if slots is None:
                 return  # Outage preserves dedup; it is not a successful empty snapshot.
             monitored = select(Printer.id).where(Printer.is_active.is_(True))
@@ -80,6 +87,23 @@ class FilamentLowMonitor:
                 if percent >= _threshold(value("low_stock_threshold_pct"), threshold):
                     continue
                 active.add(key)
+                slot = _slot_label_from_global_tray(_global_tray_from_assignment(assignment.ams_id, assignment.tray_id))
+                if relay and key not in self._relayed:
+                    try:
+                        if await mqtt_relay.on_printer_filament_low(
+                            printer.id,
+                            printer.name,
+                            printer.serial_number,
+                            slot,
+                            int(percent),
+                            value("color_name"),
+                            key[-1],
+                        ):
+                            self._relayed.add(key)
+                    except Exception:
+                        logger.warning("Low-filament MQTT event failed for printer %s", printer.id, exc_info=True)
+                if not providers:
+                    continue
                 eligible = {
                     provider.id: provider_identity(provider)
                     for provider in providers
@@ -89,7 +113,6 @@ class FilamentLowMonitor:
                 targets = {pid for pid in eligible if not current[pid]["delivered"]}
                 if not targets:
                     continue
-                slot = _slot_label_from_global_tray(_global_tray_from_assignment(assignment.ams_id, assignment.tray_id))
                 outcomes = await notification_service.on_filament_low(
                     printer_id=printer.id,
                     printer_name=printer.name,
@@ -105,15 +128,18 @@ class FilamentLowMonitor:
                     if delivery:
                         current[pid]["delivered"] = delivery.status == "delivered"
                         current[pid]["digest"] |= delivery.digest_queued
-            self._state.reconcile(mode, observed_printers, active)
-            await self._state.save(db)
+            if relay:
+                self._relayed.intersection_update(active)
+            if providers:
+                self._state.reconcile(mode, observed_printers, active)
+                await self._state.save(db)
         except Exception:
             logger.warning("Low-filament notification check failed", exc_info=True)
 
-    async def _slots(self, db, external, providers):
+    async def _slots(self, db, external, providers, *, fleet_wide=False):
         table = SpoolmanSlotAssignment if external else SpoolAssignment
         query = select(table, Printer).join(Printer, Printer.id == table.printer_id).where(Printer.is_active.is_(True))
-        if not any(provider.printer_id is None for provider in providers):
+        if not fleet_wide and not any(provider.printer_id is None for provider in providers):
             query = query.where(table.printer_id.in_({provider.printer_id for provider in providers}))
         rows = (await db.execute(query)).all()
         if not rows:

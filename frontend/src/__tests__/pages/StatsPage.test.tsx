@@ -151,7 +151,7 @@ describe('StatsPage', () => {
       http.get('/api/v1/archives/slim', () => {
         return HttpResponse.json(mockArchives);
       }),
-      http.get('/api/v1/settings/', () => {
+      http.get('/api/v1/settings/ui-flags', () => {
         return HttpResponse.json(mockSettings);
       }),
       http.get('/api/v1/archives/analysis/failures', () => {

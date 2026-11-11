@@ -3,12 +3,12 @@
 import platform
 import secrets
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Header, HTTPException, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.config import APP_VERSION
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
@@ -53,7 +53,7 @@ def state_to_numeric(state: str) -> int:
 
 @router.get("/metrics", response_class=Response)
 async def get_metrics(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     authorization: str | None = Header(None),
 ):
     """

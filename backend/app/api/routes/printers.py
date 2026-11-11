@@ -2,6 +2,7 @@ import asyncio
 import logging
 import re
 import zipfile
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -9,12 +10,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
+    OwnershipAccess,
     RequirePermissionIfAuthEnabled,
+    RequirePrinterPermissionIfAuthEnabled,
     is_auth_enabled,
     require_media_token_printer_permission,
+    require_permission_with_key,
 )
 from backend.app.core.config import settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.core.user_printer_scope import printer_scope_delete_db
 from backend.app.models.printer import Printer
@@ -26,6 +30,8 @@ from backend.app.schemas.printer import (
     PrinterUpdate,
 )
 from backend.app.services.bambu_ftp import (
+    RECOVERY_DOWNLOAD_MAX_TIMEOUT,
+    DownloadDeadlineExceeded,
     FtpsCooldownActive,
     cache_3mf_download,
     download_file_try_paths_async,
@@ -33,11 +39,13 @@ from backend.app.services.bambu_ftp import (
 )
 from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_filaments import collect_available_filaments
+from backend.app.services.printer_file_cache import printer_file_cache
 from backend.app.services.printer_manager import (
     printer_manager,
     resolve_plate_id,
 )
 from backend.app.utils.printer_models import supports_nozzle_flow_type
+from backend.app.utils.safe_path import safe_join_under
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/printers", tags=["printers"])
@@ -79,18 +87,21 @@ def _serialize_printer(printer: Printer, *, include_secret: bool):
 
 @router.get("/")
 async def list_printers(
-    user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PRINTERS_READ)),
+    db: AsyncSession = DB_SESSION,
 ):
-    """List all configured printers.
+    """List configured printers in the caller’s printer scope.
 
     ``access_code`` is included in each item only when the caller is trusted
     to see it (Admin / Operator JWT, or auth-disabled mode). Viewers and
     API keys never receive it.
     """
-    result = await db.execute(select(Printer).order_by(Printer.name))
+    query = select(Printer).order_by(Printer.name)
+    if (printer_scope := access.printer_ids) is not None:
+        query = query.where(Printer.id.in_(printer_scope))
+    result = await db.execute(query)
     printers = list(result.scalars().all())
-    include_secret = await _caller_can_view_printer_secrets(user, db)
+    include_secret = await _caller_can_view_printer_secrets(access.user, db)
     return [_serialize_printer(p, include_secret=include_secret) for p in printers]
 
 
@@ -98,7 +109,7 @@ async def list_printers(
 async def create_printer(
     printer_data: PrinterCreate,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CREATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Add a new printer.
 
@@ -138,6 +149,10 @@ async def create_printer(
     await db.commit()
     await db.refresh(printer)
 
+    from backend.app.services.plate_detection import remove_printer_references
+
+    remove_printer_references(printer.id)
+
     # Connect to the printer
     if printer.is_active:
         await printer_manager.connect_printer(printer)
@@ -159,7 +174,7 @@ async def list_usb_cameras(
     """
     from backend.app.services.external_camera import list_usb_cameras
 
-    cameras = list_usb_cameras()
+    cameras = await asyncio.to_thread(list_usb_cameras)
     return {"cameras": cameras}
 
 
@@ -168,7 +183,7 @@ async def get_available_filaments(
     model: str = Query(..., description="Target printer model"),
     location: str | None = Query(None, description="Optional location filter"),
     _=RequirePermissionIfAuthEnabled(Permission.QUEUE_CREATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get deduplicated list of filaments loaded across all active printers of a given model.
 
@@ -194,7 +209,7 @@ async def get_available_filaments(
 @router.get("/developer-mode-warnings")
 async def get_developer_mode_warnings(
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Check if any connected printer lacks developer LAN mode."""
     result = await db.execute(select(Printer).where(Printer.is_active == True))  # noqa: E712
@@ -218,7 +233,7 @@ async def get_developer_mode_warnings(
 async def get_printer(
     printer_id: int,
     user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get a specific printer.
 
@@ -238,9 +253,9 @@ async def get_printer(
 async def update_printer(
     printer_id: int,
     printer_data: PrinterUpdate,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    _=RequirePrinterPermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Update a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -270,14 +285,27 @@ async def update_printer(
             update_data["plate_detection_roi_w"] = None
             update_data["plate_detection_roi_h"] = None
 
+    proxy_target_changed = any(
+        field in update_data and update_data[field] != getattr(printer, field)
+        for field in ("ip_address", "serial_number")
+    )
     for field, value in update_data.items():
         setattr(printer, field, value)
 
     await db.commit()
     await db.refresh(printer)
 
+    if proxy_target_changed:
+        from backend.app.services.virtual_printer import virtual_printer_manager
+
+        try:
+            await virtual_printer_manager.sync_from_db()
+        except Exception:
+            logger.exception("Could not synchronize virtual printers after updating printer %s", printer_id)
+
     # Reconnect if connection settings changed
     if any(k in update_data for k in ["ip_address", "access_code", "model", "model_code", "is_active"]):
+        printer_file_cache.forget_printer(printer_id)
         printer_manager.disconnect_printer(printer_id)
         if printer.is_active:
             await printer_manager.connect_printer(printer)
@@ -291,7 +319,7 @@ async def delete_printer(
     delete_archives: bool = True,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_DELETE),
     db: AsyncSession = Depends(printer_scope_delete_db),
-    _drying_guard=Depends(printer_operation_guard),
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Delete a printer.
 
@@ -300,27 +328,81 @@ async def delete_printer(
         delete_archives: If True (default), delete all print archives for this printer.
                         If False, keep archives but remove their printer association.
     """
-    from sqlalchemy import delete as sql_delete
+    from sqlalchemy import delete as sql_delete, update
 
+    from backend.app.api.routes.smart_plugs import forget_deleted_smart_plug
+    from backend.app.api.routes.virtual_printers import finish_virtual_printer_deletions, stage_virtual_printer_deletion
+    from backend.app.core.printer_associations import (
+        clear_legacy_virtual_printer_target,
+        delete_notification_provider_rows,
+        delete_smart_plug_rows,
+        prune_printer_lists,
+    )
+    from backend.app.core.user_printer_scope import remove_printer_grants
+    from backend.app.core.websocket import ws_manager
+    from backend.app.models.active_print_session import ActivePrintSession
+    from backend.app.models.active_print_spoolman import ActivePrintSpoolman
     from backend.app.models.archive import PrintArchive
     from backend.app.models.maintenance import MaintenanceHistory, PrinterMaintenance
+    from backend.app.models.notification import NotificationProvider
+    from backend.app.models.pipeline_run import PipelineJob
+    from backend.app.models.slicer_pipeline import SlicerPipeline
+    from backend.app.models.smart_plug import SmartPlug
+    from backend.app.models.spool_assignment import SpoolAssignment
     from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
+    from backend.app.models.virtual_printer import VirtualPrinter
+    from backend.app.services.archive import lock_archive_queue_for_deletion
+    from backend.app.services.printer_deletion import (
+        archive_deletion_guard_on_printer,
+        detach_printers_archives,
+        exclusive_archives_on_printer,
+        forget_deleted_printer,
+    )
 
     result = await db.execute(select(Printer).where(Printer.id == printer_id).with_for_update())
     printer = result.scalar_one_or_none()
     if not printer:
         raise HTTPException(404, "Printer not found")
 
-    printer_manager.disconnect_printer(printer_id)
+    exclusive_archives = exclusive_archives_on_printer(printer_id)
+    if delete_archives and await lock_archive_queue_for_deletion(db, archive_deletion_guard_on_printer(printer_id)):
+        raise HTTPException(409, "A print is using this printer's archives. Keep the archives or stop the print first.")
+
+    # Remove bound providers before archives, including Telegram reaction grants.
+    provider_ids = await db.scalars(
+        select(NotificationProvider.id).where(NotificationProvider.printer_id == printer_id).with_for_update()
+    )
+    for provider_id in provider_ids.all():
+        await delete_notification_provider_rows(db, provider_id)
+
+    plugs = (
+        await db.execute(
+            select(SmartPlug.id, SmartPlug.plug_type).where(SmartPlug.printer_id == printer_id).with_for_update()
+        )
+    ).all()
+    for plug_id, _plug_type in plugs:
+        await delete_smart_plug_rows(db, plug_id)
+
+    virtual_printer_ids = await db.scalars(
+        select(VirtualPrinter.id).where(VirtualPrinter.target_printer_id == printer_id).with_for_update()
+    )
+    upload_dirs = {vp_id: await stage_virtual_printer_deletion(db, vp_id) for vp_id in virtual_printer_ids.all()}
+
+    # SQLite does not enforce these printer foreign keys.
+    await db.execute(sql_delete(ActivePrintSession).where(ActivePrintSession.printer_id == printer_id))
+    await db.execute(sql_delete(ActivePrintSpoolman).where(ActivePrintSpoolman.printer_id == printer_id))
+    await db.execute(
+        update(PipelineJob).where(PipelineJob.assigned_printer_id == printer_id).values(assigned_printer_id=None)
+    )
+    await db.execute(
+        update(SlicerPipeline).where(SlicerPipeline.target_printer_id == printer_id).values(target_printer_id=None)
+    )
 
     if delete_archives:
-        # Delete all archives for this printer
-        await db.execute(sql_delete(PrintArchive).where(PrintArchive.printer_id == printer_id))
-    else:
-        # Orphan the archives instead of deleting them
-        from sqlalchemy import update
+        await db.execute(sql_delete(PrintArchive).where(exclusive_archives))
+    await detach_printers_archives(db, printer_id)
 
-        await db.execute(update(PrintArchive).where(PrintArchive.printer_id == printer_id).values(printer_id=None))
+    await db.execute(sql_delete(SpoolAssignment).where(SpoolAssignment.printer_id == printer_id))
 
     # Delete slot assignments for this printer (SQLite doesn't enforce FK cascades)
     await db.execute(sql_delete(SpoolmanSlotAssignment).where(SpoolmanSlotAssignment.printer_id == printer_id))
@@ -338,12 +420,18 @@ async def delete_printer(
         )
         await db.execute(sql_delete(PrinterMaintenance).where(PrinterMaintenance.printer_id == printer_id))
 
-    from backend.app.core.user_printer_scope import remove_printer_grants
-
     await remove_printer_grants(db, printer_id)
+    await prune_printer_lists(db, deleting=printer_id)
+    await clear_legacy_virtual_printer_target(db, deleting=printer_id)
     await db.delete(printer)
     await db.commit()
 
+    for plug_id, plug_type in plugs:
+        forget_deleted_smart_plug(plug_id, plug_type)
+    printer_manager.disconnect_printer(printer_id)
+    await ws_manager.refresh_live_access()
+    await finish_virtual_printer_deletions(upload_dirs)
+    await forget_deleted_printer(printer_id)
     return {"status": "deleted", "archives_deleted": delete_archives}
 
 
@@ -356,7 +444,7 @@ _cover_cache: dict[int, dict[tuple[str, str], bytes]] = {}
 # (file sliced on SD card, not on printer storage), remember the failure so the
 # next request short-circuits to 404 instead of re-hammering FTP 8 paths deep.
 # Cleared on print start alongside _cover_cache.
-_cover_404_cache: dict[int, set[tuple[str, str]]] = {}
+_cover_404_cache: dict[int, set[tuple[str, str, int | None]]] = {}
 
 
 def clear_cover_cache(printer_id: int) -> None:
@@ -369,7 +457,7 @@ def clear_cover_cache(printer_id: int) -> None:
 async def get_printer_cover(
     printer_id: int,
     view: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_media_token_printer_permission(Permission.PRINTERS_READ)),
 ):
     """Get the cover image for the current print job.
@@ -417,12 +505,6 @@ async def get_printer_cover(
     if printer_id in _cover_cache and cache_key in _cover_cache[printer_id]:
         return Response(content=_cover_cache[printer_id][cache_key], media_type="image/png")
 
-    # Negative-cache short-circuit (#1420): if a prior lookup for this same
-    # subtask + view already failed, don't replay 8 FTP retries on every page
-    # refresh. _cover_404_cache is cleared on print start.
-    if printer_id in _cover_404_cache and cache_key in _cover_404_cache[printer_id]:
-        raise HTTPException(404, f"No cover available for '{subtask_name}' (cached)")
-
     # Build possible 3MF filenames from subtask_name
     # Bambu printers may store files as "name.gcode.3mf" (sliced via Bambu Studio)
     # or just "name.3mf" (uploaded directly)
@@ -455,9 +537,8 @@ async def get_printer_cover(
             ]
         )
 
-    # Use first filename for temp path (will be reused)
     temp_filename = possible_filenames[0]
-    temp_path = settings.archive_dir / "temp" / f"cover_{printer_id}_{temp_filename}"
+    temp_path = safe_join_under(settings.archive_dir / "temp", f"cover_{printer_id}_{uuid4().hex}.3mf")
     temp_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Cache check (#972): the archive-metadata flow in main.py may have already
@@ -480,6 +561,29 @@ async def get_printer_cover(
         return False
 
     _reuse_cached_download()
+    recovery_archive_id = None
+    if not downloaded and state.state in ("RUNNING", "PAUSE", "PREPARE", "SLICING"):
+        from backend.app.main import _active_prints
+        from backend.app.services.running_print_archive import find_running_archive, local_archive_file
+
+        archive = await find_running_archive(
+            db,
+            printer_id,
+            state,
+            bindings=_active_prints,
+            printing_only=True,
+            by_name=True,
+        )
+        archived_file = local_archive_file(archive, settings.base_dir)
+        if archived_file is not None:
+            temp_path, downloaded, using_cached = archived_file, True, True
+        elif archive is not None and not (archive.file_path or "").strip():
+            recovery_archive_id = archive.id
+    await db.close()
+    # A new fallback archive may need recovery after an earlier cover miss.
+    negative_cache_key = (*cache_key, recovery_archive_id)
+    if not downloaded and negative_cache_key in _cover_404_cache.get(printer_id, ()):
+        raise HTTPException(404, f"No cover available for '{subtask_name}' (cached)")
 
     if not downloaded:
         logger.info(
@@ -502,9 +606,13 @@ async def get_printer_cover(
                     remote_paths,
                     temp_path,
                     printer_model=printer.model,
+                    max_total_timeout=RECOVERY_DOWNLOAD_MAX_TIMEOUT if recovery_archive_id is not None else None,
                 )
                 if downloaded:
                     break
+            except DownloadDeadlineExceeded as e:
+                last_error = e
+                break
             except FtpsCooldownActive as e:
                 # Printer's FTPS TLS handshake is already known broken and
                 # cooling down (#88) — retrying here would just repeat the
@@ -526,7 +634,7 @@ async def get_printer_cover(
         if not downloaded:
             # Remember this failure so subsequent requests for the same print
             # skip the 8-path FTP fan-out (#1420).
-            _cover_404_cache.setdefault(printer_id, set()).add(cache_key)
+            _cover_404_cache.setdefault(printer_id, set()).add(negative_cache_key)
             raise HTTPException(
                 404,
                 f"Could not download 3MF file for '{subtask_name}' from printer {printer.ip_address}. Tried: {possible_filenames}",
@@ -616,7 +724,7 @@ async def get_printer_cover(
                     continue
 
             if view == "pick":
-                _cover_404_cache.setdefault(printer_id, set()).add(cache_key)
+                _cover_404_cache.setdefault(printer_id, set()).add(negative_cache_key)
                 raise HTTPException(404, f"No object pick mask found for plate {plate_num}")
 
             # If no specific thumbnail found, try any PNG in Metadata
@@ -628,7 +736,7 @@ async def get_printer_cover(
                     _cover_cache[printer_id][(subtask_name, view_key)] = image_data
                     return Response(content=image_data, media_type="image/png")
 
-            _cover_404_cache.setdefault(printer_id, set()).add(cache_key)
+            _cover_404_cache.setdefault(printer_id, set()).add(negative_cache_key)
             raise HTTPException(404, "No thumbnail found in 3MF file")
         finally:
             zf.close()

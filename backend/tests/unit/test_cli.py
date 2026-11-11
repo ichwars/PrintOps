@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -13,6 +14,7 @@ from backend.app.cli import DEFAULT_KIOSK_KEY_NAME, KioskBootstrapError, kiosk_b
 from backend.app.core.auth import _validate_api_key
 from backend.app.core.database import Base
 from backend.app.models.api_key import APIKey
+from backend.app.models.auth_ephemeral import AuthEphemeralToken, TokenType
 from backend.app.models.settings import Settings
 
 
@@ -94,6 +96,17 @@ async def test_bootstrap_force_rotates_existing_key(session_maker):
         session_maker=session_maker,
         ensure_schema=False,
     )
+    async with session_maker() as db:
+        old_id = await db.scalar(select(APIKey.id))
+        db.add(
+            AuthEphemeralToken(
+                token="kiosk-socket",
+                token_type=TokenType.WEBSOCKET,
+                provider_id=old_id,
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+            )
+        )
+        await db.commit()
     second = await kiosk_bootstrap(
         DEFAULT_KIOSK_KEY_NAME,
         force=True,
@@ -105,7 +118,9 @@ async def test_bootstrap_force_rotates_existing_key(session_maker):
 
     async with session_maker() as db:
         rows = (await db.execute(select(APIKey))).scalars().all()
-        assert len(rows) == 1  # old row was deleted, not duplicated
+        assert len(rows) == 1
+        assert rows[0].id > old_id
+        assert await db.scalar(select(AuthEphemeralToken.id)) is None
 
         # Old key no longer validates, new key does
         assert await _validate_api_key(db, first) is None

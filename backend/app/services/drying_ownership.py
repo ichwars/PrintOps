@@ -5,11 +5,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from weakref import WeakKeyDictionary
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import HTTPException, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.models.drying_schedule import DryingScheduleRun
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
@@ -50,11 +50,16 @@ async def has_drying_reservation(db: AsyncSession, printer_id: int) -> bool:
     )
 
 
-async def claim_queue_item(db: AsyncSession, item_id: int) -> bool:
+async def claim_queue_item(db: AsyncSession, item_id: int, selected_printer_id: int | None = None) -> bool:
+    from backend.app.services.firmware_update import upload_in_progress
+
     printer_id = await db.scalar(select(PrintQueueItem.printer_id).where(PrintQueueItem.id == item_id))
-    if printer_id is None:
+    if printer_id is None or (selected_printer_id is not None and printer_id != selected_printer_id):
         return False
     async with printer_operation(db, printer_id):
+        if upload_in_progress(printer_id):
+            await db.commit()
+            return False
         result = await db.execute(
             update(PrintQueueItem)
             .where(
@@ -70,7 +75,7 @@ async def claim_queue_item(db: AsyncSession, item_id: int) -> bool:
         return result.rowcount > 0
 
 
-async def printer_operation_guard(request: Request, db: AsyncSession = Depends(get_db)):
+async def printer_operation_guard(request: Request, db: AsyncSession = DB_SESSION):
     printer_id = request.path_params.get("printer_id")
     if (
         printer_id is None

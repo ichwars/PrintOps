@@ -6,6 +6,7 @@ import re
 from urllib.parse import urlsplit
 
 _SAFE_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*$")
+_LOGGED_URL = re.compile(r"[a-z][a-z0-9+.-]*://\[HOST\](?::[0-9]{1,5})?/\[REDACTED\]")
 
 
 def url_for_log(value: str) -> str:
@@ -15,6 +16,8 @@ def url_for_log(value: str) -> str:
     only the validated scheme and optional port is enough to diagnose the
     integration type without persisting credentials hidden in URL components.
     """
+    if isinstance(value, str) and _LOGGED_URL.fullmatch(value):
+        return value
     try:
         parsed = urlsplit(value)
         scheme = parsed.scheme.lower()

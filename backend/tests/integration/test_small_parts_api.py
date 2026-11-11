@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, func, select
 
 from backend.app.api.routes import small_parts as small_parts_route
@@ -78,17 +79,21 @@ async def test_material_create_rolls_back_when_opening_entry_fails(
         fail_after_opening_entry,
     )
 
-    failed = await async_client.post(
-        "/api/v1/small-parts",
-        json={
-            "sku": "MAT-ROLLBACK",
-            "name": "Rollback material",
-            "unit_code": "C62",
-            "opening_quantity": "2",
-        },
-    )
+    from backend.app.main import app
 
-    assert failed.status_code == 503
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url=async_client.base_url) as error_client:
+        failed = await error_client.post(
+            "/api/v1/small-parts",
+            json={
+                "sku": "MAT-ROLLBACK",
+                "name": "Rollback material",
+                "unit_code": "C62",
+                "opening_quantity": "2",
+            },
+        )
+
+    assert failed.status_code == 500
     stored_count = await db_session.scalar(select(func.count(SmallPart.id)).where(SmallPart.sku == "MAT-ROLLBACK"))
     ledger_count = await db_session.scalar(
         select(func.count(SmallPartLedgerEntry.id)).where(

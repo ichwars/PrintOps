@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Scale } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { NumberField , LegacySelect, TextArea, TextField} from '../ui';
+import { DateTimePicker, formatDateKey, LegacySelect, NumberField, TextArea, TextField } from '../ui';
 import { useToast } from '../../contexts/ToastContext';
 import type { AdditionalSectionProps } from './types';
 
@@ -177,8 +177,9 @@ export function AdditionalSection({
   availableLocations = [],
   onCreateLocation,
   globalLowStockThreshold,
+  drying,
 }: AdditionalSectionProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   const [measuredInput, setMeasuredInput] = useState('');
   const [isMeasuredFocused, setIsMeasuredFocused] = useState(false);
@@ -362,6 +363,19 @@ export function AdditionalSection({
           {t('inventory.lowStockThresholdOverrideHelp', { global: globalLowStockThreshold })}
         </p>
       </div>
+
+      {drying && (
+        <DateTimePicker
+          dateValue={drying.value.split('T')[0]}
+          timeValue={drying.value.split('T')[1] ?? ''}
+          locale={i18n.resolvedLanguage ?? i18n.language}
+          dateLabel={t('inventory.lastDried')}
+          timeLabel={t('common.time')}
+          onDateValueChange={(date) => drying.onChange(date ? `${date}T${drying.value.split('T')[1] || '00:00'}` : '')}
+          onTimeValueChange={(time) => drying.onChange(time ? `${drying.value.split('T')[0] || formatDateKey(new Date())}T${time}` : '')}
+          dateHelperText={drying.details || undefined}
+        />
+      )}
 
       {/* Note */}
       <div>

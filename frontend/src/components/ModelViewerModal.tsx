@@ -38,7 +38,7 @@ interface Capabilities {
 export function ModelViewerModal({ archiveId, libraryFileId, title, fileType, onClose, onSliceWithPrintOps, onSnapshot }: ModelViewerModalProps) {
   const { t: translateInterface } = useTranslation();
   const { t } = useTranslation();
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const { data: settings } = useQuery({ queryKey: ['settings', 'ui-flags'], queryFn: api.getUiFlags });
   // Desktop "Open in Slicer" target — falls back to preferred_slicer when the
   // user hasn't explicitly chosen a different desktop slicer (#1329). This
   // variable is only used for URI-handoff; sidecar slicing keeps using

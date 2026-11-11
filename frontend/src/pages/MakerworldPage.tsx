@@ -173,8 +173,8 @@ export function MakerworldPage() {
   });
 
   const settingsQuery = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => api.getSettings(),
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: () => api.getUiFlags(),
   });
   // MakerWorld plates are unsliced project files — they can't be sent
   // directly to a printer. The "slice in slicer" action below imports the

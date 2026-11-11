@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.core.compat import StrEnum
 from backend.app.core.tasks import spawn_background_task
 from backend.app.core.websocket import ws_manager
+from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.printer import Printer
 from backend.app.services.bambu_ftp import (
     get_ftp_retry_settings,
@@ -29,6 +30,25 @@ from backend.app.services.firmware_check import get_firmware_service
 from backend.app.services.printer_manager import printer_manager
 
 logger = logging.getLogger(__name__)
+IDLE_STATES = frozenset({"IDLE", "FINISH", "FAILED"})
+PRINTER_BUSY_ERROR = "Firmware can only be uploaded while the printer is idle"
+
+
+class FirmwarePrinterBusyError(RuntimeError):
+    """A print started or the printer's idle state is unknown."""
+
+
+def _is_idle(state) -> bool:
+    return state is not None and state.connected and state.state in IDLE_STATES
+
+
+async def _has_queue_dispatch(db: AsyncSession, printer_id: int) -> bool:
+    active = (PrintQueueItem.status == "printing") | (
+        (PrintQueueItem.status == "pending") & PrintQueueItem.dispatching_at.is_not(None)
+    )
+    return (
+        await db.scalar(select(PrintQueueItem.id).where(PrintQueueItem.printer_id == printer_id, active).limit(1))
+    ) is not None
 
 
 class FirmwareUploadStatus(StrEnum):
@@ -56,6 +76,15 @@ class FirmwareUploadState:
 
 # Track upload state per printer
 _upload_states: dict[int, FirmwareUploadState] = {}
+
+
+def upload_in_progress(printer_id: int) -> bool:
+    state = _upload_states.get(printer_id)
+    return state is not None and state.status in (
+        FirmwareUploadStatus.PREPARING,
+        FirmwareUploadStatus.DOWNLOADING,
+        FirmwareUploadStatus.UPLOADING,
+    )
 
 
 def get_upload_state(printer_id: int) -> FirmwareUploadState:
@@ -121,19 +150,16 @@ class FirmwareUpdateService:
             result["errors"].append("Printer not found")
             return result
 
-        # Check printer is connected
-        mqtt_client = printer_manager.get_client(printer_id)
-        if not mqtt_client or not mqtt_client.state:
+        state = printer_manager.get_status(printer_id)
+        if state is None or not state.connected:
             result["errors"].append("Printer not connected")
             return result
 
-        state = mqtt_client.state
-
-        # Get current firmware version
         result["current_version"] = state.firmware_version
-
-        # Check SD card
         result["sd_card_present"] = state.sdcard
+        if not _is_idle(state) or await _has_queue_dispatch(db, printer_id):
+            result["errors"].append(PRINTER_BUSY_ERROR)
+            return result
         if not state.sdcard:
             result["errors"].append("No SD card inserted in printer")
 
@@ -231,10 +257,7 @@ class FirmwareUpdateService:
         This runs asynchronously and broadcasts progress via WebSocket.
         Returns True if upload started successfully.
         """
-        state = get_upload_state(printer_id)
-
-        # Check if already in progress
-        if state.status in (FirmwareUploadStatus.DOWNLOADING, FirmwareUploadStatus.UPLOADING):
+        if upload_in_progress(printer_id):
             logger.warning("Firmware upload already in progress for printer %s", printer_id)
             return False
 
@@ -243,22 +266,22 @@ class FirmwareUpdateService:
         db_result = await db.execute(stmt)
         printer = db_result.scalar_one_or_none()
 
-        if not printer:
+        queued = printer is not None and await _has_queue_dispatch(db, printer_id)
+        if upload_in_progress(printer_id):
+            return False
+        if printer is None or queued or not _is_idle(printer_manager.get_status(printer_id)):
+            state = get_upload_state(printer_id)
             state.status = FirmwareUploadStatus.ERROR
-            state.error = "Printer not found"
+            state.error = "Printer not found" if printer is None else PRINTER_BUSY_ERROR
             return False
 
-        # Get printer model
+        # The caller holds the printer operation lock. Publish the reservation
+        # before starting asynchronous work so a queue claim sees it.
+        _upload_states[printer_id] = FirmwareUploadState(
+            status=FirmwareUploadStatus.PREPARING, message="Preparing firmware update..."
+        )
         model = printer.model or "Unknown"
 
-        # Reset state
-        reset_upload_state(printer_id)
-        state = get_upload_state(printer_id)
-        state.status = FirmwareUploadStatus.PREPARING
-        state.message = "Preparing firmware update..."
-        await self._broadcast_progress(printer_id, state)
-
-        # Run the upload in background
         spawn_background_task(
             self._do_upload(
                 printer_id=printer_id,
@@ -282,9 +305,13 @@ class FirmwareUpdateService:
     ):
         """Perform the actual firmware download and upload."""
         state = get_upload_state(printer_id)
-        firmware_service = get_firmware_service()
 
         try:
+            if not _is_idle(printer_manager.get_status(printer_id)):
+                raise FirmwarePrinterBusyError(PRINTER_BUSY_ERROR)
+            firmware_service = get_firmware_service()
+            if state.status == FirmwareUploadStatus.PREPARING:
+                await self._broadcast_progress(printer_id, state)
             # Download firmware (quick, usually cached)
             state.status = FirmwareUploadStatus.DOWNLOADING
             state.progress = 0
@@ -306,7 +333,8 @@ class FirmwareUpdateService:
                 if latest:
                     state.firmware_version = latest.version
 
-            # Upload to printer (0-100% progress shown here)
+            if not _is_idle(printer_manager.get_status(printer_id)):
+                raise FirmwarePrinterBusyError(PRINTER_BUSY_ERROR)
             state.status = FirmwareUploadStatus.UPLOADING
             state.progress = 0
             state.message = f"Uploading {firmware_path.name} to printer..."
@@ -334,9 +362,14 @@ class FirmwareUpdateService:
             # Get FTP retry settings
             ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
 
+            async def upload_while_idle(*args, **kwargs):
+                if not _is_idle(printer_manager.get_status(printer_id)):
+                    raise FirmwarePrinterBusyError(PRINTER_BUSY_ERROR)
+                return await upload_file_async(*args, **kwargs)
+
             if ftp_retry_enabled:
                 success = await with_ftp_retry(
-                    upload_file_async,
+                    upload_while_idle,
                     ip_address,
                     access_code,
                     firmware_path,
@@ -348,9 +381,10 @@ class FirmwareUpdateService:
                     max_retries=ftp_retry_count,
                     retry_delay=ftp_retry_delay,
                     operation_name=f"Upload firmware to printer {printer_id}",
+                    non_retry_exceptions=(FirmwarePrinterBusyError,),
                 )
             else:
-                success = await upload_file_async(
+                success = await upload_while_idle(
                     ip_address,
                     access_code,
                     firmware_path,
@@ -375,6 +409,10 @@ class FirmwareUpdateService:
 
             logger.info("Firmware upload complete for printer %s", printer_id)
 
+        except asyncio.CancelledError:
+            state.status = FirmwareUploadStatus.ERROR
+            state.error = state.message = "Firmware upload cancelled"
+            raise
         except Exception as e:
             logger.error("Firmware upload failed for printer %s: %s", printer_id, e)
             state.status = FirmwareUploadStatus.ERROR

@@ -114,7 +114,12 @@ async def test_a_new_print_starts_its_milestones_from_zero():
     # (archiving, usage tracking, notifications) is not under test here, so the
     # call is stopped at the next statement.
     stop_here = SimpleNamespace(pop=MagicMock(side_effect=_Stop))
-    with patch.object(main_module, "_stage22_finish_frames", stop_here), pytest.raises(_Stop):
+    with (
+        patch("backend.app.core.printer_lifecycle.printer_exists", AsyncMock(return_value=True)),
+        patch("backend.app.services.printer_deletion.clear_late_printer_state", AsyncMock()),
+        patch.object(main_module, "_stage22_finish_frames", stop_here),
+        pytest.raises(_Stop),
+    ):
         await main_module.on_print_start(PRINTER, {})
 
     assert main_module._last_progress_milestone[PRINTER] == 0

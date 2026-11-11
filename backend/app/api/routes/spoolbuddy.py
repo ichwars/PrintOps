@@ -10,12 +10,12 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.spoolbuddy_device import SpoolBuddyDevice
@@ -179,7 +179,7 @@ def _should_broadcast_online(device_id: str, force: bool = False) -> bool:
 @router.post("/devices/register", response_model=DeviceResponse)
 async def register_device(
     req: DeviceRegisterRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Register or re-register a SpoolBuddy device."""
@@ -250,7 +250,7 @@ async def register_device(
 
 @router.get("/devices", response_model=list[DeviceResponse])
 async def list_devices(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """List all registered SpoolBuddy devices."""
@@ -262,7 +262,7 @@ async def list_devices(
 @router.delete("/devices/{device_id}")
 async def unregister_device(
     device_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE),
 ):
     """Unregister a SpoolBuddy device. The daemon can re-register via heartbeat later."""
@@ -283,7 +283,7 @@ async def unregister_device(
 async def device_heartbeat(
     device_id: str,
     req: HeartbeatRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Daemon heartbeat — updates status and returns pending commands."""
@@ -379,7 +379,7 @@ async def device_heartbeat(
 @router.post("/nfc/tag-scanned")
 async def nfc_tag_scanned(
     req: TagScannedRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """RPi reports NFC tag detected — lookup spool and broadcast.
@@ -542,7 +542,7 @@ async def nfc_tag_removed(
 @router.post("/nfc/write-tag")
 async def nfc_write_tag(
     req: WriteTagRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Queue an NFC tag write command for a SpoolBuddy device."""
@@ -643,7 +643,7 @@ async def nfc_write_tag(
 @router.post("/nfc/write-result")
 async def nfc_write_result(
     req: WriteTagResultRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Handle NFC tag write result from SpoolBuddy daemon."""
@@ -747,6 +747,7 @@ async def nfc_write_result(
                 # fall through to broadcast + raise 502 below
 
             await db.commit()
+            await ws_manager.broadcast({"type": "inventory_changed"})
             if _tag_link_ok:
                 await ws_manager.broadcast(
                     {
@@ -827,7 +828,7 @@ async def nfc_write_result(
 @router.post("/devices/{device_id}/cancel-write")
 async def cancel_write(
     device_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Cancel a pending write-tag command."""
@@ -869,7 +870,7 @@ async def scale_reading(
 @router.post("/scale/update-spool-weight")
 async def update_spool_weight(
     req: UpdateSpoolWeightRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Update spool's used weight from scale reading.
@@ -898,7 +899,9 @@ async def update_spool_weight(
         spool.weight_used = max(0, spool.label_weight - net_filament)
         spool.last_scale_weight = req.weight_grams
         spool.last_weighed_at = datetime.now(timezone.utc)
+        spool.weight_locked = True
         await db.commit()
+        await ws_manager.broadcast({"type": "inventory_changed"})
         logger.info(
             "SpoolBuddy updated spool %d weight: %.1fg on scale, %.1fg used",
             spool.id,
@@ -930,6 +933,8 @@ async def update_spool_weight(
     async with _translate_spoolbuddy_errors():
         await sm_client.update_spool(spool_id=req.spool_id, remaining_weight=remaining_weight)
 
+    await ws_manager.broadcast({"type": "inventory_changed"})
+
     weight_used = max(0.0, label_weight - remaining_weight)
     logger.info(
         "SpoolBuddy updated Spoolman spool %d: %.1fg on scale, core=%.1fg → %.1fg remaining",
@@ -950,7 +955,7 @@ async def update_spool_weight(
 @router.post("/devices/{device_id}/calibration/tare")
 async def tare_scale(
     device_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Set pending tare command for the device to pick up."""
@@ -968,7 +973,7 @@ async def tare_scale(
 async def set_tare_offset(
     device_id: str,
     req: SetTareRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Store tare offset reported by the daemon after executing a tare."""
@@ -992,7 +997,7 @@ async def set_tare_offset(
 async def set_calibration_factor(
     device_id: str,
     req: SetCalibrationFactorRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Calculate and store calibration factor from a known weight."""
@@ -1029,7 +1034,7 @@ async def set_calibration_factor(
 @router.get("/devices/{device_id}/calibration", response_model=CalibrationResponse)
 async def get_calibration(
     device_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Get current calibration values for a device."""
@@ -1050,7 +1055,7 @@ async def get_calibration(
 @router.get("/devices/{device_id}/display")
 async def get_display_settings(
     device_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Read current display brightness and screen blank timeout for a device.
@@ -1073,7 +1078,7 @@ async def get_display_settings(
 async def update_display_settings(
     device_id: str,
     req: DisplaySettingsRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Update display brightness and screen blank timeout for a device."""
@@ -1099,7 +1104,7 @@ async def update_display_settings(
 async def queue_system_config_update(
     device_id: str,
     req: SystemConfigRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Queue update of SpoolBuddy .env config on the device."""
@@ -1147,7 +1152,7 @@ VALID_SYSTEM_COMMANDS = {"reboot", "shutdown", "restart_daemon", "restart_browse
 async def queue_system_command(
     device_id: str,
     req: SystemCommandRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     # Aligns with the rest of the kiosk-scoped device routes (calibration,
     # display, cancel-write, command-result — all INVENTORY_UPDATE). The
     # previous SETTINGS_UPDATE gate locked operators out of the QuickMenu's
@@ -1172,7 +1177,17 @@ async def queue_system_command(
     if not _is_online(device):
         raise HTTPException(status_code=409, detail="Device is offline")
 
-    device.pending_command = req.command
+    queued = await db.execute(
+        update(SpoolBuddyDevice)
+        .where(
+            SpoolBuddyDevice.device_id == device_id,
+            or_(SpoolBuddyDevice.pending_command.is_(None), SpoolBuddyDevice.pending_command != "apply_system_config"),
+        )
+        .values(pending_command=req.command)
+        .execution_options(synchronize_session=False)
+    )
+    if not queued.rowcount:
+        raise HTTPException(status_code=409, detail="The device is still applying its configuration")
     await db.commit()
 
     logger.info("System command queued for device %s: %s", device_id, req.command)
@@ -1183,7 +1198,7 @@ async def queue_system_command(
 async def system_command_result(
     device_id: str,
     req: SystemCommandResultRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Receive completion status for queued system command from daemon."""
@@ -1224,8 +1239,8 @@ async def system_command_result(
 async def queue_diagnostic(
     device_id: str,
     diagnostic: str,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Queue a hardware diagnostic to run on the SpoolBuddy device.
 
@@ -1256,7 +1271,7 @@ async def queue_diagnostic(
 async def get_diagnostic_result(
     device_id: str,
     diagnostic: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Get the latest diagnostic result for a device.
@@ -1286,7 +1301,7 @@ async def get_diagnostic_result(
 async def report_diagnostic_result(
     device_id: str,
     req: DiagnosticResultRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Report diagnostic result from SpoolBuddy device."""
@@ -1318,7 +1333,7 @@ async def report_diagnostic_result(
 @router.get("/devices/{device_id}/update-check")
 async def check_daemon_update(
     device_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
     """Check if the SpoolBuddy daemon needs updating to match the PrintOps backend version."""
@@ -1343,7 +1358,7 @@ async def check_daemon_update(
 async def trigger_daemon_update(
     device_id: str,
     req: dict | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     # Aligns with the rest of the kiosk-scoped device routes (calibration,
     # display, cancel-write, system/command — all INVENTORY_UPDATE).
     # SETTINGS_UPDATE is on the API-key deny-list, which blocks the Update
@@ -1420,7 +1435,7 @@ async def get_ssh_public_key(
 async def report_update_status(
     device_id: str,
     req: UpdateStatusRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Daemon reports update progress back to the backend."""

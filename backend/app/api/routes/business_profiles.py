@@ -17,7 +17,7 @@ from backend.app.core.auth import (
     require_auth_if_enabled,
 )
 from backend.app.core.config import settings
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.user import User
@@ -188,7 +188,7 @@ async def _commit_write(
 @router.get("/", response_model=list[BusinessProfileResponse])
 async def list_business_profiles(
     include_inactive: bool = Query(default=False, alias="includeInactive"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_READ),
 ):
     return await business_profile_service.list_business_profiles(
@@ -199,7 +199,7 @@ async def list_business_profiles(
 
 @router.get("/options", response_model=list[BusinessProfileOption])
 async def list_business_profile_options(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequireAnyPermissionIfAuthEnabled(
         Permission.ACCOUNTING_INTEGRATIONS_MANAGE,
         Permission.CUSTOMERS_READ,
@@ -227,7 +227,7 @@ async def list_business_profile_options(
 
 @router.get("/display-currency")
 async def get_display_currency(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = Depends(require_auth_if_enabled),
 ) -> dict[str, str | None]:
     profiles = await business_profile_service.list_business_profiles(db)
@@ -240,7 +240,7 @@ async def get_display_currency(
 @router.post("/", response_model=BusinessProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_business_profile(
     data: BusinessProfileCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ):
     try:
@@ -255,7 +255,7 @@ async def create_business_profile(
 @router.get("/{profile_id}", response_model=BusinessProfileResponse)
 async def get_business_profile(
     profile_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_READ),
 ):
     try:
@@ -267,7 +267,7 @@ async def get_business_profile(
 @router.get("/{profile_id}/number-sequences", response_model=list[NumberSequenceResponse])
 async def list_number_sequences(
     profile_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_READ),
 ):
     try:
@@ -284,7 +284,7 @@ async def list_number_sequences(
 async def create_number_sequence(
     profile_id: int,
     data: NumberSequenceCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ):
     try:
@@ -304,7 +304,7 @@ async def update_number_sequence(
     profile_id: int,
     sequence_id: int,
     data: NumberSequenceUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ):
     try:
@@ -319,7 +319,7 @@ async def update_number_sequence(
 @router.get("/{profile_id}/logo")
 async def get_business_profile_logo(
     profile_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_READ),
 ):
     """Get a business profile logo.
@@ -344,7 +344,7 @@ async def upload_business_profile_logo(
     profile_id: int,
     version: int = Query(ge=1),
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ):
     content = await file.read(MAX_LOGO_BYTES + 1)
@@ -384,7 +384,7 @@ async def upload_business_profile_logo(
 async def delete_business_profile_logo(
     profile_id: int,
     version: int = Query(ge=1),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ) -> Response:
     try:
@@ -411,7 +411,7 @@ async def delete_business_profile_logo(
 async def update_business_profile(
     profile_id: int,
     data: BusinessProfileUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ):
     try:
@@ -426,7 +426,7 @@ async def update_business_profile(
 @router.post("/{profile_id}/default", response_model=BusinessProfileResponse)
 async def set_default_business_profile(
     profile_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ):
     try:
@@ -445,7 +445,7 @@ async def set_default_business_profile(
 )
 async def delete_business_profile(
     profile_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_SETTINGS_MANAGE),
 ) -> Response:
     try:

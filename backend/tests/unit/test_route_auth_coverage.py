@@ -22,6 +22,7 @@ that produced the most severe disclosure.
 from __future__ import annotations
 
 import re
+from types import SimpleNamespace
 
 import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute
@@ -36,12 +37,10 @@ from backend.app.main import app
 _AUTH_QUALNAME_PATTERNS: tuple[str, ...] = (
     "require_",  # require_permission, require_permission_if_auth_enabled, require_role, require_admin_*, require_auth_*, require_any_*, require_ownership_*, require_camera_stream_token_*, require_energy_cost_update
     "cloud_caller",  # cloud.py route-level dep
-    "_cloud_api_key_gate",  # cloud.py router-level dep
-    "resolve_api_key_cloud_owner",  # used by slicer routes that need the API key's owner
     "get_current_user",  # JWT identity resolution
     "get_current_active_user",  # JWT identity resolution
     "get_api_key",  # webhook routes use this directly
-    "verify_websocket_token",  # WebSocket route inline check (GHSA-r2qv I-WS)
+    "read_websocket_access",  # WebSocket route inline check (GHSA-r2qv I-WS)
 )
 
 # Routes that are intentionally accessible without an auth dependency.
@@ -85,6 +84,9 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # Forgot-password (anonymous request) + confirm (signed token in the URL).
         ("POST", "/api/v1/auth/forgot-password"),
         ("POST", "/api/v1/auth/forgot-password/confirm"),
+        # These handlers reject anonymous callers inline after resolving the credential.
+        ("GET", "/api/v1/auth/me"),
+        ("POST", "/api/v1/users/me/change-password"),
         # GET only renders a read-only escaped page. POST validates an indexed,
         # hashed, expiring, single-run capability and can only record quantities
         # for the current run once. It grants no file/session/stock authority.
@@ -130,12 +132,15 @@ _PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/manifest.json"),
         ("GET", "/sw-register.js"),
         ("GET", "/sw.js"),
+        ("HEAD", "/manifest.json"),
+        ("HEAD", "/sw-register.js"),
+        ("HEAD", "/sw.js"),
         ("GET", "/gcode-viewer/"),
         ("GET", "/gcode-viewer/{file_path:path}"),
         # SPA catch-all — serves index.html for client-side routing. No backend data path.
         ("GET", "/{full_path:path}"),
         # ---- WebSocket routes ----
-        # /ws performs an inline ``verify_websocket_token`` check before
+        # /ws performs an inline ``read_websocket_access`` check before
         # ``accept()`` (GHSA-r2qv WS fix). The qualname matches one of the
         # auth-bearing patterns above, so this entry is informational — the
         # walker recognises the inline check as auth.
@@ -156,17 +161,36 @@ def _walk_dependant_qualnames(dependant) -> list[str]:
 
 
 def _has_auth_dep(dependant) -> bool:
-    """True if any callable in the dependant tree matches an auth pattern."""
-    return any(any(p in qn for p in _AUTH_QUALNAME_PATTERNS) for qn in _walk_dependant_qualnames(dependant))
+    """Require an actual dependency that rejects an unauthenticated caller."""
+    return any(
+        "_optional" not in name and any(pattern in name for pattern in _AUTH_QUALNAME_PATTERNS)
+        for dependency in dependant.dependencies
+        for name in _walk_dependant_qualnames(dependency)
+    )
+
+
+@pytest.mark.parametrize(
+    "auth_dependency, expected",
+    [
+        ("get_current_active_user", True),
+        ("require_permission.<locals>.permission_checker", True),
+        ("get_current_user_optional", False),
+        ("resolve_api_key_cloud_owner", False),
+    ],
+)
+def test_auth_matcher_checks_dependencies_and_ignores_optional_resolvers(auth_dependency, expected):
+    handler = SimpleNamespace(__qualname__="require_something")
+    dependency = SimpleNamespace(call=SimpleNamespace(__qualname__=auth_dependency), dependencies=[])
+    assert _has_auth_dep(SimpleNamespace(call=handler, dependencies=[dependency])) is expected
 
 
 # WS auth-check functions accepted by _ws_endpoint_does_inline_token_check.
-# verify_websocket_token gates the general-purpose /ws event stream;
-# verify_camera_stream_token is the same camera_stream-scoped token the
+# read_websocket_access gates the general-purpose /ws event stream;
+# camera_request_access is the same camera_stream credential check the
 # HTTP camera stream/snapshot routes use (RequireCameraStreamTokenIfAuthEnabled),
 # reused inline by camera_mse_stream since WebSocket routes can't take a
 # FastAPI Depends the way HTTP routes do.
-_WS_INLINE_AUTH_FUNCS = ("verify_websocket_token", "verify_camera_stream_token")
+_WS_INLINE_AUTH_FUNCS = ("read_websocket_access", "camera_request_access")
 
 
 def _ws_endpoint_does_inline_token_check(route: APIWebSocketRoute) -> bool:
@@ -197,7 +221,7 @@ def test_routes_have_explicit_auth_deps() -> None:
     one of the resolved Depends in the dependant tree matches an auth-
     bearing qualname, OR that the (method, path) pair is in the
     explicit public-route allowlist, OR (for WebSocket routes) that
-    the endpoint performs an inline ``verify_websocket_token`` check.
+    the endpoint performs an inline ``read_websocket_access`` check.
 
     Failure means a new route is reachable anonymously without being
     documented as such — the GHSA-gc24 / GHSA-r2qv shape.
@@ -206,12 +230,11 @@ def test_routes_have_explicit_auth_deps() -> None:
 
     for route in app.routes:
         if isinstance(route, APIRoute):
-            method = sorted(route.methods)[0] if route.methods else "GET"
             if _has_auth_dep(route.dependant):
                 continue
-            if (method, route.path) in _PUBLIC_ROUTES:
-                continue
-            failures.append(f"  {method:7} {route.path}  → no auth dep, not in _PUBLIC_ROUTES allowlist")
+            for method in sorted(route.methods):
+                if (method, route.path) not in _PUBLIC_ROUTES:
+                    failures.append(f"  {method:7} {route.path}  → no auth dep, not in _PUBLIC_ROUTES allowlist")
         elif isinstance(route, APIWebSocketRoute):
             if _has_auth_dep(route.dependant):
                 continue
@@ -241,8 +264,7 @@ def test_public_routes_allowlist_matches_real_routes() -> None:
     real_routes: set[tuple[str, str]] = set()
     for route in app.routes:
         if isinstance(route, APIRoute):
-            method = sorted(route.methods)[0] if route.methods else "GET"
-            real_routes.add((method, route.path))
+            real_routes.update((method, route.path) for method in route.methods)
         elif isinstance(route, APIWebSocketRoute):
             real_routes.add(("WS", route.path))
 

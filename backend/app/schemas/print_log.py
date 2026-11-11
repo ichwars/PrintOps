@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+
 
 class PrintLogEntrySchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -18,10 +20,13 @@ class PrintLogEntrySchema(BaseModel):
     print_name: str | None = None
     printer_name: str | None = None
     printer_id: int | None = None
+    plate_id: int | None = None
     status: str
     started_at: datetime | None = None
     completed_at: datetime | None = None
     duration_seconds: int | None = None
+    estimate_seconds: int | None = None
+    estimate_grams: float | None = None
     filament_type: str | None = None
     filament_color: str | None = None
     filament_used_grams: float | None = None
@@ -30,6 +35,8 @@ class PrintLogEntrySchema(BaseModel):
     energy_cost: float | None = None
     failure_reason: str | None = None
     thumbnail_path: str | None = None
+    photos: list[str] | None = None
+    has_timelapse: bool = False
     created_by_id: int | None = None
     created_by_username: str | None = None
     created_at: datetime
@@ -40,7 +47,7 @@ class PrintLogResponse(BaseModel):
     total: int
 
 
-class PrintLogEntryUpdate(BaseModel):
+class PrintLogEntryUpdate(IgnoresNullForRequiredColumns):
     """Per-row classification edits (#1687 part 4 — IndividualGhost1905).
 
     Lets the user set ``failure_reason`` (and re-classify ``status``) directly
@@ -48,6 +55,8 @@ class PrintLogEntryUpdate(BaseModel):
     edit through. The Failure Analysis widget already groups by
     ``PrintLogEntry.failure_reason``, so this just plugs the editor gap.
     """
+
+    __orm_table__ = "print_log_entries"
 
     failure_reason: str | None = None
     status: str | None = None

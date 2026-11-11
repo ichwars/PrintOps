@@ -19,6 +19,7 @@ vi.mock('../../api/client', () => ({
   subscribeAuthSession: () => () => {},
   api: {
     getSettings: vi.fn().mockResolvedValue({}),
+    getUiFlags: vi.fn().mockResolvedValue({}),
     getAuthStatus: vi.fn().mockResolvedValue({ auth_enabled: false }),
     getCloudStatus: vi.fn().mockResolvedValue({ is_authenticated: false }),
     getFilamentPresets: vi.fn().mockResolvedValue([]),
@@ -129,6 +130,23 @@ describe('SpoolFormModal weightTouched', () => {
     vi.mocked(suppliersApi.list).mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 });
     vi.mocked(procurementOffersApi.list).mockResolvedValue([]);
     vi.mocked(procurementOffersApi.replace).mockResolvedValue([]);
+  });
+
+  it.each([false, true])('updates drying date in inventory mode %s', async (spoolmanMode) => {
+    render(<SpoolFormModal isOpen onClose={vi.fn()} mode="edit" currencySymbol="$"
+      spoolmanMode={spoolmanMode} spool={{ ...existingSpool, last_dried_at: '2026-10-30T12:00:00Z', last_dried_temp: 65, last_dried_hours: 8 }} />);
+    const date = await screen.findByLabelText('Last dried');
+    expect(screen.getByText('65 °C · 8 h')).toBeInTheDocument();
+    fireEvent.click(date);
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }));
+    fireEvent.click(screen.getByRole('button', { name: /November 10, 2026/i }));
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '10:00' } });
+    expect(screen.queryByText('65 °C · 8 h')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    const update = spoolmanMode ? api.updateSpoolmanInventorySpool : api.updateSpool;
+    await waitFor(() => expect(update).toHaveBeenCalledWith(1, expect.objectContaining({
+      last_dried_at: new Date('2026-11-10T10:00').toISOString(),
+    })));
   });
 
   it.each([false, true])('clears only the tray UUID in inventory mode %s', async (spoolmanMode) => {

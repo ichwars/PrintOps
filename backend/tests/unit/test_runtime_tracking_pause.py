@@ -153,3 +153,48 @@ async def test_idle_state_clears_last_update_without_accumulating():
         assert row.runtime_seconds == seeded_runtime  # no accumulation
         assert row.last_runtime_update is None  # cleared, prevents back-bill
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sample_offline", [False, True])
+async def test_reconnect_starts_a_new_runtime_baseline(sample_offline):
+    from backend.app import main as app_main
+    from backend.app.models.printer import Printer
+
+    now = datetime(2026, 11, 11, 16)
+    engine, maker = await _build_db_with_printer(runtime_seconds=300, last_runtime_update=now - timedelta(seconds=30))
+    fake_state = SimpleNamespace(connected=True, state="RUNNING", connection_generation=1)
+    clock = now
+    samples = 0
+    real_sleep = asyncio.sleep
+
+    async def advance(seconds):
+        nonlocal samples, clock
+        if seconds != 15:
+            samples += 1
+            if samples == 1:
+                clock = now + timedelta(minutes=15)
+                fake_state.connected = not sample_offline
+                fake_state.connection_generation += 1
+            elif samples == 2 and sample_offline:
+                clock += timedelta(seconds=30)
+                fake_state.connected = True
+            else:
+                raise asyncio.CancelledError()
+        await real_sleep(0)
+
+    try:
+        with (
+            patch.object(app_main, "async_session", maker),
+            patch.object(app_main, "utcnow_naive", lambda: clock),
+            patch.object(app_main.printer_manager, "get_status", return_value=fake_state),
+            patch.object(app_main.asyncio, "sleep", advance),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await app_main.track_printer_runtime()
+        async with maker() as db:
+            printer = await db.get(Printer, 1)
+            assert printer.runtime_seconds == 330
+            assert printer.last_runtime_update == clock
+    finally:
+        await engine.dispose()

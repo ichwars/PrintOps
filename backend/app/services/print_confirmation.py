@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.archive import PrintArchive
 from backend.app.models.commerce import CustomerOrder
 from backend.app.models.print_batch import PrintBatchPlate
-from backend.app.models.print_log import PrintLogEntry
+from backend.app.models.print_log import RUN_OPEN, PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem
 
 _locks: weakref.WeakValueDictionary[int, asyncio.Lock] = weakref.WeakValueDictionary()
@@ -54,6 +54,20 @@ async def outcome_lock(db: AsyncSession, archive_id: int, run_id: int | None = N
                 yield
 
 
+@asynccontextmanager
+async def _prompt_lock(db, archive_id, run_id):
+    if db.get_bind().dialect.name != "postgresql":
+        async with outcome_lock(db, archive_id, run_id):
+            yield
+        return
+    # A caller may keep its transaction open after a duplicate/no-op prompt.
+    # Release this attempt's advisory and row locks without rolling it back.
+    async with db.begin_nested() as savepoint, outcome_lock(db, archive_id, run_id):
+        yield
+        if savepoint.is_active:
+            await savepoint.rollback()
+
+
 async def initialize_queue_outcome(db: AsyncSession, item: PrintQueueItem, archive: PrintArchive) -> None:
     """Flag only newly dispatched production; historical rows retain legacy behavior."""
     production = False
@@ -75,19 +89,35 @@ async def initialize_queue_outcome(db: AsyncSession, item: PrintQueueItem, archi
 
 def reset_current_outcome(archive: PrintArchive) -> None:
     """Reprints clear the display mirror, never the earlier run's quality record."""
-    for field in ("user_verdict", "good_quantity", "reject_quantity", "user_verdict_source", "user_verdict_at"):
+    for field in (
+        "user_verdict",
+        "good_quantity",
+        "reject_quantity",
+        "user_verdict_source",
+        "user_verdict_at",
+        "failure_reason",
+        "completed_at",
+    ):
         setattr(archive, field, None)
 
 
-async def latest_run(db: AsyncSession, archive_id: int) -> PrintLogEntry | None:
-    return await db.scalar(
-        select(PrintLogEntry).where(PrintLogEntry.archive_id == archive_id).order_by(PrintLogEntry.id.desc()).limit(1)
+def _latest_finished(query, archive_id: int):
+    return (
+        query.where(PrintLogEntry.archive_id == archive_id, PrintLogEntry.status != RUN_OPEN)
+        .order_by(PrintLogEntry.started_at.desc().nulls_last(), PrintLogEntry.id.desc())
+        .limit(1)
     )
+
+
+async def latest_run(db: AsyncSession, archive_id: int) -> PrintLogEntry | None:
+    return await db.scalar(_latest_finished(select(PrintLogEntry), archive_id))
 
 
 def run_matches_archive(run: PrintLogEntry, archive: PrintArchive) -> bool:
     # A reused archive already starting its next run must not accept the old link.
     if archive.status != "completed" or run.status != "completed" or archive.deleted_at is not None:
+        return False
+    if archive.printer_id is not None and run.printer_id != archive.printer_id:
         return False
     if archive.started_at is not None:
         if run.started_at is None:
@@ -138,7 +168,7 @@ async def record_outcome(
         current_archive = current_archive.where(PrintArchive.status == "completed")
         if run.started_at is not None:
             current_archive = current_archive.where(PrintArchive.started_at == run.started_at)
-        newest_id = select(func.max(PrintLogEntry.id)).where(PrintLogEntry.archive_id == archive.id).scalar_subquery()
+        newest_id = _latest_finished(select(PrintLogEntry.id), archive.id).scalar_subquery()
         conditions.append(PrintLogEntry.id == newest_id)
     conditions.append(current_archive.exists())
     if token_hash is not None:
@@ -182,11 +212,29 @@ def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def issue_confirmation_token(db: AsyncSession, archive: PrintArchive, *, run_id: int | None = None) -> str | None:
-    run = await latest_run(db, archive.id)
-    if run_id is not None and (run is None or run.id != run_id):
+async def issue_confirmation_token(
+    db: AsyncSession,
+    archive: PrintArchive,
+    *,
+    run_id: int | None = None,
+    run_scoped: bool = False,
+    require_current: bool = False,
+) -> str | None:
+    exact = run_scoped and not require_current
+    if exact and run_id is None:
         return None
-    if not run or not run.confirm_requested or run.good_quantity is not None or not run_matches_archive(run, archive):
+    run = await db.get(PrintLogEntry, run_id, populate_existing=True) if exact else await latest_run(db, archive.id)
+    if (
+        run is None
+        or run.archive_id != archive.id
+        or (run_id is not None and run.id != run_id)
+        or archive.deleted_at is not None
+        or run.status != "completed"
+        or not run.confirm_requested
+        or run.good_quantity is not None
+    ):
+        return None
+    if not exact and not run_matches_archive(run, archive):
         return None
     if run.confirm_token_hash is not None and run.confirm_token_expires_at is not None:
         if run.confirm_token_expires_at.replace(tzinfo=None) > datetime.now(timezone.utc).replace(tzinfo=None):
@@ -195,6 +243,7 @@ async def issue_confirmation_token(db: AsyncSession, archive: PrintArchive, *, r
     run.confirm_token_hash = token_digest(token)
     run.confirm_token_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + TOKEN_LIFETIME
     run.confirm_token_used_at = None
+    run.confirm_token_run_scoped = run_scoped
     await db.flush()
     return token
 
@@ -208,9 +257,12 @@ async def find_token_run(db: AsyncSession, token: str) -> tuple[PrintArchive, Pr
     if not run or run.archive_id is None or not run.confirm_requested:
         return None
     archive = await db.get(PrintArchive, run.archive_id)
-    current = await latest_run(db, run.archive_id)
-    if not archive or not current or current.id != run.id or not run_matches_archive(run, archive):
+    if archive is None or archive.deleted_at is not None or run.status != "completed":
         return None
+    if not run.confirm_token_run_scoped:
+        current = await latest_run(db, run.archive_id)
+        if current is None or current.id != run.id or not run_matches_archive(run, archive):
+            return None
     expiry = run.confirm_token_expires_at
     if expiry is None or expiry.replace(tzinfo=None) <= datetime.now(timezone.utc).replace(tzinfo=None):
         return None
@@ -243,6 +295,7 @@ async def send_outcome_confirmation_hint(db: AsyncSession, archive_id: int, run_
     checks current ownership, printer scope, and update permission on submit.
     """
     from backend.app.core.auth import is_auth_enabled, user_can_access_printer
+    from backend.app.core.permissions import Permission
     from backend.app.core.websocket import ws_manager
     from backend.app.models.user import User
 
@@ -259,32 +312,30 @@ async def send_outcome_confirmation_hint(db: AsyncSession, archive_id: int, run_
         or run.good_quantity is not None
     ):
         return False
+    recipients: list[int | None] = [None]
     if await is_auth_enabled(db):
-        # Ownerless prints remain available to authorized admins through the
-        # archive UI; never fan their private metadata out to every connection.
-        if archive.created_by_id is None:
-            return False
-        owner = await db.get(User, archive.created_by_id)
-        if (
-            owner is None
-            or not owner.is_active
-            or not user_can_access_printer(owner, printer_id)
-            or not user_can_access_printer(owner, archive.printer_id)
-        ):
-            return False
-    await ws_manager.broadcast_to_user(
-        archive.created_by_id,
-        {
-            "type": "print_confirm_request",
-            "printer_id": printer_id,
-            "data": {
-                "archive_id": archive_id,
-                "run_id": run.id,
-                "print_name": run.print_name or archive.print_name or archive.filename,
-            },
+        recipients = [
+            user.id
+            for user in await db.scalars(select(User).where(User.is_active.is_(True)))
+            if user_can_access_printer(user, printer_id)
+            and (run.started_at is not None or user_can_access_printer(user, archive.printer_id))
+            and (
+                user.has_permission(Permission.ARCHIVES_UPDATE_ALL.value)
+                or (user.id == archive.created_by_id and user.has_permission(Permission.ARCHIVES_UPDATE_OWN.value))
+            )
+        ]
+    message = {
+        "type": "print_confirm_request",
+        "printer_id": printer_id,
+        "data": {
+            "archive_id": archive_id,
+            "run_id": run.id,
+            "print_name": run.print_name or archive.print_name or archive.filename,
         },
-    )
-    return True
+    }
+    for user_id in recipients:
+        await ws_manager.broadcast_to_user(user_id, message, user_sessions_only=True)
+    return bool(recipients)
 
 
 async def dispatch_outcome_confirmation(
@@ -296,12 +347,12 @@ async def dispatch_outcome_confirmation(
     run_id: int | None = None,
     notify_user: bool = True,
 ) -> bool:
-    """Prompt this run once; only the matching current run receives public actions."""
+    """Prompt the identified run once using an expiring, single-answer capability."""
     from backend.app.api.routes.settings import get_setting
     from backend.app.services.notification_service import notification_service
 
     for attempt in range(2):
-        async with outcome_lock(db, archive_id, run_id):
+        async with _prompt_lock(db, archive_id, run_id):
             # Provider awaits may leave this session holding the previous mirror.
             archive = await db.get(PrintArchive, archive_id, populate_existing=True)
             if archive is None or archive.deleted_at is not None:
@@ -322,8 +373,11 @@ async def dispatch_outcome_confirmation(
             if attempt and is_current:
                 return False  # The single retry is only for a historical fallback.
             token = None
+            exact = run_id is not None and run.started_at is not None
             if is_current:
-                token = await issue_confirmation_token(db, archive, run_id=run.id)
+                token = await issue_confirmation_token(
+                    db, archive, run_id=run.id, run_scoped=exact, require_current=True
+                )
                 if token is None:
                     await db.rollback()
                     if run_id is None or attempt:
@@ -332,10 +386,11 @@ async def dispatch_outcome_confirmation(
                     # Revalidate outside this lock; unchanged current buttons
                     # remain valid and cannot enter the historical retry.
                     continue
+            elif exact:
+                token = await issue_confirmation_token(db, archive, run_id=run.id, run_scoped=True)
             elif run_id is None:
                 return False  # Historical requests require the concrete completed run.
             # Claim external prompting atomically, independently of token issuance.
-            # Historical prompts never manufacture or reuse a public capability.
             live_archive = select(PrintArchive.id).where(
                 PrintArchive.id == archive_id,
                 PrintArchive.deleted_at.is_(None),

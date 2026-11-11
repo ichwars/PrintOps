@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Checkbox, Modal, NumberField, TextField } from './ui';
 import { Button } from './Button';
-import { PrintModal } from './PrintModal';
+import { ArchiveReprintModal } from './ReprintModal';
 
 export function ConfirmOutcomeDialog({ archiveId, runId, onClose }: { archiveId: number; runId?: number; onClose: () => void }) {
   const { t } = useTranslation();
@@ -16,7 +16,7 @@ export function ConfirmOutcomeDialog({ archiveId, runId, onClose }: { archiveId:
     queryFn: async () => {
       const archive = await api.getArchive(archiveId);
       if (runId === undefined || (runId === archive.outcome_run_id && archive.status === 'completed')) return { archive, historical: false };
-      const history = await api.getArchiveRuns(archiveId);
+      const history = await api.getArchiveRuns(archive.id);
       const run = history.items.find((entry) => entry.id === runId);
       if (!run) throw new Error('Print run not found');
       return { historical: true, archive: { ...archive, status: run.status, quantity: run.quantity ?? 1,
@@ -89,7 +89,7 @@ function OutcomeForm({ archive, historical, onClose }: { archive: Archive; histo
     onError: (error: Error) => showToast(error.message, 'error'),
   });
   const name = archive.print_name || archive.filename;
-  if (showReprint) return <PrintModal mode="create" archiveId={archive.id} archiveName={name} projectId={archive.project_id ?? undefined} onClose={onClose} />;
+  if (showReprint) return <ArchiveReprintModal archive={archive} projectId={archive.project_id ?? undefined} onClose={onClose} />;
   return (
     <Modal open title={t('productionQuality.title')} description={name} onClose={onClose} closeDisabled={mutation.isPending}>
       <div className="space-y-4 text-white">

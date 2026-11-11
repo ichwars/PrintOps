@@ -2,8 +2,8 @@
  * Tests for the MaintenancePage component.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { render } from '../utils';
 import { MaintenancePage } from '../../pages/MaintenancePage';
 import { http, HttpResponse } from 'msw';
@@ -135,6 +135,18 @@ describe('MaintenancePage', () => {
         expect(screen.getByText('Maintenance')).toBeInTheDocument();
       });
     });
+  });
+
+  it('describes the scope and history when deleting a custom maintenance task', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      render(<MaintenancePage />);
+      fireEvent.click(await screen.findByText('Settings'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete "Clean Nozzle"?' }));
+      expect(confirm).toHaveBeenCalledWith(expect.stringContaining('its history from every printer'));
+    } finally {
+      confirm.mockRestore();
+    }
   });
 
   describe('printer tabs', () => {

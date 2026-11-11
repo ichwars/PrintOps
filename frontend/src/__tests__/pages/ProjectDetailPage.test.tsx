@@ -108,7 +108,7 @@ describe('ProjectDetailPage', () => {
     it('shows print button for .gcode.3mf files', async () => {
       server.use(
         http.get('/api/v1/library/files', () => {
-          return HttpResponse.json([makeFile({ id: 2, filename: 'benchy.gcode.3mf', file_type: '3mf' })]);
+          return HttpResponse.json([makeFile({ id: 2, filename: 'benchy.gcode.3mf', file_type: 'gcode.3mf' })]);
         })
       );
 
@@ -208,13 +208,13 @@ describe('ProjectDetailPage', () => {
 
       server.use(
         http.get('/api/v1/library/files', () => {
-          return HttpResponse.json([makeFile({ id: 7, filename: 'cube.gcode.3mf', file_type: '3mf' })]);
+          return HttpResponse.json([makeFile({ id: 7, filename: 'cube.gcode.3mf', file_type: 'gcode.3mf' })]);
         }),
         http.get('/api/v1/printers/', () => {
           return HttpResponse.json([]);
         }),
         http.get('/api/v1/library/files/:id', () => {
-          return HttpResponse.json(makeFile({ id: 7, filename: 'cube.gcode.3mf', file_type: '3mf' }));
+          return HttpResponse.json(makeFile({ id: 7, filename: 'cube.gcode.3mf', file_type: 'gcode.3mf' }));
         }),
         http.get('/api/v1/library/files/:id/plates', () => {
           return HttpResponse.json({ is_multi_plate: false, plates: [] });

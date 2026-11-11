@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.routes.cloud import get_stored_token
 from backend.app.api.routes.orca_cloud import _build_authenticated_service as _build_orca_service
+from backend.app.core.auth import is_auth_enabled
 from backend.app.core.permissions import Permission
 from backend.app.models.local_preset import LocalPreset
 from backend.app.models.user import User
@@ -41,6 +42,7 @@ from backend.app.services.bambu_cloud import (
     BambuCloudService,
 )
 from backend.app.services.orca_cloud import OrcaCloudAuthError, OrcaCloudError
+from backend.app.utils.slicer_strings import unescape_strings_cstyle
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,9 @@ async def _resolve_cloud(db: AsyncSession, user: User | None, ref: PresetRef, sl
             detail=f"Cloud presets require the cloud:auth permission ({slot})",
         )
 
+    if user is None and await is_auth_enabled(db):
+        raise HTTPException(403, f"Bambu Cloud presets require a cloud identity ({slot})")
+
     token, _email, region = await get_stored_token(db, user)
     if not token:
         raise HTTPException(
@@ -199,6 +204,9 @@ async def _resolve_orca_cloud(db: AsyncSession, user: User | None, ref: PresetRe
             detail=f"Orca Cloud presets require the orca_cloud:auth permission ({slot})",
         )
 
+    if user is None and await is_auth_enabled(db):
+        raise HTTPException(403, f"Orca Cloud presets require a cloud identity ({slot})")
+
     try:
         svc = await _build_orca_service(db, user)
     except HTTPException:
@@ -248,6 +256,11 @@ async def _resolve_orca_cloud(db: AsyncSession, user: User | None, ref: PresetRe
         # same forced pin to `"system"` for the same reason — see the
         # Bambu Cloud branch above.
         content = {**content, "type": _SLOT_TO_PROFILE_TYPE[slot], "from": "system"}
+        for key in ("compatible_printers", "filament_type", "default_filament_colour"):
+            raw = content.get(key)
+            items = unescape_strings_cstyle(raw) if isinstance(raw, str) else None
+            if items is not None:
+                content[key] = items
     return json.dumps(content)
 
 

@@ -135,7 +135,7 @@ export function GitHubBackupSettings() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { t } = useTranslation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
 
   // All three restore endpoints are gated on GITHUB_RESTORE server-side, so a
   // user without it gets a 403 the moment the modal opens its preview. Hide the
@@ -143,6 +143,9 @@ export function GitHubBackupSettings() {
   // the button: the card itself stays visible, since backup configuration is a
   // separate permission. hasPermission returns true when auth is off.
   const canRestoreFromGit = hasPermission('github:restore');
+  const canDownloadFullBackup = isAdmin && hasPermission('settings:backup');
+  const canRestoreFullBackup = isAdmin && hasPermission('settings:restore');
+  const canChangeBackupPath = isAdmin && hasPermission('settings:update');
 
   // Local state for form
   const [repoUrl, setRepoUrl] = useState('');
@@ -173,6 +176,7 @@ export function GitHubBackupSettings() {
 
   // Scheduled local backup state
   const [deleteConfirmFile, setDeleteConfirmFile] = useState<string | null>(null);
+  const [confirmClearLogs, setConfirmClearLogs] = useState(false);
   const [restoreConfirmFile, setRestoreConfirmFile] = useState<string | null>(null);
   const [localBackupPath, setLocalBackupPath] = useState('');
 
@@ -211,9 +215,14 @@ export function GitHubBackupSettings() {
 
   const deleteLocalBackupMutation = useMutation({
     mutationFn: (filename: string) => api.deleteLocalBackup(filename),
-    onSuccess: () => {
+    onSuccess: (result) => {
       refetchLocalBackups();
       setDeleteConfirmFile(null);
+      if (!result.success) showToast(result.message, 'error');
+    },
+    onError: (error: Error) => {
+      setDeleteConfirmFile(null);
+      showToast(error.message, 'error');
     },
   });
 
@@ -535,6 +544,7 @@ export function GitHubBackupSettings() {
     mutationFn: () => api.clearGitHubBackupLogs(0),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['github-backup-logs'] });
+      setConfirmClearLogs(false);
       showToast(t('backup.clearedLogs', { count: result.deleted }));
     },
     onError: (error: Error) => {
@@ -963,7 +973,7 @@ export function GitHubBackupSettings() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => clearLogsMutation.mutate()}
+                  onClick={() => setConfirmClearLogs(true)}
                   disabled={clearLogsMutation.isPending}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -1043,7 +1053,7 @@ export function GitHubBackupSettings() {
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={isExporting || isRestoring}
+                disabled={isExporting || isRestoring || !canDownloadFullBackup}
                 onClick={async () => {
                   setIsExporting(true);
                   setOperationStatus(t('backup.preparingBackup'));
@@ -1098,7 +1108,7 @@ export function GitHubBackupSettings() {
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={isRestoring || isExporting}
+                disabled={isRestoring || isExporting || !canRestoreFullBackup}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Upload className="w-4 h-4" />
@@ -1247,10 +1257,12 @@ export function GitHubBackupSettings() {
                   <TextField
                     type="text"
                     value={localBackupPath}
+                    disabled={!canChangeBackupPath}
                     onChange={(e) => setLocalBackupPath(e.target.value)}
                     className="w-full h-10 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                     onBlur={async () => {
                       try {
+                        if (!canChangeBackupPath) return;
                         await api.updateSettings({ local_backup_path: localBackupPath });
                         showToast(t('backup.settingsSaved'));
                       } catch (err) {
@@ -1317,7 +1329,7 @@ export function GitHubBackupSettings() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <Button variant="unstyled"
+                            {canDownloadFullBackup && <Button variant="unstyled"
                               className="text-bambu-gray hover:text-bambu-green p-1"
                               title={t('backup.download')}
                               onClick={async () => {
@@ -1335,14 +1347,14 @@ export function GitHubBackupSettings() {
                               }}
                             >
                               <Download className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="unstyled"
+                            </Button>}
+                            {canRestoreFullBackup && <Button variant="unstyled"
                               className="text-bambu-gray hover:text-yellow-600 dark:hover:text-yellow-400 p-1"
                               title={t('backup.restore')}
                               onClick={() => setRestoreConfirmFile(file.filename)}
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
-                            </Button>
+                            </Button>}
                             <Button variant="unstyled"
                               className="text-bambu-gray hover:text-red-600 dark:hover:text-red-400 p-1"
                               onClick={() => setDeleteConfirmFile(file.filename)}
@@ -1370,6 +1382,18 @@ export function GitHubBackupSettings() {
       {/* Restore from the Git backup repository (#2656) */}
       {showGitRestore && <GitHubRestoreModal onClose={() => setShowGitRestore(false)} />}
 
+      {confirmClearLogs && (
+        <ConfirmModal
+          title={t('backup.history')}
+          message={t('backup.clearHistoryConfirm')}
+          confirmText={t('backup.clear')}
+          variant="danger"
+          isLoading={clearLogsMutation.isPending}
+          onConfirm={() => clearLogsMutation.mutate()}
+          onCancel={() => setConfirmClearLogs(false)}
+        />
+      )}
+
       {/* Delete Backup Confirmation Modal */}
       {deleteConfirmFile && (
         <ConfirmModal
@@ -1377,13 +1401,14 @@ export function GitHubBackupSettings() {
           message={t('backup.deleteBackupConfirm')}
           confirmText={t('backup.deleteBackup')}
           variant="danger"
+          isLoading={deleteLocalBackupMutation.isPending}
           onConfirm={() => deleteLocalBackupMutation.mutate(deleteConfirmFile)}
           onCancel={() => setDeleteConfirmFile(null)}
         />
       )}
 
       {/* Restore from Scheduled Backup Confirmation Modal */}
-      {restoreConfirmFile && (
+      {canRestoreFullBackup && restoreConfirmFile && (
         <ConfirmModal
           title={t('backup.restoreConfirmTitle')}
           message={t('backup.restoreConfirmMessage', { filename: restoreConfirmFile })}
@@ -1395,7 +1420,7 @@ export function GitHubBackupSettings() {
       )}
 
       {/* Restore Confirmation Modal */}
-      {showRestoreConfirm && restoreFile && (
+      {canRestoreFullBackup && showRestoreConfirm && restoreFile && (
         <ConfirmModal
           title={t('backup.restoreConfirmTitle')}
           message={t('backup.restoreConfirmMessage', { filename: restoreFile.name })}

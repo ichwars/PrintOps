@@ -87,6 +87,17 @@ describe('SmartPlugCard', () => {
       expect(screen.getByText('192.168.1.200')).toBeInTheDocument();
     });
 
+    it('displays REST without exposing the configured endpoint on the card', () => {
+      const plug = createMockPlug({
+        plug_type: 'rest',
+        rest_on_url: 'http://plug.example.test/webhook/fixture-token',
+      });
+      const { container } = render(<SmartPlugCard plug={plug} onEdit={mockOnEdit} />);
+
+      expect(screen.getByText('REST')).toHaveAttribute('title', 'REST');
+      expect(container.innerHTML).not.toContain('fixture-token');
+    });
+
     it('shows power ON/OFF buttons', () => {
       const plug = createMockPlug();
       render(<SmartPlugCard plug={plug} onEdit={mockOnEdit} />);

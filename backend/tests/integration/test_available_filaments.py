@@ -217,3 +217,23 @@ class TestAvailableFilaments:
 
         assert response.status_code == 200
         assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_bare_dual_nozzle_printer_offers_both_external_holders(async_client, printer_factory):
+    from backend.app.services.bambu_mqtt import NozzleInfo, PrinterState
+
+    await printer_factory(model="H2D")
+    state = PrinterState(nozzles=[NozzleInfo("HS", "0.4"), NozzleInfo("HH", "0.6")])
+    state.raw_data = {
+        "ams": [],
+        "vt_tray": [
+            {"id": 254, "tray_type": "PLA", "tray_color": "FF0000FF"},
+            {"id": 255, "tray_type": "PLA", "tray_color": "FF0000FF"},
+        ],
+    }
+    with patch("backend.app.api.routes.printers.printer_manager") as pm:
+        pm.get_status.return_value = state
+        response = await async_client.get("/api/v1/printers/available-filaments?model=H2D")
+    assert response.status_code == 200
+    assert {p["extruder_id"] for p in response.json()} == {0, 1}

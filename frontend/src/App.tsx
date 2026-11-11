@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import interfaceI18n from "./i18n";
-import { Component, lazy, Suspense, type ReactNode, type ErrorInfo } from 'react';
+import { Component, Suspense, type ReactNode, type ErrorInfo } from 'react';
+import { isChunkLoadError, lazyPage } from './utils/lazyPage';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout, getDefaultView } from './components/Layout';
@@ -10,52 +11,53 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { SliceJobTrackerProvider } from './contexts/SliceJobTrackerContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthRetrying } from './components/AuthRetrying';
 import { ColorCatalogProvider } from './contexts/ColorCatalogContext';
 import { SpoolBuddyLayout } from './components/spoolbuddy/SpoolBuddyLayout';
 import { usePrintProgressTitle } from './hooks/usePrintProgressTitle';
 
-const PrintersPage = lazy(() => import('./pages/PrintersPage').then(({ PrintersPage }) => ({ default: PrintersPage })));
-const ArchivesPage = lazy(() => import('./pages/ArchivesPage').then(({ ArchivesPage }) => ({ default: ArchivesPage })));
-const QueuePage = lazy(() => import('./pages/QueuePage').then(({ QueuePage }) => ({ default: QueuePage })));
-const StatsPage = lazy(() => import('./pages/StatsPage').then(({ StatsPage }) => ({ default: StatsPage })));
-const BusinessDashboardPage = lazy(() => import('./pages/BusinessDashboardPage').then(({ BusinessDashboardPage }) => ({ default: BusinessDashboardPage })));
-const SettingsPage = lazy(() => import('./pages/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
-const LexwareSettingsPage = lazy(() => import('./pages/LexwareSettingsPage'));
-const ProfilesPage = lazy(() => import('./pages/ProfilesPage').then(({ ProfilesPage }) => ({ default: ProfilesPage })));
-const MaintenancePage = lazy(() => import('./pages/MaintenancePage').then(({ MaintenancePage }) => ({ default: MaintenancePage })));
-const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then(({ ProjectsPage }) => ({ default: ProjectsPage })));
-const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then(({ ProjectDetailPage }) => ({ default: ProjectDetailPage })));
-const FileManagerPage = lazy(() => import('./pages/FileManagerPage').then(({ FileManagerPage }) => ({ default: FileManagerPage })));
-const LibraryTrashPage = lazy(() => import('./pages/LibraryTrashPage').then(({ LibraryTrashPage }) => ({ default: LibraryTrashPage })));
-const WarehousePage = lazy(() => import('./pages/WarehousePage').then(({ WarehousePage }) => ({ default: WarehousePage })));
-const WarehouseGoodsPage = lazy(() => import('./pages/WarehouseGoodsPage').then(({ WarehouseGoodsPage }) => ({ default: WarehouseGoodsPage })));
-const LexwareDocumentsPage = lazy(() => import('./pages/LexwareDocumentsPage'));
-const SmallPartsPage = lazy(() => import('./pages/SmallPartsPage').then(({ SmallPartsPage }) => ({ default: SmallPartsPage })));
-const SuppliersPage = lazy(() => import('./pages/SuppliersPage').then(({ SuppliersPage }) => ({ default: SuppliersPage })));
-const OrdersPage = lazy(() => import('./pages/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
-const OrdersOverviewPage = lazy(() => import('./pages/OrdersOverviewPage').then(({ OrdersOverviewPage }) => ({ default: OrdersOverviewPage })));
-const OffersPage = lazy(() => import('./pages/OffersPage').then(({ OffersPage }) => ({ default: OffersPage })));
-const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then(({ OrderDetailPage }) => ({ default: OrderDetailPage })));
-const OrdersCustomersPage = lazy(() => import('./pages/OrdersCustomersPage').then(({ OrdersCustomersPage }) => ({ default: OrdersCustomersPage })));
-const CalculationsPage = lazy(() => import('./pages/CalculationsPage').then(({ CalculationsPage }) => ({ default: CalculationsPage })));
-const CameraPage = lazy(() => import('./pages/CameraPage').then(({ CameraPage }) => ({ default: CameraPage })));
-const CamWallPage = lazy(() => import('./pages/CamWallPage').then(({ CamWallPage }) => ({ default: CamWallPage })));
-const StreamOverlayPage = lazy(() => import('./pages/StreamOverlayPage').then(({ StreamOverlayPage }) => ({ default: StreamOverlayPage })));
-const ExternalLinkPage = lazy(() => import('./pages/ExternalLinkPage').then(({ ExternalLinkPage }) => ({ default: ExternalLinkPage })));
-const GroupEditPage = lazy(() => import('./pages/GroupEditPage').then(({ GroupEditPage }) => ({ default: GroupEditPage })));
-const InventoryPage = lazy(() => import('./pages/InventoryPage'));
-const MakerworldPage = lazy(() => import('./pages/MakerworldPage').then(({ MakerworldPage }) => ({ default: MakerworldPage })));
-const SystemInfoPage = lazy(() => import('./pages/SystemInfoPage').then(({ SystemInfoPage }) => ({ default: SystemInfoPage })));
-const LoginPage = lazy(() => import('./pages/LoginPage').then(({ LoginPage }) => ({ default: LoginPage })));
-const SetupPage = lazy(() => import('./pages/SetupPage').then(({ SetupPage }) => ({ default: SetupPage })));
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(({ NotificationsPage }) => ({ default: NotificationsPage })));
-const GCodeViewerPage = lazy(() => import('./pages/GCodeViewerPage').then(({ GCodeViewerPage }) => ({ default: GCodeViewerPage })));
-const SpoolBuddyDashboard = lazy(() => import('./pages/spoolbuddy/SpoolBuddyDashboard').then(({ SpoolBuddyDashboard }) => ({ default: SpoolBuddyDashboard })));
-const SpoolBuddyAmsPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyAmsPage').then(({ SpoolBuddyAmsPage }) => ({ default: SpoolBuddyAmsPage })));
-const SpoolBuddySettingsPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddySettingsPage').then(({ SpoolBuddySettingsPage }) => ({ default: SpoolBuddySettingsPage })));
-const SpoolBuddyCalibrationPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyCalibrationPage').then(({ SpoolBuddyCalibrationPage }) => ({ default: SpoolBuddyCalibrationPage })));
-const SpoolBuddyWriteTagPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyWriteTagPage').then(({ SpoolBuddyWriteTagPage }) => ({ default: SpoolBuddyWriteTagPage })));
-const SpoolBuddyInventoryPage = lazy(() => import('./pages/spoolbuddy/SpoolBuddyInventoryPage').then(({ SpoolBuddyInventoryPage }) => ({ default: SpoolBuddyInventoryPage })));
+const PrintersPage = lazyPage(() => import('./pages/PrintersPage').then(({ PrintersPage }) => ({ default: PrintersPage })));
+const ArchivesPage = lazyPage(() => import('./pages/ArchivesPage').then(({ ArchivesPage }) => ({ default: ArchivesPage })));
+const QueuePage = lazyPage(() => import('./pages/QueuePage').then(({ QueuePage }) => ({ default: QueuePage })));
+const StatsPage = lazyPage(() => import('./pages/StatsPage').then(({ StatsPage }) => ({ default: StatsPage })));
+const BusinessDashboardPage = lazyPage(() => import('./pages/BusinessDashboardPage').then(({ BusinessDashboardPage }) => ({ default: BusinessDashboardPage })));
+const SettingsPage = lazyPage(() => import('./pages/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
+const LexwareSettingsPage = lazyPage(() => import('./pages/LexwareSettingsPage'));
+const ProfilesPage = lazyPage(() => import('./pages/ProfilesPage').then(({ ProfilesPage }) => ({ default: ProfilesPage })));
+const MaintenancePage = lazyPage(() => import('./pages/MaintenancePage').then(({ MaintenancePage }) => ({ default: MaintenancePage })));
+const ProjectsPage = lazyPage(() => import('./pages/ProjectsPage').then(({ ProjectsPage }) => ({ default: ProjectsPage })));
+const ProjectDetailPage = lazyPage(() => import('./pages/ProjectDetailPage').then(({ ProjectDetailPage }) => ({ default: ProjectDetailPage })));
+const FileManagerPage = lazyPage(() => import('./pages/FileManagerPage').then(({ FileManagerPage }) => ({ default: FileManagerPage })));
+const LibraryTrashPage = lazyPage(() => import('./pages/LibraryTrashPage').then(({ LibraryTrashPage }) => ({ default: LibraryTrashPage })));
+const WarehousePage = lazyPage(() => import('./pages/WarehousePage').then(({ WarehousePage }) => ({ default: WarehousePage })));
+const WarehouseGoodsPage = lazyPage(() => import('./pages/WarehouseGoodsPage').then(({ WarehouseGoodsPage }) => ({ default: WarehouseGoodsPage })));
+const LexwareDocumentsPage = lazyPage(() => import('./pages/LexwareDocumentsPage'));
+const SmallPartsPage = lazyPage(() => import('./pages/SmallPartsPage').then(({ SmallPartsPage }) => ({ default: SmallPartsPage })));
+const SuppliersPage = lazyPage(() => import('./pages/SuppliersPage').then(({ SuppliersPage }) => ({ default: SuppliersPage })));
+const OrdersPage = lazyPage(() => import('./pages/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
+const OrdersOverviewPage = lazyPage(() => import('./pages/OrdersOverviewPage').then(({ OrdersOverviewPage }) => ({ default: OrdersOverviewPage })));
+const OffersPage = lazyPage(() => import('./pages/OffersPage').then(({ OffersPage }) => ({ default: OffersPage })));
+const OrderDetailPage = lazyPage(() => import('./pages/OrderDetailPage').then(({ OrderDetailPage }) => ({ default: OrderDetailPage })));
+const OrdersCustomersPage = lazyPage(() => import('./pages/OrdersCustomersPage').then(({ OrdersCustomersPage }) => ({ default: OrdersCustomersPage })));
+const CalculationsPage = lazyPage(() => import('./pages/CalculationsPage').then(({ CalculationsPage }) => ({ default: CalculationsPage })));
+const CameraPage = lazyPage(() => import('./pages/CameraPage').then(({ CameraPage }) => ({ default: CameraPage })));
+const CamWallPage = lazyPage(() => import('./pages/CamWallPage').then(({ CamWallPage }) => ({ default: CamWallPage })));
+const StreamOverlayPage = lazyPage(() => import('./pages/StreamOverlayPage').then(({ StreamOverlayPage }) => ({ default: StreamOverlayPage })));
+const ExternalLinkPage = lazyPage(() => import('./pages/ExternalLinkPage').then(({ ExternalLinkPage }) => ({ default: ExternalLinkPage })));
+const GroupEditPage = lazyPage(() => import('./pages/GroupEditPage').then(({ GroupEditPage }) => ({ default: GroupEditPage })));
+const InventoryPage = lazyPage(() => import('./pages/InventoryPage'));
+const MakerworldPage = lazyPage(() => import('./pages/MakerworldPage').then(({ MakerworldPage }) => ({ default: MakerworldPage })));
+const SystemInfoPage = lazyPage(() => import('./pages/SystemInfoPage').then(({ SystemInfoPage }) => ({ default: SystemInfoPage })));
+const LoginPage = lazyPage(() => import('./pages/LoginPage').then(({ LoginPage }) => ({ default: LoginPage })));
+const SetupPage = lazyPage(() => import('./pages/SetupPage').then(({ SetupPage }) => ({ default: SetupPage })));
+const NotificationsPage = lazyPage(() => import('./pages/NotificationsPage').then(({ NotificationsPage }) => ({ default: NotificationsPage })));
+const GCodeViewerPage = lazyPage(() => import('./pages/GCodeViewerPage').then(({ GCodeViewerPage }) => ({ default: GCodeViewerPage })));
+const SpoolBuddyDashboard = lazyPage(() => import('./pages/spoolbuddy/SpoolBuddyDashboard').then(({ SpoolBuddyDashboard }) => ({ default: SpoolBuddyDashboard })));
+const SpoolBuddyAmsPage = lazyPage(() => import('./pages/spoolbuddy/SpoolBuddyAmsPage').then(({ SpoolBuddyAmsPage }) => ({ default: SpoolBuddyAmsPage })));
+const SpoolBuddySettingsPage = lazyPage(() => import('./pages/spoolbuddy/SpoolBuddySettingsPage').then(({ SpoolBuddySettingsPage }) => ({ default: SpoolBuddySettingsPage })));
+const SpoolBuddyCalibrationPage = lazyPage(() => import('./pages/spoolbuddy/SpoolBuddyCalibrationPage').then(({ SpoolBuddyCalibrationPage }) => ({ default: SpoolBuddyCalibrationPage })));
+const SpoolBuddyWriteTagPage = lazyPage(() => import('./pages/spoolbuddy/SpoolBuddyWriteTagPage').then(({ SpoolBuddyWriteTagPage }) => ({ default: SpoolBuddyWriteTagPage })));
+const SpoolBuddyInventoryPage = lazyPage(() => import('./pages/spoolbuddy/SpoolBuddyInventoryPage').then(({ SpoolBuddyInventoryPage }) => ({ default: SpoolBuddyInventoryPage })));
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null; errorInfo: ErrorInfo | null }> {
   state = { error: null as Error | null, errorInfo: null as ErrorInfo | null };
 
@@ -78,7 +80,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
             {this.state.error.stack}
           </pre>
           <button
-            onClick={() => { this.setState({ error: null, errorInfo: null }); }}
+            onClick={() => {
+              if (isChunkLoadError(this.state.error)) window.location.reload();
+              else this.setState({ error: null, errorInfo: null });
+            }}
             style={{ marginTop: 16, padding: '8px 16px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
           >
             {interfaceI18n.t("common.retry")}
@@ -124,12 +129,14 @@ function WebSocketProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const ConnectAuthorizePage = lazy(() => import('./pages/ConnectAuthorizePage').then(m => ({ default: m.ConnectAuthorizePage })));
+const ConnectAuthorizePage = lazyPage(() => import('./pages/ConnectAuthorizePage').then(m => ({ default: m.ConnectAuthorizePage })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { t: translateInterface } = useTranslation();
-  const { authEnabled, loading, user } = useAuth();
+  const { authEnabled, loading, authRetrying, user } = useAuth();
   const location = useLocation();
+
+  if (authRetrying) return <AuthRetrying />;
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">{translateInterface("common.loading")}</div>;
@@ -149,8 +156,10 @@ function PermissionRoute({ permission, children }: { permission: string; childre
   // per-action permission checks. Used for pages where delegation is supported
   // (e.g. settings:read grants read-only access to Settings; specific tabs
   // require their own permissions like users:read, groups:update, etc.).
-  const { authEnabled, loading, user, hasPermission } = useAuth();
+  const { authEnabled, loading, authRetrying, user, hasPermission } = useAuth();
   const location = useLocation();
+
+  if (authRetrying) return <AuthRetrying />;
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">{translateInterface("common.loading")}</div>;
@@ -172,15 +181,8 @@ function PermissionRoute({ permission, children }: { permission: string; childre
   return <>{children}</>;
 }
 
-const ConnectedAppsSettings = lazy(() => import('./components/ConnectedAppsSettings').then(m => ({ default: m.ConnectedAppsSettings })));
-
 function SettingsRoute() {
   const { authEnabled, hasPermission } = useAuth();
-  const { search } = useLocation();
-  if (authEnabled && !hasPermission('settings:read') && hasPermission('settings:update')
-      && (new URLSearchParams(search).get('tab') === 'integrations' || !hasPermission('accounting_integrations:manage'))) {
-    return <PermissionRoute permission="settings:update"><div className="min-w-0 p-4 md:p-8"><ConnectedAppsSettings /></div></PermissionRoute>;
-  }
   if (authEnabled && !hasPermission('settings:read') && hasPermission('accounting_integrations:manage')) {
     return <PermissionRoute permission="accounting_integrations:manage"><LexwareSettingsPage /></PermissionRoute>;
   }
@@ -189,7 +191,9 @@ function SettingsRoute() {
 
 function SetupRoute({ children }: { children: React.ReactNode }) {
   const { t: translateInterface } = useTranslation();
-  const { authEnabled, loading } = useAuth();
+  const { authEnabled, loading, authRetrying } = useAuth();
+
+  if (authRetrying) return <AuthRetrying />;
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">{translateInterface("common.loading")}</div>;
@@ -212,7 +216,7 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             {/* ThemeProvider sits inside AuthProvider so its initial
-                ``api.getSettings()`` fetch can wait for AuthContext to
+                ``api.getUiFlags()`` fetch can wait for AuthContext to
                 resolve — otherwise it fires unconditionally on every
                 login page load and returns 401. ErrorBoundary uses
                 inline styles, so a missing theme on a crash screen is
@@ -294,7 +298,7 @@ function App() {
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="gcode-viewer" element={<GCodeViewerPage />} />
                   <Route path="external/:id" element={<ExternalLinkPage />} />
-                  <Route path="camera-tokens" element={<Navigate to="/settings?tab=apikeys#card-camera-tokens" replace />} />
+                  <Route path="camera-tokens" element={<Navigate to="/settings?tab=printers-production&sub=cameras#card-camera-tokens" replace />} />
                 </Route>
               </Routes>
               </Suspense>

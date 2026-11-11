@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   X,
   Save,
@@ -17,7 +17,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Button } from './Button';
-import { api } from '../api/client';
+import { api, getAuthSessionId, subscribeAuthSession } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { formatMediaTime } from '../utils/date';
 import { FileInput, Slider } from './ui';
@@ -69,28 +69,56 @@ export function TimelapseEditorModal({
     queryFn: () => api.getTimelapseThumbnails(archiveId, 15),
   });
 
-  // Process mutation
+  const queryClient = useQueryClient();
+  const session = useSyncExternalStore(subscribeAuthSession, getAuthSessionId);
+  const jobKey = ['timelapse-edit-job', archiveId, session] as const;
+  const activeJob = useRef<string | null>(null);
+  const { data: job, isPending: loadingJob } = useQuery({
+    queryKey: jobKey,
+    queryFn: () => api.getTimelapseEditJob(archiveId),
+    refetchInterval: (query) => query.state.data?.status === 'running' ? 750 : false,
+    retry: false,
+  });
   const processMutation = useMutation({
-    mutationFn: () =>
-      api.processTimelapse(
-        archiveId,
-        {
-          trimStart,
-          trimEnd,
-          speed,
-          saveMode: 'replace',
-        },
-        audioFile || undefined
-      ),
+    mutationFn: () => api.processTimelapse(archiveId, {
+      trimStart,
+      trimEnd,
+      speed,
+      saveMode: 'replace',
+      sourceVersion: videoInfo?.source_version,
+      background: true,
+    }, audioFile ?? undefined),
     onSuccess: (data) => {
-      showToast(data.message, 'success');
+      if ('job_id' in data) {
+        activeJob.current = data.job_id;
+        queryClient.setQueryData(jobKey, data);
+      }
+    },
+    onError: (error: Error) => showToast(error.message, 'error'),
+  });
+  const cancelMutation = useMutation({
+    mutationFn: (jobId: string) => api.cancelTimelapseEditJob(archiveId, jobId),
+    onSuccess: (data) => queryClient.setQueryData(jobKey, data),
+    onError: (error: Error) => showToast(error.message, 'error'),
+  });
+  const processing = processMutation.isPending || job?.status === 'running';
+
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === 'running') {
+      activeJob.current = job.job_id;
+      return;
+    }
+    if (activeJob.current !== job.job_id) return;
+    activeJob.current = null;
+    if (job.status === 'completed') {
+      if (job.message) showToast(job.message, 'success');
       onSave?.();
       onClose();
-    },
-    onError: (error: Error) => {
-      showToast(error.message || 'Processing failed', 'error');
-    },
-  });
+    } else if (job.status === 'failed' && job.message) {
+      showToast(job.message, 'error');
+    }
+  }, [job, onClose, onSave, showToast]);
 
   // Initialize trimEnd when duration is available
   useEffect(() => {
@@ -102,13 +130,13 @@ export function TimelapseEditorModal({
   // Close on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !processing) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, processing]);
 
   // Video event handlers
   useEffect(() => {
@@ -248,7 +276,7 @@ export function TimelapseEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="relative bg-bambu-dark-secondary rounded-xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-bambu-dark-secondary rounded-xl max-w-5xl min-w-0 w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary shrink-0">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -260,9 +288,9 @@ export function TimelapseEditorModal({
               variant="primary"
               size="sm"
               onClick={() => processMutation.mutate()}
-              disabled={processMutation.isPending}
+              disabled={processing || loadingJob || !videoInfo?.source_version || trimEnd <= trimStart}
             >
-              {processMutation.isPending ? (
+              {processing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   {translateInterface("backup.processing")}
@@ -276,7 +304,9 @@ export function TimelapseEditorModal({
             </Button>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-bambu-dark-tertiary rounded transition-colors"
+              disabled={processing}
+              aria-label={translateInterface("common.close")}
+              className="p-1 hover:bg-bambu-dark-tertiary rounded transition-colors disabled:opacity-50"
             >
               <X className="w-5 h-5 text-bambu-gray" />
             </button>
@@ -284,13 +314,13 @@ export function TimelapseEditorModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
           {/* Video Preview */}
           <div className="relative">
             <video
               ref={videoRef}
               src={timelapseSrc}
-              className="w-full rounded-lg bg-black"
+              className="w-full max-h-[55dvh] object-contain rounded-lg bg-black"
               onClick={togglePlay}
               muted={!!audioUrl}
             />
@@ -526,11 +556,19 @@ export function TimelapseEditorModal({
         </div>
 
         {/* Processing overlay */}
-        {processMutation.isPending && (
+        {processing && (
           <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 text-bambu-green animate-spin" />
-            <p className="text-white text-lg">{translateInterface("orders.runtimeInterface.processingTimelapse")}</p>
-            <p className="text-bambu-gray text-sm">{translateInterface("orders.runtimeInterface.thisMayTakeAFewMoments")}</p>
+            <p role="status" className="text-white text-lg">{translateInterface("orders.runtimeInterface.processingTimelapse")}</p>
+            {job?.status === 'running' && (
+              <>
+                {job.progress != null && <progress value={job.progress} max={1}
+                  aria-label={translateInterface("orders.runtimeInterface.processingTimelapse")} />}
+                <Button variant="secondary" disabled={cancelMutation.isPending} onClick={() => cancelMutation.mutate(job.job_id)}>
+                  {translateInterface("common.cancel")}
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>

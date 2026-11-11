@@ -87,6 +87,8 @@ async def try_recover_fallback_archive(
     printer_id: int,
     candidate_name: str,
     candidate_path: Path,
+    *,
+    during_completion: bool = False,
 ) -> PrintArchive | None:
     """Complete the matching fallback row, or return ``None`` safely.
 
@@ -155,7 +157,32 @@ async def try_recover_fallback_archive(
             update_archive_id=archive.id,
         )
         if recovered is not None:
+            from backend.app.services.archive_cost_estimate import schedule_archive_cost_estimate
+            from backend.app.services.print_usage_lifecycle import is_completing
+
             logger.info("Completed fallback archive %s from later 3MF %s", archive.id, candidate_path)
+            try:
+                from backend.app.services.spoolman_tracking import attach_recovered_3mf
+
+                await attach_recovered_3mf(
+                    printer_id,
+                    recovered.id,
+                    recovered.file_path,
+                    db,
+                    printer_manager,
+                    plate_id=expected_plate,
+                    may_start=during_completion or (recovered.status == "printing" and not is_completing(printer_id)),
+                )
+            except Exception:
+                logger.warning("Could not attach recovered 3MF to Spoolman tracking", exc_info=True)
+            if not during_completion and recovered.status == "printing" and not is_completing(printer_id):
+                schedule_archive_cost_estimate(
+                    printer_id,
+                    recovered.id,
+                    printer_manager,
+                    ams_mapping=ams_mapping,
+                    plate_id=expected_plate if expected_plate is not None else recovered.plate_id,
+                )
             try:
                 await ws_manager.send_archive_updated({"id": archive.id, "file_recovered": True})
             except Exception as exc:
@@ -197,7 +224,9 @@ async def recover_cached_fallback_archive(printer_id: int, data: dict) -> PrintA
                     continue
                 attempted_paths.add(candidate)
                 async with async_session() as db:
-                    recovered = await try_recover_fallback_archive(db, printer_id, candidate_name, candidate)
+                    recovered = await try_recover_fallback_archive(
+                        db, printer_id, candidate_name, candidate, during_completion=True
+                    )
                     if recovered is not None:
                         return recovered
     except Exception as exc:

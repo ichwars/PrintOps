@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import get_api_key
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.models.api_key import APIKey
 from backend.app.services.app_messages import consume_quota, eligible_channels, validate_notification_owner
 from backend.app.services.notification_service import notification_service
@@ -55,7 +55,7 @@ class AppMessage(BaseModel):
         return value
 
 
-async def app_caller(key: APIKey = Depends(get_api_key), db: AsyncSession = Depends(get_db)):
+async def app_caller(key: APIKey = Depends(get_api_key), db: AsyncSession = DB_SESSION):
     owner = await validate_notification_owner(db, key)
     if not key.can_send_notifications:
         raise HTTPException(403, "API key lacks can_send_notifications")
@@ -64,14 +64,14 @@ async def app_caller(key: APIKey = Depends(get_api_key), db: AsyncSession = Depe
 
 @router.get("/app-message/channels")
 async def list_app_channels(
-    printer_id: int | None = Query(default=None, gt=0), caller=Depends(app_caller), db: AsyncSession = Depends(get_db)
+    printer_id: int | None = Query(default=None, gt=0), caller=Depends(app_caller), db: AsyncSession = DB_SESSION
 ):
     providers = await eligible_channels(db, *caller, printer_id)
     return [{"id": p.id, "name": p.name, "provider_type": p.provider_type} for p in providers]
 
 
 @router.post("/app-message")
-async def send_app_message(data: AppMessage, caller=Depends(app_caller), db: AsyncSession = Depends(get_db)):
+async def send_app_message(data: AppMessage, caller=Depends(app_caller), db: AsyncSession = DB_SESSION):
     key, owner = caller
     if data.printer_id is None and (key.printer_ids is not None or owner.allowed_printer_ids is not None):
         raise HTTPException(403, "A printer-scoped caller must specify printer_id")

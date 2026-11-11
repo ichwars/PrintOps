@@ -1,6 +1,9 @@
+import { amsHasLoadedTray } from '../../utils/amsHelpers';
+import { slotCalibrationContext } from '../../utils/slotKProfiles';
 import { CheckCircle, Flame, Loader2, Pencil, ScanSearch, X, XCircle } from 'lucide-react';
 import { api } from '../../api/client';
 import { parseUTCDate } from '../../utils/date';
+import { plateCheckFailureText } from '../../utils/plateCheck';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { FileManagerModal } from '../../components/FileManagerModal';
@@ -9,7 +12,6 @@ import { HMSErrorModal } from '../../components/HMSErrorModal';
 import { AMSHistoryModal } from '../../components/AMSHistoryModal';
 import { AmsBackupModal } from '../../components/AmsBackupModal';
 import { HeaterHistoryModal } from '../../components/HeaterHistoryModal';
-import { LinkSpoolModal } from '../../components/LinkSpoolModal';
 import { AssignSpoolModal } from '../../components/AssignSpoolModal';
 import { ConfigureAmsSlotModal } from '../../components/ConfigureAmsSlotModal';
 import { SkipObjectsModal } from '../../components/SkipObjectsModal';
@@ -46,7 +48,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
     dryingPopoverModuleType, dryingFilament, setDryingFilament, dryingTemp,
     setDryingTemp, dryingDuration, setDryingDuration, dryingRotateTray,
     setDryingRotateTray, dryingPopoverPos, amsHistoryModal, setAmsHistoryModal,
-    heaterHistoryModal, setHeaterHistoryModal, linkSpoolModal, setLinkSpoolModal,
+    heaterHistoryModal, setHeaterHistoryModal,
     assignSpoolModal, setAssignSpoolModal, configureSlotModal, setConfigureSlotModal,
     showFirmwareModal, setShowFirmwareModal, plateCheckResult, isCalibrating,
     editingRoi, setEditingRoi, isSavingRoi, status,
@@ -144,6 +146,8 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
             <div className="flex items-center gap-2">
               {plateCheckResult.needs_calibration ? (
                 <ScanSearch className="w-5 h-5 text-blue-500" />
+              ) : plateCheckResult.failure_reason ? (
+                <XCircle className="w-5 h-5 text-bambu-gray" />
               ) : plateCheckResult.is_empty ? (
                 <CheckCircle className="w-5 h-5 text-green-500" />
               ) : (
@@ -179,6 +183,11 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
                   <p dangerouslySetInnerHTML={{ __html: t('printers.plateDetection.calibrationTip') }} />
                 </div>
               </>
+            ) : plateCheckResult.failure_reason ? (
+              <div className="p-3 rounded-lg bg-bambu-dark-tertiary" role="status">
+                <p className="font-medium text-white">{t('printers.plateDetection.couldNotRunTitle')}</p>
+                <p className="mt-1 text-sm text-bambu-gray">{plateCheckFailureText(t, plateCheckResult.failure_reason)}</p>
+              </div>
             ) : (
               <>
                 <div className={`p-3 rounded-lg ${plateCheckResult.is_empty ? 'bg-green-100 dark:bg-green-500/20 border border-green-300 dark:border-green-500/50' : 'bg-yellow-100 dark:bg-yellow-500/20 border border-yellow-300 dark:border-yellow-500/50'}`}>
@@ -580,19 +589,6 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
       />
     )}
 
-    {/* Link Spool Modal */}
-    {linkSpoolModal && (
-      <LinkSpoolModal
-        isOpen={!!linkSpoolModal}
-        onClose={() => setLinkSpoolModal(null)}
-        tagUid={linkSpoolModal.tagUid}
-        trayUuid={linkSpoolModal.trayUuid}
-        printerId={linkSpoolModal.printerId}
-        amsId={linkSpoolModal.amsId}
-        trayId={linkSpoolModal.trayId}
-      />
-    )}
-
     {/* Assign Spool Modal */}
     {assignSpoolModal && (
       <AssignSpoolModal
@@ -613,6 +609,9 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
         onClose={() => setConfigureSlotModal(null)}
         printerId={printer.id}
         slotInfo={configureSlotModal}
+        printerState={status?.state ?? null}
+        calibrationContext={slotCalibrationContext(status, configureSlotModal.amsId, configureSlotModal.trayId)}
+        nozzleDiameter={slotCalibrationContext(status, configureSlotModal.amsId, configureSlotModal.trayId)?.diameter}
         printerModel={mapModelCode(printer.model) || undefined}
         onSuccess={() => {
           // Refresh slot presets to show updated profile name
@@ -636,6 +635,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
       <FirmwareUpdateModal
         printer={printer}
         firmwareInfo={firmwareInfo}
+        printerState={status?.connected ? status.state : null}
         onClose={() => setShowFirmwareModal(false)}
       />
     )}
@@ -761,9 +761,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
                 const targetAms = dryingPopoverAmsId !== null
                   ? amsData.find(a => a.id === dryingPopoverAmsId)
                   : undefined;
-                const trayLoadedInThisAms = (targetAms?.tray ?? []).some(
-                  tray => tray.state === 11,
-                );
+                const trayLoadedInThisAms = amsHasLoadedTray(targetAms, status?.tray_now, status?.extruder_slots);
                 const rotateChecked = dryingRotateTray && !trayLoadedInThisAms;
                 return (
                   <div title={trayLoadedInThisAms ? t('printers.drying.rotateUnavailableReason') : undefined}>
@@ -812,9 +810,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
                     // Start payload would carry rotate_tray=true and firmware would
                     // reject with dry_sf_reason=[3] (ConsumableAtAmsOutlet).
                     const targetAms = amsData.find(a => a.id === dryingPopoverAmsId);
-                    const trayLoadedInThisAms = (targetAms?.tray ?? []).some(
-                      tray => tray.state === 11,
-                    );
+                    const trayLoadedInThisAms = amsHasLoadedTray(targetAms, status?.tray_now, status?.extruder_slots);
                     startDryingMutation.mutate({
                       amsId: dryingPopoverAmsId,
                       temp: dryingTemp,

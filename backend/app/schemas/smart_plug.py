@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+from backend.app.services.secret_fields import SECRET_PLACEHOLDER
 
 
 class SmartPlugBase(BaseModel):
@@ -90,8 +93,10 @@ class SmartPlugBase(BaseModel):
     show_in_switchbar: bool = False
     show_on_printer_card: bool = True  # For scripts: show on printer card
 
+
+class SmartPlugCreate(SmartPlugBase):
     @model_validator(mode="after")
-    def validate_plug_type_fields(self) -> "SmartPlugBase":
+    def validate_plug_type_fields(self) -> "SmartPlugCreate":
         if self.plug_type == "tasmota" and not self.ip_address:
             raise ValueError("ip_address is required for Tasmota plugs")
         if self.plug_type == "homeassistant" and not self.ha_entity_id:
@@ -115,11 +120,9 @@ class SmartPlugBase(BaseModel):
         return self
 
 
-class SmartPlugCreate(SmartPlugBase):
-    pass
+class SmartPlugUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "smart_plugs"
 
-
-class SmartPlugUpdate(BaseModel):
     name: str | None = None
     plug_type: Literal["tasmota", "homeassistant", "mqtt", "rest"] | None = None
     ip_address: str | None = None
@@ -201,6 +204,11 @@ class SmartPlugResponse(SmartPlugBase):
     class Config:
         from_attributes = True
 
+    @field_validator("password", "rest_headers", mode="after")
+    @classmethod
+    def _mask_saved_secret(cls, value: str | None) -> str | None:
+        return SECRET_PLACEHOLDER if value else value
+
 
 class SmartPlugControl(BaseModel):
     action: Literal["on", "off", "toggle"]
@@ -228,6 +236,7 @@ class SmartPlugStatus(BaseModel):
 
 
 class SmartPlugTestConnection(BaseModel):
+    plug_id: int | None = None
     ip_address: str = Field(..., pattern=r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
     username: str | None = None
     password: str | None = None
@@ -270,6 +279,7 @@ class HASensorEntity(BaseModel):
 class RESTTestConnectionRequest(BaseModel):
     """Request to test a REST smart plug connection."""
 
+    plug_id: int | None = None
     url: str = Field(..., min_length=1)
     method: str = Field(default="GET")
     headers: str | None = None  # JSON string of custom headers

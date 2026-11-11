@@ -126,7 +126,7 @@ const MOCK_SETTINGS = {
 
 function setupHandlers(spools: unknown[] = [MOCK_SPOOL]) {
   server.use(
-    http.get('/api/v1/settings/', () => HttpResponse.json(MOCK_SETTINGS)),
+    http.get('/api/v1/settings/ui-flags', () => HttpResponse.json(MOCK_SETTINGS)),
     http.get('/api/v1/settings/spoolman', () =>
       HttpResponse.json({
         spoolman_enabled: 'false',

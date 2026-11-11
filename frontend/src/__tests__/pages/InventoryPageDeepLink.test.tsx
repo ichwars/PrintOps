@@ -114,7 +114,7 @@ const MOCK_SETTINGS = {
 
 function setupCommonHandlers(spoolList: object[]) {
   server.use(
-    http.get('/api/v1/settings/', () => HttpResponse.json(MOCK_SETTINGS)),
+    http.get('/api/v1/settings/ui-flags', () => HttpResponse.json(MOCK_SETTINGS)),
     // getSpoolmanSettings calls /api/v1/settings/spoolman (not /api/v1/spoolman/settings)
     http.get('/api/v1/settings/spoolman', () =>
       HttpResponse.json({ spoolman_enabled: 'false', spoolman_url: '', spoolman_sync_mode: 'auto', spoolman_disable_weight_sync: 'false', spoolman_report_partial_usage: 'true' })
@@ -261,7 +261,7 @@ describe('InventoryPage - deep-link ?spool= flow', () => {
       // common one.
       setupCommonHandlers([BASE_SPOOL]);
       server.use(
-        http.get('/api/v1/settings/', () =>
+        http.get('/api/v1/settings/ui-flags', () =>
           HttpResponse.json({ ...MOCK_SETTINGS, spoolman_enabled: true, spoolman_url: 'http://spoolman.local:7912' })
         ),
         http.get('/api/v1/settings/spoolman', () =>

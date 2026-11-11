@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from backend.app.api.routes.printers import get_inventory_remain
+from backend.app.core.auth import OwnershipAccess
 from backend.app.services.filament_deficit import SlotMaterial
 
 
@@ -21,7 +22,7 @@ def db():
 
 
 async def _call_endpoint(db, printer_id=1, current_user=None):
-    return await get_inventory_remain(printer_id=printer_id, current_user=current_user, db=db)
+    return await get_inventory_remain(printer_id=printer_id, access=OwnershipAccess(current_user, True), db=db)
 
 
 class TestGetInventoryRemain:
@@ -133,6 +134,7 @@ class TestGetInventoryRemain:
                 "material_key": "preset:PFUS6488|color:616777",
                 "remaining_g": 1000.0,
                 "extruder": 0,
+                "cost_per_kg": None,
             }
         ]
 

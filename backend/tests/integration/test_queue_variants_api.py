@@ -6,6 +6,8 @@ intends, because after this point the scheduler dispatches to hardware with no
 human in the loop.
 """
 
+import zipfile
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -60,6 +62,21 @@ async def _variants_of(db_session, item_id: int):
 
 
 class TestQueueWithVariants:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_refuses_unsliced_compound_3mf_candidate(
+        self, async_client, sliced_file_factory, printer_factory, tmp_path
+    ):
+        await printer_factory(model="H2S")
+        good = await sliced_file_factory("H2S")
+        path = tmp_path / "source.gcode.3mf"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("3D/3dmodel.model", "<model/>")
+        bad = await sliced_file_factory("H2C", filename=path.name, file_path=str(path))
+        response = await _queue_variants(async_client, good.id, bad.id)
+        assert response.status_code == 400
+        assert "isn't sliced yet" in response.json()["detail"]
+
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_creates_one_item_with_a_candidate_per_file(

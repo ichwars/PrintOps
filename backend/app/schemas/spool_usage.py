@@ -5,7 +5,8 @@ from pydantic import BaseModel
 
 class SpoolUsageHistoryResponse(BaseModel):
     id: int
-    spool_id: int
+    spool_id: int | None
+    spoolman_spool_id: int | None = None
     printer_id: int | None = None
     print_name: str | None = None
     weight_used: float

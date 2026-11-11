@@ -1,3 +1,6 @@
+import { automaticSlotKProfile, compatibleSlotKProfile, kProfileOptionLabel, kProfileOptionValue } from '../utils/slotKProfiles';
+import { ACTIVE_PRINT_STATES } from '../utils/printer';
+import { ConfirmModal } from './ConfirmModal';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -5,9 +8,10 @@ import { X, Loader2, Settings2, CheckCircle2, RotateCcw } from 'lucide-react';
 import { genericFilamentIdForMaterial, genericFilamentMaterialForId } from '../utils/filamentPresets';
 
 import { api } from '../api/client';
-import type { KProfile } from '../api/client';
+import type { AMSTray, KProfile } from '../api/client';
 import { matchesPrinterModelSuffix, presetCompatibility, buildCompatibilityIndex } from '../utils/slicerPrinterMatch';
 import { toFilamentId, isGenericFilamentId } from './spool-form/utils';
+import { cloudPresetFilamentId, cloudPresetFilamentIds, filamentIdToSettingId } from '../utils/filamentIds';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import { getAmsLabel } from '../utils/amsHelpers';
@@ -27,32 +31,13 @@ interface SlotInfo {
   savedPresetId?: string;
 }
 
-// Convert setting_id to tray_info_idx (filament_id format)
-// Bambu format: setting_id "GFSL05" → tray_info_idx "GFL05"
-function convertToTrayInfoIdx(settingId: string): string {
-  // Strip version suffix if present (e.g., GFSL05_07 -> GFSL05)
-  const baseId = settingId.includes('_') ? settingId.split('_')[0] : settingId;
-
-  // Bambu presets start with "GFS" - remove the 'S' to get filament_id
-  if (baseId.startsWith('GFS')) {
-    return 'GF' + baseId.slice(3);
-  }
-
-  // User presets (PFUS*, PFSP*) - use the base setting_id (without version suffix)
-  // This follows the pattern that filament_id and setting_id share the same base ID
-  if (baseId.startsWith('PFUS') || baseId.startsWith('PFSP')) {
-    return baseId;  // Use base ID without version suffix
-  }
-
-  // For other formats, use as-is
-  return baseId;
-}
-
 interface ConfigureAmsSlotModalProps {
   isOpen: boolean;
   onClose: () => void;
   printerId: number;
   slotInfo: SlotInfo;
+  printerState?: string | null;
+  calibrationContext?: AMSTray['calibration_context'];
   nozzleDiameter?: string;
   printerModel?: string;
   onSuccess?: () => void;
@@ -289,6 +274,8 @@ export function ConfigureAmsSlotModal({
   onClose,
   printerId,
   slotInfo,
+  calibrationContext,
+  printerState,
   nozzleDiameter = '0.4',
   printerModel,
   onSuccess,
@@ -297,6 +284,14 @@ export function ConfigureAmsSlotModal({
   const { t } = useTranslation();
   const { showToast } = useToast();
   const [openedPresetId, setOpenedPresetId] = useState('');
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
+  const printActive = ACTIVE_PRINT_STATES.has(printerState ?? '');
+  const slotPresetFilament = useCallback(
+    (presetId: string) => presetId === openedPresetId
+      ? { slotTrayInfoIdx: slotInfo.trayInfoIdx }
+      : { pickedFromList: true },
+    [openedPresetId, slotInfo.trayInfoIdx],
+  );
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [selectedKProfile, setSelectedKProfile] = useState<KProfile | null>(null);
   const [colorHex, setColorHex] = useState<string>(''); // Just the 6-char hex, no alpha
@@ -342,8 +337,9 @@ export function ConfigureAmsSlotModal({
   });
 
   // Fetch K profiles
-  const { data: kprofilesData, isLoading: kprofilesLoading } = useQuery({
+  const { data: kprofilesData, isLoading: kprofilesLoading, isError: kprofilesUnread } = useQuery({
     queryKey: ['kprofiles', printerId, nozzleDiameter],
+    retry: false,
     queryFn: () => api.getKProfiles(printerId, nozzleDiameter),
     enabled: isOpen && !!printerId,
   });
@@ -472,7 +468,7 @@ export function ConfigureAmsSlotModal({
         trayInfoIdx = builtinFilamentId!;
         settingId = '';
       } else {
-        trayInfoIdx = convertToTrayInfoIdx(selectedPresetId);
+        trayInfoIdx = cloudPresetFilamentId(selectedPreset!, slotPresetFilament(selectedPresetId));
         settingId = selectedPresetId;
 
         // User cloud presets may carry a distinct filament_id in the cloud detail
@@ -563,6 +559,9 @@ export function ConfigureAmsSlotModal({
         throw error;
       });
 
+      if (result.k_value_unsent) {
+        showToast(t('configureAmsSlot.kValueUnsent'), 'warning');
+      }
       if (isOrca && result.orca_fallback_reason) {
         showToast(t(`configureAmsSlot.orcaFallback.${result.orca_fallback_reason}`, { material: genericFilamentMaterialForId(result.tray_info_idx) || trayType }), 'warning');
       }
@@ -661,7 +660,7 @@ export function ConfigureAmsSlotModal({
         // Keep preset if it matches the slot's saved mapping or current tray_info_idx
         const isSavedPreset = savedId === cp.setting_id;
         const isCurrentPreset = isSavedPreset
-          || (trayIdx && (cp.setting_id === trayIdx || convertToTrayInfoIdx(cp.setting_id) === trayIdx));
+          || (trayIdx && (cp.setting_id === trayIdx || cloudPresetFilamentIds(cp).includes(trayIdx)));
         // Search filter applies to ALL presets (including saved) — no bypass
         if (query && !cp.name.toLowerCase().includes(query)) continue;
         // Filter by printer model if set (skip for current preset). Uses the
@@ -717,9 +716,7 @@ export function ConfigureAmsSlotModal({
         if (coveredIds.has(bf.filament_id)) continue;
         // Convert filament_id to setting_id format for cloud compatibility
         // e.g. "GFA00" → cloud setting_id would be "GFSA00" (insert S after GF)
-        const settingId = bf.filament_id.startsWith('GF')
-          ? 'GFS' + bf.filament_id.slice(2)
-          : bf.filament_id;
+        const settingId = filamentIdToSettingId(bf.filament_id);
         if (coveredIds.has(settingId)) continue;
         if (!query || bf.name.toLowerCase().includes(query)) {
           items.push({ id: `builtin_${bf.filament_id}`, name: bf.name, source: 'builtin', isUser: false });
@@ -774,7 +771,7 @@ export function ConfigureAmsSlotModal({
         if (cp) {
           // SlicerSetting only carries setting_id ("GFSG98_09"); toFilamentId
           // drops the variant suffix and the "S" infix to yield "GFG98".
-          filamentId = toFilamentId(cp.setting_id);
+          filamentId = toFilamentId(cloudPresetFilamentId(cp, slotPresetFilament(cp.setting_id)));
         }
       }
     }
@@ -796,7 +793,7 @@ export function ConfigureAmsSlotModal({
       brand: parsed.brand,
       filamentId,
     };
-  }, [selectedPresetId, cloudSettings?.filament, localPresets?.filament, builtinFilaments, orcaCloudList?.filament]);
+  }, [selectedPresetId, cloudSettings?.filament, localPresets?.filament, builtinFilaments, orcaCloudList?.filament, slotPresetFilament]);
 
   // For backwards compatibility with the label
   const selectedMaterial = selectedPresetInfo?.fullName || '';
@@ -836,8 +833,13 @@ export function ConfigureAmsSlotModal({
     });
   }, [colorCatalog, selectedPresetInfo]);
 
+  const showProfileHotend = new Set(kprofilesData?.profiles.map(p => p.extruder_id ?? 0)).size > 1;
+  const profileLabel = (profile: KProfile) => kProfileOptionLabel(profile, showProfileHotend
+    ? t(profile.extruder_id === 1 ? 'kProfiles.leftExtruder' : 'kProfiles.rightExtruder') : undefined);
+
   const matchingKProfiles = useMemo(() => {
     if (!kprofilesData?.profiles) return [];
+    const candidates = kprofilesData.profiles.filter(p => compatibleSlotKProfile(p, calibrationContext, slotInfo.extruderId));
     if (!selectedPresetInfo) {
       // Assigned-but-unconfigured slot (filament loaded but the printer hasn't
       // bound a preset yet: tray_type=""/tray_info_idx=""/no slot_preset_mappings
@@ -847,11 +849,11 @@ export function ConfigureAmsSlotModal({
       // instead of dropping to default 0.020 (#1689 follow-up).
       const activeIdx = slotInfo.caliIdx;
       if (activeIdx != null && activeIdx > 0) {
-        const active = kprofilesData.profiles.find(
+        const active = candidates.filter(
           p => p.slot_id === activeIdx
             && (slotInfo.extruderId === undefined || p.extruder_id === slotInfo.extruderId),
         );
-        if (active) return [active];
+        if (active.length === 1) return active;
       }
       return [];
     }
@@ -866,7 +868,7 @@ export function ConfigureAmsSlotModal({
     if (!upperMaterial || upperMaterial.length < 2) return [];
 
     // Filter profiles - require brand match if brand is present in selected preset
-    const filtered = kprofilesData.profiles.filter(p => {
+    const filtered = candidates.filter(p => {
       // Preferred: exact filament_id match (#1688). A user's custom K-profile
       // whose name doesn't agree with the slicer preset still surfaces when
       // both sides agree on filament_id. Generic GFx99 IDs are excluded —
@@ -921,36 +923,22 @@ export function ConfigureAmsSlotModal({
       return false;
     });
 
-    // Deduplicate profiles with same name and k_value (multi-nozzle printers have duplicates)
-    // Prefer the profile matching the slot's extruder (e.g. ext-R uses extruder 0, ext-L uses extruder 1)
-    const seen = new Map<string, KProfile>();
-    for (const profile of filtered) {
-      const key = `${profile.name}|${profile.k_value}`;
-      const existing = seen.get(key);
-      if (!existing) {
-        seen.set(key, profile);
-      } else if (slotInfo.extruderId !== undefined && profile.extruder_id === slotInfo.extruderId && existing.extruder_id !== slotInfo.extruderId) {
-        // Replace with profile matching slot's extruder
-        seen.set(key, profile);
-      }
-    }
-
-    const result = Array.from(seen.values());
+    const result = Array.from(new Map(filtered.map(profile => [kProfileOptionValue(profile), profile])).values());
 
     // Retain active calibration only while configuring the slot's current preset.
     const onSlotsOwnPreset = (!!openedPresetId && selectedPresetId === openedPresetId)
       || (!!presetFid && presetFid === toFilamentId(slotInfo.trayInfoIdx));
     const activeIdx = slotInfo.caliIdx;
     if (onSlotsOwnPreset && activeIdx != null && activeIdx > 0 && !result.some(p => p.slot_id === activeIdx)) {
-      const active = kprofilesData.profiles.find(
+      const active = candidates.filter(
         p => p.slot_id === activeIdx
           && (slotInfo.extruderId === undefined || p.extruder_id === slotInfo.extruderId),
       );
-      if (active) result.unshift(active);
+      if (active.length === 1) result.unshift(active[0]);
     }
 
     return result;
-  }, [kprofilesData?.profiles, selectedPresetInfo, slotInfo.extruderId, slotInfo.caliIdx, openedPresetId, selectedPresetId, slotInfo.trayInfoIdx]);
+  }, [kprofilesData?.profiles, selectedPresetInfo, slotInfo.extruderId, slotInfo.caliIdx, openedPresetId, selectedPresetId, slotInfo.trayInfoIdx, calibrationContext]);
 
   // Pre-select current profile when modal opens, reset when closes
   useEffect(() => {
@@ -967,9 +955,8 @@ export function ConfigureAmsSlotModal({
         );
         // Then try matching by converting setting_id → filament_id format
         if (!currentPreset) {
-          currentPreset = cloudSettings.filament.find(
-            p => convertToTrayInfoIdx(p.setting_id) === slotInfo.trayInfoIdx
-          );
+          currentPreset = cloudSettings.filament.find(p => p.filament_id === slotInfo.trayInfoIdx)
+            || cloudSettings.filament.find(p => cloudPresetFilamentIds(p).includes(slotInfo.trayInfoIdx!));
         }
         if (currentPreset) {
           setSelectedPresetId(currentPreset.setting_id);
@@ -1007,28 +994,15 @@ export function ConfigureAmsSlotModal({
 
   // Auto-select best matching K profile when preset changes
   useEffect(() => {
-    if (matchingKProfiles.length > 0) {
-      // Prefer the currently-active K-profile (by cali_idx) if available
-      if (slotInfo.caliIdx != null && slotInfo.caliIdx > 0) {
-        const active = matchingKProfiles.find(p => p.slot_id === slotInfo.caliIdx);
-        if (active) {
-          setSelectedKProfile(active);
-          return;
-        }
-      }
-      // Fallback: first matching profile
-      setSelectedKProfile(matchingKProfiles[0]);
-    } else {
-      setSelectedKProfile(null);
-    }
+    setSelectedKProfile(automaticSlotKProfile(matchingKProfiles, slotInfo.caliIdx));
   }, [selectedPresetId, matchingKProfiles, slotInfo.caliIdx]);
 
   // Escape key handler
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onClose();
-    }
-  }, [onClose]);
+    if (e.key !== 'Escape') return;
+    if (showResetConfirmation) setShowResetConfirmation(false);
+    else onClose();
+  }, [onClose, showResetConfirmation]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1093,7 +1067,7 @@ export function ConfigureAmsSlotModal({
                   />
                 )}
                 <span className="text-white/70">
-                  {t('configureAmsSlot.slotLabel', { ams: getAmsLabel(slotInfo.amsId, slotInfo.trayCount), slot: slotInfo.trayId + 1 })}
+                  {t('configureAmsSlot.slotLabel', { ams: getAmsLabel(slotInfo.amsId), slot: slotInfo.trayId + 1 })}
                 </span>
                 {slotInfo.traySubBrands && (
                   <span>({slotInfo.traySubBrands})</span>
@@ -1134,7 +1108,7 @@ export function ConfigureAmsSlotModal({
                   />
                 )}
                 <span className="text-white font-medium">
-                  {t('configureAmsSlot.slotLabel', { ams: getAmsLabel(slotInfo.amsId, slotInfo.trayCount), slot: slotInfo.trayId + 1 })}
+                  {t('configureAmsSlot.slotLabel', { ams: getAmsLabel(slotInfo.amsId), slot: slotInfo.trayId + 1 })}
                 </span>
                 {slotInfo.traySubBrands && (
                   <span className="text-bambu-gray">({slotInfo.traySubBrands})</span>
@@ -1228,21 +1202,23 @@ export function ConfigureAmsSlotModal({
                     <div className="relative">
                       <LegacySelect
                         aria-label={t('configureAmsSlot.kProfileLabel')}
-                        value={selectedKProfile?.name || ''}
+                        value={selectedKProfile ? kProfileOptionValue(selectedKProfile) : ''}
                         onChange={(e) => {
-                          const profile = matchingKProfiles.find(p => p.name === e.target.value);
+                          const profile = matchingKProfiles.find(p => kProfileOptionValue(p) === e.target.value);
                           setSelectedKProfile(profile || null);
                         }}
                         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none pr-10"
                       >
                         <option value="">{t('configureAmsSlot.noKProfile')}</option>
                         {matchingKProfiles.map((profile) => (
-                          <option key={`${profile.name}-${profile.extruder_id}`} value={profile.name}>
-                            {profile.name} (K={profile.k_value})
+                          <option key={kProfileOptionValue(profile)} value={kProfileOptionValue(profile)}>
+                            {profileLabel(profile)}
                           </option>
                         ))}
                       </LegacySelect>
                     </div>
+                  ) : kprofilesUnread ? (
+                    <p className="text-sm text-amber-700 dark:text-amber-400 py-2">{t('configureAmsSlot.kProfilesUnread')}</p>
                   ) : selectedPresetId ? (
                     <p className="text-sm text-bambu-gray italic py-2">
                       {t('configureAmsSlot.noMatchingKProfiles')}
@@ -1467,22 +1443,24 @@ export function ConfigureAmsSlotModal({
                   <div className="relative">
                     <LegacySelect
                       aria-label={t('configureAmsSlot.kProfileLabel')}
-                      value={selectedKProfile?.name || ''}
+                      value={selectedKProfile ? kProfileOptionValue(selectedKProfile) : ''}
                       onChange={(e) => {
-                        const profile = matchingKProfiles.find(p => p.name === e.target.value);
+                        const profile = matchingKProfiles.find(p => kProfileOptionValue(p) === e.target.value);
                         setSelectedKProfile(profile || null);
                       }}
                       className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none appearance-none pr-10"
                     >
                       <option value="">{t('configureAmsSlot.noKProfile')}</option>
                       {matchingKProfiles.map((profile) => (
-                        <option key={`${profile.name}-${profile.extruder_id}`} value={profile.name}>
-                          {profile.name} (K={profile.k_value})
+                        <option key={kProfileOptionValue(profile)} value={kProfileOptionValue(profile)}>
+                          {profileLabel(profile)}
                         </option>
                       ))}
                     </LegacySelect>
                   </div>
-                ) : selectedPresetId ? (
+                ) : kprofilesUnread ? (
+                    <p className="text-sm text-amber-700 dark:text-amber-400 py-2">{t('configureAmsSlot.kProfilesUnread')}</p>
+                  ) : selectedPresetId ? (
                   <p className="text-sm text-bambu-gray italic py-2">
                     {t('configureAmsSlot.noMatchingKProfiles')}
                   </p>
@@ -1641,8 +1619,9 @@ export function ConfigureAmsSlotModal({
           {/* Reset button on the left */}
           <Button
             variant="secondary"
-            onClick={() => resetMutation.mutate()}
-            disabled={resetMutation.isPending || configureMutation.isPending}
+            onClick={() => setShowResetConfirmation(true)}
+            disabled={printActive || resetMutation.isPending || configureMutation.isPending}
+            title={printActive ? t('configureAmsSlot.resetWhilePrinting') : undefined}
             className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
           >
             {resetMutation.isPending ? (
@@ -1688,6 +1667,22 @@ export function ConfigureAmsSlotModal({
           </div>
         )}
       </div>
+      {showResetConfirmation && (
+        <ConfirmModal
+          title={t('configureAmsSlot.resetSlot')}
+          message={t(printActive ? 'configureAmsSlot.resetWhilePrinting' : 'configureAmsSlot.resetConfirm')}
+          confirmText={t('configureAmsSlot.resetSlot')}
+          confirmDisabled={printActive}
+          overlayZIndex="z-[110]"
+          variant="danger"
+          onConfirm={() => {
+            if (printActive) return;
+            setShowResetConfirmation(false);
+            resetMutation.mutate();
+          }}
+          onCancel={() => setShowResetConfirmation(false)}
+        />
+      )}
     </div>
   );
 }

@@ -905,8 +905,8 @@ export function ProjectsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const { currencySymbol } = useDisplayCurrency(settings?.currency);

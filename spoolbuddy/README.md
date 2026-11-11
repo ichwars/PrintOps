@@ -1,5 +1,10 @@
 # SpoolBuddy Hardware Setup
 
+On the **Device** settings tab, saving the backend URL or API token queues
+the new configuration. The **Restart Daemon** action becomes available when
+the device acknowledges the configuration command. Use it to load the new
+settings into the running daemon.
+
 ## PN5180 NFC Reader (SPI)
 
 ### Wiring

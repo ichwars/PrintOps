@@ -7,7 +7,7 @@ The permission list is informational; it grants no rights on the PrintOps API.
 
 ## Register the application
 
-Enable PrintOps authentication. A user with `settings:update` can manage apps in
+Enable PrintOps authentication. An administrator with `settings:update` can manage apps in
 **Settings → Integrations → API & metrics → Connected applications**
 (`/settings?tab=integrations&sub=api-metrics`). Register one exact HTTP(S) callback
 URL. LAN HTTP callbacks are supported; fragments, embedded credentials, whitespace
@@ -19,7 +19,7 @@ Rotation replaces the secret and invalidates pending codes. Disabling, deleting,
 or changing the callback also invalidates pending codes. A callback change clears
 saved consents. Editing the display name keeps the same application identity.
 
-Management uses the existing PrintOps JWT session and `settings:update`:
+Management requires a PrintOps administrator JWT session with `settings:update`.
 
 | Method | Path under `/api/v1` | Result |
 | --- | --- | --- |
@@ -128,8 +128,3 @@ exercises live PostgreSQL startup migrations and the connected-app lock ordering
 
 User documentation lives in [the existing feature guide](upstream-features-guide.md).
 The separate wiki/website repository was unavailable during this integration.
-
-Delegated managers with only `settings:update` can open **Settings → Integrations**
-(`/settings?tab=integrations&sub=api-metrics`) to manage connected applications.
-That route mounts only this panel for them; other settings still require
-`settings:read`. Managers with both permissions keep the full settings interface.

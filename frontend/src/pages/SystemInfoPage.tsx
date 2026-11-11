@@ -30,6 +30,7 @@ import { Card } from '../components/Card';
 import { LogViewer } from '../components/LogViewer';
 import { ConnectionDiagnosticModal } from '../components/ConnectionDiagnostic';
 import { SystemHealthPanel } from '../components/SystemHealthPanel';
+import { useAuth } from '../contexts/AuthContext';
 import { formatDateTime, type TimeFormat } from '../utils/date';
 
 function formatBytes(bytes: number): string {
@@ -99,6 +100,8 @@ function Section({
 
 export function SystemInfoPage() {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canManageSupport = hasPermission('settings:update');
   const queryClient = useQueryClient();
   const [bundleError, setBundleError] = useState<string | null>(null);
   const [bundleDownloading, setBundleDownloading] = useState(false);
@@ -114,6 +117,7 @@ export function SystemInfoPage() {
   const { data: debugLoggingState } = useQuery({
     queryKey: ['debugLogging'],
     queryFn: supportApi.getDebugLoggingState,
+    enabled: canManageSupport,
     staleTime: 10 * 1000, // 10 seconds
     refetchInterval: 10 * 1000,
   });
@@ -125,12 +129,13 @@ export function SystemInfoPage() {
   } = useQuery({
     queryKey: ['bugReportStatus'],
     queryFn: bugReportApi.getStatus,
+    enabled: canManageSupport,
     staleTime: 60 * 1000,
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
   });
 
   const { data: libraryStats } = useQuery({
@@ -252,7 +257,7 @@ export function SystemInfoPage() {
       </Section>
 
       {/* Support & Troubleshooting */}
-      <Section title={t('support.title', 'Support & Troubleshooting')} icon={Headphones}>
+      {canManageSupport && <Section title={t('support.title', 'Support & Troubleshooting')} icon={Headphones}>
         <div className="space-y-4">
           <p className="text-sm text-bambu-gray">
             {t('support.description', 'Enable debug logging to capture detailed information, then download a support bundle to share when reporting issues.')}
@@ -442,7 +447,7 @@ export function SystemInfoPage() {
           {/* Log Viewer */}
           <LogViewer />
         </div>
-      </Section>
+      </Section>}
 
       {/* Connection Diagnostic */}
       <Section title={t('diagnostic.sectionTitle', 'Connection Diagnostic')} icon={Stethoscope}>

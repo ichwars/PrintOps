@@ -1,6 +1,37 @@
 // Dutch translations adapted from maziggy/bambuddy (nl.ts blob f6b6c638913a21cbc3aa98dde755ffda6e64aa7b).
 // PrintOps-specific text and source changes translated for PrintOps.
 export default {
+  profileDefaults: {
+    "title": "Standaardprofielen per product",
+    "description": "Kopieer slicerpresets en K-profielen van een ingestelde spoel. Nieuwe spoelen van dit product krijgen de ontbrekende instellingen.",
+    "pickSpool": "Een ingestelde spoel kiezen",
+    "allColors": "Alle kleuren",
+    "save": "Als productstandaard opslaan",
+    "saved": "Productstandaard opgeslagen",
+    "apply": "Ontbrekende profielen toepassen",
+    "applied": "Spoelen bijgewerkt ({{applied}}), mislukt ({{failed}})",
+    "deleteMessage": "Deze productstandaard verwijderen? Spoelen behouden hun bestaande profielen."
+  },
+  archiveMerge: {
+    "title": "Dubbelen samenvoegen",
+    "description": "Selecteer archiefgroepen om samen te voegen met het oudste item. Afdruktaken en hun geschiedenis blijven behouden.",
+    "keep": "{{name}} behouden (nr. {{id}})",
+    "move": "{{name}} verplaatsen (nr. {{id}})",
+    "empty": "Geen groepen met dubbele archieven gevonden.",
+    "previewError": "Het voorbeeld kon niet worden geladen.",
+    "submit": "Groepen samenvoegen ({{count}})",
+    "submitError": "Het samenvoegen kon niet worden gestart.",
+    "result": "Samengevoegde groepen ({{count}})",
+    "limit": "Selecteer maximaal {{count}} groepen tegelijk.",
+    "reasons": {
+      "busy": "Er wordt afgedrukt of een archiefbewerking wordt uitgevoerd.",
+      "invalid_group": "De groep is gewijzigd. Open een nieuw voorbeeld.",
+      "missing_file": "Een archiefbestand ontbreekt.",
+      "conflicting_files": "Archiefbestanden zijn incompatibel.",
+      "conflicting_metadata": "Metagegevens zijn incompatibel.",
+      "failed": "De groep kon niet worden samengevoegd."
+    }
+  },
   telegramQuality: {
     "title": "Telegram-kwaliteitsreacties",
     "enable": "Kwaliteitsreacties inschakelen",
@@ -2345,6 +2376,8 @@ export default {
 
   // Common
   common: {
+    secretKept: 'De opgeslagen waarde blijft behouden.',
+    secretReenter: 'Voer de inloggegevens opnieuw in voor de gewijzigde bestemming.',
     plusNMore: "+{{count}} meer",
     save: "Opslaan",
     saving: "Opslaan...",
@@ -2693,6 +2726,9 @@ export default {
     addFromCloud: "Toevoegen vanuit cloud",
     // Toast messages
     toast: {
+      assignmentVerified: "Instellingen voor slot {{slot}} bevestigd ({{printer}})",
+      assignmentVerifiedNoKprofile: "Instellingen voor slot {{slot}} bevestigd, K-profiel nog niet bevestigd ({{printer}})",
+      assignmentNotConfirmed: 'De toewijzing voor sleuf {{slot}} op {{printer}} kon niet worden bevestigd: controleer de AMS-sleuf',
       printerDeleted: "Printer verwijderd",
       missingSpoolAssignment: "Afdruk gestart op {{printer}}. Spoeltoewijzing ontbreekt voor: {{slots}}",
       printerAdded: "Printer toegevoegd",
@@ -2928,7 +2964,7 @@ export default {
       powerRequired: "Sluit de AMS-voedingsadapter aan om drogen in te schakelen",
       startingDrying: "Drogen starten...",
       toastStarted: "Drogen gestart",
-      toastStopped: "Drogen gestopt",
+      toastStopped: 'Stopopdracht verzonden',
       toastNotStarted: "De printer heeft de opdracht geaccepteerd, maar de AMS is niet begonnen met drogen. Controleer of de AMS-voedingsadapter is aangesloten en de printer inactief is.",
       screenOnly: "Drogen kan alleen worden bediend via het scherm van deze printer",
       stoppingDrying: "Drogen stoppen...",
@@ -2981,6 +3017,16 @@ export default {
       calibrationInstructions: "Zorg dat de bouwplaat <strong>volledig leeg</strong> is en klik daarna op Kalibreren.",
       calibrationDescription: "Bij kalibratie wordt een referentiebeeld van de lege plaat vastgelegd. Toekomstige controles vergelijken hiermee om objecten te detecteren.",
       calibrationTip: "<strong>Tip:</strong> Je kunt maximaal 5 kalibraties voor verschillende platen opslaan. Het systeem gebruikt bij een controle automatisch de beste overeenkomst.",
+      couldNotRunTitle: 'Bouwplaatcontrole niet beschikbaar',
+      couldNotRun: 'De bouwplaat van {{printer}} kon niet worden gecontroleerd. {{reason}}',
+      unavailableReasons: {
+        no_camera_frame: 'Er is geen camerabeeld ontvangen.',
+        decode_failed: 'Het camerabeeld kon niet worden gedecodeerd.',
+        analysis_error: 'De beeldanalyse is mislukt.',
+        opencv_missing: 'OpenCV is niet beschikbaar.',
+        not_calibrated: 'Kalibreer eerst de bouwplaat.',
+        error: 'De controle is mislukt.',
+      },
       plateEmpty: "Plaat lijkt leeg",
       objectsDetected: "Objecten op plaat gedetecteerd",
       confidence: "Betrouwbaarheid",
@@ -3013,6 +3059,9 @@ export default {
     },
     // Fans
     fans: {
+      leftAuxiliary: 'Linker hulpventilator',
+      rightAuxiliary: 'Rechter hulpventilator',
+      exhaust: 'Afvoer',
       partCooling: "Onderdeelkoelventilator",
       auxiliary: "Hulpventilator",
       chamber: "Kamerventilator",
@@ -3039,6 +3088,8 @@ export default {
       lastError: "Laatste fout",
       openSettings: "Instellingen openen",
     },
+    pauseAtLayer: 'Pauze op laag {{layer}}',
+    pauseIn: 'Pauze over {{time}} op laag {{layer}}',
     estimatedCompletion: "Geschatte voltooiingstijd",
     plateNumber: "Plaat {{number}}",
     slotOptions: "Sleufopties",
@@ -3059,6 +3110,7 @@ export default {
       currentVersion: "Huidig:",
       latestVersion: "Nieuwste:",
       releaseNotes: "Releaseopmerkingen",
+      idleRequired: 'Firmware kan alleen worden geüpload als de printer inactief is.',
       checkingPrereqs: "Vereisten controleren...",
       sdCardReady: "SD-kaart gereed. Klik hieronder om firmware te uploaden.",
       uploadedSuccess: "Firmware geüpload naar SD-kaart!",
@@ -3296,6 +3348,9 @@ export default {
       noGcode: "Dit archief bevat geen geslicede G-code voor een voorbeeld. Open het eerst in Bambu Studio om te slicen.",
     },
     card: {
+      costFullPrint: "Kosten voor één volledige afdruk. Het afdruklogboek toont het verbruik van deze taak.",
+      aborted: "afgebroken",
+      costEstimate: 'Schatting — de definitieve kosten worden vastgesteld als de print klaar is',
       previousPlate: "Vorige plaat",
       nextPlate: "Volgende plaat",
       plateNumber: "Plaat {{index}}",
@@ -3309,6 +3364,7 @@ export default {
       openSource3mf: "Bron-3MF openen in Bambu Studio (klik met rechts voor meer opties)",
       downloadF3d: "Fusion 360-ontwerpbestand downloaden",
       viewTimelapse: "Timelapse bekijken",
+      viewTimelapses: '{{count}} timelapses bekijken',
       viewPhoto: "1 foto bekijken",
       viewPhotos: "{{count}} foto's bekijken",
       openFolder: "Map openen: {{name}}",
@@ -3346,6 +3402,7 @@ export default {
       delete: "Verwijderen",
     },
     runLog: {
+      estimate: "Geschat: {{value}}",
       title: "Afdruklogboek",
       modalTitle: "Afdruklogboek — {{name}}",
       modalTitleFallback: "dit archief",
@@ -3353,6 +3410,7 @@ export default {
       col: {
         date: "Datum",
         status: "Status",
+        plate: "Plaat",
         duration: "Duur",
         filament: "Filament",
         cost: "Kosten",
@@ -3544,8 +3602,17 @@ export default {
 
   // Queue page
   queue: {
+    editSuccess: "Wachtrij-item bijgewerkt.",
     title: "Afdrukwachtrij",
     subtitle: "Plan en beheer je afdruktaken",
+    filamentMissing: {
+      confirmTitle: 'Filament niet geladen',
+      confirmIntro: 'De printer heeft geen sleuf met dit filament. Laad het en druk opnieuw op Start, of druk toch af:',
+    },
+    filamentNotes: {
+      color: "Slot {{slot}}: {{wanted}} gevraagd, {{got}} geladen",
+      backup: "AMS-reservespoel: {{from}} → {{to}}",
+    },
     filamentShort: {
       rowBadge: "Onvoldoende filament op de toegewezen spoel",
       rowTooltip: "De verzendscheduler heeft dit item gemarkeerd. Klik op Afspelen om het tekort per sleuf te bekijken en te bepalen of je toch wilt afdrukken.",
@@ -3613,11 +3680,13 @@ export default {
         completed: "Voltooid",
         cancelled: "Geannuleerd",
         all: "Alle",
+        failed: 'Mislukt',
       },
       status: {
         active: "Actief",
         completed: "Voltooid",
         cancelled: "Geannuleerd",
+        failed: 'Mislukt',
       },
       noTargets: "Alleen groepering",
       noTargetsHint: "Aangemaakt voordat doelen per plaat bestonden, dus dit volgt de runs die in de wachtrij zijn gezet in plaats van een doel.",
@@ -3816,6 +3885,9 @@ export default {
       historyCleared: "{{count}} geschiedenisitem(s) gewist",
       clearHistoryFailed: "Geschiedenis wissen mislukt",
       updateFailed: "Items bijwerken mislukt",
+      bulkUpdated: '{{updated}} items bijgewerkt.',
+      bulkUpdatedSome: '{{updated}} items bijgewerkt en {{skipped}} overgeslagen.',
+      bulkUpdatedNone: 'Geen items bijgewerkt. {{skipped}} overgeslagen.',
       bulkCancelled: "{{count}} item(s) geannuleerd",
       bulkCancelFailed: "Items annuleren mislukt",
       batchCreated: "Batch \"{{name}}\" gemaakt",
@@ -3823,7 +3895,13 @@ export default {
       batchUngrouped: "Groepering van {{count}} item(s) opgeheven",
       batchUngroupFailed: "Batchgroepering opheffen mislukt",
       resumedAfterFailure: "Wachtrij hervat — {{restored}} taak/taken teruggezet naar in afwachting",
+      resumedModelAfterFailure: 'Blokkade opgeheven bij {{count}} mislukte print(s)',
       resumeAfterFailureFailed: "Wachtrij hervatten mislukt",
+    },
+    resumeModelAfterFailure: {
+      banner: 'Opdrachten voor elke {{model}} wachten ({{count}}): de laatste print is op elke vrije {{model}} mislukt',
+      bannerHint: 'Los het probleem met de printers op en hervat om de blokkade op te heffen. De opdrachten starten dan op de volgende vrije {{model}}.',
+      confirmMessage: 'De blokkade na een mislukte print opheffen op alle {{model}}-printers die je mag gebruiken. Zorg dat de printers klaar zijn voordat je doorgaat.',
     },
     resumeAfterFailure: {
       banner: "{{printer}} is geblokkeerd door een eerdere afdrukfout — {{count}} taak/taken overgeslagen",
@@ -3940,6 +4018,8 @@ export default {
     exportDownloaded: "Export gedownload",
     exportFailed: "Export mislukt",
     layoutReset: "Indeling gereset",
+    repricedUsage: "Verbruiksboekingen herberekend ({{count}})",
+    repricingSpoolmanUnavailable: "Spoolman is niet beschikbaar. De prijzen van {{count}} boekingen zijn behouden",
     recalculatedCosts: "Kosten voor {{count}} archieven opnieuw berekend",
     recalculateFailed: "Kosten opnieuw berekenen mislukt",
     // Loading
@@ -4092,6 +4172,7 @@ export default {
     printerAssigned: "Printer toegewezen",
     printerRemoved: "Printer verwijderd",
     // Confirmation
+    deleteTypeAllPrinters: 'Dit verwijdert de onderhoudstaak en de bijbehorende geschiedenis van alle printers.',
     deleteTypeConfirm: "\"{{name}}\" verwijderen?",
     deleteSystemTypeTitle: "Standaard onderhoudstaak verwijderen?",
     deleteSystemTypeMessage: "Weet je zeker dat je de standaard onderhoudstaak \"{{name}}\" wilt verwijderen?",
@@ -4128,6 +4209,7 @@ export default {
       queueDispatch: "Wachtrij en verzending",
       queuePipelines: "Pipelines",
       deviceManagementDevices: "Apparaten",
+      deviceManagementCameras: "Camera’s",
       deviceManagementPrintProcess: "Afdrukproces",
       projectManagementFiles: "Bestandsbeheer",
       warehouseFilament: "Filament",
@@ -4151,7 +4233,8 @@ export default {
       security: "Beveiliging",
     },
     printerProductionSubTabDescriptions: {
-      devices: "Beheer standaardprinters, camera's, nieuwe FTP-pogingen en virtuele printereindpunten.",
+      devices: "Beheer standaardprinters, FTP-pogingen en virtuele printers.",
+      cameras: "Stel externe camera’s, verlichting, streamoverlays en cameratokens in.",
       printProcess: "Stel afdrukstandaarden, archivering, wachtrijgedrag, G-code, slicer en voltooiingsregels in.",
       pipelines: "Beheer slicerpipelines, voorinstellingen en geautomatiseerde voorbereidingsprocessen.",
       failureDetection: "Stel AI-bewaking van afdrukfouten, detectiegedrag per printer, status en geschiedenis in.",
@@ -4529,9 +4612,8 @@ export default {
     upToDate: "Je bent up-to-date",
     updateAvailable: "Update beschikbaar",
     // Notifications
-    notificationLanguage: "Taal voor meldingen",
-    notificationLanguageDescription: "Taal voor pushmeldingen",
     bedCooledThreshold: "Drempel voor afgekoeld bed",
+    pauseWarningMinutes: 'Waarschuwing vóór een slicerpauze (minuten)',
     bedCooledThresholdDescription: "Temperatuur waaronder het bed na een afdruk als afgekoeld wordt beschouwd",
     userNotificationsEnabled: "Gebruikersmeldingen",
     userNotificationsEnabledDescription: "Schakel het gebruikersmeldingenmenu en e-mailmeldingen voor afdrukgebeurtenissen in. Vereist Geavanceerde authenticatie.",
@@ -4603,6 +4685,7 @@ export default {
     amsSyncMessage: "Hiermee worden alle gewichten van voorraadspoelen overschreven met de huidige AMS remain%-waarden van verbonden printers. Gebruik dit om beschadigde gewichtsgegevens te herstellen. Printers moeten online zijn.",
     amsSyncing: "Synchroniseren...",
     amsSyncSuccess: "{{synced}} spoel(en) gesynchroniseerd, {{skipped}} overgeslagen",
+    amsSyncSkippedPrinting: '{{count}} spoel(en) op een printer die aan het printen is ongewijzigd gelaten. Synchroniseer opnieuw zodra de print klaar is.',
     amsSyncError: "Gewichten synchroniseren vanuit AMS mislukt",
     spoolmanAmsSyncButton: "Spoolman-gewichten synchroniseren vanuit AMS",
     spoolmanAmsSyncTitle: "Spoolman-spoelgewichten synchroniseren vanuit AMS",
@@ -4643,7 +4726,6 @@ export default {
     // Sidebar
     sidebarOrder: "Volgorde zijbalk",
     // Camera
-    saveThumbnails: "Miniaturen opslaan",
     captureFinishPhoto: "Eindfoto vastleggen",
     noPrintersConfigured: "Geen printers geconfigureerd",
     // Archive settings
@@ -4672,6 +4754,7 @@ export default {
     homeAssistantDescription: "Slimme stekkers bedienen via Home Assistant",
     environmentManagedLabel: "(Omgevingsvariabele beheerd)",
     autoEnabledViaEnv: "Automatisch ingeschakeld via omgevingsvariabelen",
+    haUrlEnvRequired: 'Stel HA_URL in de omgeving in om de URL voor HA_TOKEN te wijzigen.',
     urlFromEnvReadOnly: "Waarde ingesteld door omgevingsvariabele HA_URL (alleen-lezen)",
     tokenFromEnvReadOnly: "Waarde ingesteld door omgevingsvariabele HA_TOKEN (alleen-lezen)",
     // MQTT
@@ -4769,11 +4852,11 @@ export default {
     webhookEndpoints: "Webhook-eindpunten",
     webhookApiKeyHint: "Gebruik je API-sleutel in de X-API-Key-header.",
     webhook: {
-      getAllStatus: "Status van alle printers ophalen",
+      queueStatus: "Wachtrijstatus ophalen",
       getSpecificStatus: "Status van specifieke printer ophalen",
       addToQueue: "Toevoegen aan afdrukwachtrij",
-      pausePrint: "Afdruk pauzeren",
-      resumePrint: "Afdruk hervatten",
+      startNext: "Volgende print in de wachtrij starten",
+      cancelPrint: "Print annuleren",
       stopPrint: "Afdruk stoppen",
     },
     apiBrowser: "API-browser",
@@ -4796,6 +4879,7 @@ export default {
     goodBlue: "Goed (blauw)",
     aboveFairHot: "Boven de redelijke drempel wordt rood (heet) weergegeven",
     historyRetention: "Bewaartermijn geschiedenis",
+    keepPrinterTemperatureHistory: "Temperatuurgeschiedenis van printers bewaren gedurende",
     keepSensorHistory: "Sensorgeschiedenis bewaren gedurende",
     historyRetentionDescription: "Oudere gegevens over luchtvochtigheid en temperatuur worden automatisch verwijderd",
     defaultPrintOptions: "Standaard afdrukopties",
@@ -5013,6 +5097,8 @@ export default {
       connectionFailed: "Verbinding mislukt",
       testFailed: "Test mislukt",
       cameraConnected: "Camera verbonden{{resolution}}",
+      cameraConnectedLiveView: 'Beeld uit de liveweergave{{resolution}}',
+      cameraLiveViewPending: 'De liveweergave heeft nog geen recent beeld. Probeer het zo opnieuw.',
 
       "saveFailed": "Opslaan mislukt",
     },
@@ -5152,21 +5238,33 @@ export default {
     styleVibrant: "Levendig",
     themeToggleHint: "Schakel met het pictogram in de zijbalk tussen donkere, lichte en systeemmodus.",
     progressInTitle: "Afdrukvoortgang in browsertabblad tonen",
+    tabDisplay: "Afdrukstatus in browsertabblad",
+    tabDisplayPercentage: "Voltooid percentage",
+    tabDisplayTime: "Resterende tijd",
     progressInTitleHint: "Wanneer een printer actief is, tonen de tabbladtitel en het favicon het voortgangspercentage van de actieve afdruk.",
     // Archive
     autoArchivePrints: "Afdrukken automatisch archiveren",
     autoArchiveDescription: "3MF-bestanden automatisch opslaan wanneer afdrukken zijn voltooid",
-    saveThumbnailsDescription: "Voorbeeldafbeeldingen uit 3MF-bestanden extraheren en opslaan",
     captureFinishPhotoDescription: "Maak een foto met de printercamera wanneer de afdruk is voltooid. PrintOps neemt tijdens de afdruk een korte timelapse op zodat de foto kan worden genomen van het moment voordat het bed zakt; het timelapsebestand blijft behouden als je timelapse voor deze afdruk hebt ingeschakeld, anders wordt het automatisch verwijderd nadat de foto is vastgelegd.",
     ffmpegNotInstalled: "ffmpeg niet geïnstalleerd",
     ffmpegRequired: "Camera-opname vereist ffmpeg. Installeer dit via <brew>brew install ffmpeg</brew> (macOS) of <apt>apt install ffmpeg</apt> (Linux).",
     // Camera
     camera: "Camera",
     cameraViewMode: "Cameraweergavemodus",
+    cameraLight: "Automatische kamerverlichting",
+    cameraLightOff: "Uit",
+    cameraLightAll: "Alle printers",
+    cameraLightSelected: "Geselecteerde printers",
+    cameraLightDelay: "Wachttijd voor momentopname (seconden)",
     cameraOverlayDescription: "Camera opent in een schaalbare overlay op het hoofdscherm",
     cameraWindowDescription: "Camera opent in een apart browservenster",
     externalCamerasDescription: "Configureer externe camera's ter vervanging van de ingebouwde printercamera. Ondersteunt MJPEG-streams, RTSP, HTTP-momentopnamen en USB-camera's (V4L2). Wanneer ingeschakeld wordt de externe camera gebruikt voor liveweergave en eindfoto's.",
     cameraPlaceholderUsb: "Apparaatpad (/dev/video0)",
+    usbCameraChoose: "USB-camera kiezen",
+    usbCameraRefresh: "USB-apparaten vernieuwen",
+    usbCameraListError: "USB-camera’s konden niet worden opgehaald.",
+    usbCameraNone: "Geen USB-camera gevonden. Geef het apparaat door aan Docker, bijvoorbeeld",
+    usbCameraMissing: "USB-camera {{device}} is momenteel niet beschikbaar.",
     cameraPlaceholderUrl: "Camera-URL (rtsp://... of http://...)",
     cameraUrlBuilderToggle: "URL samenstellen met host, poort en pad",
     cameraUrlBuilderHost: "Host of IP",
@@ -5325,6 +5423,8 @@ export default {
       newBackupCodes: "Nieuwe back-upcodes",
       linkedAccounts: "Gekoppelde SSO-accounts",
       linkedAccountsDesc: "Deze externe identiteitsproviders zijn gekoppeld aan je account.",
+      oidcUnlink: 'Aanmeldaccount ontkoppelen',
+      oidcUnlinkConfirm: 'De aanmeldkoppeling voor {{provider}} verwijderen?',
       oidcUnlinked: "Account ontkoppeld.",
     },
 
@@ -5660,6 +5760,8 @@ export default {
 
   // Printer File Manager modal (printer internal storage)
   printerFiles: {
+      listingTimedOut: 'De printer antwoordt, maar het tonen van deze map duurt te lang (een grote map op een trage SD-kaart). Probeer het zo opnieuw.',
+      printerUnavailable: 'De bestandsservice van de printer is niet beschikbaar. Probeer het opnieuw wanneer de printer bereikbaar is.',
     videos: "Video's",
     rangeSelectionHint: "Klik op een bestand en vervolgens met Shift ingedrukt op een ander bestand om een reeks te selecteren.",
     saveToFolder: "Video's opslaan in map",
@@ -5692,6 +5794,7 @@ export default {
 
   // Login page
   login: {
+    retryingConnection: "PrintOps is tijdelijk niet bereikbaar. Er wordt opnieuw verbinding gemaakt…",
     title: "PrintOps-login",
     subtitle: "Log in op je account",
     username: "Gebruikersnaam",
@@ -6033,6 +6136,10 @@ export default {
       ldapErrorProvision: "Inrichten mislukt. Controleer de status van de LDAP-server en probeer opnieuw.",
     },
     form: {
+      twoFactorReset: "Tweefactorauthenticatie resetten",
+      twoFactorResetHint: "Verwijdert de authenticator, e-mailcodes en herstelcodes van deze gebruiker. De sessies worden beëindigd.",
+      twoFactorResetDone: "Tweefactorauthenticatie is gereset.",
+      twoFactorResetNone: "Deze gebruiker had geen actieve tweefactorauthenticatie.",
       username: "Gebruikersnaam",
       usernamePlaceholder: "Voer gebruikersnaam in",
       email: "E-mail",
@@ -6050,7 +6157,7 @@ export default {
       printerScopeCount: "{{count}} printers",
       optional: "optioneel",
       autoGeneratedPassword: "Een veilig wachtwoord wordt automatisch gegenereerd en per e-mail naar de gebruiker gestuurd.",
-      passwordManagedByAdvancedAuth: "Wachtwoord wordt beheerd door Geavanceerde authenticatie. Gebruik \"Wachtwoord resetten\" om via e-mail een nieuw wachtwoord naar de gebruiker te sturen.",
+      passwordManagedByAdvancedAuth: 'Geavanceerde authenticatie beheert het wachtwoord. Gebruik ‘Wachtwoord resetten’ om een link voor het instellen van een nieuw wachtwoord te mailen.',
       resetPassword: "Wachtwoord resetten",
       resettingPassword: "Wachtwoord resetten...",
     },
@@ -6452,6 +6559,15 @@ export default {
 
   // File manager
   fileManager: {
+    highlightedFileNotFound: "Het gekoppelde bestand is niet beschikbaar.",
+    folderMove: {
+      action: "Map verplaatsen",
+      title: "‘{{name}}’ verplaatsen",
+      destination: "Doelmap",
+      choose: "Kies een bestemming",
+      root: "Hoofdmap van beheerde opslag",
+      done: "Map verplaatst.",
+    },
     combine: {
       action: 'Combineren tot 3MF',
       tooltip: 'Combineer de geselecteerde STL\'s tot één 3MF om ze op één plaat te slicen',
@@ -6626,6 +6742,10 @@ export default {
       bulkTitle: "{{count}} geselecteerde bestand(en) taggen",
       bulkTooltip: "Tags toevoegen aan of verwijderen van elk geselecteerd bestand.",
       noPermission: "Je hebt geen toestemming om bestanden te taggen.",
+      searchTags: "Tags zoeken",
+      noTagsMatch: "Geen overeenkomende tags",
+      showAllTags: "Alles tonen ({{count}})",
+      showFewerTags: "Minder tonen",
       filterLabel: "Filteren op:",
       clearAll: "Alles wissen",
       confirmDelete: "Tag \"{{name}}\" verwijderen?",
@@ -7065,6 +7185,20 @@ export default {
 
   // Slice (slicer-API integration via SliceModal)
   slice: {
+    searchPresets: "Profielen zoeken",
+    closeSearch: "Zoeken sluiten",
+    noPresetMatches: "Geen overeenkomende profielen.",
+    filters: {
+      online: "Alleen online printermodellen",
+      loaded: "Alleen geladen spoelen",
+      noOnline: "Geen printermodel online. Alle printerprofielen worden getoond.",
+      noMatch: "Geen profiel past bij de geladen spoelen. Alle filamentprofielen worden getoond.",
+    },
+    loadedSpools: {
+      choose: "Kies een geladen spoel",
+      noProfile: "Geen passend profiel",
+      unidentified: "Onbekende spoel",
+    },
     title: "Model slicen",
     stepUnsupported: "Slicen niet ondersteund",
     stepUnsupportedHint: "STEP/STP-bestanden kunnen niet op de server worden gesliced: de slicer kan ze niet importeren. Zet het model om naar STL of 3MF om het hier te slicen.",
@@ -7258,6 +7392,8 @@ export default {
       updateFailed: "Bulkupdate mislukt",
       updatePartial: "{{ok}} spoelen bijgewerkt, {{failed}} mislukt",
       updateAllFailed: "Alle {{count}} spoelupdates zijn mislukt — selectie blijft behouden zodat je opnieuw kunt proberen",
+      resetAllFailed: 'Geen teller gereset: alle {{count}} mislukt',
+      resetPartial: 'Teller gereset voor {{ok}} spoel(en), {{failed}} mislukt',
       deleteSuccess: "{{count}} spoelen verwijderd",
       deleteFailed: "Bulkverwijdering mislukt",
       deletePartial: "{{ok}} spoelen verwijderd, {{failed}} mislukt",
@@ -7286,6 +7422,31 @@ export default {
     spoolmanMixedContentFixReverseProxy: "Plaats Spoolman achter dezelfde reverse proxy als PrintOps (Traefik / Nginx / Caddy) met HTTPS en werk daarna de Spoolman-URL in Instellingen bij naar het nieuwe HTTPS-adres.",
     spoolmanMixedContentFixOpenNewTab: "Als tijdelijke oplossing kun je Spoolman in een nieuw browsertabblad via HTTP openen — mixed-contentregels gelden alleen voor ingebedde frames, dus een zelfstandig tabblad werkt wel.",
     spoolmanOpenInNewTab: "Spoolman in nieuw tabblad openen",
+    spoolIdNotFound: "Spoel #{{id}} is niet gevonden.",
+    spoolIdArchived: "Spoel #{{id}} is gearchiveerd.",
+    spoolIdInOtherSlot: "Spoel #{{id}} is al aan een andere sleuf toegewezen.",
+    qrAssign: {
+      title: "Spoeletiket scannen",
+      target: "Bestemming voor toewijzing",
+      ams: "AMS-sleuf",
+      printer: "Printer kiezen",
+      chooseLocation: "Selecteer een opslaglocatie",
+      choosePrinter: "Selecteer een printer",
+      chooseSlot: "Selecteer een sleuf",
+      wrongInventory: "Dit etiket hoort bij een andere voorraad.",
+      archived: "Deze spoel is gearchiveerd.",
+      assigned: "Spoel toegewezen aan {{target}}.",
+      mismatch: "De sleuf meldt {{slot}}. De gescande spoel bevat {{spool}}.",
+      assign: "Toewijzen aan {{target}}",
+      scanAgain: "Nog een etiket scannen",
+      startCamera: "Camera starten",
+      stopCamera: "Camera stoppen",
+      photo: "Een foto kiezen",
+      pasteLabel: "Link van het spoeletiket",
+      read: "Etiket lezen",
+      cameraError: "De camera kon niet starten. Kies een foto of plak de etiketlink.",
+      noCode: "Er is geen QR-code gevonden in de foto.",
+    },
     labels: {
       template: 'Labelformaat',
       preview: 'Voorbeeld',
@@ -7317,6 +7478,32 @@ export default {
         spoolId: 'Spoel-ID',
       },
 
+      custom: {
+        option: "Aangepast etiketvel",
+        savedGroup: "Opgeslagen etiketsjablonen",
+        page: "Papierformaat",
+        pageLetter: "Amerikaans Letter (215,9 × 279,4 mm)",
+        label_w_mm: "Etiketbreedte (mm)",
+        label_h_mm: "Etikethoogte (mm)",
+        cols: "Kolommen",
+        rows: "Rijen",
+        top_mm: "Bovenmarge (mm)",
+        left_mm: "Linkermarge (mm)",
+        col_gap_mm: "Kolomafstand (mm)",
+        row_gap_mm: "Rijafstand (mm)",
+        diagram: "Voorbeeld van het vel",
+        invalid: "Gebruik etiketten van minstens 40 × 20 mm en zorg dat het raster en de marges op het gekozen papier passen.",
+        pngLimit: "PNG-export ondersteunt maximaal {{max}} vellen bij {{dpi}} dpi.",
+        name: "Sjabloonnaam",
+        saveAsNew: "Opslaan als nieuw sjabloon",
+        saveChanges: "Wijzigingen opslaan",
+        print: "Aangepast vel afdrukken",
+        deleteTitle: "Etiketsjabloon verwijderen",
+        deleteMessage: "Sjabloon ‘{{name}}’ verwijderen?",
+        loadFailed: "Kon sjablonen niet laden ({{message}})",
+        saveFailed: "Kon het sjabloon niet opslaan ({{message}})",
+        deleteFailed: "Kon het sjabloon niet verwijderen ({{message}})",
+      },
       startPosition: "Startpositie",
       startPositionHint: "Eerste vel: 1–{{max}}, van links naar rechts en dan naar beneden. Volgende vellen beginnen bij 1.",
       startPositionError: "Voer een geheel getal van 1 tot {{max}} in.",
@@ -7417,6 +7604,7 @@ export default {
     currentWeight: "Resterend gewicht",
     measuredWeight: "Gemeten gewicht",
     spoolName: "Spoel",
+    costFromFilament: "Prijs uit de filamentcatalogus",
     costPerKg: "Kosten per kg",
     storageLocation: "Opslaglocatie",
     storageLocationPlaceholder: "bijv. Plank A, Lade 1",
@@ -7510,6 +7698,7 @@ export default {
     modelPresetsSaveFailed: "Spoelgegevens opgeslagen, maar modelvoorinstellingen konden niet worden opgeslagen. Probeer opnieuw op te slaan.",
     paProfileTab: "PA-profiel",
     filamentInfo: "Filament",
+    lastDried: 'Laatst gedroogd',
     additional: "Aanvullend",
     // Cloud
     loadingPresets: "Cloudpresets laden...",
@@ -7692,6 +7881,7 @@ export default {
     emptySlot: "Lege sleuf",
     slotEmpty: "Leeg",
     slotUnconfigured: "?",
+    assignedNotConfigured: 'Toegewezen in PrintOps, nog niet ingesteld op de printer. De printer neemt de instelling over zodra het slot vrij is, na de print.',
     emptySlotReset: "Geen filament toegewezen",
     unknown: "Onbekend",
     humidity: "Luchtvochtigheid",
@@ -7863,6 +8053,7 @@ export default {
     backupCompleteFiles: "Back-up voltooid - {{count}} bestanden bijgewerkt",
     backupSkippedNoChanges: "Back-up overgeslagen - geen wijzigingen",
     backupFailed2: "Back-up mislukt: {{message}}",
+    clearHistoryConfirm: 'De geschiedenis van GitHub-back-ups wissen?',
     clearedLogs: "{{count}} logboeken gewist",
     failedToClearLogs: "Logboeken wissen mislukt: {{message}}",
 
@@ -7896,6 +8087,7 @@ export default {
         notPresent: "Niet aanwezig in deze back-upcommit",
         unreadableJson: "Onleesbare JSON: {{paths}}",
         settingsNoPayload: "Geen instellingen in payload",
+        settingsNotRestorableWillSkip: '{{count}} instellingen worden overgeslagen omdat ze onbekend zijn, ongeldige waarden bevatten of een bestemming van deze installatie vastleggen',
         settingsCredentialsWillSkip: "{{count}} sleutel(s) die op inloggegevens lijken worden overgeslagen",
         settingsCompanionWillSkip: "{{count}} sleutel(s) die op inloggegevens lijken worden overgeslagen, en {{companion}} schakelaar(s) die daarvan afhankelijk zijn blijven uitgeschakeld",
         settingsCompanionOnlyWillSkip: "{{companion}} schakelaar(s) blijven uitgeschakeld - de benodigde inloggegevens kunnen niet uit een back-up worden hersteld",
@@ -7915,11 +8107,18 @@ export default {
         archivesOwnerUnknown: "Sommige archieven zijn zonder eigenaar hersteld - deze back-up registreert er geen, waardoor ze alleen zichtbaar zijn voor gebruikers met de machtiging archives:read_all totdat een beheerder ze opnieuw toewijst",
         archivesUndeleted: "Archief/archieven die sinds de back-up waren verwijderd zijn weer zichtbaar - overschrijven stond aan",
         archivesMetadataOnly: "Herstelde archieven bevatten alleen metadata - de 3MF- en miniatuurbestanden zitten niet in een Git-back-up",
+        archivesNumbersDropped: "Ongeldige numerieke waarden in enkele archieven zijn weggelaten",
+        runsArchiveMissing: "Enkele afdrukken zijn overgeslagen omdat hun archieven ontbreken",
+        runsPrinterMissing: "Enkele afdrukken zijn hersteld zonder hun oorspronkelijke printer",
+        usageNumbersDropped: "Ongeldige gewichten, percentages of kosten in enkele verbruiksregistraties zijn teruggezet",
         spoolUsageUnresolved: "{{count}} verbruiksrecord(s) overgeslagen - hun spoel staat niet in de spoellijst van deze back-up, dus er is niets om ze aan te koppelen.",
         spoolUsageUnlinked: "{{count}} verbruiksrecord(s) hersteld zonder koppeling met afdrukgeschiedenis - selecteer Afdrukarchieven samen met Spoelvoorraad om deze te behouden.",
         spoolTagKept: "{{count}} spoeltag(s) gelaten zoals ze zijn - de back-up zou een tag hebben gewist die sindsdien is gescand, of een tag naar een tweede spoel hebben verplaatst.",
         settingsCredentialsSkipped: "{{count}} sleutel(s) die op inloggegevens lijken overgeslagen - voer geheimen handmatig opnieuw in",
         settingsAuthSkipped: "{{count}} authenticatie-instelling(en) overgeslagen - wijzig deze onder Instellingen > Authenticatie zodat vergrendelingscontroles blijven werken",
+        settingsInvalidSkipped: '{{count}} instellingen met ongeldige waarden overgeslagen',
+        settingsUnknownSkipped: '{{count}} onbekende instellingen overgeslagen',
+        settingsAddressKept: 'De huidige waarden voor {{keys}} zijn behouden. Wijzig deze bestemmingen in Instellingen.',
         settingsCompanionSkipped: "{{keys}} blijven uitgeschakeld - de benodigde inloggegevens kunnen niet uit een back-up worden hersteld en deze instantie heeft er geen opgeslagen, dus inschakelen zou de integratie zonder authenticatie achterlaten",
         settingsMqttRelayFailed: "MQTT-instellingen hersteld, maar de relay kon niet opnieuw verbinden - start PrintOps opnieuw",
         kprofilesAlwaysOverwrite: "K-profielen overschrijven altijd de overeenkomende sleuf op de printer",
@@ -8123,6 +8322,7 @@ export default {
     saving: "Opslaan...",
     // Failure reasons
     failureReasons: {
+      noStatusUpdate: "Geen eindstatus ontvangen",
       adhesionFailure: "Hechtingsprobleem",
       spaghettiDetached: "Spaghetti / losgeraakt",
       layerShift: "Laagverschuiving",
@@ -8139,13 +8339,16 @@ export default {
     statuses: {
       completed: "Voltooid",
       failed: "Mislukt",
-      aborted: "Geannuleerd",
+      aborted: "Afgebroken",
+      cancelled: "Geannuleerd",
       printing: "Bezig met afdrukken",
     },
   },
 
   // K-Profiles
   kProfiles: {
+      readFailed: 'K-profielen konden niet worden gelezen',
+      noAnswerDesc: 'De printer heeft niet geantwoord op het K-profielverzoek. De profielen staan er mogelijk nog: probeer het opnieuw.',
     title: "K-profielen",
     noPrintersConfigured: "Geen printers geconfigureerd",
     addPrinterInSettings: "Voeg in Instellingen een printer toe om K-profielen te beheren",
@@ -8232,6 +8435,8 @@ export default {
     },
     // Toast
     toast: {
+      writeUnconfirmed: 'Naar de printer verzonden, maar niet bevestigd. Controleer de lijst na het verversen.',
+      writesUnconfirmed: 'De printer heeft er {{count}} niet bevestigd. Controleer de lijst na het verversen.',
       profileSaved: "K-profiel opgeslagen",
       profilesSaved: "K-profiel opgeslagen naar {{count}} extruders",
       selectAtLeastOneExtruder: "Selecteer ten minste één extruder",
@@ -8801,6 +9006,7 @@ export default {
     printFailed: "Afdruk mislukt",
     printStopped: "Afdruk gestopt",
     progressMilestones: "Voortgangsmijlpalen",
+    pauseUpcoming: 'Geplande slicerpauze',
     progressMilestonesDescription: "Melden bij 25%, 50%, 75%",
     printerOffline: "Printer offline",
     printerError: "Printerfout",
@@ -9193,6 +9399,8 @@ export default {
 
   // Configure AMS Slot Modal
   configureAmsSlot: {
+      kProfilesUnread: 'De printer heeft niet geantwoord, dus de K-profielen konden niet worden gelezen. De standaardwaarde K=0.020 wordt gebruikt.',
+      kValueUnsent: 'Het filament is ingesteld, maar de K-waarde kon niet naar de printer worden verzonden.',
     orcaFallback: {
       no_generic_filament_id: 'Er bestaat geen veilige generieke voorinstelling voor {{material}}. Kies een profiel met een filament-ID voor de printer.',
       no_filament_id: 'Dit Orca-profiel heeft geen eigen filament-ID, dus OrcaSlicer ziet deze sleuf als Generic {{material}}.',
@@ -9228,6 +9436,8 @@ export default {
     clear: "Wissen",
     hexLabel: "Hex: #{{hex}}",
     resetting: "Resetten...",
+    resetWhilePrinting: 'Reset de sleuf nadat het afdrukken is voltooid.',
+    resetConfirm: 'De filamentinstellingen van deze sleuf wissen?',
     resetSlot: "Slot resetten",
     cancel: "Annuleren",
     configuring: "Configureren...",
@@ -9531,6 +9741,7 @@ export default {
       apiTokenPlaceholder: "Voer API-token in",
       saveConfig: "Configuratie opslaan",
       systemQueued: "Configuratie in wachtrij geplaatst.",
+      systemRestartQueued: 'Herstart van de daemon in de wachtrij.',
       nfcDiagnostic: "NFC-diagnose",
       scaleDiagnostic: "Weegschaaldiagnose",
       readTagDiagnostic: "Tagleesdiagnose",
@@ -9722,6 +9933,9 @@ export default {
         warn: "Poort {{port}} is niet bereikbaar. De livecamera werkt niet. Dit heeft geen invloed op afdrukken.",
       },
       network_mode: {
+        lan: "Rechtstreeks verbonden met het LAN ({{mode}}).",
+        ipvlan_l3: "IPvlan in routeringsmodus. Automatische printerdetectie is mogelijk niet beschikbaar.",
+        unknown: "De netwerkmodus van de container kon niet worden vastgesteld.",
         title: "Docker-netwerkmodus",
         pass: "Draait in host-netwerkmodus.",
         warn: "PrintOps draait met Docker bridge-netwerken. Printerdetectie en de virtuele printer vereisen host-netwerkmodus. Maak de container opnieuw aan met \"network_mode: host\".",
@@ -9876,8 +10090,12 @@ export default {
     openIssueForm: "GitHub-issue openen",
     stepEnableLogging: "Debuglogging ingeschakeld",
     stepReproduce: "Reproduceer het probleem nu",
-    stepStopLogging: "Stoppen en rapport verzenden",
-    stopAndSubmit: "Stoppen en verzenden",
+    stepStopLogging: "Registratie stoppen",
+    stopLogging: "Registratie stoppen",
+    reviewTitle: "Foutrapport controleren",
+    reviewBody: "Het rapport bevat systeemdiagnostiek en de gegevens hieronder. Controleer ze voordat je het verstuurt.",
+    recordedLogs: "Opgenomen debuglogboeken",
+    discard: "Verwerpen",
     maxDuration: "Stopt automatisch na {{minutes}} min",
     stoppingLogs: "Logs verzamelen en verzenden...",
     submitting: "Bugrapport verzenden...",
@@ -9929,6 +10147,7 @@ export default {
     statusTitle: "Status",
     serviceRunning: "Service actief",
     thresholds: "Lage / hoge drempels",
+    pauseThreshold: 'Drempel voor automatisch pauzeren',
     activePrinters: "Actieve afdrukken",
     noActivePrints: "Er worden momenteel geen afdrukken uitgevoerd.",
     historyTitle: "Recente detecties",
@@ -10278,6 +10497,7 @@ export default {
     markReceived: "Markeren als ontvangen — voegt spoelen toe aan Voorraad",
     resetToPending: "Terugzetten naar in behandeling",
     remove: "Verwijderen",
+    clearAllConfirm: 'Alle items van de boodschappenlijst verwijderen?',
     clearAll: "Alles wissen",
     downloadCsv: "CSV",
     // Add to cart modal

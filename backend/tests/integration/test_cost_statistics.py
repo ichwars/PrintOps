@@ -321,10 +321,11 @@ class TestCostCalculationScenarios:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_archive_cost_with_archive_id_and_print_name(
-        self, async_client, archive_factory, printer_factory, db_session
+    async def test_archive_cost_uses_linked_usage_and_keeps_usage_from_deleted_archives(
+        self, async_client, archive_factory, printer_factory, db_session, test_engine
     ):
-        """Test archive cost recalculation using both archive_id and print_name fallback."""
+        """Usage from a removed archive must not reprice another run with the same name."""
+        from backend.app.core.spool_usage_migration import migrate_spool_usage_history
         from backend.app.models.spool import Spool
         from backend.app.models.spool_usage_history import SpoolUsageHistory
 
@@ -374,7 +375,7 @@ class TestCostCalculationScenarios:
         )
         db_session.add(history_new)
 
-        # Create archive with old SpoolUsageHistory (archive_id NULL — legacy record)
+        # A different archive has the same print name and no consumption record.
         archive_old = await archive_factory(
             printer.id,
             print_name="LegacyPrint",
@@ -384,6 +385,7 @@ class TestCostCalculationScenarios:
         archive_old.filament_used_grams = 30.0
         await db_session.commit()
 
+        removed = await archive_factory(printer.id, print_name="LegacyPrint", status="completed", cost=0.45)
         history_old = SpoolUsageHistory(
             spool_id=spool_old.id,
             printer_id=printer.id,
@@ -392,25 +394,31 @@ class TestCostCalculationScenarios:
             percent_used=30,
             status="completed",
             cost=0.45,
-            archive_id=None,
+            archive_id=removed.id,
         )
         db_session.add(history_old)
-
         await db_session.commit()
+        async with test_engine.begin() as connection:
+            await migrate_spool_usage_history(connection)
+
+        response = await async_client.delete(f"/api/v1/archives/{removed.id}", params={"purge_stats": "true"})
+        assert response.status_code == 200, response.text
+        await db_session.refresh(history_old)
+        assert history_old.archive_id is None and history_old.cost == 0.45
 
         # Recalculate costs for all archives
         recalc_response = await async_client.post("/api/v1/archives/recalculate-costs")
         assert recalc_response.status_code == 200
         assert recalc_response.json()["updated"] >= 1
 
-        # Verify archive_new cost from archive_id-linked SpoolUsageHistory
+        # Verify archive_new cost from the current price of the archive-linked spool
         response_new = await async_client.get(f"/api/v1/archives/{archive_new.id}")
         assert response_new.status_code == 200
-        assert response_new.json()["cost"] == 0.50
+        assert response_new.json()["cost"] == 0.40
 
-        # Verify archive_old cost from legacy print_name fallback
+        # The other LegacyPrint uses the 25.00/kg default rate.
         response_old = await async_client.get(f"/api/v1/archives/{archive_old.id}")
         assert response_old.status_code == 200
-        assert response_old.json()["cost"] == 0.45
+        assert response_old.json()["cost"] == 0.75
 
         await db_session.rollback()

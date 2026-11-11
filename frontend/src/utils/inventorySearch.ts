@@ -1,11 +1,20 @@
 import type { InventorySpool } from '../api/client';
 
+export function exactSpoolIdQuery(query: string): number | null {
+  const match = /^#(\d+)$/.exec(query.trim());
+  if (!match) return null;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 /**
  * Return true when spool matches the search query across all searchable text fields.
  * Case-insensitive. Empty query always returns true.
  */
 export function spoolMatchesQuery(spool: InventorySpool, query: string): boolean {
   if (!query) return true;
+  const id = exactSpoolIdQuery(query);
+  if (id !== null) return spool.id === id;
   const q = query.toLowerCase();
   return (
     String(spool.id).includes(q) ||

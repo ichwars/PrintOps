@@ -60,16 +60,11 @@ describe('PrintModal dispatch toast', () => {
         mode="create"
         archiveId={1}
         archiveName="Benchy"
+        initialSelectedPrinterIds={[1]}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
       />
     );
-
-    // Wait for printers to load, then select one
-    await waitFor(() => {
-      expect(screen.getByText('X1 Carbon')).toBeInTheDocument();
-    });
-    await user.click(screen.getByText('X1 Carbon'));
 
     // Submit the print
     const printButton = screen.getByRole('button', { name: /^print$/i });

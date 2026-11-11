@@ -17,26 +17,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+from backend.app.api.routes._url_safety import (
+    CLOUD_METADATA_HOSTNAMES,
+    CLOUD_METADATA_IPS,
+    canonical_url_hostname,
+    unwrap_ipv4_mapped,
+)
 from backend.app.services.camera import rewrite_rtsp_request_url
+from backend.app.services.rtsp_relay import forward_rtsp_responses
 
 logger = logging.getLogger(__name__)
 
-_CLOUD_METADATA_HOSTS = frozenset(
-    {
-        "metadata.google",
-        "metadata.google.internal",
-        "instance-data",
-        "instance-data.ec2.internal",
-    }
-)
-_CLOUD_METADATA_ADDRESSES = frozenset(
-    {
-        ipaddress.ip_address("169.254.169.254"),
-        ipaddress.ip_address("168.63.129.16"),
-        ipaddress.ip_address("fd00:ec2::254"),
-        ipaddress.ip_address("fd20:ce::254"),
-    }
-)
+_AZURE_PLATFORM_ADDRESS = ipaddress.ip_address("168.63.129.16")
 _MAX_REQUEST_HEAD = 64 * 1024
 _CONNECT_TIMEOUT = 10.0
 _DNS_TIMEOUT = 5.0
@@ -84,19 +76,19 @@ def _parse_ip_address(hostname: str) -> ipaddress.IPv4Address | ipaddress.IPv6Ad
 
 
 def _unsafe_destination_reason(hostname: str) -> str | None:
-    host = hostname.lower().rstrip(".")
+    host = canonical_url_hostname(hostname)
+    if not host.isascii():
+        return "non-ASCII hostname"
     if host == "localhost" or host.endswith(".localhost"):
         return "localhost"
-    if host in _CLOUD_METADATA_HOSTS:
+    if host in CLOUD_METADATA_HOSTNAMES:
         return "cloud metadata hostname"
 
     address = _parse_ip_address(host)
     if address is None:
         return None
-    mapped = getattr(address, "ipv4_mapped", None)
-    if mapped is not None:
-        address = mapped
-    if address in _CLOUD_METADATA_ADDRESSES:
+    address = unwrap_ipv4_mapped(address)
+    if address in CLOUD_METADATA_IPS or address == _AZURE_PLATFORM_ADDRESS:
         return "cloud metadata address"
     if address.is_loopback:
         return "loopback address"
@@ -276,7 +268,9 @@ async def _start_http_relay(parsed: _ParsedCameraUrl, connect_ips: tuple[str, ..
                 return
             status_line = response_head.split(b"\r\n", 1)[0]
             status_match = re.match(rb"HTTP/\d(?:\.\d)?\s+(\d{3})(?:\s|$)", status_line)
-            if status_match and 300 <= int(status_match.group(1)) < 400:
+            status = int(status_match[1]) if status_match else 0
+            # Relaying a provisional reply would expose the uninspected final reply.
+            if status < 200 or 300 <= status < 400:
                 client_writer.write(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 await client_writer.drain()
                 return
@@ -345,7 +339,7 @@ async def _start_rtsp_relay(parsed: _ParsedCameraUrl, connect_ips: tuple[str, ..
 
             tasks = {
                 asyncio.create_task(forward_requests()),
-                asyncio.create_task(_pipe(upstream_reader, client_writer)),
+                asyncio.create_task(forward_rtsp_responses(upstream_reader, client_writer)),
             }
             _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in pending:

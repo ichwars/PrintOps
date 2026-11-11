@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+
 
 class ArchiveBase(BaseModel):
     print_name: str | None = None
@@ -15,11 +17,14 @@ class ArchiveBase(BaseModel):
     external_url: str | None = None
 
 
-class ArchiveUpdate(ArchiveBase):
+class ArchiveUpdate(IgnoresNullForRequiredColumns, ArchiveBase):
+    __orm_table__ = "print_archives"
+
+    cost: float | None = Field(default=None, ge=0, le=1_000_000, allow_inf_nan=False)
+    filament_used_grams: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     printer_id: int | None = None
     project_id: int | None = None
-    # Allow changing status (e.g., clearing failed flag)
-    status: str | None = None
+    status: str | None = Field(default=None, pattern="^(completed|failed|aborted|cancelled)$")
 
 
 class OutcomeConfirmation(BaseModel):
@@ -41,7 +46,11 @@ class ArchiveDuplicate(BaseModel):
 
 class ArchiveResponse(BaseModel):
     id: int
-    printer_id: int | None
+    printer_id: int | None = Field(
+        ...,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
     project_id: int | None = None
     project_name: str | None = None  # Included for convenience
     filename: str
@@ -49,7 +58,11 @@ class ArchiveResponse(BaseModel):
     file_size: int
     content_hash: str | None
     thumbnail_path: str | None
-    timelapse_path: str | None
+    timelapse_path: str | None = Field(
+        ...,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
     source_3mf_path: str | None = None  # Original project 3MF from slicer
     f3d_path: str | None = None  # Fusion 360 design file
 
@@ -63,11 +76,24 @@ class ArchiveResponse(BaseModel):
     object_count: int | None = None
 
     print_name: str | None
-    plate_id: int | None = None
+    plate_id: int | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
     print_time_seconds: int | None  # Estimated time from slicer
-    actual_time_seconds: int | None = None  # Computed from started_at/completed_at
+    actual_time_seconds: int | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
     # Percentage: 100 = perfect, >100 = faster than estimated
-    time_accuracy: float | None = None
+    time_accuracy: float | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
+    time_estimate_seconds: int | None = None
     filament_used_grams: float | None
     filament_type: str | None
     filament_color: str | None
@@ -80,9 +106,21 @@ class ArchiveResponse(BaseModel):
 
     sliced_for_model: str | None = None  # Printer model this file was sliced for
 
-    status: str
-    started_at: datetime | None
-    completed_at: datetime | None
+    status: str = Field(
+        ...,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
+    started_at: datetime | None = Field(
+        ...,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
+    completed_at: datetime | None = Field(
+        ...,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
 
     extra_data: dict | None
 
@@ -95,23 +133,54 @@ class ArchiveResponse(BaseModel):
     tags: str | None
     notes: str | None
     cost: float | None
-    photos: list | None
-    failure_reason: str | None
+    photos: list | None = Field(
+        ...,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
+    failure_reason: str | None = Field(
+        ...,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
     quantity: int = 1  # Number of items printed
 
     confirm_requested: bool = False
-    user_verdict: str | None = None
+    user_verdict: str | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
     good_quantity: int | None = None
     reject_quantity: int | None = None
-    user_verdict_source: str | None = None
-    user_verdict_at: datetime | None = None
+    user_verdict_source: str | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
+    user_verdict_at: datetime | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
     outcome_run_id: int | None = None
+    latest_run_id: int | None = Field(None, description="Latest print run visible to the caller")
+    run_id: int | None = Field(None, description="Selected print run when run_id is requested")
+    timelapse_count: int = 0
     outcome_expected_parts: int | None = None
     outcome_batch_id: int | None = None
 
     # Energy tracking
-    energy_kwh: float | None = None
-    energy_cost: float | None = None
+    energy_kwh: float | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
+    energy_cost: float | None = Field(
+        None,
+        description="Select a run with ?run_id= or use the archive run history.",
+        json_schema_extra={"deprecated": True},
+    )
 
     created_at: datetime | None
 

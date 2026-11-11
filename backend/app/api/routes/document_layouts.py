@@ -11,7 +11,6 @@ from uuid import uuid4
 from fastapi import (
     APIRouter,
     BackgroundTasks,
-    Depends,
     File,
     Form,
     HTTPException,
@@ -24,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import async_session, get_db
+from backend.app.core.database import DB_SESSION, async_session
 from backend.app.core.permissions import Permission
 from backend.app.models import document_layout as orm
 from backend.app.models.commercial_document import CommercialDocument
@@ -245,7 +244,7 @@ async def samples(
 @router.get("", response_model=list[dto.LayoutSummary])
 async def list_layouts(
     business_profile_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     rows = (
@@ -264,7 +263,7 @@ async def effective_layout(
     document_type: str | None = None,
     language: str | None = None,
     draft_layout_id: int | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     resolved = await resolve_effective_layout(
@@ -285,7 +284,7 @@ async def effective_layout(
 @router.post("", response_model=dto.LayoutSummary, status_code=201)
 async def create_layout(
     command: dto.CreateLayoutRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     layout = await create_draft(db, command, actor_id=_actor_id(actor))
@@ -296,7 +295,7 @@ async def create_layout(
 @router.post("/clone", response_model=dto.LayoutSummary, status_code=201)
 async def clone(
     command: dto.CloneLayoutRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     layout = await clone_layout(db, command, actor_id=_actor_id(actor))
@@ -308,7 +307,7 @@ async def clone(
 async def detail(
     layout_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     layout = await _layout_or_404(db, request, layout_id)
@@ -334,7 +333,7 @@ async def patch_layout(
     layout_id: int,
     command: dto.PatchLayoutRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     try:
@@ -353,7 +352,7 @@ async def patch_layout(
 async def readiness(
     layout_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     layout = await _layout_or_404(db, request, layout_id)
@@ -371,7 +370,7 @@ async def publish(
     layout_id: int,
     command: dto.PublishLayoutRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     try:
@@ -398,7 +397,7 @@ async def withdraw(
     layout_id: int,
     command: dto.WithdrawLayoutRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     try:
@@ -414,7 +413,7 @@ async def withdraw(
 async def audit(
     layout_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ORDER_AUDIT_READ),
 ):
     layout = await _layout_or_404(db, request, layout_id)
@@ -442,7 +441,7 @@ async def upload_asset(
     declared_sha256: str = Form(...),
     font_embedding_rights_confirmed: bool = Form(False),
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     content = await file.read(10 * 1024 * 1024 + 1)
@@ -470,7 +469,7 @@ async def attach_asset(
     layout_id: int,
     command: dto.AssetLinkRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     try:
@@ -486,7 +485,7 @@ async def attach_asset(
 async def download_asset(
     asset_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     asset = await db.get(orm.DocumentLayoutAsset, asset_id)
@@ -511,7 +510,7 @@ async def download_asset(
 async def delete_asset(
     asset_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_MANAGE),
 ):
     try:
@@ -529,7 +528,7 @@ async def enqueue_preview(
     background: BackgroundTasks,
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     layout = await _layout_or_404(db, request, command.layout_id)
@@ -570,7 +569,7 @@ async def _owned_job(db: AsyncSession, public_id: str, actor: User | None):
 @router.get("/preview/{public_id}", response_model=dto.PreviewJobResponse)
 async def preview_status(
     public_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     return _job_response(await _owned_job(db, public_id, actor))
@@ -579,7 +578,7 @@ async def preview_status(
 @router.get("/preview/{public_id}/pdf")
 async def preview_pdf(
     public_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     job = await _owned_job(db, public_id, actor)
@@ -602,7 +601,7 @@ async def preview_pdf(
 @router.get("/preview/{public_id}/report")
 async def preview_report(
     public_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(Permission.DOCUMENT_LAYOUTS_READ),
 ):
     job = await _owned_job(db, public_id, actor)

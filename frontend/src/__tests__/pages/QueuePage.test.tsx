@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { openComboboxOptions, render } from '../utils';
+import { openComboboxOptions, render, selectComboboxOption } from '../utils';
 import { QueuePage } from '../../pages/QueuePage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -109,6 +109,23 @@ const mockPrinters = [
   },
 ];
 
+function historyHandler(items: typeof mockQueueItems) {
+  return http.get('/api/v1/queue/history', ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const status = params.get('status');
+    const history = items.filter((item) =>
+      ['completed', 'failed', 'skipped', 'cancelled'].includes(item.status) && (!status || item.status === status));
+    const offset = Number(params.get('offset') ?? 0);
+    const limit = Number(params.get('limit') ?? 50);
+    return HttpResponse.json({
+      items: history.slice(offset, offset + limit),
+      related_items: [],
+      total: history.length,
+      locations: [],
+    });
+  });
+}
+
 describe('QueuePage', () => {
   beforeEach(() => {
     // Mock localStorage.getItem to return expected defaults for queue page
@@ -121,8 +138,9 @@ describe('QueuePage', () => {
     // Setup MSW handlers for this test
     server.use(
       http.get('/api/v1/queue/', () => {
-        return HttpResponse.json(mockQueueItems);
+        return HttpResponse.json(mockQueueItems.filter((item) => item.status !== 'completed'));
       }),
+      historyHandler(mockQueueItems),
       http.get('/api/v1/printers/', () => {
         return HttpResponse.json(mockPrinters);
       }),
@@ -142,6 +160,33 @@ describe('QueuePage', () => {
         return HttpResponse.json({ success: true });
       })
     );
+  });
+
+  it.each([
+    [2, 0, 'Updated 2 of the selected items.', 'status'],
+    [1, 1, 'Updated 1 of the selected items. Skipped 1.', 'alert'],
+    [0, 2, 'No items were updated. Skipped 2.', 'alert'],
+  ] as const)('reports a bulk edit with %s updates and %s skips', async (updated, skipped, message, role) => {
+    server.use(
+      http.get('/api/v1/queue/', () => HttpResponse.json([
+        mockQueueItems[0],
+        { ...mockQueueItems[0], id: 22, archive_name: 'Second pending item', position: 2 },
+      ])),
+      http.patch('/api/v1/queue/bulk', () => HttpResponse.json({
+        updated_count: updated, skipped_count: skipped, message: 'Raw API message',
+      })),
+    );
+    const user = userEvent.setup();
+    render(<QueuePage />);
+    await user.click(await screen.findByRole('button', { name: 'Select All' }));
+    await user.click(screen.getByRole('button', { name: 'Edit Selected' }));
+    const staged = screen.getByText('Staged (manual start)').parentElement!;
+    await user.click(within(staged).getByRole('button', { name: 'On' }));
+    await user.click(screen.getByRole('button', { name: 'Apply Changes' }));
+    const toast = within(screen.getByTestId('toast-viewport'));
+    expect(await toast.findByText(message)).toBeInTheDocument();
+    expect(toast.getByRole(role)).toHaveTextContent(message);
+    expect(toast.queryByText('Raw API message')).not.toBeInTheDocument();
   });
 
   describe('rendering', () => {
@@ -181,6 +226,34 @@ describe('QueuePage', () => {
   });
 
   describe('queue items display', () => {
+    it('shows a dispatched colour difference and the running job’s backup tray', async () => {
+      const substitution = { slot_id: 1, type: 'PLA', wanted: '#FFFFFF', got: '#FF0000', tray: 2 };
+      server.use(
+        http.get('/api/v1/queue/', () => HttpResponse.json([
+          { ...mockQueueItems[0], ams_mapping: [2] },
+          { ...mockQueueItems[1], ams_mapping: [2], color_substitutions: [substitution] },
+        ])),
+        http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+          connected: true, state: 'RUNNING', current_archive_id: 2, current_plate_id: 1,
+          current_backup_trays: { 2: 1 }, ams: [], vt_tray: [],
+        })),
+      );
+      render(<QueuePage />);
+      const active = (await screen.findByText('Active Print')).closest('.group') as HTMLElement;
+      expect(await within(active).findByText('Slot 1: #FFFFFF requested, #FF0000 loaded')).toBeInTheDocument();
+      expect(await within(active).findByText('AMS backup spool: A3 → A2')).toBeInTheDocument();
+      const pending = screen.getByText('Test Print 1').closest('.group') as HTMLElement;
+      expect(within(pending).queryByText(/AMS backup spool/)).not.toBeInTheDocument();
+    });
+
+    it('links a queued library file to its file manager highlight', async () => {
+      server.use(http.get('/api/v1/queue/', () => HttpResponse.json([
+        { ...mockQueueItems[0], archive_id: null, archive_name: null, library_file_id: 92, library_file_name: 'linked.gcode.3mf' },
+      ])));
+      render(<QueuePage />);
+      expect(await screen.findByTitle('View in File Manager')).toHaveAttribute('href', '/files?highlight=92');
+    });
+
     it('shows pending queue items', async () => {
       render(<QueuePage />);
 
@@ -402,11 +475,7 @@ describe('QueuePage', () => {
     }));
 
     beforeEach(() => {
-      server.use(
-        http.get('/api/v1/queue/', () => {
-          return HttpResponse.json(manyHistory);
-        })
-      );
+      server.use(historyHandler(manyHistory));
     });
 
     it('caps the History list at one page and reveals the rest on Show more', async () => {
@@ -526,7 +595,47 @@ describe('QueuePage', () => {
     });
   });
 
+
+    it('re-queues the plate the job printed (#3395)', async () => {
+      const plate = (index: number) => ({
+        index, name: '', has_thumbnail: false, thumbnail_url: null, objects: [`Part ${index}`],
+        filaments: [], print_time_seconds: 600, filament_used_grams: 5,
+      });
+      server.use(
+        historyHandler(mockQueueItems.map((i) => (i.id === 3 ? { ...i, plate_id: 2 } : i))),
+        http.get('/api/v1/archives/:id/plates', () =>
+          HttpResponse.json({ is_multi_plate: true, plates: [plate(1), plate(2), plate(3)] }),
+        ),
+      );
+      const user = userEvent.setup();
+      render(<QueuePage />);
+
+      await user.click(await screen.findByRole('button', { name: /^History/ }));
+      await screen.findByText('Completed Print');
+      await user.click(screen.getAllByTitle('Re-queue')[0]);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('selected-plates-summary')).toHaveTextContent(/^Plate 2$/);
+      });
+    });
+
   describe('clear history', () => {
+    it('clears the filtered history in one request', async () => {
+      let cleared: URLSearchParams | undefined;
+      server.use(http.post('/api/v1/queue/history/clear', ({ request }) => {
+        cleared = new URL(request.url).searchParams;
+        return HttpResponse.json({ cleared: 1, kept: 0 });
+      }));
+      const user = userEvent.setup();
+      render(<QueuePage />);
+      await user.click(await screen.findByRole('button', { name: /^History/ }));
+      const status = await screen.findByRole('combobox', { name: /all status/i });
+      selectComboboxOption(status, 'Completed');
+      await user.click(await screen.findByRole('button', { name: /^Clear History$/i }));
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /^Clear History$/i }));
+      await waitFor(() => expect(cleared?.get('status')).toBe('completed'));
+    });
     it('shows clear history button when history exists', async () => {
       const user = userEvent.setup();
       render(<QueuePage />);
@@ -774,4 +883,84 @@ describe('QueuePage', () => {
       expect(screen.getAllByTitle('Move Down')[2]).toBeDisabled();
     });
   });
+});
+
+describe('QueuePage: jobs held by failed prints on every printer of their model', () => {
+  it('offers Resume for the model', async () => {
+    let resumed: string | null = null;
+    server.use(
+      http.get('/api/v1/queue/', () =>
+        HttpResponse.json([
+          {
+            ...mockQueueItems[0],
+            printer_id: null,
+            printer_name: null,
+            target_model: 'X1C',
+            require_previous_success: true,
+            waiting_reason: 'The last print failed on every free matching printer',
+          },
+        ]),
+      ),
+      http.post('/api/v1/queue/model/:model/resume', ({ params }) => {
+        resumed = params.model as string;
+        return HttpResponse.json({ acknowledged: 2, printers: 2 });
+      }),
+    );
+    const user = userEvent.setup();
+    render(<QueuePage />);
+
+    await user.click(await screen.findByRole('button', { name: /resume after failure/i }));
+    // The confirm dialog's own button carries the same label.
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /resume after failure/i })).toHaveLength(2));
+    await user.click(screen.getAllByRole('button', { name: /resume after failure/i })[1]);
+
+    await waitFor(() => expect(resumed).toBe('X1C'));
+  });
+  describe('filament-not-loaded ▶ flow (#2799)', () => {
+    /**
+     * The scheduler held the item because a filament it prints has no tray on
+     * the printer. ▶ asks the backend first: still missing is a 409 with the
+     * missing filaments, and "Print Anyway" retries with skip_filament_check.
+     */
+    const heldItem = {
+      ...mockQueueItems[0],
+      manual_start: true,
+      waiting_reason: 'Needs PETG #2850E0',
+    };
+
+    it('shows the missing filament and retries with skip_filament_check', async () => {
+      let secondCallSkippedCheck: boolean | null = null;
+      let attempts = 0;
+      server.use(
+        http.get('/api/v1/queue/', () => HttpResponse.json([heldItem])),
+        http.post('/api/v1/queue/:id/start', ({ request }) => {
+          attempts += 1;
+          if (attempts === 1) {
+            return HttpResponse.json(
+              { detail: { code: 'unmatched_filament', missing: ['PETG #2850E0'] } },
+              { status: 409 },
+            );
+          }
+          secondCallSkippedCheck = new URL(request.url).searchParams.get('skip_filament_check') === 'true';
+          return HttpResponse.json({ ...heldItem, manual_start: false });
+        }),
+      );
+
+      render(<QueuePage />);
+
+      const playButton = await screen.findByTitle(/Start Print|do not have permission to start prints/i);
+      await userEvent.click(playButton);
+
+      await waitFor(() => expect(attempts).toBe(1));
+      await screen.findByText('Filament not loaded');
+      // The dialog's message names what to load; the row says it too.
+      expect(screen.getByText(/no tray with this filament[\s\S]*PETG #2850E0/)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: /Print Anyway/i }));
+
+      await waitFor(() => expect(secondCallSkippedCheck).toBe(true));
+      expect(attempts).toBe(2);
+    });
+  });
+
 });

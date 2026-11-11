@@ -6,6 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 from backend.app.models.equipment import Equipment
+from backend.app.services.secret_fields import SECRET_PLACEHOLDER
 
 
 class TestSmartPlugsAPI:
@@ -1034,7 +1035,7 @@ class TestSmartPlugsAPI:
 
         assert response.status_code == 200
         result = response.json()
-        assert result["rest_headers"] == '{"Authorization": "Bearer test-token"}'
+        assert result["rest_headers"] == SECRET_PLACEHOLDER
         assert result["rest_status_url"] == "http://ha:8080/api/plug/status"
         assert result["rest_status_path"] == "state"
         assert result["rest_status_on_value"] == "ON"

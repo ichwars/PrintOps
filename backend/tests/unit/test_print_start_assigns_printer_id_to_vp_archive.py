@@ -97,6 +97,7 @@ async def test_expected_archive_path_assigns_printer_id_when_unset():
 
     with (
         patch("backend.app.main.async_session") as mock_session_maker,
+        patch("backend.app.core.printer_lifecycle.lock_existing_printer", AsyncMock(return_value=True)),
         patch("backend.app.main.notification_service") as mock_notif,
         patch("backend.app.main.smart_plug_manager") as mock_plug,
         patch("backend.app.main.ws_manager") as mock_ws,
@@ -184,6 +185,7 @@ async def test_expected_archive_path_preserves_existing_printer_id():
 
     with (
         patch("backend.app.main.async_session") as mock_session_maker,
+        patch("backend.app.core.printer_lifecycle.lock_existing_printer", AsyncMock(return_value=True)),
         patch("backend.app.main.notification_service") as mock_notif,
         patch("backend.app.main.smart_plug_manager") as mock_plug,
         patch("backend.app.main.ws_manager") as mock_ws,
@@ -276,6 +278,7 @@ async def test_expected_archive_path_captures_timelapse_baseline():
 
     with (
         patch("backend.app.main.async_session") as mock_session_maker,
+        patch("backend.app.core.printer_lifecycle.lock_existing_printer", AsyncMock(return_value=True)),
         patch("backend.app.main.notification_service") as mock_notif,
         patch("backend.app.main.smart_plug_manager") as mock_plug,
         patch("backend.app.main.ws_manager") as mock_ws,

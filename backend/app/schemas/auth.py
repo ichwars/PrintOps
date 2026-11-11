@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+
 
 def _validate_password_complexity(v: str) -> str:
     """Enforce minimum password complexity (M-C).
@@ -62,7 +64,9 @@ class UserCreate(BaseModel):
         return v
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "users"
+
     username: str | None = Field(default=None, max_length=150)
     password: str | None = Field(default=None, max_length=256)  # M-NEW-4: cap before pbkdf2
     email: str | None = Field(default=None, max_length=254)  # L-NEW-5: RFC 5321 max
@@ -181,8 +185,20 @@ class SMTPSettings(BaseModel):
     smtp_use_tls: bool | None = None
 
 
+class LDAPTestRequest(BaseModel):
+    """Optional form values for testing an LDAP configuration before saving."""
+
+    ldap_server_url: str | None = None
+    ldap_bind_dn: str | None = None
+    ldap_bind_password: str | None = None
+    ldap_search_base: str | None = None
+    ldap_user_filter: str | None = None
+    ldap_security: Literal["starttls", "ldaps"] | None = None
+
+
 class TestSMTPRequest(BaseModel):
     test_recipient: str
+    smtp: SMTPSettings | None = None
 
 
 class TestSMTPResponse(BaseModel):
@@ -445,7 +461,9 @@ class OIDCProviderCreate(BaseModel):
         return self
 
 
-class OIDCProviderUpdate(BaseModel):
+class OIDCProviderUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "oidc_providers"
+
     name: str | None = Field(default=None, max_length=100)
     issuer_url: str | None = None
 

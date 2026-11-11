@@ -124,7 +124,7 @@ export const inventoryMaintenanceMethods = {
     }),
 
   bulkResetSpoolConsumedCounter: (spoolIds: number[]) =>
-    request<{ reset: number }>(`/inventory/spools/reset-consumed-counter-bulk`, {
+    request<{ reset: number; not_found?: number[]; errors?: Array<{ id: number; status: number; detail: string }> }>(`/inventory/spools/reset-consumed-counter-bulk`, {
       method: 'POST',
       body: JSON.stringify({ spool_ids: spoolIds }),
     }),
@@ -193,7 +193,7 @@ export const inventoryMaintenanceMethods = {
   getAssignments: (printerId?: number) =>
     request<SpoolAssignment[]>(`/inventory/assignments${printerId ? `?printer_id=${printerId}` : ''}`),
 
-  assignSpool: (data: { spool_id: number; printer_id: number; ams_id: number; tray_id: number }) =>
+  assignSpool: (data: { spool_id: number; printer_id: number; ams_id: number; tray_id: number; move?: boolean }) =>
     request<SpoolAssignment>('/inventory/assignments', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -205,6 +205,10 @@ export const inventoryMaintenanceMethods = {
   // ── Spool label printing (#809) ──────────────────────────────────────────
   // Both endpoints return application/pdf. Frontend opens the resulting Blob
   // in a new tab so the user can print or save from the browser's PDF viewer.
+  resolveSpoolLabel: (payload: string) => request<{ spool_id: number; source: 'inventory' | 'spoolman' }>(
+    '/inventory/labels/resolve-spool', { method: 'POST', body: JSON.stringify({ payload }) },
+  ),
+
   previewLabels: async (source: 'inventory' | 'spoolman' | 'small-parts', data: object): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authToken) headers.Authorization = `Bearer ${authToken}`;
@@ -280,7 +284,7 @@ export const inventoryMaintenanceMethods = {
     request<ColorCatalogEntry[]>('/inventory/colors'),
 
   getColorNameMap: () =>
-    request<{ colors: Record<string, string> }>('/inventory/colors/map'),
+    request<{ colors: Record<string, string>; by_material?: Record<string, string>; bambu?: import('../../utils/colors').BambuCatalogColor[]; preset_materials?: Record<string, string> }>('/inventory/colors/map'),
 
   addColorEntry: (data: {
     manufacturer: string;
@@ -325,17 +329,17 @@ export const inventoryMaintenanceMethods = {
       body: JSON.stringify(data),
     }),
 
-  getSpoolUsageHistory: (spoolId: number, limit = 50) =>
-    request<SpoolUsageRecord[]>(`/inventory/spools/${spoolId}/usage?limit=${limit}`),
+  getSpoolUsageHistory: (spoolId: number, limit = 50, spoolman = false) =>
+    request<SpoolUsageRecord[]>(`/inventory/spools/${spoolId}/usage?limit=${limit}${spoolman ? '&source=spoolman' : ''}`),
 
-  getAllUsageHistory: (limit = 100, printerId?: number) =>
-    request<SpoolUsageRecord[]>(`/inventory/usage?limit=${limit}${printerId ? `&printer_id=${printerId}` : ''}`),
+  getAllUsageHistory: (limit = 100, printerId?: number, spoolman = false) =>
+    request<SpoolUsageRecord[]>(`/inventory/usage?limit=${limit}${printerId ? `&printer_id=${printerId}` : ''}${spoolman ? '&source=spoolman' : ''}`),
 
-  clearSpoolUsageHistory: (spoolId: number) =>
-    request<{ status: string }>(`/inventory/spools/${spoolId}/usage`, { method: 'DELETE' }),
+  clearSpoolUsageHistory: (spoolId: number, spoolman = false) =>
+    request<{ status: string }>(`/inventory/spools/${spoolId}/usage${spoolman ? '?source=spoolman' : ''}`, { method: 'DELETE' }),
 
   syncWeightsFromAms: () =>
-    request<{ synced: number; skipped: number }>('/inventory/sync-ams-weights', { method: 'POST' }),
+    request<{ synced: number; skipped: number; printing?: number }>('/inventory/sync-ams-weights', { method: 'POST' }),
 
   getSkuSettings: () =>
     request<FilamentSkuSettings[]>('/inventory/sku-settings'),
@@ -420,7 +424,7 @@ export const inventoryMaintenanceMethods = {
     }),
 
   bulkResetSpoolmanInventorySpoolConsumedCounter: (spoolIds: number[]) =>
-    request<{ reset: number }>(`/spoolman/inventory/spools/reset-consumed-counter-bulk`, {
+    request<{ reset: number; not_found?: number[]; errors?: Array<{ id: number; status: number; detail: string }> }>(`/spoolman/inventory/spools/reset-consumed-counter-bulk`, {
       method: 'POST',
       body: JSON.stringify({ spool_ids: spoolIds }),
     }),
@@ -461,7 +465,7 @@ export const inventoryMaintenanceMethods = {
       body: JSON.stringify({ weight_grams: weightGrams }),
     }),
 
-  assignSpoolmanSlot: (data: { spoolman_spool_id: number; printer_id: number; ams_id: number; tray_id: number }) =>
+  assignSpoolmanSlot: (data: { spoolman_spool_id: number; printer_id: number; ams_id: number; tray_id: number; move?: boolean }) =>
     request<InventorySpool>('/spoolman/inventory/slot-assignments', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -490,7 +494,7 @@ export const inventoryMaintenanceMethods = {
     ),
 
   syncSpoolmanAmsWeights: () =>
-    request<{ synced: number; skipped: number }>('/spoolman/inventory/sync-ams-weights', { method: 'POST' }),
+    request<{ synced: number; skipped: number; printing?: number }>('/spoolman/inventory/sync-ams-weights', { method: 'POST' }),
 
   getSpoolmanKProfiles: (spoolId: number) =>
     request<SpoolKProfile[]>(`/spoolman/inventory/spools/${spoolId}/k-profiles`),

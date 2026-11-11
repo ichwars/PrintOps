@@ -3,7 +3,7 @@
 Two contracts pinned here:
 
 1. ``broadcast_to_user(uid, msg)`` only delivers to connections whose
-   ``websocket.state.printops_principal_user_id`` matches the target,
+   ``websocket.state.printops_live_access.user_id`` matches the target,
    and fans out to all when the target is None (auth-disabled path).
 2. The six ``send_queue_item_*`` helpers serialize the right payload
    shape — the frontend toast reads exact field names + types.
@@ -17,14 +17,16 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from backend.app.core.auth_websocket import WebSocketAccess
 from backend.app.core.websocket import ConnectionManager
 
 
 def _mock_conn(user_id: int | None):
     """Build a stand-in WebSocket-shaped object with the principal stamp."""
     conn = SimpleNamespace()
-    conn.state = SimpleNamespace()
-    conn.state.printops_principal_user_id = user_id
+    conn.state = SimpleNamespace(
+        printops_live_access=WebSocketAccess(authenticated=user_id is not None, user_id=user_id)
+    )
     conn.send_text = AsyncMock()
     return conn
 

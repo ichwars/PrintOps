@@ -1,5 +1,6 @@
 import type {
   Archive,
+  PrinterLastPrint,
   ArchiveComparison,
   ArchiveDuplicate,
   ArchiveEnergyHistoryPoint,
@@ -11,6 +12,7 @@ import type {
   PrintLogResponse,
   SimilarArchive,
   TagInfo,
+  TimelapseEditJob,
 } from './types';
 import type { ArchivePurgePreview, ArchivePurgeSettings } from './specialized';
 import type { ArchivePlatesResponse } from '../../types/plates';
@@ -22,7 +24,16 @@ import {
   withMediaToken,
 } from './core';
 
+function setCalendarDates(params: URLSearchParams, from?: string, to?: string) {
+  if (!from && !to) return;
+  if (from) params.set('date_from', from);
+  if (to) params.set('date_to', to);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (zone) params.set('tz', zone);
+}
+
 export const archivesPrintLogMethods = {
+  getLastArchivePerPrinter: () => request<PrinterLastPrint[]>('/archives/last-per-printer'),
   // Archives
   getArchives: (printerId?: number, projectId?: number, limit = 10000, offset = 0, dateFrom?: string, dateTo?: string) => {
     const params = new URLSearchParams();
@@ -30,15 +41,13 @@ export const archivesPrintLogMethods = {
     if (projectId) params.set('project_id', String(projectId));
     params.set('limit', String(limit));
     params.set('offset', String(offset));
-    if (dateFrom) params.set('date_from', dateFrom);
-    if (dateTo) params.set('date_to', dateTo);
+    setCalendarDates(params, dateFrom, dateTo);
     return request<Archive[]>(`/archives/?${params}`);
   },
 
   getArchivesSlim: (dateFrom?: string, dateTo?: string, createdById?: number) => {
     const params = new URLSearchParams();
-    if (dateFrom) params.set('date_from', dateFrom);
-    if (dateTo) params.set('date_to', dateTo);
+    setCalendarDates(params, dateFrom, dateTo);
     if (createdById !== undefined) params.set('created_by_id', String(createdById));
     const qs = params.toString();
     return request<ArchiveSlim[]>(`/archives/slim${qs ? `?${qs}` : ''}`);
@@ -90,6 +99,7 @@ export const archivesPrintLogMethods = {
   getNo3MFWarning: () => request<{ has_fallback: boolean }>('/archives/no-3mf-warning'),
 
   updateArchive: (id: number, data: {
+    filament_used_grams?: number | null;
     printer_id?: number | null;
     project_id?: number | null;
     print_name?: string;
@@ -144,8 +154,7 @@ export const archivesPrintLogMethods = {
 
   getArchiveStats: (options?: { dateFrom?: string; dateTo?: string; createdById?: number }) => {
     const params = new URLSearchParams();
-    if (options?.dateFrom) params.set('date_from', options.dateFrom);
-    if (options?.dateTo) params.set('date_to', options.dateTo);
+    setCalendarDates(params, options?.dateFrom, options?.dateTo);
     if (options?.createdById !== undefined) params.set('created_by_id', String(options.createdById));
     const qs = params.toString();
     return request<ArchiveStats>(`/archives/stats${qs ? `?${qs}` : ''}`);
@@ -153,8 +162,7 @@ export const archivesPrintLogMethods = {
 
   getArchiveEnergyHistory: (options?: { dateFrom?: string; dateTo?: string; bucket?: 'hour' | 'day' }) => {
     const params = new URLSearchParams();
-    if (options?.dateFrom) params.set('date_from', options.dateFrom);
-    if (options?.dateTo) params.set('date_to', options.dateTo);
+    setCalendarDates(params, options?.dateFrom, options?.dateTo);
     if (options?.bucket) params.set('bucket', options.bucket);
     const qs = params.toString();
     return request<ArchiveEnergyHistoryPoint[]>(`/archives/energy-history${qs ? `?${qs}` : ''}`);
@@ -175,13 +183,12 @@ export const archivesPrintLogMethods = {
     }),
 
   recalculateCosts: () =>
-    request<{ message: string; updated: number }>('/archives/recalculate-costs', { method: 'POST' }),
+    request<{ message: string; updated: number; usage_repriced?: number; spoolman_unreachable?: number }>('/archives/recalculate-costs', { method: 'POST' }),
 
   getFailureAnalysis: (options?: { days?: number; dateFrom?: string; dateTo?: string; printerId?: number; projectId?: number; createdById?: number }) => {
     const params = new URLSearchParams();
     if (options?.days) params.set('days', String(options.days));
-    if (options?.dateFrom) params.set('date_from', options.dateFrom);
-    if (options?.dateTo) params.set('date_to', options.dateTo);
+    setCalendarDates(params, options?.dateFrom, options?.dateTo);
     if (options?.printerId) params.set('printer_id', String(options.printerId));
     if (options?.projectId) params.set('project_id', String(options.projectId));
     if (options?.createdById !== undefined) params.set('created_by_id', String(options.createdById));
@@ -211,8 +218,7 @@ export const archivesPrintLogMethods = {
     if (options?.printerId) params.set('printer_id', String(options.printerId));
     if (options?.projectId) params.set('project_id', String(options.projectId));
     if (options?.status) params.set('status', options.status);
-    if (options?.dateFrom) params.set('date_from', options.dateFrom);
-    if (options?.dateTo) params.set('date_to', options.dateTo);
+    setCalendarDates(params, options?.dateFrom, options?.dateTo);
     if (options?.search) params.set('search', options.search);
 
     const headers: Record<string, string> = {};
@@ -313,7 +319,8 @@ export const archivesPrintLogMethods = {
 
   getArchivePlatePreview: (id: number) => withMediaToken(`${API_BASE}/archives/${id}/plate-preview`),
 
-  getArchiveTimelapse: (id: number) => withMediaToken(`${API_BASE}/archives/${id}/timelapse?v=${Date.now()}`),
+  getArchiveTimelapse: (id: number, runId?: number) =>
+    withMediaToken(`${API_BASE}/archives/${id}/timelapse?v=${Date.now()}${runId == null ? '' : `&run_id=${runId}`}`),
 
   scanArchiveTimelapse: (id: number) =>
     request<{
@@ -365,7 +372,14 @@ export const archivesPrintLogMethods = {
       codec: string;
       file_size: number;
       has_audio: boolean;
+      source_version: string;
     }>(`/archives/${archiveId}/timelapse/info`),
+
+  getTimelapseEditJob: (archiveId: number) =>
+    request<TimelapseEditJob | null>(`/archives/${archiveId}/timelapse/job`),
+
+  cancelTimelapseEditJob: (archiveId: number, jobId: string) =>
+    request<TimelapseEditJob>(`/archives/${archiveId}/timelapse/job/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
 
   getTimelapseThumbnails: (archiveId: number, count: number = 10) =>
     request<{
@@ -381,9 +395,11 @@ export const archivesPrintLogMethods = {
       speed?: number;
       saveMode: 'replace' | 'new';
       outputFilename?: string;
+      sourceVersion?: string;
+      background?: boolean;
     },
     audioFile?: File
-  ): Promise<{ status: string; output_path: string | null; message: string }> => {
+  ): Promise<TimelapseEditJob | { status: string; output_path: string | null; message: string }> => {
     const formData = new FormData();
     formData.append('trim_start', String(params.trimStart ?? 0));
     if (params.trimEnd !== undefined) {
@@ -391,6 +407,7 @@ export const archivesPrintLogMethods = {
     }
     formData.append('speed', String(params.speed ?? 1));
     formData.append('save_mode', params.saveMode);
+    if (params.sourceVersion) formData.append('source_version', params.sourceVersion);
     if (params.outputFilename) {
       formData.append('output_filename', params.outputFilename);
     }
@@ -401,7 +418,8 @@ export const archivesPrintLogMethods = {
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
-    const response = await fetch(`${API_BASE}/archives/${archiveId}/timelapse/process`, {
+    const query = params.background ? '?background=true' : '';
+    const response = await fetch(`${API_BASE}/archives/${archiveId}/timelapse/process${query}`, {
       method: 'POST',
       headers,
       body: formData,
@@ -414,8 +432,8 @@ export const archivesPrintLogMethods = {
   },
 
   // Photos
-  getArchivePhotoUrl: (archiveId: number, filename: string) =>
-    withMediaToken(`${API_BASE}/archives/${archiveId}/photos/${encodeURIComponent(filename)}`),
+  getArchivePhotoUrl: (archiveId: number, filename: string, runId?: number) =>
+    withMediaToken(`${API_BASE}/archives/${archiveId}/photos/${encodeURIComponent(filename)}${runId == null ? '' : `?run_id=${runId}`}`),
 
   uploadArchivePhoto: async (archiveId: number, file: File): Promise<{ status: string; filename: string; photos: string[] }> => {
     const formData = new FormData();

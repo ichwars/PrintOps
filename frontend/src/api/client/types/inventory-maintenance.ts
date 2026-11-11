@@ -64,7 +64,8 @@ export type SpoolLabelTemplate =
   | 'box_40x30'
   | 'box_62x29'
   | 'avery_5160'
-  | 'avery_l7160';
+  | 'avery_l7160'
+  | 'custom';
 
 export interface InventorySpool {
   id: number;
@@ -101,6 +102,11 @@ export interface InventorySpool {
   note: string | null;
   added_full: boolean | null;
   last_used: string | null;
+  last_dried_at?: string | null;
+  last_dried_temp?: number | null;
+  last_dried_hours?: number | null;
+  first_used_at?: string | null;
+  usage_reset_baseline?: number;
   encode_time: string | null;
   tag_uid: string | null;
   tray_uuid: string | null;
@@ -110,6 +116,7 @@ export interface InventorySpool {
   created_at: string;
   updated_at: string;
   cost_per_kg: number | null;
+  effective_cost_per_kg?: number | null;
   last_scale_weight: number | null;
   last_weighed_at: string | null;
   // User-defined category + per-spool low-stock threshold override (#729).
@@ -173,7 +180,8 @@ export interface CsvImportResult {
 
 export interface SpoolUsageRecord {
   id: number;
-  spool_id: number;
+  spool_id: number | null;
+  spoolman_spool_id?: number | null;
   printer_id: number | null;
   print_name: string | null;
   weight_used: number;
@@ -391,4 +399,21 @@ export interface ExternalLinkUpdate {
 }
 
 export type LabelField = "brand" | "material" | "hex" | "name" | "location" | "material_number" | "temps" | "weight" | "note" | "added" | "qr" | "spool_id";
-export interface LabelExportOptions { fields?: LabelField[]; format?: "pdf" | "png"; dpi?: 203 | 300 | 600; }
+export interface LabelSheetLayout {
+  page: 'a4' | 'letter';
+  label_w_mm: number;
+  label_h_mm: number;
+  cols: number;
+  rows: number;
+  top_mm: number;
+  left_mm: number;
+  col_gap_mm: number;
+  row_gap_mm: number;
+}
+
+export interface LabelExportOptions {
+  fields?: LabelField[];
+  format?: 'pdf' | 'png';
+  dpi?: 203 | 300 | 600;
+  layout?: LabelSheetLayout;
+}

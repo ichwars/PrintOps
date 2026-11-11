@@ -11,15 +11,16 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
-from urllib.parse import quote
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.models.notification import NotificationDigestQueue, NotificationLog, NotificationProvider
-from backend.app.models.notification_template import NotificationTemplate
+from backend.app.core.logging_filters import redact_refused_headers
+from backend.app.models.notification import NotificationLog, NotificationProvider
+from backend.app.models.notification_template import DEFAULT_TEMPLATES, NotificationTemplate
 from backend.app.services.notification_delivery import NotificationDelivery
+from backend.app.services.notification_digests import NotificationDigests
 from backend.app.services.notification_discord import send_discord
 from backend.app.services.notification_plain_text import escape_markdown, send_parts, slack_app_payloads, split_text
 from backend.app.services.notification_quality import NotificationQualityEvents
@@ -28,26 +29,12 @@ from backend.app.services.notification_telegram import send_telegram
 
 logger = logging.getLogger(__name__)
 
-# Honest User-Agent — matches the convention used by every other outbound
-# httpx client in the codebase (bambu_cloud, makerworld, firmware_check,
-# inventory). Previously this client leaked python-httpx/<version>, which
-# was both inconsistent with the rest of the project and a more obvious
-# bot signature for upstream WAFs.
+# Identify PrintOps to outbound notification providers.
 _USER_AGENT = "PrintOps/1.0 (+https://github.com/ichwars/PrintOps)"
 
 
 def _looks_like_cloudflare_challenge(response: httpx.Response) -> bool:
-    """Return True if ``response`` looks like a Cloudflare mitigation
-    interstitial (JS challenge / managed challenge / block page) rather
-    than a legitimate response passed through Cloudflare.
-
-    Self-hosted servers behind Cloudflare (Tunnel, "Bot Fight Mode", or
-    "Under Attack" mode) intercept non-browser clients at the edge and
-    return a challenge HTML page instead of forwarding to the origin —
-    so we never reach the user's actual ntfy / webhook backend.
-    Cloudflare cannot be defeated from a Python client; the user has to
-    add a security-skip rule on their side. We detect the shape so the
-    UI can tell them that, instead of dumping the raw HTML.
+    """Identify Cloudflare mitigation interstitials in provider responses.
 
     Detection deliberately does NOT rely on ``Server: cloudflare`` alone
     — Cloudflare adds that header to every response it proxies (success
@@ -92,7 +79,7 @@ def _opaque_http_failure(response: httpx.Response, *, label: str) -> str:
     return f"HTTP {response.status_code} from the configured {label} (see server logs at debug level for details)"
 
 
-class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
+class NotificationService(NotificationQueueEvents, NotificationQualityEvents, NotificationDigests):
     """Service for sending notifications through various providers."""
 
     def __init__(self):
@@ -216,10 +203,12 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
         variables["app_name"] = "PrintOps"
 
         template = await self._get_template(db, event_type)
-        if not template:
-            # Fallback to simple message
-            logger.warning("Template not found for event type: %s", event_type)
-            return event_type.replace("_", " ").title(), str(variables)
+        if template is None:
+            default = next((row for row in DEFAULT_TEMPLATES if row["event_type"] == event_type), None)
+            if default is None:
+                logger.warning("Template not found for event type: %s", event_type)
+                return event_type.replace("_", " ").title(), str(variables)
+            template = NotificationTemplate(**default)
 
         title = self._render_template(template.title_template, variables)
         body = self._render_template(template.body_template, variables)
@@ -230,6 +219,12 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
         self, provider_type: str, config: dict[str, Any], db: AsyncSession | None = None
     ) -> tuple[bool, str]:
         """Send a test notification to verify configuration."""
+        success, message = await self._send_test_notification(provider_type, config, db)
+        return success, redact_refused_headers(message) or ""
+
+    async def _send_test_notification(
+        self, provider_type: str, config: dict[str, Any], db: AsyncSession | None
+    ) -> tuple[bool, str]:
         if db:
             title, message = await self._build_message_from_template(db, "test", {})
         else:
@@ -269,12 +264,11 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
         if not phone or not apikey:
             return False, "Phone number and API key are required"
 
-        # URL encode the message
-        encoded_message = quote(message)
-        url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={encoded_message}&apikey={apikey}"
-
         client = await self._get_client()
-        response = await client.get(url)
+        response = await client.get(
+            "https://api.callmebot.com/whatsapp.php",
+            params={"phone": phone, "text": message, "apikey": apikey},
+        )
 
         if response.status_code == 200:
             return True, "Message sent successfully"
@@ -556,6 +550,9 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
                 msg["Subject"] = f"[PrintOps] {subject}"
                 msg.attach(MIMEText(body, "plain"))
 
+            from backend.app.services.email_service import add_message_headers
+
+            add_message_headers(msg, from_email)
             smtp_timeout = 30.0
             message = msg.as_string()
 
@@ -792,10 +789,12 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
         image_data: bytes | None = None,
         event_type: str | None = None,
         variables: dict | None = None,
+        *,
+        bypass_quiet_hours: bool = False,
     ) -> tuple[bool, str]:
         """Send notification to a specific provider."""
         # Check quiet hours
-        if self._is_in_quiet_hours(provider):
+        if not bypass_quiet_hours and self._is_in_quiet_hours(provider):
             logger.info("Skipping notification to %s - quiet hours active", provider.name)
             return True, "Skipped - quiet hours"
 
@@ -896,7 +895,7 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
             if success:
                 provider.last_success = datetime.now(timezone.utc)
             else:
-                provider.last_error = error
+                provider.last_error = redact_refused_headers(error)
                 provider.last_error_at = datetime.now(timezone.utc)
             await db.commit()
 
@@ -905,8 +904,10 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
         db: AsyncSession,
         event_field: str,
         printer_id: int | None = None,
+        *,
+        fleet_wide: bool = False,
     ) -> list[NotificationProvider]:
-        """Get all enabled providers that want a specific event type."""
+        """Select enabled providers with the relevant printer or fleet scope."""
         # Build the query dynamically based on event field
         query = select(NotificationProvider).where(
             NotificationProvider.enabled.is_(True),
@@ -917,6 +918,8 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
             query = query.where(
                 (NotificationProvider.printer_id.is_(None)) | (NotificationProvider.printer_id == printer_id)
             )
+        elif not fleet_wide:
+            query = query.where(NotificationProvider.printer_id.is_(None))
 
         result = await db.execute(query)
         return list(result.scalars().all())
@@ -941,7 +944,7 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
                 title=title,
                 message=message,
                 success=success,
-                error_message=error_message,
+                error_message=redact_refused_headers(error_message),
                 printer_id=printer_id,
                 printer_name=printer_name,
             )
@@ -1195,6 +1198,9 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
         }
 
         if archive_data:
+            for key in ("archive_id", "run_id"):
+                if archive_data.get(key) is not None:
+                    variables[key] = str(archive_data[key])
             # {{duration}} on completion / failure / stopped events is the *actual*
             # elapsed time (#1198). Slicer-estimated print_time_seconds is only used
             # as a last-resort fallback when timestamps weren't recorded.
@@ -1292,6 +1298,61 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
             variables=variables,
         )
 
+    async def on_print_pause_upcoming(
+        self,
+        printer_id: int,
+        printer_name: str,
+        filename: str,
+        *,
+        run_id: int,
+        minutes: int,
+        layer: int,
+        total_layers: int,
+        db: AsyncSession,
+    ) -> bool:
+        from backend.app.models.print_log import INCLUDE_OPEN_RUNS, RUN_OPEN, PrintLogEntry
+
+        providers = await self._get_providers_for_event(db, "on_print_pause_upcoming", printer_id)
+        if not providers:
+            return False
+
+        variables = {
+            "printer": printer_name,
+            "filename": self._clean_filename(filename),
+            "time_to_pause": self._format_duration(max(minutes, 1) * 60),
+            "eta": await self._format_eta(max(minutes * 60, 1), db),
+            "layer": str(layer),
+            "total_layers": str(total_layers),
+        }
+        title, message = await self._build_message_from_template(db, "print_pause_upcoming", variables)
+        # Commit the run-scoped claim before external delivery. A restart or
+        # competing status task cannot send the same warning a second time.
+        claimed = await db.scalar(
+            update(PrintLogEntry)
+            .where(
+                PrintLogEntry.id == run_id,
+                PrintLogEntry.printer_id == printer_id,
+                PrintLogEntry.status == RUN_OPEN,
+                or_(PrintLogEntry.pause_warned_layer.is_(None), PrintLogEntry.pause_warned_layer < layer),
+            )
+            .values(pause_warned_layer=layer)
+            .returning(PrintLogEntry.id)
+            .execution_options(**{INCLUDE_OPEN_RUNS: True})
+        )
+        await db.commit()
+        if claimed is not None:
+            await self._send_to_providers(
+                providers,
+                title,
+                message,
+                db,
+                "print_pause_upcoming",
+                printer_id,
+                printer_name,
+                variables=variables,
+            )
+        return True
+
     async def on_print_missing_spool_assignment(
         self,
         printer_id: int,
@@ -1349,7 +1410,7 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
 
     async def on_printer_error(
         self,
-        printer_id: int,
+        printer_id: int | None,
         printer_name: str,
         error_type: str,
         db: AsyncSession,
@@ -1878,164 +1939,6 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents):
             logger.info("[EMAIL] User print email sent: event=%s → %s", event_type, user.email)
         except Exception as e:
             logger.warning("Failed to send user print email notification: %s", e, exc_info=True)
-
-    async def _queue_for_digest(
-        self,
-        provider: NotificationProvider,
-        event_type: str,
-        title: str,
-        message: str,
-        db: AsyncSession,
-        printer_id: int | None = None,
-        printer_name: str | None = None,
-    ) -> bool:
-        """Queue a notification for later delivery in the daily digest."""
-        try:
-            queue_entry = NotificationDigestQueue(
-                provider_id=provider.id,
-                event_type=event_type,
-                title=title,
-                message=message,
-                printer_id=printer_id,
-                printer_name=printer_name,
-            )
-            db.add(queue_entry)
-            await db.commit()
-            logger.info("Queued notification for digest: %s for provider %s", event_type, provider.name)
-            return True
-        except Exception as e:
-            logger.warning("Failed to queue notification for digest: %s", e)
-            return False
-
-    async def send_digest(self, provider_id: int):
-        """Send all queued notifications as a single digest for a provider."""
-        from backend.app.core.database import async_session
-
-        async with async_session() as db:
-            # Get the provider
-            result = await db.execute(select(NotificationProvider).where(NotificationProvider.id == provider_id))
-            provider = result.scalar_one_or_none()
-
-            if not provider or not provider.enabled:
-                return
-
-            # Get all queued notifications for this provider
-            result = await db.execute(
-                select(NotificationDigestQueue)
-                .where(NotificationDigestQueue.provider_id == provider_id)
-                .order_by(NotificationDigestQueue.created_at)
-            )
-            queue_entries = list(result.scalars().all())
-
-            if not queue_entries:
-                logger.debug("No queued notifications for provider %s", provider.name)
-                return
-
-            # Build digest message
-            title = f"Daily Digest - {len(queue_entries)} Events"
-
-            # Group by event type
-            events_by_type: dict[str, list] = {}
-            for entry in queue_entries:
-                if entry.event_type not in events_by_type:
-                    events_by_type[entry.event_type] = []
-                events_by_type[entry.event_type].append(entry)
-
-            # Format the digest body
-            body_parts = []
-            for event_type, entries in events_by_type.items():
-                event_label = event_type.replace("_", " ").title()
-                body_parts.append(f"== {event_label} ({len(entries)}) ==")
-                for entry in entries:
-                    time_str = entry.created_at.strftime("%H:%M")
-                    printer_info = f"[{entry.printer_name}] " if entry.printer_name else ""
-                    body_parts.append(f"  {time_str} {printer_info}{entry.title}")
-                    if event_type == "app_message":
-                        body_parts.append(entry.message)
-                body_parts.append("")
-
-            body = "\n".join(body_parts)
-
-            # Send the digest
-            app_digest = any(entry.event_type == "app_message" for entry in queue_entries)
-            success, error = await self._send_to_provider(
-                provider, title, body, db, **({"event_type": "app_message"} if app_digest else {})
-            )
-
-            # Log the digest
-            await self._log_notification(
-                db=db,
-                provider_id=provider.id,
-                event_type="daily_digest",
-                title=title,
-                message=body,
-                success=success,
-                error_message=error if not success else None,
-            )
-
-            # Retain app-containing digests after partial failure; retries can
-            # repeat earlier chunks, but must not silently discard unsent content.
-            if success or not app_digest:
-                for entry in queue_entries:
-                    await db.delete(entry)
-            await db.commit()
-
-            if success:
-                logger.info("Sent daily digest with %s events to %s", len(queue_entries), provider.name)
-            else:
-                logger.warning("Failed to send daily digest to %s: %s", provider.name, error)
-
-    async def check_and_send_digests(self):
-        """Check all providers and send digests if it's their scheduled time."""
-        from backend.app.core.database import async_session
-
-        current_time = datetime.now().strftime("%H:%M")
-
-        # Avoid duplicate checks within the same minute
-        if current_time == self._last_digest_check:
-            return
-        self._last_digest_check = current_time
-
-        async with async_session() as db:
-            # Find all providers with digest enabled at this time
-            result = await db.execute(
-                select(NotificationProvider).where(
-                    NotificationProvider.enabled.is_(True),
-                    NotificationProvider.daily_digest_enabled.is_(True),
-                    NotificationProvider.daily_digest_time == current_time,
-                )
-            )
-            providers = result.scalars().all()
-
-            for provider in providers:
-                try:
-                    await self.send_digest(provider.id)
-                except Exception as e:
-                    logger.error("Error sending digest for provider %s: %s", provider.id, e)
-
-    def start_digest_scheduler(self):
-        """Start the background scheduler for daily digest notifications."""
-        if self._digest_scheduler_task is None:
-            self._digest_scheduler_task = asyncio.create_task(self._digest_scheduler_loop())
-            logger.info("Notification digest scheduler started")
-
-    def stop_digest_scheduler(self):
-        """Stop the background scheduler for daily digests."""
-        if self._digest_scheduler_task:
-            self._digest_scheduler_task.cancel()
-            self._digest_scheduler_task = None
-            logger.info("Notification digest scheduler stopped")
-
-    async def _digest_scheduler_loop(self):
-        """Background loop that checks for scheduled digests every minute."""
-        while True:
-            try:
-                await self.check_and_send_digests()
-            except Exception as e:
-                logger.error("Error in digest scheduler: %s", e)
-
-            # Wait until the next minute
-            await asyncio.sleep(60)
 
 
 # Global instance

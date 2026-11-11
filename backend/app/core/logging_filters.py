@@ -1,10 +1,10 @@
 """Logging filters for the PrintOps log pipeline.
 
-Holds two filters: ``WriteRequestsOnlyFilter`` keeps the file-side
+Masks credentials in log messages and tracebacks. ``WriteRequestsOnlyFilter`` keeps the file-side
 uvicorn access log focused on state-changing HTTP methods, and
 ``CancelledPoolNoiseFilter`` drops SQLAlchemy connection-pool log noise
 caused by Starlette's ``BaseHTTPMiddleware`` cancellation propagation
-(see the filter's docstring for details). Both live here so tests can
+(see the filter's docstring for details). These live here so tests can
 import them without pulling in ``backend.app.main``'s startup graph.
 """
 
@@ -13,25 +13,103 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from urllib.parse import unquote
 
-# ``scheme://user:secret@host`` is the URL shape that carries a secret. The
-# scheme repetition is bounded so a long ffmpeg stderr line cannot trigger
-# quadratic backtracking before the log line is truncated.
-URL_CREDENTIALS_PATTERN = re.compile(
-    r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.\-]{0,63}://)(?P<user>[^/:@\s]+):(?P<secret>[^/\s]+)@"
-)
+# Keep the scheme bounded for long FFmpeg stderr lines. Userinfo can also
+# be a token on its own or contain unencoded question marks and hash signs.
+URL_CREDENTIALS_PATTERN = re.compile(r"(?P<scheme>[A-Za-z][A-Za-z0-9+.\-]{0,63}://)(?P<login>[^/\s]+)@")
+_CAMERA_TEST_QUERY = re.compile(r"""(/camera/external/test/?)\?[^"'\s]+""")
+
+
+def _masked_login(login: str) -> str:
+    username, separator, _ = login.partition(":")
+    return f"{username}:[REDACTED]" if separator else "[REDACTED]"
 
 
 def redact_url_credentials(text: str | None) -> str | None:
-    """Mask passwords in ``scheme://user:secret@host`` URLs.
-
-    ffmpeg echoes RTSP input URLs into stderr. Those URLs can contain a printer
-    access code or an external camera password, and stderr is logged for
-    diagnostics, so every ffmpeg stderr funnel goes through this helper.
-    """
+    """Mask passwords and single-value logins in URLs embedded in log text."""
     if not text or "://" not in text or "@" not in text:
         return text
-    return URL_CREDENTIALS_PATTERN.sub(r"\g<scheme>\g<user>:[REDACTED]@", text)
+    return URL_CREDENTIALS_PATTERN.sub(lambda match: f"{match['scheme']}{_masked_login(match['login'])}@", text)
+
+
+def redact_camera_url(url: str | None) -> str | None:
+    """Mask the login of one stored camera URL, including legacy whitespace."""
+    if not url:
+        return url
+    scheme, delimiter, remainder = url.partition("://")
+    authority, slash, path = remainder.partition("/")
+    if not delimiter or "@" not in authority:
+        return url
+    login, _, host = authority.rpartition("@")
+    return f"{scheme}{delimiter}{_masked_login(login)}@{host}{slash}{path}"
+
+
+def redact_camera_test_query(text: str) -> str:
+    """Hide query parameters of the legacy external camera test endpoint."""
+    return _CAMERA_TEST_QUERY.sub(r"\1?[REDACTED]", text)
+
+
+_QUERY_PARAMETER = re.compile(r"[?&](?P<name>[A-Za-z0-9_.%~-]+)=")
+_QUERY_VALUE = re.compile(r"""[^&"'\s]+""")
+_QUERY_TOKEN_NAMES = frozenset({"token", "access_token", "access-token", "accesstoken", "api_key", "api-key", "apikey"})
+
+
+def redact_query_tokens(text: str) -> str:
+    """Mask query credentials, including percent-encoded parameter names."""
+    if "=" not in text:
+        return text
+    parts = []
+    consumed = 0
+    for parameter in _QUERY_PARAMETER.finditer(text):
+        if parameter.start() < consumed or unquote(parameter["name"]).casefold() not in _QUERY_TOKEN_NAMES:
+            continue
+        value = _QUERY_VALUE.match(text, parameter.end())
+        if value:
+            parts.extend((text[consumed : value.start()], "[REDACTED]"))
+            consumed = value.end()
+    if not parts:
+        return text
+    parts.append(text[consumed:])
+    return "".join(parts)
+
+
+_REFUSED_HEADER = re.compile(r"(Illegal header (?:value|name) )[^\r\n]*", re.IGNORECASE)
+
+
+def redact_refused_headers(text: str | None) -> str | None:
+    """Mask values and names quoted by HTTP libraries after rejecting a header."""
+    return _REFUSED_HEADER.sub(r"\1[REDACTED]", text) if text else text
+
+
+def redact_log_secrets(text: str) -> str:
+    """Hide request query credentials and errors that quote rejected headers."""
+    query_masked = redact_query_tokens(redact_camera_test_query(text))
+    return redact_refused_headers(query_masked) or ""
+
+
+class SensitiveLogRedactFilter(logging.Filter):
+    """Scrub the rendered message and chained tracebacks before writing logs."""
+
+    _formatter = logging.Formatter()
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        if record.name == "uvicorn.access" and isinstance(record.args, tuple) and len(record.args) == 5:
+            # AccessFormatter needs the original positional argument structure.
+            record.args = tuple(redact_log_secrets(arg) if isinstance(arg, str) else arg for arg in record.args)
+        else:
+            try:
+                message = record.getMessage()
+            except (TypeError, ValueError):
+                message = ""
+            masked = redact_log_secrets(message)
+            if masked != message:
+                record.msg, record.args = masked, ()
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self._formatter.formatException(record.exc_info)
+        if record.exc_text:
+            record.exc_text = redact_log_secrets(record.exc_text)
+        return True
 
 
 class WriteRequestsOnlyFilter(logging.Filter):
@@ -67,6 +145,25 @@ class WriteRequestsOnlyFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003 — stdlib API name
         message = record.getMessage()
         return any(token in message for token in self._WRITE_VERB_TOKENS)
+
+
+class ShutdownCancelledRequestFilter(logging.Filter):
+    """Downgrade uvicorn's own graceful shutdown cancellation records."""
+
+    _REASON = "timeout graceful shutdown exceeded"
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        error = record.exc_info[1] if record.exc_info else None
+        if isinstance(error, asyncio.CancelledError) and str(error) == self._REASON:
+            record.msg = "Request closed when the server shutdown grace period expired"
+            record.args = ()
+            record.exc_info = None
+            record.exc_text = None
+        elif error is not None or not isinstance(record.msg, str) or not record.msg.endswith(self._REASON):
+            return True
+        record.levelno = logging.INFO
+        record.levelname = "INFO"
+        return True
 
 
 class CancelledPoolNoiseFilter(logging.Filter):

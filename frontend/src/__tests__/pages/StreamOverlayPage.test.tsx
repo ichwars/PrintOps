@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { ToastProvider } from '../../contexts/ToastContext';
 import { AuthProvider } from '../../contexts/AuthContext';
+import { setAuthToken } from '../../api/client';
 
 const mockPrinter = {
   id: 1,
@@ -76,6 +77,21 @@ function renderOverlayPage(printerId: number, queryParams = '') {
 }
 
 describe('StreamOverlayPage', () => {
+  it('applies a partial live update without losing the current print name', async () => {
+    server.use(http.get('/api/v1/printers/:id/status', () => HttpResponse.json(mockStatusPrinting)));
+    renderOverlayPage(1);
+    await screen.findByText('45%');
+    const sockets = vi.mocked(WebSocket).mock.instances as unknown as WebSocket[];
+    await waitFor(() => expect(sockets[0]?.onmessage).toEqual(expect.any(Function)));
+    await act(async () => {
+      sockets[0].onmessage?.call(sockets[0], new MessageEvent('message', { data: JSON.stringify({
+        type: 'printer_status', printer_id: 1, data: { progress: 57 },
+      }) }));
+    });
+    expect(await screen.findByText('57%')).toBeInTheDocument();
+    expect(screen.getByText(/Benchy/)).toBeInTheDocument();
+  });
+
   const originalTitle = document.title;
 
   beforeEach(() => {
@@ -156,14 +172,41 @@ describe('StreamOverlayPage', () => {
       const lastSrc = screen.getByAltText('Camera stream').getAttribute('src');
       expect(lastSrc).not.toBe(firstSrc);
       expect(lastSrc).toContain('token=bblt_fixture');
-      fireEvent.error(screen.getByAltText('Camera stream'));
+      const lastImage = screen.getByAltText('Camera stream');
+      fireEvent.error(lastImage);
       await act(() => vi.advanceTimersByTimeAsync(120000));
-      expect(screen.getByAltText('Camera stream').getAttribute('src')).toBe(lastSrc);
+      expect(screen.queryByAltText('Camera stream')).toBeNull();
+      expect(lastImage).not.toHaveAttribute('src');
       vi.useRealTimers();
     });
   });
 
   describe('rendering', () => {
+    it('keeps printer status visible without opening a camera for a viewer lacking permission', async () => {
+      const mint = vi.fn();
+      setAuthToken('overlay-account-fixture');
+      server.use(
+        http.get('*/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+        http.get('*/api/v1/auth/me', () => HttpResponse.json({
+          id: 4, username: 'reader', role: 'viewer', is_active: true, is_admin: false, groups: [],
+          permissions: ['printers:read'],
+        })),
+        http.post('*/api/v1/printers/camera/stream-token', () => {
+          mint();
+          return HttpResponse.json({ token: 'unexpected' });
+        }),
+      );
+      try {
+        const view = renderOverlayPage(1);
+        expect(await screen.findByText('Printer is idle')).toBeInTheDocument();
+        expect(screen.queryByAltText('Camera stream')).toBeNull();
+        expect(mint).not.toHaveBeenCalled();
+        view.unmount();
+      } finally {
+        setAuthToken(null);
+      }
+    });
+
     it('renders overlay page for printer', async () => {
       renderOverlayPage(1);
 

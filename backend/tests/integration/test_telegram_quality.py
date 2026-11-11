@@ -171,7 +171,7 @@ async def test_deleted_highest_user_id_never_rebinds(context):
     old_id, identity = user.id, user.connected_identity
     await db.delete(user)
     await db.commit()
-    replacement = User(username="replacement", role="admin", groups=[])
+    replacement = User(id=old_id, username="replacement", role="admin", groups=[])
     db.add(replacement)
     await db.commit()
     assert replacement.id == old_id

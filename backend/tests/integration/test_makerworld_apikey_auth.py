@@ -29,6 +29,7 @@ from backend.app.core.auth import generate_api_key
 from backend.app.models.api_key import APIKey
 from backend.app.models.library import LibraryFile
 from backend.app.models.user import User
+from backend.app.services.makerworld import MakerWorldService
 
 
 async def _setup_auth_with_admin(client: AsyncClient) -> str:
@@ -92,10 +93,10 @@ async def _make_key(
 
 
 def _fake_service(**stubs):
-    """Mirror of the fixture in test_makerworld_routes.py — AsyncMock with
-    method stubs that return the supplied payloads."""
-    svc = AsyncMock()
+    """Keep the real manifest resolution with stubbed upstream methods."""
+    svc = MakerWorldService(client=AsyncMock())
     svc.close = AsyncMock()
+    svc.get_design_instances = AsyncMock(return_value={"hits": []})
     for name, value in stubs.items():
         if callable(value) and not isinstance(value, AsyncMock):
             setattr(svc, name, AsyncMock(side_effect=value))
@@ -233,18 +234,10 @@ class TestImportEndpoint:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_api_key_without_cloud_scope_still_imports_but_owner_is_none(
+    async def test_api_key_owns_import_without_gaining_cloud_access(
         self, async_client: AsyncClient, db_session: AsyncSession
     ):
-        """Fail-closed parity: a key with can_manage_library but NOT
-        can_access_cloud reaches the route (permission gate passes) but
-        the cloud-token resolver returns None, so the service is built
-        without a token. The MakerWorldService itself would 401 on
-        get_profile_download in production — here we just confirm the
-        route doesn't suddenly grant cloud identity from a non-cloud key,
-        and that the library row's owner_id stays NULL when there's no
-        resolved cloud-scoped owner.
-        """
+        """A key owns its local result while the cloud service receives no credentials."""
         await _setup_auth_with_admin(async_client)
         admin = await _store_admin_cloud_token(db_session, "mwadmin", token="fake-bambu-token")
         key = await _make_key(db_session, owner=admin, name="import-no-cloud", can_access_cloud=False)
@@ -276,10 +269,9 @@ class TestImportEndpoint:
         )
         assert passed_user is None
 
-        # And owner_id is NULL because the cloud-scope fence said no.
         result = await db_session.execute(select(LibraryFile).where(LibraryFile.id == body["library_file_id"]))
         saved = result.scalar_one()
-        assert saved.created_by_id is None
+        assert saved.created_by_id == admin.id
 
 
 class TestJwtPathUnchanged:
@@ -300,3 +292,67 @@ class TestJwtPathUnchanged:
         )
         assert resp.status_code == 200
         assert resp.json() == {"has_cloud_token": True, "can_download": True}
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_makerworld_import_ignores_inaccessible_duplicate_on_shared_mount(async_client, db_session, tmp_path):
+    from backend.app.api.routes.makerworld import _canonical_url
+    from backend.app.core.auth import create_access_token
+    from backend.app.core.permissions import Permission
+    from backend.app.models.group import Group
+    from backend.app.models.library import LibraryFolder
+
+    await _setup_auth_with_admin(async_client)
+    admin = await _store_admin_cloud_token(db_session, "mwadmin", token="admin-cloud-fixture")
+    owner = User(
+        username="model-reader",
+        groups=[
+            Group(
+                name="Own imported models",
+                permissions=[
+                    Permission.MAKERWORLD_VIEW.value,
+                    Permission.MAKERWORLD_IMPORT.value,
+                    Permission.LIBRARY_READ_OWN.value,
+                ],
+            )
+        ],
+    )
+    folder = LibraryFolder(name="Fixture mount", is_external=True, external_path=str(tmp_path))
+    db_session.add_all([owner, folder])
+    await db_session.flush()
+    existing_path = tmp_path / "shared.3mf"
+    existing_path.write_bytes(b"other-owner")
+    db_session.add(
+        LibraryFile(
+            filename=existing_path.name,
+            file_path=str(existing_path),
+            file_size=11,
+            file_type="3mf",
+            folder_id=folder.id,
+            is_external=True,
+            source_type="makerworld",
+            source_url=_canonical_url(42, 77),
+            created_by_id=admin.id,
+        )
+    )
+    await db_session.commit()
+
+    service = _fake_service(
+        get_design={"modelId": "fixture-model", "instances": [{"profileId": 77}]},
+        get_profile_download={"name": existing_path.name, "url": "https://makerworld.bblmw.com/fixture.3mf"},
+        download_3mf=(b"PK\x03\x04fixture", existing_path.name),
+    )
+    headers = {"Authorization": f"Bearer {create_access_token({'sub': owner.username})}"}
+    with patch("backend.app.api.routes.makerworld._build_service", AsyncMock(return_value=service)):
+        response = await async_client.post(
+            "/api/v1/makerworld/import", headers=headers, json={"model_id": 42, "folder_id": folder.id}
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["was_existing"] is False
+    assert data["filename"] != existing_path.name
+    assert existing_path.read_bytes() == b"other-owner"
+    assert (tmp_path / data["filename"]).read_bytes() == b"PK\x03\x04fixture"
+    recent = await async_client.get("/api/v1/makerworld/recent-imports", headers=headers)
+    assert [row["library_file_id"] for row in recent.json()] == [data["library_file_id"]]

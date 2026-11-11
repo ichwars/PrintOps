@@ -179,7 +179,7 @@ describe('InventoryPage - Low Stock Threshold', () => {
     localStorage.clear();
 
     server.use(
-      http.get('/api/v1/settings/', () => {
+      http.get('/api/v1/settings/ui-flags', () => {
         return HttpResponse.json(mockSettings);
       }),
       http.put('/api/v1/settings/', async ({ request }) => {
@@ -363,7 +363,7 @@ describe('InventoryPage - Low Stock Threshold', () => {
   describe('custom threshold from backend', () => {
     it('loads custom threshold value from backend', async () => {
       server.use(
-        http.get('/api/v1/settings/', () => {
+        http.get('/api/v1/settings/ui-flags', () => {
           return HttpResponse.json({ ...mockSettings, low_stock_threshold: 25.0 });
         })
       );
@@ -378,7 +378,7 @@ describe('InventoryPage - Low Stock Threshold', () => {
     it('applies custom threshold to low stock filtering', async () => {
       // With threshold at 30%, all 3 test spools should be low stock (10%, 15%, and we'd need to check 80%)
       server.use(
-        http.get('/api/v1/settings/', () => {
+        http.get('/api/v1/settings/ui-flags', () => {
           return HttpResponse.json({ ...mockSettings, low_stock_threshold: 30.0 });
         })
       );

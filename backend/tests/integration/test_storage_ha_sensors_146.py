@@ -279,7 +279,7 @@ async def test_existing_database_provider_opt_in_upgrade_is_idempotent(test_engi
         await _migrate_document_payments(conn)
         columns = await conn.run_sync(lambda sync: inspect(sync).get_columns("notification_providers"))
         option = next(column for column in columns if column["name"] == "on_storage_sensor_alert")
-        assert option["default"] == "FALSE"
+        assert option["default"].casefold() == "false"
 
 
 @pytest.mark.asyncio

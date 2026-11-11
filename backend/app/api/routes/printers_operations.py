@@ -5,13 +5,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
+    OwnershipAccess,
     RequirePermissionIfAuthEnabled,
+    require_permission_with_key,
 )
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import RowVisibility, resolve_printer_visibility
 from backend.app.models.printer import Printer
 from backend.app.models.slot_preset import SlotPresetMapping
-from backend.app.models.user import User
 from backend.app.services.drying_ownership import printer_operation_guard
 from backend.app.services.printer_manager import (
     drying_screen_only,
@@ -38,7 +40,7 @@ printer_manager = _PrinterManagerProxy()
 async def enable_mqtt_logging(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Enable MQTT message logging for a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -57,7 +59,7 @@ async def enable_mqtt_logging(
 async def disable_mqtt_logging(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Disable MQTT message logging for a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -76,7 +78,7 @@ async def disable_mqtt_logging(
 async def get_mqtt_logs(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get MQTT message logs for a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -103,8 +105,8 @@ async def get_mqtt_logs(
 async def clear_mqtt_logs(
     printer_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Clear MQTT message logs for a printer."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -125,8 +127,8 @@ async def start_drying(
     filament: str = "",
     rotate_tray: bool = False,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Send AMS drying start command. temp=45-85, duration=hours."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -203,8 +205,8 @@ async def stop_drying(
     printer_id: int,
     ams_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Send AMS drying stop command."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -229,8 +231,8 @@ async def set_print_option(
     print_halt: bool = True,
     sensitivity: str = "medium",
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Set an AI detection / print option on the printer.
 
@@ -294,8 +296,8 @@ async def set_ams_backup(
     printer_id: int,
     enabled: bool,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Toggle AMS Filament Backup (auto-switch to a backup spool when one runs out)."""
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
@@ -317,8 +319,8 @@ async def set_ams_backup(
 @router.get("/{printer_id}/inventory-remain")
 async def get_inventory_remain(
     printer_id: int,
-    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PRINTERS_READ)),
+    db: AsyncSession = DB_SESSION,
 ):
     """Per-globalTrayId remaining grams for slots bound to an inventory spool.
 
@@ -336,6 +338,10 @@ async def get_inventory_remain(
     from backend.app.services.filament_deficit import build_slot_materials
     from backend.app.services.print_scheduler import PrintScheduler
 
+    visibility = RowVisibility(access.user, access.api_key, access.user is None and access.api_key is None)
+    if not visibility.allows_printer(printer_id):
+        raise HTTPException(404, "Printer not found")
+
     state = printer_manager.get_status(printer_id)
     if not state:
         return {"inventory_remain_g": {}, "slot_materials": []}
@@ -344,7 +350,7 @@ async def get_inventory_remain(
     loaded = scheduler._build_loaded_filaments(state)
     overrides = await scheduler._build_inventory_remain_overrides(db, printer_id, loaded)
     slot_materials = []
-    if current_user is None or current_user.has_permission(Permission.INVENTORY_VIEW_ASSIGNMENTS.value):
+    if visibility.has_permission(Permission.INVENTORY_VIEW_ASSIGNMENTS):
         slot_materials = await build_slot_materials(db, printer_id)
     return {
         "inventory_remain_g": {str(k): v for k, v in overrides.items()},
@@ -361,8 +367,8 @@ async def start_calibration(
     nozzle_offset: bool = False,
     high_temp_heatbed: bool = False,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_CONTROL),
-    db: AsyncSession = Depends(get_db),
-    _drying_guard=Depends(printer_operation_guard),
+    db: AsyncSession = DB_SESSION,
+    _drying_guard=Depends(printer_operation_guard, scope="function"),
 ):
     """Start printer calibration with selected options.
 
@@ -421,13 +427,16 @@ def _slot_preset_key(ams_id: int, tray_id: int) -> int:
 @router.get("/{printer_id}/slot-presets")
 async def get_slot_presets(
     printer_id: int,
-    _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PRINTERS_READ)),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get all saved slot-to-preset mappings for a printer."""
-    result = await db.execute(select(SlotPresetMapping).where(SlotPresetMapping.printer_id == printer_id))
-    mappings = result.scalars().all()
+    await resolve_printer_visibility(db, access, Permission.PRINTERS_READ, printer_id)
+    mappings = await db.scalars(select(SlotPresetMapping).where(SlotPresetMapping.printer_id == printer_id))
+    return serialize_slot_presets(mappings)
 
+
+def serialize_slot_presets(mappings):
     return {
         _slot_preset_key(mapping.ams_id, mapping.tray_id): {
             "ams_id": mapping.ams_id,
@@ -446,7 +455,7 @@ async def get_slot_preset(
     ams_id: int,
     tray_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_READ),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Get the saved preset for a specific slot."""
     result = await db.execute(
@@ -480,7 +489,7 @@ async def save_slot_preset(
     preset_source: str = "cloud",
     tray_info_idx: str | None = None,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Save a preset mapping for a specific slot."""
     tray_info_idx = tray_info_idx if tray_info_idx and len(tray_info_idx) <= 32 else None
@@ -537,7 +546,7 @@ async def delete_slot_preset(
     ams_id: int,
     tray_id: int,
     _=RequirePermissionIfAuthEnabled(Permission.PRINTERS_UPDATE),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ):
     """Delete a saved preset mapping for a slot."""
     result = await db.execute(

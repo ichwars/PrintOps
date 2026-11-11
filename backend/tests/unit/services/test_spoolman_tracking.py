@@ -199,6 +199,10 @@ class TestBuildAmsTrayLookup:
 class TestStorePrintData:
     """Tests for store_print_data()."""
 
+    @pytest.fixture(autouse=True)
+    def existing_printer(self, monkeypatch):
+        monkeypatch.setattr("backend.app.core.printer_lifecycle.lock_existing_printer", AsyncMock(return_value=True))
+
     @pytest.mark.asyncio
     async def test_prefers_explicit_ams_mapping_over_queue_mapping(self):
         db = AsyncMock()

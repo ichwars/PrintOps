@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
 import { FileManagerPage } from '../../pages/FileManagerPage';
@@ -54,7 +54,7 @@ const mockFiles = [
     filename: 'benchy.gcode.3mf',
     file_path: '/library/benchy.gcode.3mf',
     file_size: 1048576,
-    file_type: '3mf',
+    file_type: 'gcode.3mf',
     folder_id: null,
     thumbnail_path: '/thumbnails/1.png',
     print_name: 'Benchy',
@@ -119,7 +119,7 @@ describe('FileManagerPage', () => {
       http.get('/api/v1/library/stats', () => {
         return HttpResponse.json(mockStats);
       }),
-      http.get('/api/v1/settings/', () => {
+      http.get('/api/v1/settings/ui-flags', () => {
         return HttpResponse.json({
           check_updates: false,
           check_printer_firmware: false,
@@ -152,6 +152,15 @@ describe('FileManagerPage', () => {
   });
 
   describe('rendering', () => {
+    it('wraps the action buttons and preserves the filename width in list view', async () => {
+      render(<FileManagerPage />);
+      expect((await screen.findByRole('button', { name: 'Upload' })).parentElement).toHaveClass('flex-wrap');
+      await userEvent.click(screen.getByTitle('List view'));
+      const row = (await screen.findByText('Benchy')).closest('[data-library-file-id]');
+      expect(row?.className).toContain('minmax(240px,1fr)');
+      expect(row?.className).toContain('minmax(96px,200px)');
+    });
+
     it('offers a copy-count combine flow for a selected STL', async () => {
       render(<FileManagerPage />);
       await userEvent.click(await screen.findByText('bracket.stl'));
@@ -241,6 +250,53 @@ describe('FileManagerPage', () => {
   });
 
   describe('folder sidebar', () => {
+    it('moves a folder through the action menu and offers managed destinations only', async () => {
+      const moves = vi.fn();
+      server.use(
+        http.get('/api/v1/library/folders', () => HttpResponse.json([
+          ...mockFolders,
+          { id: 4, name: 'External storage', is_external: true, parent_id: null, children: [] },
+        ])),
+        http.put('/api/v1/library/folders/:id', async ({ params, request }) => {
+          moves(Number(params.id), await request.json());
+          return HttpResponse.json({ id: Number(params.id), parent_id: 3 });
+        }),
+      );
+      render(<FileManagerPage />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Actions: Functional Parts' }));
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Move folder' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Move “Functional Parts”' });
+      await userEvent.click(within(dialog).getByRole('combobox', { name: 'Destination folder' }));
+      expect(within(dialog).queryByRole('option', { name: 'Brackets' })).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole('option', { name: 'External storage' })).not.toBeInTheDocument();
+      await userEvent.click(await screen.findByRole('option', { name: 'Art Projects' }));
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Move folder' }));
+      await waitFor(() => expect(moves).toHaveBeenCalledWith(1, { parent_id: 3 }));
+    });
+
+    it('drops a managed subfolder on All Files to move it to the root', async () => {
+      const moves = vi.fn();
+      server.use(http.put('/api/v1/library/folders/:id', async ({ params, request }) => {
+        moves(Number(params.id), await request.json());
+        return HttpResponse.json({ id: Number(params.id), parent_id: null });
+      }));
+      render(<FileManagerPage />);
+      const child = await screen.findByText('Brackets');
+      const row = child.closest('[draggable="true"]');
+      expect(row).not.toBeNull();
+      const payload = new Map<string, string>();
+      const dataTransfer = {
+        get types() { return [...payload.keys()]; },
+        setData: (type: string, value: string) => payload.set(type, value),
+        getData: (type: string) => payload.get(type) ?? '',
+      };
+      fireEvent.dragStart(row!, { dataTransfer });
+      const root = screen.getByText('All Files');
+      fireEvent.dragOver(root, { dataTransfer });
+      fireEvent.drop(root, { dataTransfer });
+      await waitFor(() => expect(moves).toHaveBeenCalledWith(2, { parent_id: 0 }));
+    });
+
     it('shows All Files option', async () => {
       render(<FileManagerPage />);
 
@@ -277,6 +333,28 @@ describe('FileManagerPage', () => {
   });
 
   describe('file display', () => {
+    it('opens and highlights a linked file in its current folder', async () => {
+      const fetchedFolders: string[] = [];
+      const linked = { ...mockFiles[0], id: 92, folder_id: 2, filename: 'linked.gcode.3mf', print_name: 'Linked print' };
+      server.use(
+        http.get('/api/v1/library/files/92', () => HttpResponse.json(linked)),
+        http.get('/api/v1/library/files', ({ request }) => {
+          const folder = new URL(request.url).searchParams.get('folder_id') ?? '';
+          fetchedFolders.push(folder);
+          return HttpResponse.json(folder === '2' ? [linked] : []);
+        }),
+      );
+      window.history.pushState({}, '', '/files?highlight=92');
+      try {
+        render(<FileManagerPage />);
+        const file = await screen.findByText('Linked print');
+        await waitFor(() => expect(file.closest('[data-library-file-id="92"]')).toHaveAttribute('data-highlighted', 'true'));
+        expect(fetchedFolders).toContain('2');
+      } finally {
+        window.history.replaceState({}, '', '/');
+      }
+    });
+
     it('shows files in grid', async () => {
       render(<FileManagerPage />);
 
@@ -549,7 +627,10 @@ describe('FileManagerPage', () => {
       });
     });
 
-    it('hides the bulk Print button when multiple files are selected', async () => {
+    it('hides the bulk Print button when multiple sliced files are selected', async () => {
+      server.use(http.get('/api/v1/library/files', () => HttpResponse.json(
+        mockFiles.map(file => file.id === 3 ? { ...file, file_type: 'gcode.3mf' } : file),
+      )));
       const user = userEvent.setup();
       render(<FileManagerPage />);
 

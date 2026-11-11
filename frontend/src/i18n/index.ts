@@ -2,9 +2,10 @@ import i18n from 'i18next';
 import type { BackendModule, ResourceKey } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import en from './locales/en';
 
 const localeLoaders = {
-  en: () => import('./locales/en'),
+  en: () => Promise.resolve({ default: en }),
   de: () => import('./locales/de'),
   es: () => import('./locales/es'),
   fr: () => import('./locales/fr'),
@@ -50,11 +51,14 @@ const localeBackend: BackendModule = {
 const SUPPORTED_LNGS = ['en', 'de', 'es', 'fr', 'ja', 'it', 'ko', 'nl', 'pt-BR', 'tr', 'zh-CN', 'zh-TW'];
 const APPLIANCE_CONSUMED_KEY = 'printops_appliance_locale_consumed';
 
-await i18n
+export const i18nReady = i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .use(localeBackend)
   .init({
+    resources: { en: { translation: en } },
+    partialBundledLanguages: true,
+    initAsync: false,
     fallbackLng: 'en',
     supportedLngs: SUPPORTED_LNGS,
     load: 'currentOnly',
@@ -109,7 +113,7 @@ function applyApplianceLocale() {
     });
 }
 
-applyApplianceLocale();
+void i18nReady.then(applyApplianceLocale).catch(() => {});
 
 export default i18n;
 

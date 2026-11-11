@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, Float, Numeric, String, func
+from sqlalchemy import Boolean, Date, DateTime, Float, Numeric, String, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -10,6 +10,7 @@ from backend.app.services.equipment_costs import calculate_hourly_rate, calculat
 
 class Printer(Base):
     __tablename__ = "printers"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
@@ -43,6 +44,7 @@ class Printer(Base):
     external_camera_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     external_camera_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # mjpeg, rtsp, snapshot
     external_camera_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    camera_light_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Optional single-frame snapshot URL — when set, used for snapshot / finish-photo
     # / timelapse / plate-detect captures instead of opening the live stream and
     # skipping a warm-up frame. Bypasses MJPEG warm-up issues on sources that
@@ -64,8 +66,10 @@ class Printer(Base):
 
     # Relationships
     archives: Mapped[list["PrintArchive"]] = relationship(back_populates="printer", cascade="all, delete-orphan")
-    smart_plugs: Mapped[list["SmartPlug"]] = relationship(back_populates="printer")
-    notification_providers: Mapped[list["NotificationProvider"]] = relationship(back_populates="printer")
+    smart_plugs: Mapped[list["SmartPlug"]] = relationship(back_populates="printer", passive_deletes="all")
+    notification_providers: Mapped[list["NotificationProvider"]] = relationship(
+        back_populates="printer", passive_deletes="all"
+    )
     maintenance_items: Mapped[list["PrinterMaintenance"]] = relationship(
         back_populates="printer", cascade="all, delete-orphan"
     )

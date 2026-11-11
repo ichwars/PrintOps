@@ -179,3 +179,35 @@ it('does not restore an explicitly closed overlay after remount', async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Choose camera placement' })).toBeEnabled());
   expect(screen.queryByRole('combobox', { name: 'Default camera view' })).toBeNull();
 });
+
+
+it('opens an embedded camera on the iOS home screen without offering a popup', async () => {
+  Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+  try {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<PrintersPage />);
+    const button = await screen.findByRole('button', { name: 'Open camera overlay' });
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.queryByRole('button', { name: 'Choose camera placement' })).not.toBeInTheDocument();
+    fireEvent.click(button);
+    expect(await screen.findByRole('combobox', { name: 'Default camera view' })).toBeInTheDocument();
+    expect(screen.queryByTitle('Open camera in new window')).not.toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
+  } finally {
+    Reflect.deleteProperty(navigator, 'standalone');
+  }
+});
+
+it('applies Cam Wall tile size without changing the printer card size', async () => {
+  storage.set('printerPageView', 'camwall');
+  storage.set('printerCardSize', '3');
+  render(<PrintersPage />);
+  const grid = await screen.findByTestId('camwall-grid');
+  expect(grid).toHaveClass('xl:grid-cols-4');
+  const button = screen.getAllByRole('button', { name: 'XL' }).find((entry) => entry.title.toLowerCase().includes('cam wall'));
+  expect(button).toBeDefined();
+  fireEvent.click(button!);
+  expect(grid).not.toHaveClass('xl:grid-cols-4');
+  expect(storage.get('camWallTileSize')).toBe('4');
+  expect(storage.get('printerCardSize')).toBe('3');
+});

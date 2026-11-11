@@ -1,11 +1,14 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Layers, Clock, Timer, Printer } from 'lucide-react';
-import { api, ApiError, withStreamToken } from '../api/client';
+import { api, ApiError, type PrinterStatus } from '../api/client';
 import { parseOverlayConfig, overlayReadings, type OverlaySize } from '../utils/streamOverlay';
-import { useOverlayCameraRecovery } from '../hooks/useOverlayCameraRecovery';
+import { useCameraFeedRecovery } from '../hooks/useCameraFeedRecovery';
+import { useCameraFeedAccess } from '../hooks/useCameraStreamToken';
+import { useStreamImgRef } from '../hooks/useStreamImgRef';
+import { useCameraViewport } from '../hooks/useCameraViewport';
 import { formatDuration, formatETA, type TimeFormat } from '../utils/date';
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
@@ -81,8 +84,15 @@ export function StreamOverlayPage() {
 
   const token = searchParams.get('token');
   const kiosk = token != null && token !== '';
-  const recovery = useOverlayCameraRecovery(config.showCamera && id > 0, `${id}:${token}:${config.fps}`);
+  const access = useCameraFeedAccess(token);
+  const recovery = useCameraFeedRecovery(
+    access.enabled && config.showCamera && id > 0,
+    `${id}:${access.token ?? ''}:${config.fps}`,
+  );
   const { imageKey } = recovery;
+  const baseStreamUrl = `/api/v1/printers/${id}/camera/stream?fps=${config.fps}&t=${imageKey}`;
+  const streamUrl = access.token ? `${baseStreamUrl}&token=${encodeURIComponent(access.token)}` : baseStreamUrl;
+  const attachImage = useStreamImgRef(recovery.waiting ? undefined : streamUrl);
 
   const { data: overlay } = useQuery({
     queryKey: ['overlayStatus', id, token],
@@ -105,8 +115,8 @@ export function StreamOverlayPage() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
     enabled: !kiosk,
   });
 
@@ -118,6 +128,9 @@ export function StreamOverlayPage() {
     [kiosk, overlay, printerData],
   );
   const status = kiosk ? overlay : statusData;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const rotation = printer?.camera_rotation ?? 0;
+  const frameBounds = useCameraViewport(viewportRef, rotation, config.showCamera && !!status);
   const timeFormat: TimeFormat = (kiosk ? overlay?.time_format : settings?.time_format) || 'system';
 
   // WebSocket for real-time updates
@@ -158,8 +171,11 @@ export function StreamOverlayPage() {
       ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'printer_status' && data.printer_id === id) {
-          queryClient.setQueryData(['printerStatus', id], data.status);
+        if (data.type === 'printer_status' && data.printer_id === id
+          && data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+          queryClient.setQueryData<PrinterStatus>(['printerStatus', id], previous => (
+            { ...previous, ...data.data }
+          ));
         }
       } catch {
         // Ignore parse errors
@@ -203,15 +219,11 @@ export function StreamOverlayPage() {
 
   const isPrinting = status.state === 'RUNNING' || status.state === 'PAUSE';
   const progress = status.progress || 0;
-  const baseStreamUrl = `/api/v1/printers/${id}/camera/stream?fps=${config.fps}&t=${imageKey}`;
-  const streamUrl = kiosk && token
-    ? `${baseStreamUrl}&token=${encodeURIComponent(token)}`
-    : withStreamToken(baseStreamUrl);
 
   const readings = overlayReadings(status.temperatures, kiosk ? overlay?.supports_chamber_sensor === true : status.temperatures?.chamber != null);
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
+    <div ref={viewportRef} className="min-h-screen bg-black relative overflow-hidden">
       {config.artwork !== 'none' && (
         <div data-testid="overlay-artwork" data-layout={config.artwork} aria-hidden="true"
           className="absolute inset-0 z-10 pointer-events-none border-8 border-bambu-green/40"
@@ -222,14 +234,20 @@ export function StreamOverlayPage() {
         </div>
       )}
       {/* Camera feed - fullscreen background (optional) */}
-      {config.showCamera && (
+      {config.showCamera && access.enabled && !recovery.failed && (
         <img
           key={imageKey}
-          src={streamUrl}
+          ref={attachImage}
+          data-camera-token-managed
           alt={t('streamOverlay.cameraStream')}
           className="absolute inset-0 w-full h-full object-contain"
-          style={printer?.camera_rotation ? { transform: `rotate(${printer.camera_rotation}deg)` } : undefined}
-          onError={recovery.onError}
+          style={frameBounds ? {
+            ...frameBounds, maxWidth: 'none', top: '50%', left: '50%',
+            transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+          } : rotation ? { transform: `rotate(${rotation}deg)` } : undefined}
+          onError={(event) => {
+            if (event.currentTarget.getAttribute('src')) recovery.onError();
+          }}
           onLoad={recovery.onLoad}
         />
       )}

@@ -149,7 +149,7 @@ async def test_cloud_preset_returns_its_authoritative_protocol_type():
     cloud.is_authenticated = True
     cloud.get_setting_detail = AsyncMock(
         return_value={
-            "filament_id": "GFL99",
+            "filament_id": "GFA11",
             "name": "Bambu PLA Aero @P1S",
             "setting": {"filament_type": ["PLA-AERO"]},
         }
@@ -159,12 +159,12 @@ async def test_cloud_preset_returns_its_authoritative_protocol_type():
         tray_info_idx, setting_id, sub_brand, type_override = await resolve_slicer_filament(
             db=db,
             current_user=MagicMock(),
-            slicer_filament="GFSB02",
+            slicer_filament="GFSA11",
             slicer_filament_name=None,
             material="PLA",
         )
 
-    assert (tray_info_idx, setting_id) == ("GFL99", "GFSB02")
+    assert (tray_info_idx, setting_id) == ("GFA11", "GFSA11")
     assert sub_brand == "Bambu PLA Aero"
     assert type_override == "PLA-AERO"
 

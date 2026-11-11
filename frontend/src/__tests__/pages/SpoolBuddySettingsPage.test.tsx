@@ -14,6 +14,7 @@ import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, Outlet } from 'react-router';
 import { SpoolBuddySettingsPage } from '../../pages/spoolbuddy/SpoolBuddySettingsPage';
+import { spoolbuddyApi } from '../../api/client';
 
 vi.mock('../../api/client', () => ({
   spoolbuddyApi: {
@@ -61,6 +62,8 @@ vi.mock('../../api/client', () => ({
     }),
     triggerUpdate: vi.fn().mockResolvedValue({ status: 'ok', message: '' }),
     getSSHPublicKey: vi.fn().mockResolvedValue({ public_key: 'ssh-ed25519 AAAA test-key' }),
+    updateSystemConfig: vi.fn().mockResolvedValue({ status: 'queued' }),
+    systemCommand: vi.fn().mockResolvedValue({ status: 'queued' }),
   },
 }));
 
@@ -96,7 +99,7 @@ function OutletWrapper() {
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={['/spoolbuddy/settings']}>
         <Routes>
@@ -107,7 +110,30 @@ function renderPage() {
       </MemoryRouter>
     </QueryClientProvider>
   );
+  return { ...view, queryClient: qc };
 }
+
+it('offers a restart after save and waits for the daemon to acknowledge the config', async () => {
+  const devices = await spoolbuddyApi.getDevices();
+  const [device] = devices;
+  vi.mocked(spoolbuddyApi.getDevices).mockResolvedValueOnce(devices).mockResolvedValueOnce([
+    { ...device, pending_command: 'apply_system_config' },
+  ]);
+  const { queryClient } = renderPage();
+  const url = await screen.findByPlaceholderText('http://192.168.1.100:5000');
+  fireEvent.change(url, { target: { value: 'https://printops.example.test' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  const restart = await screen.findByRole('button', { name: 'Restart Daemon' });
+  expect(restart).toBeDisabled();
+  fireEvent.click(restart);
+  expect(spoolbuddyApi.systemCommand).not.toHaveBeenCalled();
+  vi.mocked(spoolbuddyApi.getDevices).mockResolvedValueOnce(devices);
+  await queryClient.invalidateQueries({ queryKey: ['spoolbuddy-devices'] });
+  await waitFor(() => expect(restart).toBeEnabled());
+  fireEvent.click(restart);
+  await screen.findByText('Daemon restart queued.');
+  expect(spoolbuddyApi.systemCommand).toHaveBeenCalledWith(device.device_id, 'restart_daemon');
+});
 
 describe('SpoolBuddySettingsPage', () => {
   beforeEach(() => {

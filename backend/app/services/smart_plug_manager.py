@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+import time
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -15,6 +16,8 @@ from backend.app.services.homeassistant import homeassistant_service
 from backend.app.services.preheat_ownership import preheat_ownership
 from backend.app.services.printer_manager import printer_manager
 from backend.app.services.rest_smart_plug import rest_smart_plug_service
+from backend.app.services.smart_plug_selection import is_script_plug
+from backend.app.services.smart_plug_telemetry import SmartPlugTelemetry
 from backend.app.services.tasmota import tasmota_service
 from backend.app.utils.local_time import next_local_hour, to_naive_utc, utcnow_naive
 
@@ -22,6 +25,7 @@ if TYPE_CHECKING:
     from backend.app.models.smart_plug import SmartPlug
 
 logger = logging.getLogger(__name__)
+_SCRIPT_SWITCH_GRACE = 120.0
 
 
 class SmartPlugManager:
@@ -32,7 +36,10 @@ class SmartPlugManager:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._scheduler_task: asyncio.Task | None = None
         self._snapshot_task: asyncio.Task | None = None
-        self._last_schedule_check: dict[int, str] = {}  # plug_id -> "HH:MM" last executed
+        self._telemetry_task: asyncio.Task | None = None
+        self._telemetry = SmartPlugTelemetry()
+        self._last_schedule_check: dict[tuple[int, bool], date] = {}
+        self._last_power_scripts: dict[int, tuple[bool, float]] = {}
 
     @staticmethod
     def _power_off_blocked(printer_id: int | None) -> bool:
@@ -88,6 +95,62 @@ class SmartPlugManager:
             return rest_smart_plug_service
         return tasmota_service
 
+    async def on_plug_switched(
+        self, plug: "SmartPlug", on: bool, db: AsyncSession, *, automatic: bool, run_scripts: bool = True
+    ) -> None:
+        """Publish successful switch commands and run scripts linked to printer power."""
+        if is_script_plug(plug):
+            return
+        printer_id = plug.printer_id
+        run_linked = False
+        if run_scripts and printer_id is not None and plug.controls_printer_power:
+            now = time.monotonic()
+            previous = self._last_power_scripts.get(printer_id)
+            run_linked = (
+                not automatic or previous is None or previous[0] != on or now - previous[1] >= _SCRIPT_SWITCH_GRACE
+            )
+            if run_linked:
+                self._last_power_scripts[printer_id] = (on, now)
+        await self._publish_switch(plug, on, db)
+        if run_linked:
+            await self._run_linked_scripts(printer_id, on, db)
+
+    async def _publish_switch(self, plug: "SmartPlug", on: bool, db: AsyncSession) -> None:
+        from backend.app.models.printer import Printer
+        from backend.app.services.mqtt_relay import mqtt_relay
+
+        if not mqtt_relay.enabled or not mqtt_relay.connected:
+            return
+        try:
+            printer_name = None
+            if plug.printer_id is not None:
+                printer_name = await db.scalar(select(Printer.name).where(Printer.id == plug.printer_id))
+            await mqtt_relay.on_smart_plug_state(
+                plug_id=plug.id,
+                plug_name=plug.name,
+                state="on" if on else "off",
+                printer_id=plug.printer_id,
+                printer_name=printer_name,
+            )
+        except Exception:
+            logger.debug("Could not publish state for plug %s", plug.id, exc_info=True)
+
+    async def _run_linked_scripts(self, printer_id: int, on: bool, db: AsyncSession) -> None:
+        try:
+            plugs = await self._get_plugs_for_printer(printer_id, db)
+        except Exception:
+            logger.warning("Could not find power scripts for printer %s", printer_id, exc_info=True)
+            return
+        for plug in plugs:
+            if not plug.enabled or not is_script_plug(plug) or not (plug.auto_on if on else plug.auto_off):
+                continue
+            try:
+                service = await self.get_service_for_plug(plug, db)
+                if not await service.turn_on(plug):
+                    logger.warning("Home Assistant declined power script %s", plug.id)
+            except Exception:
+                logger.warning("Could not run power script %s", plug.id, exc_info=True)
+
     async def _configure_ha_service(self, db: AsyncSession | None = None):
         """Configure the HA service with URL and token from settings."""
         from backend.app.api.routes.settings import get_homeassistant_settings
@@ -119,6 +182,8 @@ class SmartPlugManager:
         if self._snapshot_task is None:
             self._snapshot_task = asyncio.create_task(self._snapshot_loop())
             logger.info("Smart plug energy snapshot loop started")
+        if self._telemetry_task is None:
+            self._telemetry_task = asyncio.create_task(self._telemetry.run(self))
 
     def stop_scheduler(self):
         """Stop the background scheduler."""
@@ -130,6 +195,9 @@ class SmartPlugManager:
             self._snapshot_task.cancel()
             self._snapshot_task = None
             logger.info("Smart plug energy snapshot loop stopped")
+        if self._telemetry_task is not None:
+            self._telemetry_task.cancel()
+            self._telemetry_task = None
 
     async def _schedule_loop(self):
         """Background loop that checks scheduled on/off times every minute."""
@@ -213,7 +281,8 @@ class SmartPlugManager:
         from backend.app.core.database import async_session
         from backend.app.models.smart_plug import SmartPlug
 
-        current_time = datetime.now().strftime("%H:%M")
+        current = datetime.now()
+        current_time, today = current.strftime("%H:%M"), current.date()
 
         async with async_session() as db:
             result = await db.execute(
@@ -223,25 +292,25 @@ class SmartPlugManager:
                 )
             )
             plugs = result.scalars().all()
+            switched = []
 
             for plug in plugs:
                 service = await self.get_service_for_plug(plug, db)
 
                 # Check if we should turn on
                 if plug.schedule_on_time == current_time:
-                    last_check = self._last_schedule_check.get(plug.id)
-                    if last_check != f"on:{current_time}":
+                    if self._last_schedule_check.get((plug.id, True)) != today:
                         logger.info("Schedule: Turning on plug '%s' at %s", plug.name, current_time)
                         success = await service.turn_on(plug)
                         if success:
                             plug.last_state = "ON"
                             plug.last_checked = utcnow_naive()
-                            self._last_schedule_check[plug.id] = f"on:{current_time}"
+                            self._last_schedule_check[plug.id, True] = today
+                            switched.append((plug, True))
 
                 # Check if we should turn off
                 if plug.schedule_off_time == current_time and not self._power_off_blocked(plug.printer_id):
-                    last_check = self._last_schedule_check.get(plug.id)
-                    if last_check != f"off:{current_time}":
+                    if self._last_schedule_check.get((plug.id, False)) != today:
                         logger.info("Schedule: Turning off plug '%s' at %s", plug.name, current_time)
                         success = await self._turn_off_if_safe(
                             service, plug, plug.printer_id, plug.controls_printer_power, db
@@ -249,12 +318,15 @@ class SmartPlugManager:
                         if success:
                             plug.last_state = "OFF"
                             plug.last_checked = utcnow_naive()
-                            self._last_schedule_check[plug.id] = f"off:{current_time}"
+                            self._last_schedule_check[plug.id, False] = today
+                            switched.append((plug, False))
                             # Mark printer offline only if this plug feeds printer power.
                             if plug.printer_id and plug.controls_printer_power:
                                 printer_manager.mark_printer_offline(plug.printer_id)
 
             await db.commit()
+            for plug, on in switched:
+                await self.on_plug_switched(plug, on, db, automatic=True)
 
     async def _get_plugs_for_printer(self, printer_id: int, db: AsyncSession) -> list["SmartPlug"]:
         """Get all smart plugs linked to a printer for automation control."""
@@ -270,6 +342,7 @@ class SmartPlugManager:
         if not plugs:
             return
 
+        switched = []
         for plug in plugs:
             if not plug.enabled:
                 logger.debug("Smart plug '%s' is disabled, skipping auto-on", plug.name)
@@ -295,10 +368,13 @@ class SmartPlugManager:
                     plug.last_state = "ON"
                     plug.last_checked = utcnow_naive()
                     plug.auto_off_executed = False  # Reset flag when turning on
+                    switched.append(plug)
             except Exception as e:
                 logger.warning("Failed to turn on plug '%s' for printer %s: %s", plug.name, printer_id, e)
 
         await db.commit()
+        for plug in switched:
+            await self.on_plug_switched(plug, True, db, automatic=True, run_scripts=False)
 
     async def on_print_complete(self, printer_id: int, status: str, db: AsyncSession):
         """Called when a print completes - schedule turn off for all plugs linked to this printer.
@@ -522,7 +598,8 @@ class SmartPlugManager:
         except asyncio.CancelledError:
             logger.debug("Delayed turn-off cancelled for plug %s", plug_id)
         finally:
-            self._pending_off.pop(plug_id, None)
+            if self._pending_off.get(plug_id) is asyncio.current_task():
+                self._pending_off.pop(plug_id, None)
 
     def _schedule_temp_based_off(self, plug: "SmartPlug", printer_id: int, temp_threshold: int):
         """Monitor temperature and turn off when below threshold."""
@@ -665,7 +742,8 @@ class SmartPlugManager:
         except asyncio.CancelledError:
             logger.debug("Temperature-based turn-off cancelled for plug %s", plug_id)
         finally:
-            self._pending_off.pop(plug_id, None)
+            if self._pending_off.get(plug_id) is asyncio.current_task():
+                self._pending_off.pop(plug_id, None)
 
     async def _mark_auto_off_pending(self, plug_id: int, pending: bool):
         """Mark a plug as having a pending auto-off (survives restarts)."""
@@ -702,6 +780,7 @@ class SmartPlugManager:
                     plug.last_state = "OFF"
                     plug.last_checked = utcnow_naive()
                     await db.commit()
+                    await self.on_plug_switched(plug, False, db, automatic=True)
                     if plug.auto_off_persistent:
                         logger.info("Auto-off executed for plug %s (persistent, stays enabled)", plug_id)
                     else:
@@ -721,6 +800,13 @@ class SmartPlugManager:
     def cancel_pending_off(self, plug_id: int):
         """Cancel any pending off task for this plug."""
         self._cancel_pending_off(plug_id)
+
+    def forget_plug(self, plug_id: int) -> None:
+        self._last_schedule_check.pop((plug_id, True), None)
+        self._last_schedule_check.pop((plug_id, False), None)
+        task = self._pending_off.pop(plug_id, None)
+        if task is not None:
+            task.cancel()
 
     def cancel_all_pending(self):
         """Cancel all pending turn-off tasks."""

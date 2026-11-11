@@ -21,17 +21,22 @@ tokens — a leaked permanent token would be irrevocable footgun-by-design).
 
 from __future__ import annotations
 
+import logging
 import secrets
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import get_password_hash, verify_password
 from backend.app.models.long_lived_token import LongLivedToken
 from backend.app.models.user import User
+from backend.app.services.credential_usage import CredentialUsageThrottle
+
+logger = logging.getLogger(__name__)
 
 # Issue #1108 hard cap. Bump here if policy changes — UI default is shorter
 # (90 days) and the create route enforces this ceiling.
@@ -46,7 +51,7 @@ STREAM_SCOPES: tuple[str, ...] = ("camera_stream", "camwall", "overlay")
 # Don't write to last_used_at more than once per minute per token. MJPEG
 # streams call verify() at most once per fetch (the browser holds the
 # connection open), but snapshots may rapid-fire — this caps DB churn.
-_LAST_USED_DEBOUNCE = timedelta(minutes=1)
+_token_usage = CredentialUsageThrottle()
 
 # Token format constants — kept in one place so format changes are localized.
 _TOKEN_PREFIX = "bblt_"
@@ -165,7 +170,7 @@ async def verify_token(
     scopes = (scope,) if isinstance(scope, str) else tuple(scope)
 
     now = datetime.now(timezone.utc)
-    result = await db.execute(
+    candidates_query = (
         select(LongLivedToken)
         .join(User, LongLivedToken.user_id == User.id)
         .where(
@@ -175,23 +180,25 @@ async def verify_token(
             User.is_active.is_(True),
         )
     )
-    candidates = result.scalars().all()
+    candidates = await db.scalars(candidates_query)
     for record in candidates:
-        if _is_expired(record, now):
+        if _is_expired(record, now) or not verify_password(full_token, record.secret_hash):
             continue
-        if not verify_password(full_token, record.secret_hash):
-            continue
-        # Record use, but rate-limit DB writes to keep MJPEG-keepalive cheap.
-        last = record.last_used_at
-        if last is None or _coerce_utc(last) + _LAST_USED_DEBOUNCE <= now:
+        record_id, secret_hash = record.id, record.secret_hash
+        if _token_usage.due(secret_hash, record.last_used_at, now):
             record.last_used_at = now
-            await db.commit()
+            try:
+                await db.commit()
+            except (SQLAlchemyError, TimeoutError) as error:
+                logger.warning("Could not record use of camera token %s: %s", record_id, type(error).__name__)
+                await db.rollback()
+                record = await db.scalar(
+                    candidates_query.where(LongLivedToken.id == record_id, LongLivedToken.secret_hash == secret_hash)
+                )
+                if record is None or _is_expired(record, datetime.now(timezone.utc)):
+                    return None
         return record
     return None
-
-
-def _coerce_utc(dt: datetime) -> datetime:
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
 async def list_user_tokens(db: AsyncSession, user_id: int) -> list[LongLivedToken]:

@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.routes import cloud
 from backend.app.api.routes.cloud import CLOUD_EMAIL_KEY, CLOUD_REGION_KEY, CLOUD_TOKEN_KEY, get_stored_token
 from backend.app.core.auth import get_password_hash
 from backend.app.models.settings import Settings
@@ -104,7 +105,9 @@ async def test_setup_refuses_to_guess_when_multiple_admins(async_client: AsyncCl
 
 
 @pytest.mark.asyncio
-async def test_disable_auth_migrates_admin_token_to_global(async_client: AsyncClient, db_session: AsyncSession):
+async def test_disable_auth_migrates_admin_token_to_global(
+    async_client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
     bearer = await _admin_bearer(async_client)
     admin = (await db_session.execute(select(User).where(User.role == "admin"))).scalar_one()
     admin.cloud_token = "tok-user"
@@ -112,8 +115,12 @@ async def test_disable_auth_migrates_admin_token_to_global(async_client: AsyncCl
     admin.cloud_region = "china"
     await db_session.commit()
 
+    monkeypatch.setitem(cloud._filament_id_name_cache, None, {"old": "Previous global account"})
+    monkeypatch.setitem(cloud._filament_cache, admin.id, {"old": {"name": "Previous admin account"}})
     response = await async_client.post("/api/v1/auth/disable", headers={"Authorization": f"Bearer {bearer}"})
     assert response.status_code == 200, response.text
+    assert None not in cloud._filament_id_name_cache
+    assert admin.id not in cloud._filament_cache
 
     rows = await _global_rows(db_session)
     assert rows[CLOUD_TOKEN_KEY] == "tok-user"

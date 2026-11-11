@@ -163,7 +163,7 @@ async def test_dispatch_and_usage_address_the_same_effective_plate(dispatch_case
 
     assert len(commands) == 1
     assert commands[0]["plate_id"] == expected
-    assert main._get_start_plate_id(archive.id) == expected
+    assert main._get_start_plate_id(item.printer_id, archive.id) == expected
     assert item.status == "printing"
     assert item.plate_id == explicit
     # Preserve slicer nozzle/rack choices and queue filament assignments.
@@ -172,14 +172,14 @@ async def test_dispatch_and_usage_address_the_same_effective_plate(dispatch_case
 
 
 async def test_injection_and_usage_use_the_lowest_numbered_plate_before_upload_cleanup(dispatch_case):
-    source, archive, _, commands, uploads = await dispatch_case(
+    source, archive, item, commands, uploads = await dispatch_case(
         ["Metadata/plate_10.gcode", "Metadata/plate_2.gcode"], inject=True
     )
 
     assert uploads[0]["Metadata/plate_2.gcode"].startswith(b"M117 Plate start\n")
     assert uploads[0]["Metadata/plate_10.gcode"] == b"G28\nM400\n"
     assert commands[0]["plate_id"] == 2
-    selected_usage = extract_filament_usage_from_3mf(source, main._get_start_plate_id(archive.id))
+    selected_usage = extract_filament_usage_from_3mf(source, main._get_start_plate_id(item.printer_id, archive.id))
     assert selected_usage == [{"slot_id": 2, "used_g": 20.0, "type": "PLA", "color": "#00FF00"}]
     with zipfile.ZipFile(source) as zf:
         assert zf.read("Metadata/plate_2.gcode") == b"G28\nM400\n"
@@ -187,7 +187,7 @@ async def test_injection_and_usage_use_the_lowest_numbered_plate_before_upload_c
 
 @pytest.mark.parametrize(("explicit", "expected"), [(None, 1), (3, 3)])
 async def test_unreadable_archive_preserves_dispatch_fallback_and_explicit_selection(dispatch_case, explicit, expected):
-    _, archive, _, commands, _ = await dispatch_case([], plate_id=explicit, malformed=True)
+    _, archive, item, commands, _ = await dispatch_case([], plate_id=explicit, malformed=True)
 
     assert commands[0]["plate_id"] == expected
-    assert main._get_start_plate_id(archive.id) == expected
+    assert main._get_start_plate_id(item.printer_id, archive.id) == expected

@@ -165,6 +165,7 @@ export function SpoolmanSettings() {
       queryClient.invalidateQueries({ queryKey: ['spools'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-spools'] });
       showToast(t('settings.amsSyncSuccess', { synced: data.synced, skipped: data.skipped }), 'success');
+      if (data.printing) showToast(t('settings.amsSyncSkippedPrinting', { count: data.printing }), 'info');
       setShowAmsSyncConfirm(false);
     },
     onError: () => {
@@ -179,6 +180,7 @@ export function SpoolmanSettings() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['spoolman-inventory-spools'] });
       showToast(t('settings.spoolmanAmsSyncSuccess', { synced: data.synced, skipped: data.skipped }), 'success');
+      if (data.printing) showToast(t('settings.amsSyncSkippedPrinting', { count: data.printing }), 'info');
       setShowSpoolmanAmsSyncConfirm(false);
     },
     onError: (error: Error) => {
@@ -545,7 +547,7 @@ export function SpoolmanSettings() {
               {/* Spoolman AMS weight sync */}
               {status?.connected && (
                 <div className="mt-4 pt-4 border-t border-bambu-dark-tertiary">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-white">{t('settings.spoolmanAmsSyncButton')}</p>
                       <p className="text-xs text-bambu-gray">{t('settings.spoolmanAmsSyncMessage')}</p>
@@ -553,6 +555,7 @@ export function SpoolmanSettings() {
                     <Button
                       variant="secondary"
                       size="sm"
+                      className="h-auto! min-h-11 w-full shrink-0 whitespace-normal sm:w-auto"
                       onClick={() => setShowSpoolmanAmsSyncConfirm(true)}
                       disabled={spoolmanAmsSyncMutation.isPending}
                     >

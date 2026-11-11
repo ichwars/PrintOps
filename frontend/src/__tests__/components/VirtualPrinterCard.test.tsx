@@ -31,6 +31,7 @@ vi.mock('../../api/client', () => ({
     }),
   },
   api: {
+    getUiFlags: async () => ({}),
     getSettings: vi.fn().mockResolvedValue({}),
     getPrinters: vi.fn().mockResolvedValue([]),
     getNetworkInterfaces: vi.fn().mockResolvedValue({ interfaces: [] }),

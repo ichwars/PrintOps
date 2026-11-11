@@ -95,7 +95,9 @@ describe('FilamentMapping — FTS routing', () => {
     // being empty and the requirement asking for nozzle 1. Without the FTS guard
     // the dropdown would render only the "-- Select slot --" placeholder.
     await waitFor(() => expect(screen.getByRole('combobox')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('combobox'));
+    const slotSelect = screen.getByRole('combobox');
+    expect(slotSelect.closest('.grid')).toHaveClass('grid-cols-[16px_minmax(0,1fr)_16px]');
+    fireEvent.click(slotSelect);
     const plaOption = screen.getByRole('option', { name: /Bambu PLA/ });
     const petgOption = screen.getByRole('option', { name: /Bambu PETG/ });
 

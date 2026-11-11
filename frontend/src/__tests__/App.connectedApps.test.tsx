@@ -12,16 +12,18 @@ const destination = `/connect/authorize?${query}`;
 let permissions: string[];
 let approvals: unknown[];
 let authEnabled: boolean;
+let isAdmin: boolean;
 
 beforeEach(() => {
   permissions = ['settings:read', 'settings:update'];
   approvals = [];
   authEnabled = true;
+  isAdmin = false;
   vi.mocked(localStorage.getItem).mockReturnValue(null);
   setAuthToken('connect-fixture-token');
   server.use(
     http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: authEnabled, requires_setup: false })),
-    http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 102, username: 'person', role: 'user', is_admin: false,
+    http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 102, username: 'person', role: 'user', is_admin: isAdmin,
       is_active: true, groups: [], permissions, created_at: '2026-01-01T00:00:00Z' })),
     http.get('/api/v1/connect/authorize/info', ({ request }) => {
       const params = new URL(request.url).searchParams;
@@ -83,16 +85,17 @@ it('shows the disabled-auth explanation instead of approval', async () => {
   expect(screen.queryByRole('button', { name: 'Allow sign-in' })).not.toBeInTheDocument();
 });
 
-it('integrates app management at the existing API and metrics settings path', async () => {
+it('integrates administrator app management at the existing API and metrics settings path', async () => {
+  isAdmin = true;
   window.history.replaceState({}, '', '/settings?tab=integrations&sub=api-metrics');
   render(<App />);
-  expect(await screen.findByRole('heading', { name: 'Connected applications' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Connected applications' }, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Register application' })).toBeInTheDocument();
   expect(document.getElementById('card-connected-apps')).toBeInTheDocument();
 });
 
 
-it('lets an update-only manager navigate to connected apps without reading other settings', async () => {
+it('does not expose connected apps to a non-administrator with settings:update', async () => {
   permissions = ['settings:update'];
   let settingsRequests = 0;
   server.use(http.get('/api/v1/settings/', () => {
@@ -101,12 +104,9 @@ it('lets an update-only manager navigate to connected apps without reading other
   }));
   window.history.replaceState({}, '', '/settings');
   render(<App />);
-  expect(await screen.findByRole('heading', { name: 'Connected applications' })).toBeInTheDocument();
-  const navigation = document.querySelector('aside a[href="/settings?tab=integrations"]');
-  expect(navigation).toBeInTheDocument();
-  fireEvent.click(navigation!);
-  expect(await screen.findByRole('button', { name: 'Register application' })).toBeInTheDocument();
-  expect(window.location.pathname + window.location.search).toBe('/settings?tab=integrations');
+  await waitFor(() => expect(window.location.pathname).toBe('/'));
+  expect(screen.queryByRole('heading', { name: 'Connected applications' })).not.toBeInTheDocument();
+  expect(document.querySelector('aside a[href="/settings?tab=integrations"]')).not.toBeInTheDocument();
   expect(document.querySelector('aside a[href="/settings?tab=general"]')).not.toBeInTheDocument();
   expect(document.querySelector('aside a[href="/settings?tab=users-security"]')).not.toBeInTheDocument();
   expect(settingsRequests).toBe(0);

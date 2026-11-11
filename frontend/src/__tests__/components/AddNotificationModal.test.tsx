@@ -19,6 +19,7 @@ import { render } from '../utils';
 import { server } from '../mocks/server';
 import { AddNotificationModal } from '../../components/AddNotificationModal';
 import type { NotificationProvider } from '../../api/client';
+import { SECRET_PLACEHOLDER } from '../../utils/secrets';
 
 afterEach(() => {
   server.resetHandlers();
@@ -73,6 +74,23 @@ function buildProvider(overrides: Partial<NotificationProvider> = {}): Notificat
     ...overrides,
   };
 }
+
+it('opts in to scheduled pause warnings per provider', async () => {
+  let captured: unknown;
+  server.use(
+    http.patch('*/api/v1/notifications/1', async ({ request }) => {
+      captured = await request.json();
+      return HttpResponse.json({ id: 1 });
+    }),
+  );
+  const user = userEvent.setup();
+  render(<AddNotificationModal provider={buildProvider()} onClose={() => undefined} />);
+  const option = await screen.findByRole('switch', { name: 'Upcoming slicer pause' });
+  expect(option).not.toBeChecked();
+  await user.click(option);
+  await user.click(screen.getByRole('button', { name: /^save$/i }));
+  await waitFor(() => expect(captured).toMatchObject({ on_print_pause_upcoming: true }));
+});
 
 describe('AddNotificationModal — ntfy Priority (#990)', () => {
   it('renders the ntfy Priority section listing only enabled events', async () => {
@@ -371,4 +389,22 @@ describe('AddNotificationModal — AI Failure Detection toggle (#1794)', () => {
 
     expect(within(priorityRoot).getByText('AI Failure Detection')).toBeInTheDocument();
   });
+});
+
+
+it('includes the saved provider ID when testing a retained credential', async () => {
+  const config = { server: 'https://ntfy.sh', topic: 'printops', auth_token: SECRET_PLACEHOLDER };
+  const sent = vi.fn();
+  server.use(
+    http.post('*/api/v1/notifications/test-config', async ({ request }) => {
+      sent(await request.json());
+      return HttpResponse.json({ success: true, message: 'Connection verified' });
+    }),
+  );
+  const user = userEvent.setup();
+  render(<AddNotificationModal provider={buildProvider({ config })} onClose={() => undefined} />);
+  expect(screen.getByDisplayValue(SECRET_PLACEHOLDER)).toHaveAttribute('type', 'password');
+  await user.click(screen.getByRole('button', { name: /test/i }));
+  expect(await screen.findByText('Connection verified')).toBeInTheDocument();
+  expect(sent).toHaveBeenCalledWith({ provider_type: 'ntfy', provider_id: 1, config });
 });

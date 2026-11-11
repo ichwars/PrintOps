@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Users,
   Workflow,
+  Video,
 } from 'lucide-react';
 import type { UpdateStatus } from '../api/client';
 import type { SettingsSearchEntry } from '../lib/settingsSearch';
@@ -210,9 +211,18 @@ export const PRINTER_PRODUCTION_SUB_TABS: Record<PrinterProductionSubTab, Settin
     fallback: 'Devices',
     fallbackDe: 'Geräte',
     descriptionKey: 'settings.printerProductionSubTabDescriptions.devices',
-    descriptionFallback: 'Manage default printers, cameras, FTP retry behavior, and virtual printer endpoints.',
-    descriptionFallbackDe: 'Standarddrucker, Kameras, FTP-Wiederholungen und virtuelle Drucker-Endpunkte verwalten.',
+    descriptionFallback: 'Manage default printers, FTP retry behavior, and virtual printer endpoints.',
+    descriptionFallbackDe: 'Standarddrucker, FTP-Wiederholungen und virtuelle Drucker-Endpunkte verwalten.',
     icon: Printer,
+  },
+  cameras: {
+    labelKey: 'settings.tabs.deviceManagementCameras',
+    fallback: 'Cameras',
+    fallbackDe: 'Kameras',
+    descriptionKey: 'settings.printerProductionSubTabDescriptions.cameras',
+    descriptionFallback: 'Configure external cameras, chamber lighting, streaming overlays, and camera tokens.',
+    descriptionFallbackDe: 'Externe Kameras, Druckraumbeleuchtung, Streaming-Overlays und Kamera-Token konfigurieren.',
+    icon: Video,
   },
   'print-process': {
     labelKey: 'settings.tabs.deviceManagementPrintProcess',
@@ -244,6 +254,7 @@ export const PRINTER_PRODUCTION_SUB_TABS: Record<PrinterProductionSubTab, Settin
 
 export const PRINTER_PRODUCTION_SUB_TAB_ITEMS: Array<{ id: PrinterProductionSubTab; meta: SettingsHeaderMeta }> = [
   { id: 'devices', meta: PRINTER_PRODUCTION_SUB_TABS.devices },
+  { id: 'cameras', meta: PRINTER_PRODUCTION_SUB_TABS.cameras },
   { id: 'print-process', meta: PRINTER_PRODUCTION_SUB_TABS['print-process'] },
   { id: 'pipelines', meta: PRINTER_PRODUCTION_SUB_TABS.pipelines },
   { id: 'failure-detection', meta: PRINTER_PRODUCTION_SUB_TABS['failure-detection'] },

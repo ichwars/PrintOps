@@ -27,6 +27,7 @@ export interface AppSettings {
   ams_temp_good: number;      // <= this is green/blue
   ams_temp_fair: number;      // <= this is orange, > is red
   ams_history_retention_days: number;  // days to keep AMS sensor history
+  printer_sensor_history_retention_days?: number;
   // Queue auto-drying settings
   queue_drying_enabled: boolean;  // Auto-dry AMS between queued prints
   queue_drying_block: boolean;  // Block queue until drying completes
@@ -87,10 +88,11 @@ export interface AppSettings {
   ha_token_from_env: boolean;
   ha_env_managed: boolean;
   // File Manager / Library settings
-  library_archive_mode: 'always' | 'never' | 'ask';
   library_disk_warning_gb: number;
   // Camera view settings
   camera_view_mode: 'window' | 'embedded';
+  camera_light_mode: 'off' | 'all' | 'selected';
+  camera_light_delay: number;
   // Preferred slicer (server-side API / sidecar)
   preferred_slicer: 'bambu_studio' | 'orcaslicer';
   // Desktop "Open in Slicer" override (#1329). Null inherits from
@@ -106,6 +108,7 @@ export interface AppSettings {
   prometheus_token: string;
   // Bed cooled threshold
   bed_cooled_threshold: number;
+  pause_warning_minutes?: number;
   // Inventory low stock threshold
   low_stock_threshold: number;
   // Session policy (#1706) — admin-set ceiling, hours, [1, 720]
@@ -291,6 +294,7 @@ export interface MakerworldRecentImport {
 }
 
 export interface SlicerSetting {
+  filament_id?: string | null;
   setting_id: string;
   name: string;
   type: string;
@@ -411,10 +415,9 @@ export interface SliceRequest {
   plate?: number;
   export_3mf?: boolean;
   // Build-plate override (#1337). When omitted, the slicer uses the process
-  // preset's curr_bed_type as-is. Canonical values match BambuStudio /
-  // OrcaSlicer's enum: "Cool Plate", "Engineering Plate", "High Temp Plate",
-  // "Textured PEI Plate", "Smooth PEI Plate", "Cool Plate (SuperTack)",
-  // "Supertack Plate".
+  // preset's curr_bed_type. Values include "Cool Plate", "Engineering Plate",
+  // "High Temp Plate" (Smooth PEI), "Textured PEI Plate", "Supertack Plate",
+  // and "Textured Cool Plate" (OrcaSlicer only).
   bed_type?: string | null;
   // 3MF only: honour the file's embedded project settings instead of the
   // selected profile triplet.
@@ -445,6 +448,7 @@ export interface UnifiedPreset {
   // the process / filament dropdowns by the selected printer using this when
   // present (#1325).
   compatible_printers?: string[] | null;
+  printer_parent?: string | null;
 }
 
 export interface UnifiedPresetsBySlot {
@@ -454,15 +458,15 @@ export interface UnifiedPresetsBySlot {
 }
 
 export interface UnifiedPresetsResponse {
-  // Priority order: local > orca_cloud > cloud > standard. No cross-tier
-  // dedup — every tier surfaces its full list so the user can pick from
-  // any source. The order drives auto-pick + visual group rendering only.
+  // Priority order: local > orca_cloud > cloud > standard. Only duplicate
+  // Bambu stock profiles share an entry. Imports and Orca stay distinct.
   orca_cloud: UnifiedPresetsBySlot;
   cloud: UnifiedPresetsBySlot;
   local: UnifiedPresetsBySlot;
   standard: UnifiedPresetsBySlot;
   cloud_status: SlicerCloudStatus;
   orca_cloud_status: SlicerCloudStatus;
+  stock_aliases?: Record<string, PresetRef>;
 }
 
 // Slicer Pipelines (#1425) — named bundles of preset slots the SliceModal
@@ -738,4 +742,78 @@ export interface CloudDevice {
   dev_model_name: string | null;
   dev_product_name: string | null;
   online: boolean;
+}
+
+export type AppUiFlags = Pick<AppSettings,
+  | 'currency'
+  | 'check_updates'
+  | 'user_notifications_enabled'
+  | 'queue_shortest_first'
+  | 'use_slicer_api'
+  | 'open_in_slicer'
+  | 'preferred_slicer'
+  | 'disable_filament_warnings'
+  | 'prefer_lowest_filament'
+  | 'per_printer_mapping_expanded'
+  | 'default_filament_cost'
+  | 'default_printer_id'
+  | 'default_bed_levelling'
+  | 'default_flow_cali'
+  | 'default_vibration_cali'
+  | 'default_layer_inspect'
+  | 'default_timelapse'
+  | 'default_nozzle_offset_cali'
+  | 'stagger_group_size'
+  | 'stagger_interval_minutes'
+  | 'library_disk_warning_gb'
+  | 'low_stock_threshold'
+  | 'pipeline_max_copies'
+  | 'language'
+  | 'dark_style'
+  | 'dark_background'
+  | 'dark_accent'
+  | 'light_style'
+  | 'light_background'
+  | 'light_accent'
+  | 'spoolman_enabled'
+  | 'forecast_global_lead_time_days'
+  | 'time_format'
+  | 'date_format'
+  | 'ams_humidity_good'
+  | 'ams_humidity_fair'
+  | 'ams_temp_good'
+  | 'ams_temp_fair'
+> & { has_gcode_snippets: boolean };
+
+
+export interface LoadedSpoolPreset {
+  preset_id: string;
+  preset_name: string;
+  preset_source: string;
+  tray_info_idx: string | null;
+}
+
+export interface LoadedSpoolTray {
+  ams_id: number;
+  tray_id: number;
+  tray_type: string | null;
+  tray_sub_brands: string | null;
+  tray_color: string | null;
+  tray_info_idx: string | null;
+  exists: boolean | null;
+  state: number | null;
+  saved_preset: LoadedSpoolPreset | null;
+}
+
+export interface LoadedSpoolPrinter {
+  id: number;
+  name: string;
+  model: string | null;
+  ams: { id: number; trays: LoadedSpoolTray[] }[];
+  external: LoadedSpoolTray[];
+  external_holders: number;
+}
+
+export interface LoadedSpoolsResponse {
+  printers: LoadedSpoolPrinter[];
 }

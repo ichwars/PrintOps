@@ -390,13 +390,21 @@ class TestSmartPlugManager:
         """Verify scheduler can be started."""
         assert manager._scheduler_task is None
 
-        # Mock _schedule_loop to return a mock coroutine to avoid unawaited coroutine warning
-        with patch.object(manager, "_schedule_loop") as mock_loop, patch("asyncio.create_task") as mock_create:
-            mock_create.return_value = MagicMock()
+        def close_pending_task(coro, **_):
+            coro.close()
+            return MagicMock()
+
+        with (
+            patch.object(manager, "_schedule_loop") as mock_loop,
+            patch.object(manager, "_snapshot_loop"),
+            patch.object(manager._telemetry, "run") as mock_telemetry,
+            patch("asyncio.create_task", side_effect=close_pending_task),
+        ):
             manager.start_scheduler()
 
             assert manager._scheduler_task is not None
             mock_loop.assert_called_once()
+            mock_telemetry.assert_called_once_with(manager)
 
     def test_stop_scheduler(self, manager):
         """Verify scheduler can be stopped."""
@@ -414,6 +422,7 @@ class TestSmartPlugManager:
         mock_snapshot_task = MagicMock()
         manager._scheduler_task = mock_schedule_task
         manager._snapshot_task = mock_snapshot_task
+        manager._telemetry_task = MagicMock()
 
         # Mock the loop coroutines to avoid unawaited coroutine warnings
         with (
@@ -433,9 +442,13 @@ class TestSmartPlugManager:
         mock_snapshot_task = MagicMock()
         manager._scheduler_task = mock_schedule_task
         manager._snapshot_task = mock_snapshot_task
+        manager._telemetry_task = MagicMock()
 
+        telemetry_task = manager._telemetry_task
         manager.stop_scheduler()
 
+        telemetry_task.cancel.assert_called_once()
+        assert manager._telemetry_task is None
         mock_schedule_task.cancel.assert_called_once()
         mock_snapshot_task.cancel.assert_called_once()
         assert manager._scheduler_task is None

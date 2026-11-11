@@ -23,6 +23,26 @@ class NotificationTemplate(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+LEGACY_WELCOME_TEMPLATE_BODY = (
+    "Welcome {username}!\n\nYour account has been created.\nUsername: {username}\n"
+    "Password: {password}\n\nLogin at: {login_url}"
+)
+WELCOME_TEMPLATE_BODY = (
+    "Welcome {username}!\n\nYour {app_name} account has been created.\n"
+    "Login at: {login_url}\nPlease change your password after your first login."
+)
+
+
+LEGACY_PASSWORD_RESET_TEMPLATE_BODY = (
+    "Hello {username},\n\nYour password has been reset.\nNew Password: {password}\n\nLogin at: {login_url}"
+)
+PASSWORD_RESET_TEMPLATE_BODY = (
+    "Hello {username},\n\nA password reset was requested for your {app_name} account. "
+    "If you did not request it, you can ignore this email. Your password has not been changed.\n\n"
+    "Use the link below to set a new password. The link expires in one hour and can be used once."
+)
+
+
 # Default templates for seeding
 DEFAULT_TEMPLATES = [
     {
@@ -60,6 +80,12 @@ DEFAULT_TEMPLATES = [
         "name": "Print Progress",
         "title_template": "Print {progress}% Complete",
         "body_template": "{printer}: {filename}\nRemaining: {remaining_time}",
+    },
+    {
+        "event_type": "print_confirm_request",
+        "name": "Print Outcome Confirmation",
+        "title_template": "Confirm production quality",
+        "body_template": "{printer}: {filename}\nInspect good and rejected quantities: {confirm_url}",
     },
     {
         "event_type": "print_missing_spool_assignment",
@@ -128,6 +154,12 @@ DEFAULT_TEMPLATES = [
         "body_template": "{printer}: {sensor} is {state}",
     },
     {
+        "event_type": "print_pause_upcoming",
+        "name": "Upcoming Slicer Pause",
+        "title_template": "Upcoming Slicer Pause",
+        "body_template": "{printer}: {filename}\nPauses in {time_to_pause} (about {eta}), at layer {layer}/{total_layers}",
+    },
+    {
         "event_type": "first_layer_complete",
         "name": "First Layer Complete",
         "title_template": "First Layer Complete",
@@ -186,13 +218,13 @@ DEFAULT_TEMPLATES = [
         "event_type": "user_created",
         "name": "Welcome Email",
         "title_template": "Welcome to {app_name}",
-        "body_template": "Welcome {username}!\n\nYour account has been created.\nUsername: {username}\nPassword: {password}\n\nLogin at: {login_url}",
+        "body_template": WELCOME_TEMPLATE_BODY,
     },
     {
         "event_type": "password_reset",
         "name": "Password Reset",
         "title_template": "{app_name} - Password Reset",
-        "body_template": "Hello {username},\n\nYour password has been reset.\nNew Password: {password}\n\nLogin at: {login_url}",
+        "body_template": PASSWORD_RESET_TEMPLATE_BODY,
     },
     # Inventory stock alert templates
     {

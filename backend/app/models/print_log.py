@@ -1,9 +1,12 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, String, event, func
+from sqlalchemy.orm import Mapped, ORMExecuteState, Session, mapped_column, with_loader_criteria
 
 from backend.app.core.database import Base
+
+RUN_OPEN = "printing"
+INCLUDE_OPEN_RUNS = "include_open_runs"
 
 
 class PrintLogEntry(Base):
@@ -52,23 +55,45 @@ class PrintLogEntry(Base):
     confirm_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
     confirm_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
     confirm_token_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    confirm_token_run_scoped: Mapped[bool | None] = mapped_column(Boolean)
     # Independent external-prompt claim; UI hints and public tokens are separate.
     confirm_prompted_at: Mapped[datetime | None] = mapped_column(DateTime)
     print_name: Mapped[str | None] = mapped_column(String(255))
     printer_name: Mapped[str | None] = mapped_column(String(255))
     printer_id: Mapped[int | None] = mapped_column(Integer)
+    pause_warned_layer: Mapped[int | None] = mapped_column(Integer)
+    plate_id: Mapped[int | None] = mapped_column(Integer)
+    subtask_id: Mapped[str | None] = mapped_column(String(64))
+    ended_offline: Mapped[bool | None] = mapped_column(Boolean)
     status: Mapped[str] = mapped_column(String(20))  # completed, failed, stopped, cancelled, skipped
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    # Reconnect-derived estimates belong in totals, never in measured accuracy.
+    duration_unmeasured: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     filament_type: Mapped[str | None] = mapped_column(String(50))
-    filament_color: Mapped[str | None] = mapped_column(String(50))
+    filament_color: Mapped[str | None] = mapped_column(String(200))
     filament_used_grams: Mapped[float | None] = mapped_column(Float)
     cost: Mapped[float | None] = mapped_column(Float)
+    energy_start_kwh: Mapped[float | None] = mapped_column(Float)
+    energy_start_plug_id: Mapped[int | None] = mapped_column(Integer)
     energy_kwh: Mapped[float | None] = mapped_column(Float)
     energy_cost: Mapped[float | None] = mapped_column(Float)
     failure_reason: Mapped[str | None] = mapped_column(String(100))
     thumbnail_path: Mapped[str | None] = mapped_column(String(500))
+    timelapse_path: Mapped[str | None] = mapped_column(String(500))
+    timelapse_baseline: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
+    photos: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True))
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_username: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+_FINISHED_RUNS_ONLY = with_loader_criteria(PrintLogEntry, PrintLogEntry.status != RUN_OPEN, include_aliases=True)
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _hide_open_print_runs(state: ORMExecuteState) -> None:
+    # Keep ongoing runs out of accounting, history and bulk edits.
+    if (state.is_select or state.is_update or state.is_delete) and not state.execution_options.get(INCLUDE_OPEN_RUNS):
+        state.statement = state.statement.options(_FINISHED_RUNS_ONLY)

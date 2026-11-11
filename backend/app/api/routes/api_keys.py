@@ -1,13 +1,16 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequireAdminIfAuthEnabled, RequirePermissionIfAuthEnabled, generate_api_key
-from backend.app.core.database import get_db
+from backend.app.core.auth_sessions import delete_api_key_and_tokens
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
-from backend.app.models.api_key import APIKey, AppMessageQuota
+from backend.app.core.user_printer_scope import prepare_printer_scope_write, validate_printer_grants
+from backend.app.core.websocket import ws_manager
+from backend.app.models.api_key import APIKey
 from backend.app.models.user import User
 from backend.app.schemas.api_key import (
     APIKeyCreate,
@@ -23,7 +26,7 @@ router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 @router.get("/", response_model=list[APIKeyResponse])
 async def list_api_keys(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.API_KEYS_READ),
 ):
     """List all API keys (without full key values)."""
@@ -34,7 +37,7 @@ async def list_api_keys(
 @router.post("/", response_model=APIKeyCreateResponse)
 async def create_api_key(
     data: APIKeyCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.API_KEYS_CREATE),
 ):
@@ -56,6 +59,12 @@ async def create_api_key(
     if data.can_send_notifications and (current_user is None or not current_user.connected_identity):
         raise HTTPException(400, "can_send_notifications requires an authenticated owner")
 
+    owner_id = current_user.id if current_user else None
+    owner_identity = current_user.connected_identity if current_user else None
+    if data.printer_ids:
+        await prepare_printer_scope_write(db)
+        await validate_printer_grants(db, data.printer_ids)
+
     # Generate the key
     full_key, key_hash, key_prefix = generate_api_key()
 
@@ -63,7 +72,7 @@ async def create_api_key(
         name=data.name,
         key_hash=key_hash,
         key_prefix=key_prefix,
-        user_id=current_user.id if current_user else None,
+        user_id=owner_id,
         can_queue=data.can_queue,
         can_control_printer=data.can_control_printer,
         can_read_status=data.can_read_status,
@@ -75,7 +84,7 @@ async def create_api_key(
         can_render_documents=data.can_render_documents,
         can_access_cloud=data.can_access_cloud,
         can_send_notifications=data.can_send_notifications,
-        notification_owner_identity=current_user.connected_identity if current_user else None,
+        notification_owner_identity=owner_identity,
         can_update_energy_cost=data.can_update_energy_cost,
         printer_ids=data.printer_ids,
         expires_at=data.expires_at,
@@ -114,7 +123,7 @@ async def create_api_key(
 @router.get("/{key_id}", response_model=APIKeyResponse)
 async def get_api_key(
     key_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.API_KEYS_READ),
 ):
     """Get an API key by ID."""
@@ -131,11 +140,14 @@ async def get_api_key(
 async def update_api_key(
     key_id: int,
     data: APIKeyUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _admin: User | None = RequireAdminIfAuthEnabled(),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.API_KEYS_UPDATE),
 ):
     """Update an API key."""
+    if data.printer_ids:
+        await prepare_printer_scope_write(db)
+        await validate_printer_grants(db, data.printer_ids)
     result = await db.execute(select(APIKey).where(APIKey.id == key_id))
     api_key = result.scalar_one_or_none()
 
@@ -190,13 +202,17 @@ async def update_api_key(
     await db.flush()
     await db.refresh(api_key)
 
+    if {"printer_ids", "enabled", "expires_at", "can_read_status", "can_access_cloud"} & data.model_fields_set:
+        await db.commit()
+        await ws_manager.refresh_live_access(api_key_id=key_id)
+
     return api_key
 
 
 @router.delete("/{key_id}")
 async def delete_api_key(
     key_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.API_KEYS_DELETE),
 ):
     """Delete (revoke) an API key."""
@@ -206,7 +222,8 @@ async def delete_api_key(
     if not api_key:
         raise HTTPException(status_code=404, detail="API key not found")
 
-    await db.execute(delete(AppMessageQuota).where(AppMessageQuota.key_hash == api_key.key_hash))
-    await db.delete(api_key)
+    await delete_api_key_and_tokens(db, api_key)
+    await db.commit()
+    await ws_manager.close_api_keys([key_id])
 
     return {"message": "API key deleted"}

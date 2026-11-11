@@ -121,10 +121,11 @@ async def test_external_http_source_rejects_dns_answering_loopback() -> None:
 
 
 @pytest.mark.asyncio
-async def test_external_http_source_rejects_mixed_safe_and_link_local_dns_answers() -> None:
+@pytest.mark.parametrize("unsafe_address", ["169.254.1.10", "fd00:ec2::23"])
+async def test_external_http_source_rejects_mixed_safe_and_unsafe_dns_answers(unsafe_address) -> None:
     """Every DNS answer must be safe; selecting only the first answer is a bypass."""
     loop = asyncio.get_running_loop()
-    answers = _dns_answers("192.168.10.20", "169.254.169.254")
+    answers = _dns_answers("192.168.10.20", unsafe_address)
     with (
         patch.object(loop, "getaddrinfo", new=AsyncMock(return_value=answers)),
         pytest.raises(ValueError, match="unsafe external camera"),
@@ -314,9 +315,11 @@ async def test_http_relay_dials_pinned_ip_and_restores_original_host_header() ->
 
 
 @pytest.mark.asyncio
-async def test_http_relay_blocks_upstream_redirects() -> None:
+@pytest.mark.parametrize("provisional", [b"", b"HTTP/1.1 103 Early Hints\r\n\r\n"])
+async def test_http_relay_blocks_upstream_redirects(provisional) -> None:
     async def handle_upstream(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         await reader.readuntil(b"\r\n\r\n")
+        writer.write(provisional)
         writer.write(
             b"HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data\r\nContent-Length: 0\r\n\r\n"
         )
@@ -345,6 +348,44 @@ async def test_http_relay_blocks_upstream_redirects() -> None:
         await prepared.close()
         upstream.close()
         await upstream.wait_closed()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["snapshot", "mjpeg_frame", "mjpeg_stream"])
+async def test_http_camera_consumers_do_not_follow_redirects(operation) -> None:
+    from contextlib import aclosing
+
+    from backend.app.services import external_camera
+
+    requested = []
+
+    async def handle_upstream(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        try:
+            request = await reader.readuntil(b"\r\n\r\n")
+            requested.append(request.split(b"\r\n", 1)[0])
+            writer.write(
+                b"HTTP/1.1 307 Temporary Redirect\r\nLocation: /private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async with await asyncio.start_server(handle_upstream, "127.0.0.1", 0) as upstream:
+        port = upstream.sockets[0].getsockname()[1]
+        url = f"http://camera.example:{port}/live"
+        with patch(
+            "backend.app.services.camera_source_security._resolve_allowed_address",
+            new=AsyncMock(return_value="127.0.0.1"),
+        ):
+            if operation == "snapshot":
+                assert await external_camera._capture_snapshot(url, 1) is None
+            elif operation == "mjpeg_frame":
+                assert await external_camera._capture_mjpeg_frame(url, 1) is None
+            else:
+                async with aclosing(external_camera._stream_mjpeg(url)) as frames:
+                    assert await asyncio.wait_for(anext(frames, None), 1) is None
+    assert requested == [b"GET /live HTTP/1.1"]
 
 
 @pytest.mark.asyncio

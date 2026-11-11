@@ -27,6 +27,7 @@ vi.mock('../../api/client', () => ({
       public detail: Record<string, unknown> | null = null) { super(message); }
   },
   api: {
+    getUiFlags: async () => ({}),
     getSpools: vi.fn().mockResolvedValue([
       { id: 1, material: 'PLA', brand: 'Bambu', tag_uid: 'AA:BB', tray_uuid: null, archived_at: null, color_name: 'Red', rgba: 'FF0000FF', subtype: null, label_weight: 1000, core_weight: 250, weight_used: 100 },
       { id: 2, material: 'PETG', brand: 'Bambu', tag_uid: 'CC:DD', tray_uuid: null, archived_at: null, color_name: 'Blue', rgba: '0000FFFF', subtype: null, label_weight: 1000, core_weight: 250, weight_used: 200 },

@@ -14,7 +14,8 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import get_current_user, get_password_hash, is_auth_enabled, security, verify_password
-from backend.app.core.database import get_db
+from backend.app.core.auth_issuers import bind_user_issuer, user_issuer_valid
+from backend.app.core.database import DB_SESSION
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, AuthRateLimitEvent, EventType, TokenType
 from backend.app.models.connected_app import ConnectedApp, ConnectedAppGrant
 from backend.app.models.user import User
@@ -37,7 +38,7 @@ router = APIRouter(prefix="/connect", tags=["connected-apps"])
 
 async def require_signed_in_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
 ) -> User:
     if not await is_auth_enabled(db):
         raise HTTPException(409, "auth_disabled")
@@ -45,6 +46,8 @@ async def require_signed_in_user(
 
 
 async def require_manager(user: User = Depends(require_signed_in_user)) -> User:
+    if not user.is_admin:
+        raise HTTPException(403, "Administrator access required")
     if not user.has_permission("settings:update"):
         raise HTTPException(403, "Missing required permissions: settings:update")
     return user
@@ -66,7 +69,7 @@ def with_secret(app: ConnectedApp, secret: str) -> ConnectedAppSecretResponse:
 
 
 @router.get("/apps", response_model=list[ConnectedAppResponse])
-async def list_apps(db: AsyncSession = Depends(get_db), _: User = Depends(require_manager)):
+async def list_apps(db: AsyncSession = DB_SESSION, _: User = Depends(require_manager)):
     return (await db.execute(select(ConnectedApp).order_by(ConnectedApp.created_at.desc()))).scalars().all()
 
 
@@ -74,7 +77,7 @@ async def list_apps(db: AsyncSession = Depends(get_db), _: User = Depends(requir
 async def create_app(
     data: ConnectedAppCreate,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User = Depends(require_manager),
 ):
     client_id, secret = new_credentials()
@@ -94,7 +97,7 @@ async def create_app(
 
 @router.patch("/apps/{app_id}", response_model=ConnectedAppResponse)
 async def update_app(
-    app_id: int, data: ConnectedAppUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_manager)
+    app_id: int, data: ConnectedAppUpdate, db: AsyncSession = DB_SESSION, _: User = Depends(require_manager)
 ):
     app = await app_by_id(db, app_id)
     if data.redirect_uri is not None and data.redirect_uri != app.redirect_uri:
@@ -111,7 +114,7 @@ async def update_app(
 
 @router.post("/apps/{app_id}/rotate-secret", response_model=ConnectedAppSecretResponse)
 async def rotate_secret(
-    app_id: int, response: Response, db: AsyncSession = Depends(get_db), _: User = Depends(require_manager)
+    app_id: int, response: Response, db: AsyncSession = DB_SESSION, _: User = Depends(require_manager)
 ):
     app = await app_by_id(db, app_id)
     _, secret = new_credentials()
@@ -124,7 +127,7 @@ async def rotate_secret(
 
 
 @router.delete("/apps/{app_id}")
-async def delete_app(app_id: int, db: AsyncSession = Depends(get_db), _: User = Depends(require_manager)):
+async def delete_app(app_id: int, db: AsyncSession = DB_SESSION, _: User = Depends(require_manager)):
     app = await app_by_id(db, app_id)
     await invalidate_codes(db, app.id)
     await db.execute(delete(ConnectedAppGrant).where(ConnectedAppGrant.app_id == app.id))
@@ -148,7 +151,7 @@ async def authorize_info(
     response: Response,
     client_id: str = Query(..., max_length=64),
     redirect_uri: str = Query(..., max_length=500),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User = Depends(require_signed_in_user),
 ):
     app = await app_for_authorize(db, client_id, redirect_uri)
@@ -165,9 +168,10 @@ async def authorize_info(
 
 @router.post("/authorize", response_model=ConnectAuthorizeResponse)
 async def authorize(
+    request: Request,
     data: ConnectAuthorizeRequest,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = DB_SESSION,
     user: User = Depends(require_signed_in_user),
 ):
     app = await app_for_authorize(db, data.client_id, data.redirect_uri, lock=True)
@@ -193,18 +197,18 @@ async def authorize(
     if granted is None:
         db.add(ConnectedAppGrant(app_id=app.id, user_id=live.id))
     code = secrets.token_urlsafe(32)
-    db.add(
-        AuthEphemeralToken.new_connect_code(
-            code_hash=digest(code),
-            username=live.username,
-            user_id=live.id,
-            identity_nonce=live.connected_identity,
-            app_id=app.id,
-            code_challenge=data.code_challenge,
-            configuration_digest=configuration_digest(app),
-            expires_at=now + timedelta(seconds=60),
-        )
+    issued = AuthEphemeralToken.new_connect_code(
+        code_hash=digest(code),
+        username=live.username,
+        user_id=live.id,
+        identity_nonce=live.connected_identity,
+        app_id=app.id,
+        code_challenge=data.code_challenge,
+        configuration_digest=configuration_digest(app),
+        expires_at=now + timedelta(seconds=60),
     )
+    bind_user_issuer(issued, request, live)
+    db.add(issued)
     await db.commit()
     response.headers["Cache-Control"] = "no-store"
     return ConnectAuthorizeResponse(code=code, redirect_uri=app.redirect_uri)
@@ -216,9 +220,7 @@ def dummy_hash() -> str:
 
 
 @router.post("/token", response_model=ConnectTokenResponse)
-async def exchange_code(
-    request: Request, response: Response, data: ConnectTokenRequest, db: AsyncSession = Depends(get_db)
-):
+async def exchange_code(request: Request, response: Response, data: ConnectTokenRequest, db: AsyncSession = DB_SESSION):
     from backend.app.api.routes.auth import _get_client_ip
     from backend.app.api.routes.mfa import check_rate_limit
 
@@ -280,7 +282,7 @@ async def exchange_code(
             select(User).where(User.id == int(user_id), User.connected_identity == identity_nonce).with_for_update()
         )
     ).scalar_one_or_none()
-    if user is None or not user.is_active:
+    if user is None or not await user_issuer_valid(db, token, user):
         raise await fail(400, "invalid_grant")
     identity = ConnectedUser(
         sub=user.connected_identity,

@@ -213,6 +213,21 @@ class TestMaintenanceItemsAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_performed_maintenance_keeps_the_custom_calendar_interval(self, async_client, maintenance_item):
+        item_id = maintenance_item["id"]
+        override = await async_client.patch(
+            f"/api/v1/maintenance/items/{item_id}",
+            json={"custom_interval_hours": 12, "custom_interval_type": "days"},
+        )
+        assert override.status_code == 200, override.text
+        response = await async_client.post(f"/api/v1/maintenance/items/{item_id}/perform", json={})
+        assert response.status_code == 200, response.text
+        assert response.json()["interval_type"] == "days"
+        assert response.json()["days_until_due"] == 12
+        assert response.json()["hours_until_due"] == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_get_maintenance_history(self, async_client: AsyncClient, maintenance_item):
         """Verify maintenance history can be retrieved."""
         if not maintenance_item:

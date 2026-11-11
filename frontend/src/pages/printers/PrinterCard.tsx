@@ -1,7 +1,9 @@
+import { auxiliaryFanItems, usesExhaustFanLabel } from './printer-fans';
+import { createAmsSlotActions } from './PrinterCardAmsActions';
 import { computePopoverPosition } from '../../utils/popoverPosition';
 import { buildPresetOptions } from '../../utils/temperatureFanPresets';
 import { Checkbox } from '../../components/ui';
-import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, LogIn, LogOut, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
+import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
 import { PrinterCardScaledContent } from './PrinterCardTextScale';
@@ -14,7 +16,7 @@ import { FilamentHoverCard, EmptySlotHoverCard } from '../../components/Filament
 import { ChamberLight } from '../../components/icons/ChamberLight';
 import { PlateClearedIcon } from '../../components/icons/PlateClearedIcon';
 import { SkipObjectsIcon } from '../../components/SkipObjectsModal';
-import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool, slotPresetDescribesTray } from '../../utils/amsHelpers';
+import { pendingSlotSpool, isAmsHtUnit, trayForSlot, getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool, slotPresetDescribesTray } from '../../utils/amsHelpers';
 import { getPrinterImage, getWifiStrength } from '../../utils/printer';
 import { isBedSlinger } from '../../utils/bedSlinger';
 import { PRINTER_CONTROL_CAPABILITIES, isCloudControlCandidate, isCloudControlUncertain, isPrintOpsCloudControlImplemented, type PrinterControlAction } from '../../utils/printerControlCapabilities';
@@ -44,7 +46,7 @@ export function PrinterCard(props: PrinterCardProps) {
   const {
     printer, maintenanceInfo, viewMode, cardSize,
     amsThresholds, spoolmanEnabled, linkedSpools, spoolmanUrl,
-    spoolmanSyncMode, onGetAssignment, onUnassignSpool, spoolmanSpools,
+    onGetAssignment, onUnassignSpool, spoolmanSpools,
     spoolmanSlotAssignments, spoolmanLoading, onUnassignSpoolmanSpool, timeFormat,
     cameraViewMode, onOpenEmbeddedCamera, checkPrinterFirmware, dryingPresets,
     selectionMode, isSelected, onToggleSelect, nozzleTempPresets,
@@ -61,7 +63,7 @@ export function PrinterCard(props: PrinterCardProps) {
     dryingPopoverAmsId, setDryingPopoverAmsId, setDryingPopoverModuleType, setDryingFilament,
     setDryingTemp, setDryingDuration, setDryingRotateTray, setDryingPopoverPos,
     isDraggingFile, isDropUploading, printerActionsMenuRef, setAmsHistoryModal,
-    setHeaterHistoryModal, setLinkSpoolModal, setAssignSpoolModal, setConfigureSlotModal,
+    setHeaterHistoryModal, setAssignSpoolModal, setConfigureSlotModal,
     setShowFirmwareModal, isCheckingPlate, status, firmwareInfo,
     loadedFilamentTypes, loadedFilaments, loadedVariants, filamentInfo,
     slotPresets, amsLabels, refetchAmsLabels, wifiSignal,
@@ -73,14 +75,13 @@ export function PrinterCard(props: PrinterCardProps) {
     canUseFanControls, canUseLightControl, getLocalPrinterControlUnavailableTitle, getPrinterControlUnavailableTitle,
     getControlActionTitle, canUsePrinterControl, activePrintName, retainedPrintJob,
     plateStatus, deleteMutation, connectMutation, forceRefreshMutation,
-    unlinkSpoolMutation, stopDryingMutation, powerControlMutation, toggleAutoOffMutation,
+    stopDryingMutation, powerControlMutation, toggleAutoOffMutation,
     runScriptMutation, stopPrintMutation, pausePrintMutation, resumePrintMutation,
     clearPlateMutation, nozzleTemperatureMutation, bedTemperatureMutation, chamberTemperatureMutation,
     fanSpeedMutation, selectExtruderMutation, chamberLightMutation, printSpeedMutation,
     airductMutation, bedJogMutation, xyJogMutation, extruderJogMutation,
     homeAxesMutation, plateDetectionMutation, maintenanceMutation, handleEnterMaintenance,
-    objectsData, refreshingSlot, refreshAmsSlotMutation, loadAmsTrayMutation,
-    unloadAmsMutation, handleTogglePlateDetection, handleOpenPlateManagement, getImageSize,
+    objectsData, refreshingSlot, handleTogglePlateDetection, handleOpenPlateManagement, getImageSize,
     getTitleSize, getSpacing, canDrop, handleCardDragEnter,
     handleCardDragOver, handleCardDragLeave, handleCardDrop, handleCardClick,
     footerActionButtonClass, footerIconButtonClass,
@@ -92,79 +93,7 @@ const plateStatusPill = plateStatus ? (
     </span>
   ) : null;
 
-const renderAmsSlotActions = ({
-    amsId,
-    slotId,
-    loadTrayId,
-    isRefreshing,
-    includeRfid = true,
-  }: {
-    amsId: number;
-    slotId: number;
-    loadTrayId: number;
-    isRefreshing?: boolean;
-    includeRfid?: boolean;
-  }) => {
-    const printerBusy = status?.state === 'RUNNING';
-
-    return (
-      <>
-        {includeRfid && (
-          <button
-            className={`w-full px-2 py-1.5 text-left text-xs flex items-center gap-2 rounded transition-colors ${
-              hasPermission('printers:ams_rfid') && !localPrinterControlUnavailable
-                ? 'text-white hover:bg-bambu-dark-tertiary'
-                : 'text-bambu-gray/50 cursor-not-allowed'
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (printerBusy || localPrinterControlUnavailable || !hasPermission('printers:ams_rfid')) return;
-              refreshAmsSlotMutation.mutate({ amsId, slotId });
-            }}
-            disabled={printerBusy || isRefreshing || localPrinterControlUnavailable || !hasPermission('printers:ams_rfid')}
-            title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : localPrinterControlUnavailable ? getLocalPrinterControlUnavailableTitle('amsSlot') : !hasPermission('printers:ams_rfid') ? t('printers.permission.noAmsRfid') : undefined}
-          >
-            <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {t('printers.rfid.reread')}
-          </button>
-        )}
-        <button
-          className={`w-full px-2 py-1.5 text-left text-xs flex items-center gap-2 rounded transition-colors ${
-            canUsePrinterControl
-              ? 'text-white hover:bg-bambu-dark-tertiary'
-              : 'text-bambu-gray/50 cursor-not-allowed'
-          }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (printerBusy || !canUsePrinterControl) return;
-            loadAmsTrayMutation.mutate({ trayId: loadTrayId });
-          }}
-          disabled={printerBusy || !canUsePrinterControl}
-          title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !canUsePrinterControl ? getPrinterControlUnavailableTitle('amsSlot') : undefined}
-        >
-          <LogIn className="w-3 h-3" />
-          {t('printers.ams.load')}
-        </button>
-        <button
-          className={`w-full px-2 py-1.5 text-left text-xs flex items-center gap-2 rounded transition-colors ${
-            canUsePrinterControl
-              ? 'text-white hover:bg-bambu-dark-tertiary'
-              : 'text-bambu-gray/50 cursor-not-allowed'
-          }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (printerBusy || !canUsePrinterControl) return;
-            unloadAmsMutation.mutate();
-          }}
-          disabled={printerBusy || !canUsePrinterControl}
-          title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !canUsePrinterControl ? getPrinterControlUnavailableTitle('amsSlot') : undefined}
-        >
-          <LogOut className="w-3 h-3" />
-          {t('printers.ams.unload')}
-        </button>
-      </>
-    );
-  };
+const renderAmsSlotActions = createAmsSlotActions(model);
 const printerActionsMenu = (
     <div ref={printerActionsMenuRef} className="relative flex-shrink-0">
       <Button
@@ -947,6 +876,18 @@ return (
               </>
             )}
 
+            {status.state === 'RUNNING' && status.next_pause && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400">
+                <Pause className="w-3 h-3 shrink-0" aria-hidden="true" />
+                {status.next_pause.minutes == null
+                  ? t('printers.pauseAtLayer', { layer: status.next_pause.layer })
+                  : t('printers.pauseIn', {
+                    layer: status.next_pause.layer,
+                    time: formatDuration(Math.max(status.next_pause.minutes, 1) * 60),
+                  })}
+              </p>
+            )}
+
             {/* Temperatures */}
             {status.temperatures && viewMode === 'expanded' && (() => {
               // Use actual heater states from MQTT stream
@@ -992,18 +933,12 @@ return (
                   Icon: Fan,
                   activeClass: 'text-cyan-600 dark:text-cyan-400',
                 },
-                {
-                  key: 'aux',
-                  label: t('printers.fans.auxiliary'),
-                  value: status.big_fan1_speed ?? 0,
-                  Icon: Wind,
-                  activeClass: 'text-blue-600 dark:text-blue-400',
-                },
-                ...(hasChamberFan
+                ...auxiliaryFanItems(printer.model, status, t).map(item => ({ ...item, Icon: Wind })),
+                ...(hasChamberFan && (!usesExhaustFanLabel(printer.model) || status.exhaust_fan_present !== false)
                   ? [
                       {
                         key: 'chamber',
-                        label: t('printers.fans.chamber'),
+                        label: t(usesExhaustFanLabel(printer.model) ? 'printers.fans.exhaust' : 'printers.fans.chamber'),
                         value: status.big_fan2_speed ?? 0,
                         Icon: AirVent,
                         activeClass: 'text-green-600 dark:text-green-400',
@@ -1255,7 +1190,7 @@ return (
                               isPending={fanSpeedMutation.isPending}
                               options={buildPresetOptions(fanSpeedPresets, '%')}
                               onClose={() => setStatusControlMenu(null)}
-                              onSubmit={(speed) => fanSpeedMutation.mutate({ fan: key as 'part' | 'aux' | 'chamber', speed })}
+                              onSubmit={(speed) => fanSpeedMutation.mutate({ fan: key as 'part' | 'aux' | 'aux2' | 'chamber', speed })}
                             />
                           )}
                         </div>
@@ -1321,7 +1256,7 @@ return (
                       </button>
 
                       {/* Airduct Mode (P2S / X2D / H2*) */}
-                      {(['P2S', 'X2D', 'H2D', 'H2C', 'H2S'].includes(printer.model ?? '')) && (() => {
+                      {(['P2S', 'X2D', 'H2D Pro', 'H2C', 'H2S'].includes(printer.model ?? '')) && (() => {
                         const isHeating = status.airduct_mode === 1;
                         const Icon = isHeating ? Flame : Snowflake;
                         const color = isHeating ? 'text-orange-600 dark:text-orange-400' : 'text-sky-600 dark:text-sky-400';
@@ -1679,8 +1614,8 @@ return (
             {(amsData?.length > 0 || status.vt_tray.length > 0) && viewMode === 'expanded' && (() => {
               const hasLiveAms = (status.ams?.length ?? 0) > 0;
               // Separate regular AMS (4-tray) from HT AMS (1-tray)
-              const regularAms = amsData.filter(ams => ams.tray.length > 1);
-              const htAms = amsData.filter(ams => ams.tray.length === 1);
+              const regularAms = amsData.filter(ams => !isAmsHtUnit(ams.id));
+              const htAms = amsData.filter(ams => isAmsHtUnit(ams.id));
               const isDualNozzle = printer.nozzle_count === 2 || status?.temperatures?.nozzle_2 !== undefined;
               const filamentSlotClass = 'min-w-14';
               // #1762 (comment 2): while a print is running/paused, overlay a small
@@ -1725,13 +1660,13 @@ return (
                                 <AmsNameHoverCard
                                   ams={ams}
                                   printerId={printer.id}
-                                  label={getAmsLabel(ams.id, ams.tray.length)}
+                                  label={getAmsLabel(ams.id)}
                                   amsLabels={amsLabels}
                                   canEdit={hasPermission('printers:update')}
                                   onSaved={refetchAmsLabels}
                                 >
                                   <span className="block truncate text-[10px] text-white font-medium cursor-default select-none">
-                                    {amsLabels?.[ams.id] || getAmsLabel(ams.id, ams.tray.length)}
+                                    {amsLabels?.[ams.id] || getAmsLabel(ams.id)}
                                   </span>
                                 </AmsNameHoverCard>
                                 {isDualNozzle && (isLeftNozzle || isRightNozzle) && (
@@ -1747,7 +1682,7 @@ return (
                                       fairThreshold={amsThresholds?.humidityFair}
                                       onClick={() => setAmsHistoryModal({
                                         amsId: ams.id,
-                                        amsLabel: getAmsLabel(ams.id, ams.tray.length),
+                                        amsLabel: getAmsLabel(ams.id),
                                         mode: 'humidity',
                                       })}
                                       compact
@@ -1761,7 +1696,7 @@ return (
                                         fairThreshold={amsThresholds?.tempFair}
                                         onClick={() => setAmsHistoryModal({
                                           amsId: ams.id,
-                                          amsLabel: getAmsLabel(ams.id, ams.tray.length),
+                                          amsLabel: getAmsLabel(ams.id),
                                           mode: 'temperature',
                                         })}
                                         compact
@@ -1842,7 +1777,7 @@ return (
                               {[0, 1, 2, 3].map((slotIdx) => {
                                 // Find tray data for this slot (may be undefined if data incomplete)
                                 // Use array index if available, as tray.id may not always be set
-                                const tray = ams.tray[slotIdx] || ams.tray.find(t => t.id === slotIdx);
+                                const tray = trayForSlot(ams.tray, slotIdx);
                                 const hasFillLevel = tray?.tray_type && tray.remain >= 0;
                                 const isEmpty = !tray?.tray_type;
                                 const emptyKind = getEmptySlotKind(tray);
@@ -1902,7 +1837,7 @@ return (
                                   // vendor-less form. Strip the "@<printer>..." suffix that
                                   // BambuStudio appends to user-preset names.
                                   profile: slotPreset?.preset_name || (slotSpoolForFill ? [slotSpoolForFill.brand, slotSpoolForFill.slicer_filament_name?.split('@')[0].trim() || slotSpoolForFill.material].filter(Boolean).join(' ').trim() : null) || inventoryAssignment?.spool?.slicer_filament_name || cloudInfo?.name || tray.tray_sub_brands || tray.tray_type,
-                                  colorName: getColorName(tray.tray_color || ''),
+                                  colorName: getColorName(tray.tray_color || '', tray.tray_sub_brands, tray.tray_info_idx),
                                   colorHex: tray.tray_color || null,
                                   kFactor: formatKValue(tray.k),
                                   fillLevel: effectiveFill,
@@ -1920,10 +1855,19 @@ return (
                                 const activePrintSlotLabel = activePrintSlotIdx >= 0
                                   ? `P${activePrintSlotIdx + 1}`
                                   : null;
+                                const pending = isEmpty
+                                  ? pendingSlotSpool(
+                                      emptyKind,
+                                      spoolmanEnabled ? slotSpoolForFill : inventoryAssignment?.spool,
+                                      spoolmanEnabled
+                                        ? (slotSpoolForFill ? () => onUnassignSpoolmanSpool?.(slotSpoolForFill.id) : undefined)
+                                        : (inventoryAssignment ? () => onUnassignSpool?.(printer.id, ams.id, slotIdx) : undefined),
+                                    )
+                                  : null;
                                 // Slot visual content (goes inside hover card)
                                 const slotVisual = (
                                   <div
-                                    className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty ? 'opacity-50' : ''} ${
+                                    className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty && !pending ? 'opacity-50' : ''} ${
                                       isExpectedSlot
                                         ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-bambu-dark animate-pulse'
                                         : isRanOutSlot
@@ -1957,10 +1901,11 @@ return (
                                       trayType={tray?.tray_type}
                                       isEmpty={isEmpty}
                                       emptyKind={emptyKind}
+                                      pendingColor={pending?.colorHex}
                                       slotNumber={slotIdx + 1}
                                     />
                                     <div className="text-[9px] text-white font-bold truncate">
-                                      {tray?.tray_type || t(emptyKind === 'reset' ? 'ams.slotUnconfigured' : 'ams.slotEmpty')}
+                                      {tray?.tray_type || pending?.material || t(emptyKind === 'reset' ? 'ams.slotUnconfigured' : 'ams.slotEmpty')}
                                     </div>
                                     {/* Fill bar */}
                                     <div className="mt-1 h-1.5 bg-black/30 rounded-full overflow-hidden">
@@ -2004,22 +1949,6 @@ return (
                                           linkedSpoolId: slotAssignmentForFill?.spoolman_spool_id
                                             ?? (trayTag ? linkedSpools?.[trayTag]?.id : undefined),
                                           spoolmanUrl,
-                                          syncMode: spoolmanSyncMode,
-                                          // Suppress Link button when slot is already occupied by ANY assignment
-                                          // (Spoolman SlotAssignment OR local SpoolAssignment). Phase 9 only
-                                          // suppressed for Spoolman; the maintainer screenshot shows the badge
-                                          // still appearing on slots with a local Devil Design PLA assigned.
-                                          onLinkSpool: (spoolmanEnabled && !slotAssignmentForFill && !inventoryAssignment) ? () => {
-                                            const linkTag = (filamentData.trayUuid || filamentData.tagUid || getFallbackSpoolTag(printer.serial_number, ams.id, slotIdx)).toUpperCase();
-                                            setLinkSpoolModal({
-                                              tagUid: filamentData.tagUid || linkTag,
-                                              trayUuid: filamentData.trayUuid || '',
-                                              printerId: printer.id,
-                                              amsId: ams.id,
-                                              trayId: slotIdx,
-                                            });
-                                          } : undefined,
-                                          onUnlinkSpool: linkedSpool?.id ? () => unlinkSpoolMutation.mutate(linkedSpool.id) : undefined,
                                         }}
                                         inventory={(() => {
                                           if (spoolmanEnabled) {
@@ -2045,7 +1974,7 @@ return (
                                                   material: tray?.tray_type ?? undefined,
                                                   profile: filamentData.profile,
                                                   color: filamentData.colorHex || '',
-                                                  location: `${getAmsLabel(ams.id, ams.tray.length)} Slot ${slotIdx + 1}`,
+                                                  location: `${getAmsLabel(ams.id)} Slot ${slotIdx + 1}`,
                                                 },
                                               }),
                                               onUnassignSpool: (spoolmanSpool && !isBambuLabSpool(tray)) ? () => onUnassignSpoolmanSpool?.(spoolmanSpool.id) : undefined,
@@ -2070,7 +1999,7 @@ return (
                                                 material: tray?.tray_type ?? undefined,
                                                 profile: filamentData.profile,
                                                 color: filamentData.colorHex || '',
-                                                location: `${getAmsLabel(ams.id, ams.tray.length)} Slot ${slotIdx + 1}`,
+                                                location: `${getAmsLabel(ams.id)} Slot ${slotIdx + 1}`,
                                               },
                                             }),
                                             onUnassignSpool: (assignment && !isBambuLabSpool(tray)) ? () => onUnassignSpool?.(printer.id, ams.id, slotIdx) : undefined,
@@ -2098,6 +2027,7 @@ return (
                                     ) : (
                                       <EmptySlotHoverCard
                                         kind={emptyKind ?? undefined}
+                                        assigned={pending ?? undefined}
                                         actions={renderAmsSlotActions({
                                           amsId: ams.id,
                                           slotId: slotIdx,
@@ -2122,7 +2052,7 @@ return (
                                             material: undefined,
                                             profile: '',
                                             color: '',
-                                            location: `${getAmsLabel(ams.id, ams.tray.length)} Slot ${slotIdx + 1}`,
+                                            location: `${getAmsLabel(ams.id)} Slot ${slotIdx + 1}`,
                                           },
                                         })}
                                       >
@@ -2193,7 +2123,7 @@ return (
                         const filamentData = tray?.tray_type ? {
                           vendor: (isBambuLabSpool(tray) ? 'Bambu Lab' : 'Generic') as 'Bambu Lab' | 'Generic',
                           profile: slotPreset?.preset_name || (htSlotSpoolForFill ? [htSlotSpoolForFill.brand, htSlotSpoolForFill.slicer_filament_name?.split('@')[0].trim() || htSlotSpoolForFill.material].filter(Boolean).join(' ').trim() : null) || htInventoryAssignment?.spool?.slicer_filament_name || cloudInfo?.name || tray.tray_sub_brands || tray.tray_type,
-                          colorName: getColorName(tray.tray_color || ''),
+                          colorName: getColorName(tray.tray_color || '', tray.tray_sub_brands, tray.tray_info_idx),
                           colorHex: tray.tray_color || null,
                           kFactor: formatKValue(tray.k),
                           fillLevel: htEffectiveFill,
@@ -2211,10 +2141,19 @@ return (
                         const htActivePrintSlotLabel = htActivePrintSlotIdx >= 0
                           ? `P${htActivePrintSlotIdx + 1}`
                           : null;
+                        const pending = isEmpty
+                          ? pendingSlotSpool(
+                              emptyKind,
+                              spoolmanEnabled ? htSlotSpoolForFill : htInventoryAssignment?.spool,
+                              spoolmanEnabled
+                                ? (htSlotSpoolForFill ? () => onUnassignSpoolmanSpool?.(htSlotSpoolForFill.id) : undefined)
+                                : (htInventoryAssignment ? () => onUnassignSpool?.(printer.id, ams.id, htSlotId) : undefined),
+                            )
+                          : null;
                         // Slot visual content (goes inside hover card)
                         const slotVisual = (
                           <div
-                            className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty ? 'opacity-50' : ''} ${
+                            className={`relative w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty && !pending ? 'opacity-50' : ''} ${
                               isExpectedSlot
                                 ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-bambu-dark animate-pulse'
                                 : isRanOutSlot
@@ -2248,10 +2187,11 @@ return (
                               trayType={tray?.tray_type}
                               isEmpty={isEmpty}
                               emptyKind={emptyKind}
+                              pendingColor={pending?.colorHex}
                               slotNumber={1}
                             />
                             <div className="text-[9px] text-white font-bold truncate">
-                              {tray?.tray_type || t(emptyKind === 'reset' ? 'ams.slotUnconfigured' : 'ams.slotEmpty')}
+                              {tray?.tray_type || pending?.material || t(emptyKind === 'reset' ? 'ams.slotUnconfigured' : 'ams.slotEmpty')}
                             </div>
                             {/* Fill bar */}
                             <div className="mt-1 h-1.5 bg-black/30 rounded-full overflow-hidden">
@@ -2282,13 +2222,13 @@ return (
                                 <AmsNameHoverCard
                                   ams={ams}
                                   printerId={printer.id}
-                                  label={getAmsLabel(ams.id, ams.tray.length)}
+                                  label={getAmsLabel(ams.id)}
                                   amsLabels={amsLabels}
                                   canEdit={hasPermission('printers:update')}
                                   onSaved={refetchAmsLabels}
                                 >
                                   <span className="block truncate text-[10px] text-white font-medium cursor-default select-none">
-                                    {amsLabels?.[ams.id] || getAmsLabel(ams.id, ams.tray.length)}
+                                    {amsLabels?.[ams.id] || getAmsLabel(ams.id)}
                                   </span>
                                 </AmsNameHoverCard>
                                 {isDualNozzle && (isLeftNozzle || isRightNozzle) && (
@@ -2378,7 +2318,7 @@ return (
                                     actions={renderAmsSlotActions({
                                       amsId: ams.id,
                                       slotId: htSlotId,
-                                      loadTrayId: ams.id * 4 + htSlotId,
+                                      loadTrayId: ams.id,
                                       isRefreshing: isHtRefreshing,
                                     })}
                                     spoolman={{
@@ -2387,19 +2327,6 @@ return (
                                       linkedSpoolId: htSlotAssignmentForFill?.spoolman_spool_id
                                         ?? (htTrayTag ? linkedSpools?.[htTrayTag]?.id : undefined),
                                       spoolmanUrl,
-                                      syncMode: spoolmanSyncMode,
-                                      // Suppress Link button when slot is occupied by ANY assignment (Phase 13 P13-6d)
-                                      onLinkSpool: (spoolmanEnabled && !htSlotAssignmentForFill && !htInventoryAssignment) ? () => {
-                                        const linkTag = (filamentData.trayUuid || filamentData.tagUid || getFallbackSpoolTag(printer.serial_number, ams.id, htSlotId)).toUpperCase();
-                                        setLinkSpoolModal({
-                                          tagUid: filamentData.tagUid || linkTag,
-                                          trayUuid: filamentData.trayUuid || '',
-                                          printerId: printer.id,
-                                          amsId: ams.id,
-                                          trayId: htSlotId,
-                                        });
-                                      } : undefined,
-                                      onUnlinkSpool: htLinkedSpool?.id ? () => unlinkSpoolMutation.mutate(htLinkedSpool.id) : undefined,
                                     }}
                                     inventory={(() => {
                                       if (spoolmanEnabled) {
@@ -2425,7 +2352,7 @@ return (
                                               material: tray?.tray_type ?? undefined,
                                               profile: filamentData.profile,
                                               color: filamentData.colorHex || '',
-                                              location: getAmsLabel(ams.id, ams.tray.length),
+                                              location: getAmsLabel(ams.id),
                                             },
                                           }),
                                           onUnassignSpool: (spoolmanSpool && !isBambuLabSpool(tray)) ? () => onUnassignSpoolmanSpool?.(spoolmanSpool.id) : undefined,
@@ -2450,7 +2377,7 @@ return (
                                             material: tray?.tray_type ?? undefined,
                                             profile: filamentData.profile,
                                             color: filamentData.colorHex || '',
-                                            location: getAmsLabel(ams.id, ams.tray.length),
+                                            location: getAmsLabel(ams.id),
                                           },
                                         }),
                                         onUnassignSpool: (assignment && !isBambuLabSpool(tray)) ? () => onUnassignSpool?.(printer.id, ams.id, htSlotId) : undefined,
@@ -2478,10 +2405,11 @@ return (
                                 ) : (
                                   <EmptySlotHoverCard
                                     kind={emptyKind ?? undefined}
+                                    assigned={pending ?? undefined}
                                     actions={renderAmsSlotActions({
                                       amsId: ams.id,
                                       slotId: htSlotId,
-                                      loadTrayId: ams.id * 4 + htSlotId,
+                                      loadTrayId: ams.id,
                                       isRefreshing: isHtRefreshing,
                                     })}
                                     configureSlot={{
@@ -2502,7 +2430,7 @@ return (
                                         material: undefined,
                                         profile: '',
                                         color: '',
-                                        location: getAmsLabel(ams.id, ams.tray.length),
+                                        location: getAmsLabel(ams.id),
                                       },
                                     })}
                                   >
@@ -2520,7 +2448,7 @@ return (
                                       fairThreshold={amsThresholds?.tempFair}
                                       onClick={() => setAmsHistoryModal({
                                         amsId: ams.id,
-                                        amsLabel: getAmsLabel(ams.id, ams.tray.length),
+                                        amsLabel: getAmsLabel(ams.id),
                                         mode: 'temperature',
                                       })}
                                       compact
@@ -2533,7 +2461,7 @@ return (
                                       fairThreshold={amsThresholds?.humidityFair}
                                       onClick={() => setAmsHistoryModal({
                                         amsId: ams.id,
-                                        amsLabel: getAmsLabel(ams.id, ams.tray.length),
+                                        amsLabel: getAmsLabel(ams.id),
                                         mode: 'humidity',
                                       })}
                                       compact
@@ -2602,7 +2530,7 @@ return (
                               const extFilamentData = {
                                 vendor: (isBambuLabSpool(extTray) ? 'Bambu Lab' : 'Generic') as 'Bambu Lab' | 'Generic',
                                 profile: extSlotPreset?.preset_name || (extSlotSpoolForFill ? [extSlotSpoolForFill.brand, extSlotSpoolForFill.slicer_filament_name?.split('@')[0].trim() || extSlotSpoolForFill.material].filter(Boolean).join(' ').trim() : null) || extInventoryAssignment?.spool?.slicer_filament_name || extCloudInfo?.name || extTray.tray_sub_brands || extTray.tray_type || 'Unknown',
-                                colorName: getColorName(extTray.tray_color || ''),
+                                colorName: getColorName(extTray.tray_color || '', extTray.tray_sub_brands, extTray.tray_info_idx),
                                 colorHex: extTray.tray_color || null,
                                 kFactor: formatKValue(extTray.k),
                                 fillLevel: extEffectiveFill,
@@ -2613,8 +2541,17 @@ return (
 
                               const isEmpty = !extTray.tray_type;
                               const emptyKind = getEmptySlotKind(extTray);
+                              const pending = isEmpty
+                                ? pendingSlotSpool(
+                                    emptyKind,
+                                    spoolmanEnabled ? extSlotSpoolForFill : extInventoryAssignment?.spool,
+                                    spoolmanEnabled
+                                      ? (extSlotSpoolForFill ? () => onUnassignSpoolmanSpool?.(extSlotSpoolForFill.id) : undefined)
+                                      : (extInventoryAssignment ? () => onUnassignSpool?.(printer.id, 255, slotTrayId) : undefined),
+                                  )
+                                : null;
                               const extSlotContent = (
-                                <div className={`w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty ? 'opacity-50' : ''} ${isExtActive ? 'ring-2 ring-bambu-green ring-offset-1 ring-offset-bambu-dark' : ''}`}>
+                                <div className={`w-full bg-bambu-dark-secondary rounded-lg p-1 text-center ${isEmpty && !pending ? 'opacity-50' : ''} ${isExtActive ? 'ring-2 ring-bambu-green ring-offset-1 ring-offset-bambu-dark' : ''}`}>
                                   {/* Color circle: L/R inside on dual-nozzle external (replaces
                                       the separate Ext-L/Ext-R caption that made the row taller than
                                       regular AMS slots), 1-based slot number on single-nozzle. */}
@@ -2623,10 +2560,11 @@ return (
                                     trayType={extTray.tray_type}
                                     isEmpty={isEmpty}
                                     emptyKind={emptyKind}
+                                    pendingColor={pending?.colorHex}
                                     slotNumber={isDualNozzle ? (extTrayId === 254 ? 'L' : 'R') : slotTrayId + 1}
                                   />
                                   <div className={`text-[9px] font-bold truncate ${isEmpty ? 'text-white/40' : 'text-white'}`}>
-                                    {extTray.tray_type || t('ams.slotEmpty')}
+                                    {extTray.tray_type || pending?.material || t('ams.slotEmpty')}
                                   </div>
                                   <div className="mt-1 h-1.5 bg-black/30 rounded-full overflow-hidden">
                                     {extEffectiveFill !== null && extEffectiveFill >= 0 && !isEmpty && (
@@ -2659,19 +2597,6 @@ return (
                                         linkedSpoolId: extSlotAssignmentForFill?.spoolman_spool_id
                                           ?? (extTrayTag ? linkedSpools?.[extTrayTag]?.id : undefined),
                                         spoolmanUrl,
-                                        syncMode: spoolmanSyncMode,
-                                        // Suppress Link button when slot is occupied by ANY assignment (Phase 13 P13-6d)
-                                        onLinkSpool: (spoolmanEnabled && !extSlotAssignmentForFill && !extInventoryAssignment) ? () => {
-                                          const linkTag = (extFilamentData.trayUuid || extFilamentData.tagUid || getFallbackSpoolTag(printer.serial_number, 255, slotTrayId)).toUpperCase();
-                                          setLinkSpoolModal({
-                                            tagUid: extFilamentData.tagUid || linkTag,
-                                            trayUuid: extFilamentData.trayUuid || '',
-                                            printerId: printer.id,
-                                            amsId: 255,
-                                            trayId: slotTrayId,
-                                          });
-                                        } : undefined,
-                                        onUnlinkSpool: extLinkedSpool?.id ? () => unlinkSpoolMutation.mutate(extLinkedSpool.id) : undefined,
                                       }}
                                       inventory={(() => {
                                         if (spoolmanEnabled) {
@@ -2750,6 +2675,7 @@ return (
                                   ) : (
                                     <EmptySlotHoverCard
                                       kind={emptyKind ?? undefined}
+                                      assigned={pending ?? undefined}
                                       actions={renderAmsSlotActions({
                                         amsId: 255,
                                         slotId: slotTrayId,

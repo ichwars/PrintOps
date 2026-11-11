@@ -2,12 +2,30 @@
  * Tests for the ArchivesPage component.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { render, selectComboboxOption } from '../utils';
 import { ArchivesPage } from '../../pages/ArchivesPage';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
+
+const permissions = vi.hoisted(() => ({ canReprint: true }));
+
+vi.mock('../../contexts/AuthContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../contexts/AuthContext')>();
+  return {
+    ...actual,
+    useAuth: () => {
+      const auth = actual.useAuth();
+      return {
+        ...auth,
+        canModify: (...args: Parameters<typeof auth.canModify>) => (
+          args[0] === 'archives' && args[1] === 'reprint' ? permissions.canReprint : auth.canModify(...args)
+        ),
+      };
+    },
+  };
+});
 
 const mockArchives = [
   {
@@ -67,7 +85,37 @@ const mockArchiveStats = {
 };
 
 describe('ArchivesPage', () => {
+  it('highlights the surviving entry when an older archive link was merged', async () => {
+    window.history.replaceState({}, '', '/archives?highlight=78');
+    const scroll = vi.fn();
+    const originalScroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scroll;
+    server.use(http.get('/api/v1/archives/78', () => HttpResponse.json(mockArchives[0])));
+    try {
+      render(<ArchivesPage />);
+      await waitFor(() => expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' }));
+      expect(scroll.mock.contexts[0]).toHaveAttribute('data-archive-id', String(mockArchives[0].id));
+    } finally {
+      window.history.replaceState({}, '', '/');
+      Element.prototype.scrollIntoView = originalScroll;
+    }
+  });
+
+  it('shows full-print costs and distinguishes aborted and cancelled runs', async () => {
+    server.use(http.get('/api/v1/archives/', () => HttpResponse.json([
+      { ...mockArchives[0], cost: 5, status: 'aborted' },
+      { ...mockArchives[1], cost: 7, status: 'cancelled' },
+    ])));
+    render(<ArchivesPage />);
+    expect(await screen.findByText('aborted')).toBeInTheDocument();
+    expect(screen.getByText('cancelled')).toBeInTheDocument();
+    for (const cost of screen.getAllByTestId('archive-cost')) {
+      expect(cost).toHaveAttribute('title', 'Cost of one full print. The Print Log shows what this run used.');
+    }
+  });
+
   beforeEach(() => {
+    permissions.canReprint = true;
     server.use(
       http.get('/api/v1/archives/', () => {
         return HttpResponse.json(mockArchives);
@@ -119,6 +167,33 @@ describe('ArchivesPage', () => {
         expect(screen.getByText('Bracket v2')).toBeInTheDocument();
       });
     });
+  });
+
+  it.each([true, false])('applies archive reprint permission only to server slicing (%s)', async (useSlicerApi) => {
+    permissions.canReprint = false;
+    localStorage.setItem('archiveViewMode', 'grid');
+    server.use(
+      http.get('/api/v1/settings/ui-flags', () => HttpResponse.json({ use_slicer_api: useSlicerApi })),
+      http.get('/api/v1/archives/', () => HttpResponse.json([{
+        ...mockArchives[0],
+        filename: 'benchy.stl',
+        print_time_seconds: null,
+        file_path: 'benchy.stl',
+      }])),
+    );
+
+    render(<ArchivesPage />);
+    const title = await screen.findByText('Benchy');
+    const primaryAction = screen.getByRole('button', { name: /^slice$/i });
+    if (useSlicerApi) expect(primaryAction).toBeDisabled();
+    else expect(primaryAction).toBeEnabled();
+    fireEvent.contextMenu(title);
+    const actions = screen.getAllByRole('button', { name: /^slice$/i });
+    expect(actions).toHaveLength(2);
+    for (const action of actions) {
+      if (useSlicerApi) expect(action).toBeDisabled();
+      else expect(action).toBeEnabled();
+    }
   });
 
   describe('archive info', () => {

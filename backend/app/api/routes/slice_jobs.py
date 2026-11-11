@@ -6,9 +6,13 @@ status flips to `completed` or `failed`.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import require_ownership_permission
+from backend.app.core.auth import require_ownership_permission, resolve_optional_api_key
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.core.row_visibility import resolve_row_visibility
+from backend.app.models.api_key import APIKey
 from backend.app.models.user import User
 from backend.app.services.slice_dispatch import slice_dispatch
 
@@ -18,23 +22,20 @@ router = APIRouter(prefix="/slice-jobs", tags=["slice-jobs"])
 @router.get("/{job_id}")
 async def get_slice_job(
     job_id: int,
-    # Job IDs are sequential integers and the body leaks source filenames
-    # plus the resulting library_file_id / archive_id. Gate on the library
-    # read permission family (own/all). SliceJob carries the initiating user,
-    # so OWN callers can poll only their jobs while ALL callers retain the
-    # operational overview.
     auth_result: tuple[User | None, bool] = Depends(
         require_ownership_permission(
             Permission.LIBRARY_READ_ALL,
             Permission.LIBRARY_READ_OWN,
         )
     ),
+    db: AsyncSession = DB_SESSION,
+    api_key: APIKey | None = Depends(resolve_optional_api_key),
 ):
+    visibility = await resolve_row_visibility(db, auth_result[0], api_key)
     job = slice_dispatch.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Slice job not found or expired")
-    user, can_read_all = auth_result
-    if not can_read_all and (user is None or job.owner_id is None or job.owner_id != user.id):
+    if job is None or not visibility.can_access_owner(
+        job.owner_id, Permission.LIBRARY_READ_ALL, Permission.LIBRARY_READ_OWN
+    ):
         raise HTTPException(status_code=404, detail="Slice job not found or expired")
     body: dict = {
         "job_id": job.id,

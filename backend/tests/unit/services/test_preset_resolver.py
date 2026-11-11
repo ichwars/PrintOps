@@ -355,7 +355,11 @@ async def test_orca_cloud_unwraps_content():
         return_value={
             "id": "abc",
             "name": "X1C Custom",
-            "content": {"name": "X1C Custom", "nozzle_diameter": [0.4]},
+            "content": {
+                "name": "X1C Custom",
+                "nozzle_diameter": [0.4],
+                "compatible_printers": '"Bambu Lab A1";"Maker; model"',
+            },
         }
     )
     svc_mock.close = AsyncMock()
@@ -370,6 +374,7 @@ async def test_orca_cloud_unwraps_content():
     assert payload == {
         "name": "X1C Custom",
         "nozzle_diameter": [0.4],
+        "compatible_printers": ["Bambu Lab A1", "Maker; model"],
         "type": "machine",
         "from": "system",
     }
@@ -435,3 +440,21 @@ async def test_resolve_preset_ref_dispatches_by_source():
         db, user, PresetRef(source="standard", id="Some Bundled Name"), slot="printer"
     )
     assert json.loads(out)["inherits"] == "Some Bundled Name"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("source", "loader"), [("cloud", "get_stored_token"), ("orca_cloud", "_build_orca_service")])
+async def test_signed_in_install_does_not_resolve_cloud_presets_without_identity(
+    db_session, monkeypatch, source, loader
+):
+    from backend.app.models.settings import Settings
+
+    db_session.add(Settings(key="auth_enabled", value="true"))
+    await db_session.commit()
+    credentials = AsyncMock()
+    monkeypatch.setattr(preset_resolver, loader, credentials)
+
+    with pytest.raises(HTTPException) as error:
+        await preset_resolver.resolve_preset_ref(db_session, None, PresetRef(source=source, id="profile"), "printer")
+    assert error.value.status_code == 403
+    credentials.assert_not_awaited()

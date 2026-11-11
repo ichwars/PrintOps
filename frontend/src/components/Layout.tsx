@@ -4,6 +4,7 @@ import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, M
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { CameraOverlayButton, CameraOverlayProvider } from './CameraOverlayLauncher';
 import { InstallAppButton } from './InstallAppButton';
 import { SwitchbarPopover } from './SwitchbarPopover';
 import { useQuery, useQueries } from '@tanstack/react-query';
@@ -20,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Card, CardHeader, CardContent } from './Card';
 import { parseUTCDate } from '../utils/date';
+import { plateCheckFailureText } from '../utils/plateCheck';
 import { Button } from './Button';
 import { BugReportBubble } from './BugReportBubble';
 import { EncryptionWarningBanner } from './EncryptionWarningBanner';
@@ -154,7 +156,7 @@ export function Layout() {
   // catalog fetched — and cached HSL-fallback color names during their first
   // render — refresh with the real catalog names. See #857.
   useColorCatalogVersion();
-  const { user, authEnabled, logout, hasPermission } = useAuth();
+  const { user, authEnabled, logout, hasPermission, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [outcome, setOutcome] = useState<{ archiveId: number; runId?: number } | null>(null);
   useEffect(() => {
@@ -213,9 +215,9 @@ export function Layout() {
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
-    enabled: !authEnabled || hasPermission('settings:read'),
+    queryKey: ['settings', 'ui-flags'],
+    queryFn: api.getUiFlags,
+    enabled: !authLoading && (!authEnabled || user !== null),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -437,14 +439,14 @@ export function Layout() {
       'orders-customers': 'customers:read',
       'orders-invoice': 'commercial_documents:read',
       'orders-lexware': 'commercial_documents:read',
-      settings: ['settings:read', 'settings:update', 'accounting_integrations:manage'],
+      settings: ['settings:read', 'accounting_integrations:manage'],
       'settings-general': 'settings:read',
       'settings-users-security': 'settings:read',
       'settings-printers-production': 'settings:read',
       'settings-projects-files': 'settings:read',
       'settings-warehouse-material': 'settings:read',
       'settings-orders-calculation': ['settings:read', 'accounting_integrations:manage'],
-      'settings-integrations': ['settings:read', 'settings:update'],
+      'settings-integrations': 'settings:read',
       'settings-operations': 'settings:read',
       // The user-email-preferences API requires notifications:user_email, so
       // gate the nav item on the same permission (both default groups —
@@ -604,9 +606,21 @@ export function Layout() {
         message: detail.message,
       });
     };
+    const handlePlateCheckFailed = (event: Event) => {
+      if (!hasPermission('printers:control')) return;
+      const detail = (event as CustomEvent<{ printer_name?: string; reason?: string }>).detail;
+      showToast(t('printers.plateDetection.couldNotRun', {
+        printer: detail?.printer_name ?? '',
+        reason: plateCheckFailureText(t, detail?.reason),
+      }), 'warning');
+    };
     window.addEventListener('plate-not-empty', handlePlateNotEmpty);
-    return () => window.removeEventListener('plate-not-empty', handlePlateNotEmpty);
-  }, [hasPermission]);
+    window.addEventListener('plate-check-failed', handlePlateCheckFailed);
+    return () => {
+      window.removeEventListener('plate-not-empty', handlePlateNotEmpty);
+      window.removeEventListener('plate-check-failed', handlePlateCheckFailed);
+    };
+  }, [hasPermission, showToast, t]);
 
   // Global keyboard shortcuts for navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -689,6 +703,7 @@ export function Layout() {
   };
 
   return (
+    <CameraOverlayProvider>
     <div className="flex min-h-screen">
       {/* Compact Header */}
       {isSidebarCompact && (
@@ -705,6 +720,7 @@ export function Layout() {
             alt="PrintOps"
             className="h-8 ml-3"
           />
+          <CameraOverlayButton className="ml-auto" />
         </header>
       )}
 
@@ -732,6 +748,8 @@ export function Layout() {
             className={isSidebarCompact || sidebarExpanded ? 'h-16 w-auto' : 'h-10 w-10 object-contain'}
           />
         </div>
+
+        {!isSidebarCompact && <div className="flex justify-center pt-2"><CameraOverlayButton /></div>}
 
         {/* Navigation */}
         <nav className="flex-1 p-2 overflow-y-auto">
@@ -1397,5 +1415,6 @@ export function Layout() {
       )}
       <BugReportBubble />
     </div>
+    </CameraOverlayProvider>
   );
 }

@@ -7,6 +7,10 @@ from sqlalchemy import select
 from backend.app.models.settings import Settings
 
 
+async def _settings_snapshot(db_session):
+    return dict((await db_session.execute(select(Settings.key, Settings.value))).all())
+
+
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.parametrize("method", ["put", "patch"])
@@ -69,10 +73,11 @@ async def test_corrupt_typed_row_reads_as_schema_default(async_client: AsyncClie
 @pytest.mark.integration
 @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
 async def test_nonfinite_number_rejected_before_any_setting_is_written(async_client: AsyncClient, db_session, value):
+    before = await _settings_snapshot(db_session)
     response = await async_client.put("/api/v1/settings/", json={"default_filament_cost": value, "currency": "EUR"})
 
     assert response.status_code == 422
-    assert (await db_session.execute(select(Settings))).scalars().all() == []
+    assert await _settings_snapshot(db_session) == before
 
 
 @pytest.mark.asyncio
@@ -97,21 +102,23 @@ async def test_nullable_choices_and_secret_clearing_remain_supported(async_clien
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_negative_small_parts_stock_default_is_rejected(async_client: AsyncClient, db_session):
+    before = await _settings_snapshot(db_session)
     response = await async_client.put("/api/v1/settings/", json={"small_parts_default_minimum_stock": "-1"})
 
     assert response.status_code == 422
-    assert (await db_session.execute(select(Settings))).scalars().all() == []
+    assert await _settings_snapshot(db_session) == before
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", ["put", "patch"])
 @pytest.mark.parametrize("value", [-1, 241, 1.5, None])
 async def test_sustained_humidity_rejects_invalid_duration(async_client, db_session, method, value):
+    before = await _settings_snapshot(db_session)
     response = await getattr(async_client, method)(
         "/api/v1/settings/", json={"ambient_drying_sustained_minutes": value}
     )
     assert response.status_code == 422
-    assert (await db_session.execute(select(Settings))).scalars().all() == []
+    assert await _settings_snapshot(db_session) == before
 
 
 @pytest.mark.asyncio

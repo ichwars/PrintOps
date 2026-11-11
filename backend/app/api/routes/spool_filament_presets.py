@@ -1,12 +1,12 @@
 """Local preset metadata only; inventory permissions apply in either mode."""
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
-from backend.app.core.database import get_db
+from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.spool import Spool
@@ -33,7 +33,7 @@ def preset_router(*, spoolman: bool = False) -> APIRouter:
     @router.get("/spools/{spool_id}/filament-presets", response_model=list[SpoolFilamentPresetInput])
     async def list_presets(
         spool_id: int = Path(gt=0),
-        db: AsyncSession = Depends(get_db),
+        db: AsyncSession = DB_SESSION,
         _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
     ):
         await require_spool(db, spool_id)
@@ -44,7 +44,7 @@ def preset_router(*, spoolman: bool = False) -> APIRouter:
     async def replace_presets(
         presets: list[SpoolFilamentPresetInput],
         spool_id: int = Path(gt=0),
-        db: AsyncSession = Depends(get_db),
+        db: AsyncSession = DB_SESSION,
         _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
     ):
         if len(presets) != len({p.printer_model for p in presets}):

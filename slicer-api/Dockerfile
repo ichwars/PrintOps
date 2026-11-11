@@ -9,8 +9,8 @@ RUN python3 native_build.py wrapper /build
 WORKDIR /build/wrapper
 # Security-only metadata overlays; wrapper application source remains pinned.
 COPY package.json package-lock.json /build/wrapper/
-RUN echo "6c472adc721b40835444d1fd1ada08b7b0f1ef913d71208cf8109befbcb05775  package.json" | sha256sum -c - \
-    && echo "9c4ebf729f6592b7dc800b425a563fba76a88147eb37d6d40699068ac962d296  package-lock.json" | sha256sum -c -
+RUN echo "4f6a2758d521fd719f09f046888e612966fcba0b0746c623106d982dbaad876d  package.json" | sha256sum -c - \
+    && echo "0354a9687a59d93a924a4f229d9b81136bcf6f8966894908a299c757d65d31c7  package-lock.json" | sha256sum -c -
 COPY tests/dependency-security.cjs /build/dependency-security.cjs
 RUN npm ci --ignore-scripts && npm audit \
     && node /build/dependency-security.cjs /build/wrapper && npm run build \

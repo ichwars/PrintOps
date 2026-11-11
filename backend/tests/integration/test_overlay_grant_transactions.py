@@ -157,7 +157,7 @@ async def test_validated_grant_excludes_delete_until_commit(
         params = {"token": created_token.json()["token"]}
     assert (await async_client.get(f"/api/v1/users/{uid}", headers=headers)).json()["allowed_printer_ids"] == []
     db_session.expunge(original)
-    replacement = await printer_factory(name="Private replacement after concurrent deletion")
+    replacement = await printer_factory(id=printer_id, name="Private replacement after concurrent deletion")
     assert replacement.id == printer_id
     assert (await async_client.get(f"/api/v1/printers/{printer_id}/overlay-status", params=params)).status_code == 403
     assert (await async_client.get(f"/api/v1/printers/{printer_id}/camera/stream", params=params)).status_code == 403
@@ -205,7 +205,7 @@ async def test_delete_excludes_stale_grant_and_revalidates_after_commit(
     assert deleted.status_code == 200, deleted.text
     assert granted.status_code == 400, granted.text
     db_session.expunge(original)
-    replacement = await printer_factory(name="Private replacement after failed stale edit")
+    replacement = await printer_factory(id=printer_id, name="Private replacement after failed stale edit")
     assert replacement.id == printer_id
     assert (await async_client.get(f"/api/v1/printers/{printer_id}/overlay-status", params=params)).status_code == 403
 

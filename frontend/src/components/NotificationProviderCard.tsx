@@ -133,6 +133,9 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
             {provider.on_print_progress && (
               <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs rounded">{t('notifications.progress')}</span>
             )}
+            {provider.on_print_pause_upcoming && (
+              <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs rounded">{t('notifications.pauseUpcoming')}</span>
+            )}
             {provider.on_printer_offline && (
               <span className="px-2 py-0.5 bg-gray-500/20 text-gray-400 text-xs rounded">{t('notifications.offline')}</span>
             )}
@@ -366,6 +369,14 @@ export function NotificationProviderCard({ provider, onEdit }: NotificationProvi
                   <Toggle
                     checked={provider.on_print_progress}
                     onChange={(checked) => updateMutation.mutate({ on_print_progress: checked })}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-white">{t('notifications.pauseUpcoming')}</p>
+                  <Toggle
+                    ariaLabel={t('notifications.pauseUpcoming')}
+                    checked={provider.on_print_pause_upcoming ?? false}
+                    onChange={(checked) => updateMutation.mutate({ on_print_pause_upcoming: checked })}
                   />
                 </div>
               </div>
