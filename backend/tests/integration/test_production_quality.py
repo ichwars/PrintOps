@@ -534,7 +534,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     """Catch a prompt deferred behind camera/provider work or rebound to the next run."""
     import asyncio
     import json
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
@@ -571,7 +571,7 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
     db_session.add(owner)
     await db_session.flush()
     archive.status = item.status = "printing"
-    archive.started_at = datetime.now() - timedelta(minutes=5)
+    archive.started_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)
     archive.created_by_id = owner.id
     archive.project_id = item.project_id = order.project_id
     batch.quantity = 2
@@ -671,7 +671,12 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
             await release.wait()
         return None
 
-    monkeypatch.setattr("backend.app.services.camera.capture_finish_photo", photo)
+    live_photo = AsyncMock(side_effect=photo)
+    monkeypatch.setattr("backend.app.services.camera.capture_finish_photo", live_photo)
+    # Once the next copy has started, a live frame belongs to that copy.
+    # Timelapse extraction can still run for the completed print.
+    if start_before_hint:
+        monkeypatch.setattr(main, "_capture_finish_photo_from_timelapse", photo)
     monkeypatch.setattr("backend.app.services.camera.capture_camera_frame_bytes", AsyncMock(return_value=None))
     provider_requests = []
 
@@ -696,7 +701,12 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
         try:
             await main.on_print_complete(
                 printer.id,
-                {"status": "completed", "filename": archive.filename, "progress": 100, "timelapse_was_active": False},
+                {
+                    "status": "completed",
+                    "filename": archive.filename,
+                    "progress": 100,
+                    "timelapse_was_active": start_before_hint,
+                },
             )
             await asyncio.wait_for(blocked.wait(), timeout=3)
             await db_session.refresh(archive)
@@ -750,6 +760,8 @@ async def test_completed_run_hint_survives_next_copy_during_finish_work(
                 for call in sockets[0].send_text.call_args_list
                 if json.loads(call.args[0]).get("type") == "print_confirm_request"
             ]
+            if start_before_hint:
+                live_photo.assert_not_awaited()
             assert len(hints) == 1, "completed run's hint must precede optional camera/provider awaits"
             assert hints[0]["printer_id"] == printer.id
             assert hints[0]["data"]["run_id"] == completed_run.id
