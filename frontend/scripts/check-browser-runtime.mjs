@@ -47,6 +47,7 @@ try {
       else if (pathname === '/api/v1/library/folders/42/readme') body = { filename: 'README.md', content: markdown, truncated: false };
       else if (pathname === '/api/v1/library/trash') body = { items: [], total: 0 };
       else if (pathname === '/api/v1/library/stats') body = { total_files: 0, total_folders: 1, total_size: 0, files_by_type: {} };
+      else if (pathname === '/api/v1/inventory/colors/map') body = { colors: {}, by_material: {}, bambu: [], preset_materials: {} };
       else if (pathname === '/api/v1/settings') body = { language: 'en' };
       else if (pathname === '/api/v1/auth/encryption-status') body = {
         key_configured: true, key_source: 'generated', decryption_broken: false, migration_error_count: 0,

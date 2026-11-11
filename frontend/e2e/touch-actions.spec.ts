@@ -11,7 +11,8 @@ async function installLibrary(page: Page) {
       key_configured: true, key_source: 'generated', decryption_broken: false, migration_error_count: 0,
       legacy_plaintext_rows: { oidc_providers: 0, user_totp: 0 }, encrypted_rows: { oidc_providers: 0, user_totp: 0 },
     };
-    else if (path === '/api/v1/settings') data = { use_slicer_api: true, library_disk_warning_gb: 5 };
+    else if (path === '/api/v1/inventory/colors/map') data = { colors: {}, by_material: {}, bambu: [], preset_materials: {} };
+    else if (path === '/api/v1/settings/ui-flags') data = { use_slicer_api: true, library_disk_warning_gb: 5 };
     else if (path === '/api/v1/library/folders') data = [{ id: 42, name: 'Touch models', children: [], file_count: 1, parent_id: null }];
     else if (path === '/api/v1/library/files') data = [{
       id: 7, filename: 'gear.stl', file_type: 'stl', file_size: 1024, folder_id: 42,
