@@ -33,7 +33,6 @@ RUN apt-get update \
     default-jre-headless \
     ffmpeg \
     gnupg \
-    gosu \
     iproute2 \
     libcap2-bin \
     libcairo2 \
@@ -131,29 +130,15 @@ COPY --from=frontend-builder /app/static ./static
 # the dev server serves it via a configureServer middleware that's dev-only.
 COPY gcode_viewer/ ./gcode_viewer/
 
-# Create data directories. Ownership is normalised at startup by the
-# entrypoint (chowns to PUID:PGID and drops privileges via gosu before
-# exec'ing the app), so we don't need a chmod 777 hack here — that was
-# the workaround for the previous compose `user: "1000:1000"` model and
-# only worked when the volume's perms happened to survive (named volume
-# first-create case; bind-mount-source case bit users in #1211 / #668).
-#
-# The sentinel file is needed so a freshly-created Docker named volume
-# isn't "empty" from Docker's POV. On empty volumes Docker resyncs the
-# directory metadata (incl. ownership) from the image on every mount,
-# which would mean our entrypoint chown gets reverted on every restart
-# and re-fired on every start (slow on multi-GB archive dirs). With a
-# sentinel inside the volume on first mount, Docker considers the
-# volume populated and stops resyncing, so the chown is genuinely
-# one-shot.
-RUN mkdir -p /app/data /app/logs && \
-    : >/app/data/.printops && \
-    : >/app/logs/.printops
+# Pre-own fresh volumes for the default runtime identity. The sentinel keeps
+# Docker from reapplying image ownership to a volume after Compose prepares it.
+# Source files must be readable even when the build checkout has umask 077.
+RUN chmod -R a+rX /app/backend /app/gcode_viewer /app/static /app/.git \
+ && install -d -m 0750 -o 1000 -g 1000 /app/data /app/logs \
+ && install -m 0640 -o 1000 -g 1000 /dev/null /app/data/.printops \
+ && install -m 0640 -o 1000 -g 1000 /dev/null /app/logs/.printops
 
-# Entrypoint script: handles PUID/PGID + ownership normalisation +
-# privilege drop. See deploy/docker-entrypoint.sh for the full rationale.
-COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY --chmod=0755 deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Environment variables
 ARG APP_VERSION=1.2.8.2
@@ -194,11 +179,11 @@ EXPOSE 8554
 EXPOSE 8883
 EXPOSE 50000-50100
 
-# Docker starts health checks with the image's configured user (root is needed
-# for the one-time entrypoint initialization). Replace that probe process with
-# the configured non-root identity and make the probe verify its own UID/GID.
+USER 1000:1000
+
+# Health probes inherit the same non-root identity as the application.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD exec gosu "${PUID:-1000}:${PGID:-1000}" python -c "import os, urllib.request; expected = (int(os.environ.get('PUID', '1000')), int(os.environ.get('PGID', '1000'))); assert (os.getuid(), os.getgid()) == expected; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8000\")}/health', timeout=5).close()"
+    CMD python -c "import os, urllib.request; uid, gid = os.getuid(), os.getgid(); assert uid > 0 and gid > 0; assert (uid, gid) == (int(os.environ.get('PUID', uid)), int(os.environ.get('PGID', gid))); urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8000\")}/health', timeout=5).close()"
 
 # Run the application
 # Use standard asyncio loop (uvloop has permission issues in some Docker environments)

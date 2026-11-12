@@ -39,6 +39,11 @@ curl -fsSL https://raw.githubusercontent.com/ichwars/PrintOps/main/docker-compos
 # Compare docker-compose.yml.new with the configured file before changing it.
 ```
 
+When upgrading to the non-root image, merge the application and initializer
+service definitions from the matching Compose example before starting it. See
+[Docker runtime security](docs/docker-runtime-security.md) for custom IDs, bind
+mounts and certificates.
+
 These commands do not remove data volumes. After startup, inspect the application
 logs and check `/health` and `/api/v1/document-render/readiness`.
 

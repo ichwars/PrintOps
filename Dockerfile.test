@@ -52,8 +52,12 @@ COPY pyproject.toml ./
 # the production Dockerfile (static_dir.parent / "gcode_viewer" = /app/gcode_viewer/).
 COPY gcode_viewer/ ./gcode_viewer/
 
-# Create necessary directories
-RUN mkdir -p /app/data /app/logs /app/archive
+# Run tests under a regular identity with writable runtime directories.
+RUN groupadd --gid 1000 printops-test \
+ && useradd --uid 1000 --gid 1000 --create-home printops-test \
+ && chmod -R a+rX /app \
+ && install -d -o 1000 -g 1000 /app/data /app/logs /app/archive /app/static
+USER 1000:1000
 
 # Environment variables for testing
 ENV PYTHONUNBUFFERED=1
@@ -80,17 +84,22 @@ FROM node:22-bookworm-slim AS frontend-test
 
 WORKDIR /app/frontend
 
+RUN install -d -o node -g node /app/frontend /app/static
+USER node:node
+
 # Copy package files and install
-COPY frontend/package*.json ./
+COPY --chown=node:node frontend/package*.json ./
 RUN npm ci
 
 # Copy frontend source
-COPY frontend/ ./
+COPY --chown=node:node frontend/ ./
 # Frontend checks inspect backend terminology carriers and filament resources.
-COPY backend/app/ /app/backend/app/
+COPY --chown=node:node backend/app/ /app/backend/app/
 
 # Asset regression tests inspect the production output alongside source files.
 RUN npm run build
+
+HEALTHCHECK NONE
 
 # Default command runs tests
 CMD ["npm", "test", "--", "--run"]

@@ -11,7 +11,7 @@ Screenshots gehören nicht in das Repository.
 | Integration | [App-Nachrichten](app-notifications.md) | Eigene API-Schlüssel, freigegebene Kanäle, Druckerbereiche und Zustellgrenzen |
 | Authentifizierung | [Azure Entra ID](authentication/entra-id.md) | Einrichtung der OIDC-Anmeldung mit Microsoft Entra ID |
 | Bambu Lab | [Preset Sync API](bambu_lab_preset_sync_api.md) | Referenz der beobachteten Cloud-Endpunkte für Preset-Synchronisation |
-| Betrieb | [Docker-Laufzeitsicherheit](docker-runtime-security.md) | Root-Init, PUID/PGID, Capabilities und Volume-Rechte |
+| Betrieb | [Docker-Laufzeitsicherheit](docker-runtime-security.md) | Non-Root-Start, PUID/PGID, Capabilities und Volume-Rechte |
 | Betrieb | [Druckwarteschlange und Filamentzuordnung](print-queue-dispatch.md) | Druckerwechsel, Filamentbestätigung, externe Spulen, Trocknung und Stapel |
 | Betrieb | [Filamentverbrauch und Druckkosten](filament-consumption.md) | Teilverbrauch, Spulenwechsel, Gewichtssperren und Kosten pro Drucklauf |
 | Betrieb | [Druckerstatus und Filamentkennungen](printer-status-filament.md) | Gemeinsame AMS-Darstellung, H2D-Zuordnung, AMS Lite und Preset-IDs |

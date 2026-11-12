@@ -21,7 +21,7 @@ else
   exit 1
 fi
 
-python - "$container" "$docker_mode" <<'PY'
+python - "$container" "$docker_mode" "$expected_uid" "$expected_gid" <<'PY'
 import json
 import subprocess
 import sys
@@ -33,15 +33,12 @@ container = json.loads(
 host_config = container["HostConfig"]
 assert host_config["CapDrop"] == ["ALL"], host_config["CapDrop"]
 cap_add = [value.removeprefix("CAP_") for value in (host_config["CapAdd"] or [])]
-expected = {"CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID", "NET_BIND_SERVICE"}
-assert len(cap_add) == len(expected) and set(cap_add) == expected, cap_add
+assert cap_add == ["NET_BIND_SERVICE"], cap_add
+assert container["Config"]["User"] == f"{sys.argv[3]}:{sys.argv[4]}", container["Config"]["User"]
 
-# Docker launches health checks separately from PID 1. The probe therefore
-# verifies its own identity, while `exec gosu` ensures no root shell remains
-# alive for the duration of the request.
+# The probe inherits the application identity and checks it independently.
 healthcheck = container["Config"]["Healthcheck"]["Test"]
 assert healthcheck[0] == "CMD-SHELL", healthcheck
-assert healthcheck[1].startswith("exec gosu "), healthcheck
 assert "os.getuid()" in healthcheck[1] and "os.getgid()" in healthcheck[1], healthcheck
 assert container["State"]["Health"]["Status"] == "healthy", container["State"]["Health"]
 PY

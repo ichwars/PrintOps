@@ -1,58 +1,45 @@
 # Docker runtime security
 
-PrintOps uses a short root initialization phase so named volumes and bind mounts
-remain compatible with configurable host user IDs. The Python application does
-not run as root.
+The production image starts as UID/GID `1000:1000`. With the supplied Compose
+file, `PUID` and `PGID` select the application identity and the owner of the
+managed storage. Both values must be decimal integers from 1 through 2147483647.
 
-## Startup sequence
+## Startup and privileges
 
-1. Validate `PUID` and `PGID` as decimal values from 1 through 2147483647.
-2. Normalize ownership of `/app/data` and `/app/logs` when required.
-3. Optionally update the system trust store when `USE_SYSTEM_TRUST_STORE` is set.
-4. Replace the init process with `gosu PUID:PGID` and `python -m uvicorn`.
+1. The one-shot `printops-init` service prepares `/app/data`, `/app/logs` and
+   the optional `/app/data/virtual_printer` bind mount. It has no network,
+   a read-only root filesystem and only `CHOWN` and `DAC_OVERRIDE`. It repairs
+   ownership only when a directory has a different owner. Symlinks are never
+   followed by the ownership repair.
+2. Compose starts `printops` after successful volume initialization. Docker
+   starts its entrypoint, the application, go2rtc and the health probe under
+   the selected non-root identity. The application has only `NET_BIND_SERVICE`
+   to bind virtual-printer ports 322 and 990.
+3. When `USE_SYSTEM_TRUST_STORE` is set, the entrypoint combines Debian's
+   default CAs with the PEM `*.crt` certificates mounted read-only at
+   `/usr/local/share/ca-certificates`. It builds a temporary trust store for
+   application processes. Startup fails if the opt-in has no valid certificates.
 
-Python becomes PID 1 and retains only `CAP_NET_BIND_SERVICE`, which is required
-for the virtual-printer listeners on ports 322 and 990.
+## Upgrading or using a custom Compose file
 
-## Capability allowlist
+Use the Compose example from the same PrintOps version as your image. Carry
+over the two service definitions and preserve your existing volumes, image
+tag, ports, environment and additional mounts. Set `PUID` and `PGID` in
+`.env` to match your host user when using bind mounts. Add managed data,
+logs and the optional native virtual-printer directory to both services.
+Mount certificates, external library folders, backup destinations and sockets
+only on `printops`. Prepare write permissions for any separate backup or
+external upload mount on the host.
 
-The init phase receives only `CHOWN`, `DAC_OVERRIDE`, `SETGID`, `SETUID`, and
-`NET_BIND_SERVICE`. PrintOps does not require privileged mode, the Docker
-socket, host devices, `video` or `dialout` membership, `SYS_ADMIN`, `NET_ADMIN`,
-or `NET_RAW`. Printers and camera streams are accessed over the network; FFmpeg
-runs in userspace.
+Stop the application before changing the owner of existing storage. Apply
+the new Compose configuration with `docker compose up -d`. If the application
+reports unwritable data or logs, check the initializer with
+`docker compose logs printops-init`.
 
-## Choosing PUID and PGID
+## Direct Docker runs
 
-The defaults are `1000:1000`. For bind mounts, use `id -u` and `id -g` on the
-Docker host and set the matching values in `.env`. Values of 0 are rejected.
-
-## Explicit Docker user mode
-
-When `user:` or `docker run --user` starts the container as non-root, the
-entrypoint cannot change volume ownership or the system trust store. Prepare
-both on the host first. `USE_SYSTEM_TRUST_STORE` intentionally fails in this
-mode rather than being ignored.
-
-## Migration
-
-Existing installations must update their Compose service as well as the image.
-Keeping an older Compose file leaves Docker's broad default capability set in
-place during initialization. Copy the current `cap_drop`/`cap_add` block from
-`docker-compose.yml`, or apply this equivalent policy:
-
-```yaml
-cap_drop:
-  - ALL
-cap_add:
-  - CHOWN
-  - DAC_OVERRIDE
-  - SETGID
-  - SETUID
-  - NET_BIND_SERVICE
-```
-
-Installations with `PUID=0` or `PGID=0` must also switch to a non-root host
-identity before upgrading. If startup reports an ownership error, correct the
-host mount permissions or select matching IDs; PrintOps will not continue with
-unsafe permissions.
+Fresh named volumes work with the image's default identity. For existing
+volumes or bind mounts, ensure that the selected user owns the data and logs
+before starting the container. To choose another identity, use
+`docker run --user UID:GID` and use matching values if also setting `PUID`
+or `PGID`. Mount optional CA certificates as described above.

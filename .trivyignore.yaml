@@ -89,13 +89,3 @@ vulnerabilities:
       OpenJPEG is pulled in transitively by FFmpeg, while PrintOps only processes
       PNG thumbnails and MJPEG, H.264, or H.265 camera streams. No Debian fix is
       available. Reassess on base-image updates or before this exception expires.
-
-misconfigurations:
-  - id: AVD-DS-0002
-    paths:
-      - "Dockerfile"
-      - "Dockerfile.test"
-    expired_at: 2026-10-31
-    statement: >-
-      PrintOps is a single-host appliance container that currently requires root
-      for local device access and FFmpeg. Reassess before this exception expires.
