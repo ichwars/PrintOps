@@ -138,38 +138,39 @@ async def test_polls_until_file_appears(tmp_path: Path, patched_session, monkeyp
     background task hasn't finished writing). Should keep polling — and
     succeed once the file materialises."""
     monkeypatch.setattr(main_module.app_settings, "base_dir", tmp_path)
-    monkeypatch.setattr(main_module, "_FINISH_PHOTO_TIMELAPSE_POLL_INTERVAL_SECONDS", 0.05)
-    monkeypatch.setattr(main_module, "_FINISH_PHOTO_TIMELAPSE_POLL_TIMEOUT_SECONDS", 1.0)
+    poll_interval = 0.05
+    monkeypatch.setattr(main_module, "_FINISH_PHOTO_TIMELAPSE_POLL_INTERVAL_SECONDS", poll_interval)
 
     video_relpath = Path("archive/1/print/timelapse.mp4")
+    video_abspath = tmp_path / video_relpath
     patched_session.timelapse_path = str(video_relpath)
+    elapsed = 0.0
 
-    # File not present yet. Schedule it to land after ~150ms.
-    import asyncio
-
-    async def materialise_later():
-        await asyncio.sleep(0.15)
-        video_abspath = tmp_path / video_relpath
+    async def materialise_on_poll(delay):
+        nonlocal elapsed
+        elapsed += delay
         video_abspath.parent.mkdir(parents=True, exist_ok=True)
         video_abspath.write_bytes(b"x" * 100)
+
+    # Advance only this helper's clock so runner load cannot consume its deadline.
+    sleep = AsyncMock(side_effect=materialise_on_poll)
+    clock = SimpleNamespace(time=lambda: elapsed)
+    monkeypatch.setattr(main_module, "asyncio", SimpleNamespace(get_event_loop=lambda: clock, sleep=sleep))
 
     async def fake_extract(src, dst):
         dst.write_bytes(b"\xff\xd8")
         return True
 
-    materialise = asyncio.create_task(materialise_later())
-    try:
-        with patch(
-            "backend.app.services.camera.extract_video_last_frame",
-            new=fake_extract,
-        ):
-            result = await _capture_finish_photo_from_timelapse(
-                archive_id=42,
-                archive_dir=tmp_path / "archive_dir",
-            )
-    finally:
-        materialise.cancel()
+    with patch(
+        "backend.app.services.camera.extract_video_last_frame",
+        new=fake_extract,
+    ):
+        result = await _capture_finish_photo_from_timelapse(
+            archive_id=42,
+            archive_dir=tmp_path / "archive_dir",
+        )
 
+    sleep.assert_awaited_once_with(poll_interval)
     assert result is not None
     assert result.startswith("finish_")
 

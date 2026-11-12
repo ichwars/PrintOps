@@ -17,6 +17,7 @@ from backend.app.services.heater_commands import set_heater_temperature
 from backend.app.services.preheat_ownership import PreheatLease, PreheatOwnership
 from backend.app.services.print_scheduler import PrintScheduler
 
+_HEATER_READY_TIMEOUT = 10
 _owners = []
 
 
@@ -87,6 +88,7 @@ async def queue_factory(tmp_path):
                 printer_id=printer.id,
                 archive_id=archive.id,
                 queue_item_id=item.id,
+                heated=asyncio.Event(),
                 upload=AsyncMock(return_value=True),
                 start_print=MagicMock(return_value=True),
                 delete_file=AsyncMock(return_value=True),
@@ -127,7 +129,6 @@ async def dispatch(
     client = MagicMock(state=state)
     client._heater_command_revisions = {}
     client.send_gcode.return_value = True
-    ctx.heated = asyncio.Event()
 
     def bed_command(target):
         if target > 0:
@@ -236,9 +237,7 @@ async def test_cancel_during_upload_preserves_cancellation_and_rolls_back(queue_
 async def test_cancel_during_soak_stops_before_any_upload(queue_factory):
     ctx = await queue_factory()
     task = asyncio.create_task(dispatch(ctx, soak=300, poll_seconds=0.001))
-    while not hasattr(ctx, "heated"):
-        await asyncio.sleep(0)
-    await asyncio.wait_for(ctx.heated.wait(), 1)
+    await asyncio.wait_for(ctx.heated.wait(), _HEATER_READY_TIMEOUT)
     async with ctx.session_maker() as db:
         item = await db.get(PrintQueueItem, ctx.queue_item_id)
         item.status = "cancelled"
@@ -280,9 +279,7 @@ async def test_watchdog_cancel_during_blocked_upload_stops_owned_heat(queue_fact
 async def test_dispatch_deadline_cancels_soak_and_fails_pending_item(queue_factory):
     ctx = await queue_factory()
     task = asyncio.create_task(dispatch(ctx, soak=300, poll_seconds=0.001))
-    while not hasattr(ctx, "heated"):
-        await asyncio.sleep(0)
-    await asyncio.wait_for(ctx.heated.wait(), 1)
+    await asyncio.wait_for(ctx.heated.wait(), _HEATER_READY_TIMEOUT)
     ctx.owner.leases[ctx.printer_id].expires_at = 0
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, 1)
@@ -379,9 +376,7 @@ async def test_unavailable_journal_skips_heat_but_preserves_normal_dispatch(queu
 async def test_queue_removed_during_soak_stops_heat(queue_factory):
     ctx = await queue_factory()
     task = asyncio.create_task(dispatch(ctx, soak=300, poll_seconds=0.001))
-    while not hasattr(ctx, "heated"):
-        await asyncio.sleep(0)
-    await asyncio.wait_for(ctx.heated.wait(), 1)
+    await asyncio.wait_for(ctx.heated.wait(), _HEATER_READY_TIMEOUT)
     async with ctx.session_maker() as db:
         await db.delete(await db.get(PrintQueueItem, ctx.queue_item_id))
         await db.commit()
@@ -395,9 +390,7 @@ async def test_queue_removed_during_soak_stops_heat(queue_factory):
 async def test_explicit_cancel_interrupts_preheat_without_waiting_for_poll(queue_factory):
     ctx = await queue_factory()
     task = asyncio.create_task(dispatch(ctx, soak=300, poll_seconds=3600))
-    while not hasattr(ctx, "heated"):
-        await asyncio.sleep(0)
-    await asyncio.wait_for(ctx.heated.wait(), 1)
+    await asyncio.wait_for(ctx.heated.wait(), _HEATER_READY_TIMEOUT)
     async with ctx.session_maker() as db:
         (await db.get(PrintQueueItem, ctx.queue_item_id)).status = "cancelled"
         await db.commit()
