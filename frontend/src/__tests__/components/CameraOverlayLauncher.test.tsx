@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import type { Printer } from '../../api/client';
 import { CameraOverlayButton, CameraOverlayProvider } from '../../components/CameraOverlayLauncher';
 import { useEmbeddedCameraSelection } from '../../hooks/useEmbeddedCameraSelection';
+import * as cameraHandoff from '../../utils/cameraHandoff';
 import { server } from '../mocks/server';
 import { render } from '../utils';
 
@@ -69,8 +70,14 @@ it('keeps card cameras on their page and promotes an existing camera to the app 
 
 it('rechecks an incoming camera against the signed-in tab’s visible printers', async () => {
   const source = { postMessage: vi.fn() } as unknown as Window;
-  render(<CameraOverlayProvider><Page /></CameraOverlayProvider>);
-  await screen.findByRole('button', { name: 'Open camera overlay' });
+  const listen = vi.spyOn(cameraHandoff, 'listenForCameraOverlay');
+  try {
+    render(<CameraOverlayProvider><Page /></CameraOverlayProvider>);
+    // The button can appear before React attaches the passive message listener.
+    await waitFor(() => expect(listen).toHaveBeenCalledWith('appliance', expect.any(Function)));
+  } finally {
+    listen.mockRestore();
+  }
   const send = (printerId: number, nonce: string, account = 'appliance') => window.dispatchEvent(new MessageEvent('message', {
     origin: window.location.origin,
     source,
