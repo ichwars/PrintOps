@@ -4,6 +4,8 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.8.3] - 2026-11-12
+
 ### Security
 
 - Run Docker application and test containers as non-root. Prepare managed volume ownership in a separate Compose service and load optional CA certificates without writing to the system trust store. See [Docker runtime security](docs/docker-runtime-security.md) when upgrading.
