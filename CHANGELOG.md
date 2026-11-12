@@ -6,6 +6,8 @@ All notable changes to PrintOps will be documented in this file.
 
 ### Security
 
+- Run Docker application and test containers as non-root. Prepare managed volume ownership in a separate Compose service and load optional CA certificates without writing to the system trust store. See [Docker runtime security](docs/docker-runtime-security.md) when upgrading.
+
 - Mask authentication tokens in HTTP and WebSocket log entries, including the log viewer and support exports.
 
 - Redact HTTP client errors that quote refused headers and close camera RTSP relays before forwarding redirects.

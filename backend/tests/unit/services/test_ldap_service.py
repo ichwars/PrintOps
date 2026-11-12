@@ -16,6 +16,7 @@ from backend.app.services.ldap_service import (
     LDAPConfig,
     LDAPSearchResult,
     LDAPUserInfo,
+    _create_server,
     _ldap_escape,
     authenticate_ldap_user,
     lookup_ldap_user,
@@ -155,6 +156,24 @@ class TestLDAPEscape:
 
     def test_empty_string(self):
         assert _ldap_escape("") == ""
+
+
+@pytest.mark.parametrize("explicit_ca", [False, True])
+def test_ldap_ca_bundle_preserves_explicit_directory_configuration(monkeypatch, tmp_path, explicit_ca):
+    docker_ca = tmp_path / "docker-ca.pem"
+    directory_ca = tmp_path / "directory-ca.pem"
+    docker_ca.touch()
+    directory_ca.touch()
+    monkeypatch.setenv("PRINTOPS_CA_BUNDLE", str(docker_ca))
+    config = parse_ldap_config(
+        {
+            "ldap_enabled": "true",
+            "ldap_server_url": "ldaps://ldap.example",
+            "ldap_ca_cert_path": str(directory_ca) if explicit_ca else "",
+        }
+    )
+    assert config is not None
+    assert _create_server(config).tls.ca_certs_file == str(directory_ca if explicit_ca else docker_ca)
 
 
 class TestResolveGroupMapping:

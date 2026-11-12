@@ -213,6 +213,7 @@ _INTENTIONAL_UNSETTINGS = {
     "LOG_DIR",  # config.py (above)
     "LOG_LEVEL",  # main.py logging setup
     "BUG_REPORT_RELAY_URL",  # config.py (above)
+    "PRINTOPS_CA_BUNDLE",  # utils/tls.py reads the Docker-generated bundle directly
     "PRINTOPS_UPDATE_TRUSTED_SIGNERS_FILE",  # config.py (above)
     "PRINTOPS_UPDATE_SIGNING_PRINCIPAL",  # config.py (above)
     "PRINTOPS_OIDC_NAME",  # core/oidc_env.py

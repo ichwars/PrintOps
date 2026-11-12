@@ -36,6 +36,8 @@ container's fixed interface address is `172.30.0.2`, and the Virtual Printer's
 database ID is **1**. Choose addresses and a bridge subnet appropriate for your
 network. Save the following as `docker-compose.bridge-vp.yml` in the repository
 root and run `docker compose -f docker-compose.bridge-vp.yml up -d --build`.
+The example uses fresh named volumes with the default identity. For existing
+storage or custom IDs, follow [Docker runtime security](docker-runtime-security.md).
 
 ```yaml
 services:
@@ -43,7 +45,7 @@ services:
     build: .
     restart: unless-stopped
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID, NET_BIND_SERVICE]
+    cap_add: [NET_BIND_SERVICE]
     environment:
       PUID: "1000"
       PGID: "1000"

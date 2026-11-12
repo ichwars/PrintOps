@@ -9,7 +9,6 @@ import base64
 import hashlib
 import json
 import logging
-import ssl
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -17,6 +16,8 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 import paho.mqtt.client as mqtt
+
+from backend.app.utils.tls import create_client_ssl_context
 
 logger = logging.getLogger(__name__)
 
@@ -578,7 +579,7 @@ class BambuCloudService:
         client.on_connect = on_connect
         client.on_publish = on_publish
         client.username_pw_set(f"u_{user_id}", self.access_token)
-        client.tls_set_context(ssl.create_default_context())
+        client.tls_set_context(create_client_ssl_context())
 
         try:
             client.connect(self._mqtt_host(), BAMBU_MQTT_PORT, keepalive=30)

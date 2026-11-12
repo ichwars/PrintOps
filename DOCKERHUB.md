@@ -53,11 +53,10 @@ Open **http://localhost:8000** and add your printer.
 
 ## Runtime Security
 
-The container uses root only for a bounded initialization phase that validates
-`PUID`/`PGID` and prepares the data and log volumes. It then replaces the init
-process with Python/Uvicorn running as the configured non-root identity. Values
-of 0 are rejected. If you set Compose `user:` or `docker run --user`, prepare
-volume ownership and the optional system trust store on the host first.
+PrintOps runs as a non-root user from startup. The supplied Compose file
+prepares managed volume ownership in a separate one-shot service. Direct Docker
+runs use UID/GID `1000:1000` by default. With a different identity or existing
+bind mounts, prepare the storage for the selected user before starting.
 
 The complete capability model and migration guidance are documented in
 [Docker runtime security](docs/docker-runtime-security.md).
@@ -71,27 +70,11 @@ The complete capability model and migration guidance are documented in
 
 ## Docker Compose
 
-```yaml
-services:
-  printops:
-    image: ichwars/PrintOps:latest
-    container_name: printops
-    network_mode: host
-    environment:
-      - TZ=America/New_York
-      - PUID=1000
-      - PGID=1000
-    volumes:
-      - printops_data:/app/data
-      - printops_logs:/app/logs
-    restart: unless-stopped
+Use the repository's [Docker Compose example](https://github.com/ichwars/PrintOps/blob/main/docker-compose.yml)
+from the same version as the container image. It includes the application and
+volume initializer services.
 
-volumes:
-  printops_data:
-  printops_logs:
-```
-
-> **macOS/Windows:** Docker Desktop doesn't support `network_mode: host`. Replace it with `ports: ["8000:8000"]` and add printers manually by IP.
+> **macOS/Windows:** Follow the port mappings in the Compose example if host networking is unavailable.
 
 ## Updating
 

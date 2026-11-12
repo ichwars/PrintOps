@@ -109,6 +109,17 @@ def test_ffmpeg_stderr_preview_redacts_external_camera_password() -> None:
     assert "rtsp://camera-user:[REDACTED]@127.0.0.1:45000/live" in preview
 
 
+async def test_external_https_relay_loads_docker_ca_bundle(monkeypatch, tmp_path) -> None:
+    bundle = str(tmp_path / "ca-bundle.pem")
+    monkeypatch.setenv("PRINTOPS_CA_BUNDLE", bundle)
+    with patch("backend.app.utils.tls.ssl.create_default_context") as create_context:
+        prepared = await prepare_external_camera_url("https://192.168.10.20/snapshot.jpg", ("https",))
+        assert prepared is not None
+        await prepared.close()
+
+    create_context.assert_called_once_with(cafile=bundle)
+
+
 @pytest.mark.asyncio
 async def test_external_http_source_rejects_dns_answering_loopback() -> None:
     """A hostname resolving to loopback must fail before go2rtc receives a source URL."""

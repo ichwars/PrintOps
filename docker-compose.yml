@@ -1,28 +1,35 @@
+x-printops-image: &printops-image
+  image: ghcr.io/ichwars/printops:latest
+  build: .
+
+x-printops-storage:
+  data: &printops-data printops_data:/app/data
+  logs: &printops-logs printops_logs:/app/logs
+  # For a shared native Virtual Printer CA, uncomment this definition and
+  # both references in the services below.
+  # virtual-printer: &printops-virtual-printer ./virtual_printer:/app/data/virtual_printer
+
 services:
   printops:
-    image: ghcr.io/ichwars/printops:latest
-    build: .
+    <<: *printops-image
     # Usage:
     #   docker compose up -d          → pulls pre-built image from ghcr.io
     #   docker compose up -d --build  → builds locally from source
     container_name: printops
-    # File ownership inside the data and logs volumes is normalised by the
-    # entrypoint at startup (chowns to PUID:PGID and drops privileges via
-    # gosu before running the app). Override PUID / PGID below to match
-    # your host user if needed — defaults to 1000:1000 to match the
-    # historical compose `user:` directive.
-    #
-    # Root exists only during entrypoint initialization. Drop Docker's broad
-    # default set and allow only volume ownership, UID/GID transition, and the
-    # two privileged virtual-printer ports. Python retains only
-    # NET_BIND_SERVICE after gosu + exec.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    depends_on:
+      printops-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import os, urllib.request;
+          assert (os.getuid(), os.getgid()) == (int(os.environ['PUID']), int(os.environ['PGID']));
+          urllib.request.urlopen('http://localhost:' + os.environ.get('PORT', '8000') + '/health', timeout=5).close()"
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - SETGID
-      - SETUID
       - NET_BIND_SERVICE
     #
     # LINUX: Use host mode for printer discovery and camera streaming
@@ -67,17 +74,9 @@ services:
     # forgo discovery (add printers by IP) can stay on bridge with the
     # narrowed range above.
     volumes:
-      - printops_data:/app/data
-      - printops_logs:/app/logs
-      #
-      # OPTIONAL — only needed if you ALSO run a native install of PrintOps
-      # on the same host and want both installs to share the same Virtual
-      # Printer CA certificate (so the slicer only has to trust one CA).
-      # Most Docker-only users should leave this commented out — the
-      # entrypoint will keep the VP data inside the named volume above.
-      # If uncommented, the entrypoint chowns the host directory to
-      # PUID:PGID on first start so the container user can write to it.
-      #- ./virtual_printer:/app/data/virtual_printer
+      - *printops-data
+      - *printops-logs
+      # - *printops-virtual-printer
       #
       # Mount scheduled backup output to NAS or external storage
       # Backups default to DATA_DIR/backups/ inside the data volume.
@@ -91,10 +90,10 @@ services:
       #
       # Using a self signed certificate for Home Assistant
       # Add your certificate to certs directory and mount it to the container.
-      # The certificate will be added to the system trust store on container startup.
+      # PrintOps builds a private trust store from these certificates at startup.
       # Enable the system trust store with the USE_SYSTEM_TRUST_STORE env var to
       # have PrintOps trust the certificate.
-      # - /path/to/certs:/usr/local/share/ca-certificates
+      # - /path/to/certs:/usr/local/share/ca-certificates:ro
       #
       # External library folders. Mount the host paths the operator wants
       # users to be able to register as external folders. The in-container
@@ -105,8 +104,8 @@ services:
       #- /srv/library:/external/projects:ro
     environment:
       - TZ=${TZ:-Europe/Berlin}
-      # User/group the container drops to after the entrypoint normalises
-      # ownership on /app/data and /app/logs. Match your host user (run
+      # The same user/group is passed to the one-time volume initializer.
+      # Match your host user (run
       # `id -u` / `id -g`) if you want files written by the container to
       # show up as your user on the host. Defaults to 1000:1000.
       - PUID=${PUID:-1000}
@@ -165,6 +164,56 @@ services:
       # You also need to mount your certificates to the container (see volumes section above).
       # - USE_SYSTEM_TRUST_STORE=true
     restart: unless-stopped
+
+  # Run the ownership migration in a separate container without network
+  # access or application credentials. Mount only managed storage here.
+  printops-init:
+    <<: *printops-image
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    restart: "no"
+    healthcheck:
+      disable: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - *printops-data
+      - *printops-logs
+      # - *printops-virtual-printer
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        for id in "$$PUID" "$$PGID"; do
+          case "$$id" in
+            ''|*[!0-9]*) echo "PUID and PGID must be non-root decimal IDs" >&2; exit 1 ;;
+          esac
+          if ! [ "$$id" -ge 1 ] || ! [ "$$id" -le 2147483647 ]; then
+            echo "PUID and PGID must be between 1 and 2147483647" >&2
+            exit 1
+          fi
+        done
+        owner="$$(expr "$$PUID" + 0):$$(expr "$$PGID" + 0)"
+        for target in /app/data /app/data/virtual_printer /app/logs; do
+          if [ "$$target" = /app/data/virtual_printer ] && { [ ! -d "$$target" ] || [ -L "$$target" ]; }; then
+            continue
+          fi
+          if [ ! -d "$$target" ] || [ -L "$$target" ]; then
+            echo "Expected a mounted directory at $$target" >&2
+            exit 1
+          fi
+          current="$$(stat -c '%u:%g' "$$target")"
+          if [ "$$current" != "$$owner" ]; then
+            echo "Preparing $$target for $$owner"
+            chown -Rh -- "$$owner" "$$target"
+          fi
+        done
 
   # Optional: External PostgreSQL database
   # Uncomment to run Postgres alongside PrintOps (or use an external Postgres host)

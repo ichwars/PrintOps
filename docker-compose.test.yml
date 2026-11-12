@@ -35,10 +35,6 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - SETGID
-      - SETUID
       - NET_BIND_SERVICE
     ports:
       - "8001:8000"
@@ -49,9 +45,8 @@ services:
       test:
         - CMD-SHELL
         - >-
-          exec gosu "$${PUID:-1000}:$${PGID:-1000}" python -c
-          "import os, urllib.request; expected = (int(os.environ.get('PUID', '1000')),
-          int(os.environ.get('PGID', '1000'))); assert (os.getuid(), os.getgid()) == expected;
+          python -c
+          "import os, urllib.request; assert (os.getuid(), os.getgid()) == (1000, 1000);
           urllib.request.urlopen('http://localhost:8000/health', timeout=5).close()"
       interval: 5s
       timeout: 5s
