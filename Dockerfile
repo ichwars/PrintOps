@@ -141,7 +141,7 @@ RUN chmod -R a+rX /app/backend /app/gcode_viewer /app/static /app/.git \
 COPY --chmod=0755 deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Environment variables
-ARG APP_VERSION=1.2.8.2
+ARG APP_VERSION=1.2.8.3
 ENV PYTHONUNBUFFERED=1
 ENV APP_VERSION=${APP_VERSION}
 ENV DATA_DIR=/app/data
