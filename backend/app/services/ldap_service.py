@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 from ldap3 import ALL, SUBTREE, Connection, Server, Tls
 
+from backend.app.utils.tls import configured_ca_bundle
+
 logger = logging.getLogger(__name__)
 
 
@@ -93,8 +95,9 @@ def _create_server(config: LDAPConfig) -> Server:
 
     use_ssl = config.security == "ldaps" or config.server_url.startswith("ldaps://")
 
-    if config.ca_cert_path:
-        tls = Tls(validate=ssl.CERT_REQUIRED, ca_certs_file=config.ca_cert_path)
+    ca_cert_path = config.ca_cert_path or configured_ca_bundle()
+    if ca_cert_path:
+        tls = Tls(validate=ssl.CERT_REQUIRED, ca_certs_file=ca_cert_path)
     else:
         tls = Tls(validate=ssl.CERT_REQUIRED)
 

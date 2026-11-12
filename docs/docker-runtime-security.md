@@ -18,7 +18,9 @@ managed storage. Both values must be decimal integers from 1 through 2147483647.
 3. When `USE_SYSTEM_TRUST_STORE` is set, the entrypoint combines Debian's
    default CAs with the PEM `*.crt` certificates mounted read-only at
    `/usr/local/share/ca-certificates`. It builds a temporary trust store for
-   application processes. Startup fails if the opt-in has no valid certificates.
+   application processes. Python TLS clients load the bundle explicitly, including
+   when file capabilities put OpenSSL in secure execution. Startup fails if
+   the opt-in has no valid certificates.
 
 ## Upgrading or using a custom Compose file
 

@@ -57,6 +57,7 @@ if [ -n "${USE_SYSTEM_TRUST_STORE:-}" ]; then
     SSL_CERT_FILE="$trust_dir/ca-certificates.crt"
     [ -s "$SSL_CERT_FILE" ] || fatal "certificate store has no CA bundle"
     export SSL_CERT_DIR SSL_CERT_FILE
+    export PRINTOPS_CA_BUNDLE="$SSL_CERT_FILE"
     export CURL_CA_BUNDLE="${CURL_CA_BUNDLE-$SSL_CERT_FILE}"
     export REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE-$SSL_CERT_FILE}"
 fi

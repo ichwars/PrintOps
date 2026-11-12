@@ -25,6 +25,7 @@ from backend.app.api.routes._url_safety import (
 )
 from backend.app.services.camera import rewrite_rtsp_request_url
 from backend.app.services.rtsp_relay import forward_rtsp_responses
+from backend.app.utils.tls import create_client_ssl_context
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +248,7 @@ def _rewrite_http_host(request_head: bytes, authority: str) -> bytes:
 
 
 async def _start_http_relay(parsed: _ParsedCameraUrl, connect_ips: tuple[str, ...] | str) -> tuple[str, asyncio.Server]:
-    ssl_context = ssl.create_default_context() if parsed.scheme == "https" else None
+    ssl_context = create_client_ssl_context() if parsed.scheme == "https" else None
 
     async def handle(client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter) -> None:
         upstream_writer: asyncio.StreamWriter | None = None

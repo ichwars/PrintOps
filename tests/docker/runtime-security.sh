@@ -80,14 +80,18 @@ import os
 from pathlib import Path
 import ssl
 
+from backend.app.utils.tls import create_client_ssl_context
+
 certificate = Path("/usr/local/share/ca-certificates/test.crt").read_text(encoding="ascii")
 custom_der = ssl.PEM_cert_to_DER_cert(certificate)
-assert custom_der in ssl.create_default_context().get_ca_certs(binary_form=True)
-base_bundle = Path("/etc/ssl/certs/ca-certificates.crt")
-assert certificate not in base_bundle.read_text(encoding="ascii")
-default_certs = ssl.create_default_context(cafile=str(base_bundle)).get_ca_certs(binary_form=True)
-assert set(default_certs) <= set(ssl.create_default_context().get_ca_certs(binary_form=True))
-assert Path(os.environ["SSL_CERT_FILE"]).is_file()
+assert Path(os.environ["PRINTOPS_CA_BUNDLE"]).is_file()
+# Simulate OpenSSL disregarding these variables during secure execution.
+del os.environ["SSL_CERT_FILE"], os.environ["SSL_CERT_DIR"]
+default_certs = set(ssl.create_default_context().get_ca_certs(binary_form=True))
+app_certs = set(create_client_ssl_context().get_ca_certs(binary_form=True))
+assert default_certs
+assert custom_der not in default_certs
+assert app_certs >= default_certs | {custom_der}
 PY
 printf '%s\n' 'not a PEM certificate' > "$scratch/certs/invalid.crt"
 assert_startup_error "invalid CA certificate" -e USE_SYSTEM_TRUST_STORE=1 \
