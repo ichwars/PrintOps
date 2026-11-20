@@ -1807,7 +1807,9 @@ describe('PrintModal — per-plate quantity (#342)', () => {
     await waitFor(() => expect(screen.getByText(/6 runs in total/i)).toBeInTheDocument());
 
     await user.click(screen.getAllByRole('button', { name: /X1 Carbon/i })[0]);
-    await user.click(document.querySelector('button[type="submit"]') as HTMLElement);
+    const submit = document.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    await waitFor(() => expect(submit).toBeEnabled());
+    await user.click(submit);
 
     await waitFor(() => expect(queued.length).toBe(3));
 
