@@ -3708,7 +3708,6 @@ async def on_finish_photo_moment(printer_id: int, data: dict):
         producer_done.set()
 
 
-@hold_completion_charges
 def _schedule_completed_timelapse(
     printer_id, archive_id, previous_run, data, print_status, run_plate, completed_run_id, logger, log_timing
 ):
@@ -3731,6 +3730,7 @@ def _schedule_completed_timelapse(
         log_timing("Timelapse scan scheduled")
 
 
+@hold_completion_charges
 async def on_print_complete(printer_id: int, data: dict):
     """Handle print completion - update the archive status."""
     import time
