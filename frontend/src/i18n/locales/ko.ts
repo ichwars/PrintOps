@@ -1,5 +1,6 @@
 export default {
   profileDefaults: {
+    applyAll: '모두 적용',
     "title": "제품 프로필 기본값",
     "description": "설정된 스풀에서 슬라이서 프리셋과 K 프로필을 복사합니다. 같은 제품의 새 스풀에는 누락된 설정이 적용됩니다.",
     "pickSpool": "설정된 스풀 선택",
@@ -2478,6 +2479,8 @@ export default {
     },
     temperatures: {
       nozzle: '노즐',
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: '노즐 {{n}}',
       bed: '베드',
       chamber: '챔버'
     },
@@ -2527,10 +2530,15 @@ export default {
       summary: '라이브 {{live}}개, 스냅 {{snap}}개, 총 {{total}}개',
       layer: '레이어 {{cur}}/{{total}}',
       timeLeft: '{{time}} 남음',
+      eta: '완료 예정 {{time}}',
       statusMode: {
         off: '꺼짐',
         compact: '간단',
         full: '전체'
+      },
+      controlsMode: {
+        hover: '마우스를 올렸을 때',
+        always: '항상',
       },
       settings: {
         title: '카메라 월 설정',
@@ -2539,7 +2547,9 @@ export default {
         snapshotInterval: '스냅샷 간격(초)',
         snapshotIntervalHint: '비라이브 타일이 새 스냅샷을 가져오는 주기.',
         statusOverlay: '상태 표시',
-        statusOverlayHint: '간단: 상태 배지만 표시. 전체: + 진행률, 레이어, 남은 시간.'
+        statusOverlayHint: '간단: 상태 배지만 표시. 전체: + 진행률, 레이어, 남은 시간, 완료 예정 시각, 온도.',
+        controls: '타일 컨트롤',
+        controlsHint: '각 타일의 일시정지, 정지, 챔버 조명: 마우스를 올렸을 때 또는 항상. 터치스크린에서는 항상 표시됩니다.',
       },
       page: {
         tokenRejected: '이 카메라 월 토큰이 거부되었거나 만료되었습니다.',
@@ -2564,6 +2574,7 @@ export default {
     },
     readyToPrint: '인쇄 준비 완료',
     external: '외부',
+    externalInputsEmpty: '외부 입력 {{count}}개가 모두 비어 있습니다',
     extL: '외부-L',
     extR: '외부-R',
     deleteArchives: '인쇄 아카이브 삭제',
@@ -2631,6 +2642,7 @@ export default {
     totalPrintHours: '인쇄 시간',
     activeNozzle: '활성: {{nozzle}} 노즐',
     nozzleRack: '노즐 랙',
+    nozzleRackMounted: '툴헤드에 장착됨',
     nozzleDocked: '도킹됨',
     nozzleMounted: '장착됨',
     nozzleActive: '활성',
@@ -2640,6 +2652,7 @@ export default {
     nozzleStatus: '상태',
     nozzleFilament: '필라멘트',
     nozzleWear: '마모',
+    nozzlePrintTime: '출력 시간',
     nozzleMaxTemp: '최대 온도',
     nozzleSerial: '일련번호',
     nozzleHardenedSteel: '경화강',
@@ -2698,6 +2711,7 @@ export default {
       rfidRereadInitiated: 'RFID 재읽기가 시작되었습니다',
       loadInitiated: '필라멘트 로딩 중…',
       unloadInitiated: '필라멘트 언로딩 중…',
+      unloadAms3h: '슬롯 {{n}} 언로드 중입니다. 프린터가 요청하면 AMS 3H에서 필라멘트를 손으로 빼내세요.',
       failedToLoad: '필라멘트 로드 실패',
       failedToUnload: '필라멘트 언로드 실패',
       connectionFailedNotAdded: '프린터에 연결할 수 없습니다. IP, 시리얼 번호, 액세스 코드를 확인하고 LAN 전용 모드가 켜져 있는지 확인하세요. 프린터가 추가되지 않았습니다.'
@@ -2872,6 +2886,7 @@ export default {
       customSubnetNote: '프린터가 이 서버와 다른 네트워크에 있는 경우 사용자 지정 서브넷을 사용하세요. FTP (990) 및 MQTT (8883) 포트가 라우팅 경계를 통해 접근 가능해야 합니다.',
     },
     drying: {
+      ams3hDryerSlots: 'AMS 3H는 슬롯 {{a}}, {{b}}만 건조합니다',
       start: '건조 시작',
       stop: '건조 정지',
       temperature: '온도',
@@ -4048,6 +4063,14 @@ export default {
     noPermissionEditIntervals: '간격을 편집할 권한이 없습니다',
     configureSettings: '유지보수 유형 및 간격 설정'
   },
+  wled: {
+    connectionSection: '연결', mappingSection: '상태 매핑', testConnection: '연결 테스트', notTested: '테스트하지 않음', connected: 'WLED에 연결됨{{name}}{{version}}', notReachable: 'WLED에 연결할 수 없습니다.', testPreset: '테스트', presetTested: '프리셋이 활성화되었습니다', presetTestFailed: '프리셋을 활성화할 수 없습니다', mappingSummary: '설정된 상태: {{configured}} · 비활성 상태: {{disabled}}',
+    title: 'WLED', description: '색상, 효과 및 프리셋은 WLED에서 직접 관리합니다. PrintOps는 프린터 상태를 기존 프리셋에 연결만 합니다.',
+    printer: '프린터', enabled: 'WLED 연동 활성화', baseUrl: 'WLED 주소', loadPresets: '프리셋 불러오기', online: '프리셋 {{count}}개를 불러왔습니다', offlineHint: 'WLED에 연결할 수 없습니다. 저장된 프리셋 ID는 유지됩니다.', noPrinters: '설정된 프린터가 없습니다.', noPreset: '비활성화 — 프리셋 없음', savedUnavailable: '저장된 프리셋 {{id}} — 현재 사용 불가', finishedTimeout: '완료 타임아웃(초)', finishedTimeoutHint: '이 시간이 지나면 완료에서 유휴 프리셋으로 전환합니다. 0은 비활성화입니다.', saved: 'WLED 설정을 저장했습니다', saveError: 'WLED 설정을 저장할 수 없습니다',
+    presetSegmentHint: 'WLED에서 프리셋을 만들 때 대상 세그먼트를 선택하고 “Checked segments only”를 활성화하세요. 실행 중에는 PrintOps가 설정된 프리셋만 활성화합니다.',
+    status: { idle: '유휴', prepare: '준비 중', printing: '인쇄 중', paused: '일시 중지', finished: '완료', error: '실패 / 오류', queue_waiting: '플레이트 제거 대기', filament_problem: '필라멘트 문제', hms_error: 'HMS 오류', offline: '오프라인' },
+  },
+
   settings: {
     title: '설정',
     general: '일반',
@@ -4077,6 +4100,7 @@ export default {
       orderManagementFormatPreview: 'Format & Preview',
       filament: '필라멘트',
       network: '네트워크',
+      wled: 'WLED',
       apiKeys: 'API 키',
       virtualPrinter: '가상 프린터',
       spoolbuddy: 'SpoolBuddy',
@@ -6378,8 +6402,8 @@ export default {
       groupAction: '버전으로 그룹화',
       groupTooltip: '이 파일들을 서로 다른 프린터용으로 슬라이스한 동일 작업으로 표시합니다',
       grouped: '파일 {{count}}개를 버전으로 그룹화했습니다',
-      printAlternatives: '인쇄 (대안 {{count}}개)',
     },
+    printFiles: '인쇄 (파일 {{count}}개)',
     title: '파일 관리자',
     subtitle: '인쇄 파일 정리 및 관리',
     uploadFiles: '파일 업로드',
@@ -7591,6 +7615,19 @@ useEmbedded: '파일의 내장 설정 사용',
     emptySlotReset: '필라멘트가 할당되지 않음'
   },
   printModal: {
+    waitingForAmsStatus: '{{printer}}의 AMS 상태를 기다리는 중…',
+    multiFile: {
+      groupLabel: '선택한 파일의 처리 방식',
+      alternatives: '대안',
+      separate: '개별 작업',
+      alternativesHint: '작업 하나입니다. 가장 먼저 비는 호환 프린터가 자기 파일을 인쇄합니다.',
+      separateHint: '파일마다 대기열 항목 하나를 아래 순서대로 추가합니다. 옵션은 모든 항목에 적용됩니다.',
+      alternativesBlocked: '{{model}}용으로 슬라이스된 파일이 둘 이상입니다. 대안에는 파일마다 서로 다른 프린터 모델이 필요합니다.',
+      orderTitle: '대기열 순서',
+      incompatible: '{{model}} 프린터로 보낼 수 없음: {{files}}',
+      notSlicedFor: '{{model}}용으로 슬라이스되지 않음: {{files}}',
+      failed: '대기열에 추가되지 않음: {{filename}} ({{message}}). 먼저 추가된 항목: {{queued}}.',
+    },
     variants: {
       editNote: '이 대안은 대기열에 추가할 때 정해집니다. 변경하려면 취소 후 다시 추가하세요.',
       title: '프린터 대안',
@@ -9370,6 +9407,8 @@ useEmbedded: '파일의 내장 설정 사용',
       "tabSystem": "시스템",
     },
     writeTag: {
+      writeWith: '쓰기 장치',
+      deviceOfflineOption: '{{name}} (오프라인)',
       tabExisting: '기존 스풀',
       tabNew: '새 스풀',
       tabReplace: '태그 교체',
@@ -9912,6 +9951,7 @@ useEmbedded: '파일의 내장 설정 사용',
         fail: '포트 990은 응답하지만 파일 전송(FTPS) 서비스가 TLS 핸드셰이크를 완료하지 못하고 있습니다. 로그가 과도하게 쌓이는 것을 막기 위해 PrintOps는 이 프린터에 대한 파일 전송 재시도를 {{remaining_seconds}}초 동안 일시 중지했습니다 — 그동안 커버 이미지, 타임랩스, 인쇄 전송이 작동하지 않습니다. 이 문제가 계속되면 프린터를 재시작해 보세요.'
       },
       external_storage: {
+        skip_unsupported_model: '이 모델에서는 이 옵션을 켤 수 없습니다. 현재 펌웨어에서는 프린터와 Bambu Studio 모두 이 옵션을 제공하지 않습니다. 여기서 고칠 것은 없습니다. Bambu Lab이 추가할 때까지 보관된 출력물에는 썸네일과 슬라이서 메타데이터가 없을 수 있습니다.',
         title: '전송된 파일을 외부 저장소에 저장 (설치 단계 4)',
         pass: '프린터가 이 옵션이 켜져 있다고 보고합니다 — 전송된 파일이 SD 카드에 저장되며 아카이브에 썸네일과 슬라이서 메타데이터가 포함됩니다.',
         fail: '프린터가 이 옵션이 꺼져 있다고 보고합니다. "전송된 파일을 외부 저장소에 저장"을 활성화하세요 — 최신 펌웨어 (P2S 01.02 / Bambu Studio 2.6 이상)에서는 프린터의 인쇄 설정에 토글이 있고, 이전 버전에서는 Bambu Studio / OrcaSlicer의 장치 탭에 있습니다. 이 옵션이 없으면 아카이브된 모든 인쇄물에 썸네일과 슬라이서 메타데이터가 없습니다.',

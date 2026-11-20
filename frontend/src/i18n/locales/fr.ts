@@ -1,5 +1,6 @@
 export default {
   profileDefaults: {
+    applyAll: 'Tout appliquer',
     "title": "Profils par défaut des produits",
     "description": "Copiez les préréglages du trancheur et les profils K d’une bobine configurée. Les nouvelles bobines du produit héritent des réglages manquants.",
     "pickSpool": "Choisir une bobine configurée",
@@ -2490,6 +2491,8 @@ export default {
     },
     temperatures: {
       nozzle: 'Buse',
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: 'Buse {{n}}',
       bed: 'Plateau',
       chamber: 'Chambre',
     },
@@ -2541,10 +2544,15 @@ export default {
       summary: '{{live}} en direct, {{snap}} captures, {{total}} au total',
       layer: 'Couche {{cur}}/{{total}}',
       timeLeft: '{{time}} restantes',
+      eta: 'fin {{time}}',
       statusMode: {
         off: 'Arrêt',
         compact: 'Compact',
         full: 'Complet',
+      },
+      controlsMode: {
+        hover: 'Au survol',
+        always: 'Toujours',
       },
       settings: {
         title: 'Paramètres du mur de caméras',
@@ -2553,7 +2561,9 @@ export default {
         snapshotInterval: 'Intervalle de capture (secondes)',
         snapshotIntervalHint: 'À quelle fréquence les vignettes hors direct récupèrent une nouvelle capture.',
         statusOverlay: 'Overlay de statut',
-        statusOverlayHint: 'Compact : badge de statut seul. Complet : + progression, couche, temps restant.',
+        statusOverlayHint: 'Compact : badge de statut seul. Complet : + progression, couche, temps restant, heure de fin, températures.',
+        controls: 'Commandes des tuiles',
+        controlsHint: 'Pause, arrêt et éclairage de la chambre sur chaque tuile : au survol ou toujours. Les écrans tactiles les affichent toujours.',
       },
       page: {
         tokenRejected: 'Ce jeton de mur de caméras a été refusé ou a expiré.',
@@ -2580,6 +2590,7 @@ export default {
     // Printer card
     readyToPrint: 'Prête à imprimer',
     external: 'Externe',
+    externalInputsEmpty: 'Les {{count}} entrées externes sont vides',
     extL: 'Ext-L',
     extR: 'Ext-R',
     deleteArchives: 'Supprimer les archives d\'impression',
@@ -2654,6 +2665,7 @@ export default {
     totalPrintHours: 'Heures d\'impression',
     activeNozzle: 'Active : buse {{nozzle}}',
     nozzleRack: 'Rack à buses',
+    nozzleRackMounted: 'Sur la tête d\'outil',
     nozzleDocked: 'Rangée',
     nozzleMounted: 'Montée',
     nozzleActive: 'Actif',
@@ -2663,6 +2675,7 @@ export default {
     nozzleStatus: 'Statut',
     nozzleFilament: 'Filament',
     nozzleWear: 'Usure',
+    nozzlePrintTime: "Temps d'impression",
     nozzleMaxTemp: 'Temp Max',
     nozzleSerial: 'Série',
     nozzleHardenedSteel: 'Acier Trempé',
@@ -2725,6 +2738,7 @@ export default {
       rfidRereadInitiated: 'Lecture RFID initiée',
       loadInitiated: 'Chargement du filament…',
       unloadInitiated: 'Déchargement du filament…',
+      unloadAms3h: 'Déchargement de l\'emplacement {{n}}. Quand l\'imprimante le demande, retirez le filament de l\'AMS 3H à la main.',
       failedToLoad: 'Échec du chargement du filament',
       failedToUnload: 'Échec du déchargement du filament',
     },
@@ -2927,6 +2941,7 @@ export default {
       toastNotStarted: 'L\'imprimante a accepté la commande, mais l\'AMS n\'a pas démarré le séchage. Vérifiez que l\'adaptateur secteur AMS est branché et que l\'imprimante est inactive.',
       screenOnly: 'Le séchage ne peut être contrôlé que depuis l\'écran de cette imprimante',
       rotateTray: 'Tourner la bobine pendant le séchage',
+      ams3hDryerSlots: 'L\'AMS 3H ne sèche que les emplacements {{a}} et {{b}}',
       rotateUnavailableReason: 'Indisponible : un emplacement de cet AMS a encore du filament engagé dans le tube d\'alimentation, ce qui bloque toute l\'unité. Utilisez d\'abord « Décharger le filament » sur cet emplacement, la rotation pourra ensuite être activée.',
     },
     amsBackup: {
@@ -4134,6 +4149,14 @@ export default {
   },
 
   // Settings page
+  wled: {
+    connectionSection: 'Connexion', mappingSection: 'Association des états', testConnection: 'Tester la connexion', notTested: 'Non testé', connected: 'Connecté à WLED{{name}}{{version}}', notReachable: 'Impossible de se connecter à WLED.', testPreset: 'Tester', presetTested: 'Préréglage activé', presetTestFailed: 'Impossible d’activer le préréglage', mappingSummary: 'États configurés : {{configured}} · États désactivés : {{disabled}}',
+    title: 'WLED', description: 'Les couleurs, effets et préréglages sont gérés directement dans WLED. PrintOps associe uniquement les états de l’imprimante aux préréglages existants.',
+    printer: 'Imprimante', enabled: 'Activer l’intégration WLED', baseUrl: 'URL WLED', loadPresets: 'Charger les préréglages', online: '{{count}} préréglages chargés', offlineHint: 'WLED est indisponible. Les ID enregistrés sont conservés.', noPrinters: 'Aucune imprimante configurée.', noPreset: 'Désactivé — aucun préréglage', savedUnavailable: 'Préréglage {{id}} enregistré — indisponible', finishedTimeout: 'Délai après fin (secondes)', finishedTimeoutHint: 'Passe ensuite du préréglage Terminé à Inactif. 0 désactive le délai.', saved: 'Paramètres WLED enregistrés', saveError: 'Impossible d’enregistrer les paramètres WLED',
+    presetSegmentHint: 'Sélectionnez le segment cible lors de la création du préréglage dans WLED et activez « Checked segments only ». À l’exécution, PrintOps active uniquement le préréglage configuré.',
+    status: { idle: 'Inactive', prepare: 'Préparation', printing: 'Impression', paused: 'En pause', finished: 'Terminée', error: 'Échec / Erreur', queue_waiting: 'En attente du retrait du plateau', filament_problem: 'Problème de filament', hms_error: 'Erreur HMS', offline: 'Hors ligne' },
+  },
+
   settings: {
     title: 'Paramètres',
     general: 'Général',
@@ -4164,6 +4187,7 @@ export default {
       orderManagementFormatPreview: 'Format & Preview',
       filament: 'Filament',
       network: 'Réseau',
+      wled: 'WLED',
       apiKeys: 'Clés API',
       virtualPrinter: 'Imprimante virtuelle',
       failureDetection: 'Détection d\'échec',
@@ -6556,8 +6580,8 @@ export default {
       groupAction: 'Grouper comme versions',
       groupTooltip: 'Marquer ces fichiers comme le même travail tranché pour différentes imprimantes',
       grouped: '{{count}} fichiers groupés comme versions',
-      printAlternatives: 'Imprimer ({{count}} alternatives)',
     },
+    printFiles: 'Imprimer ({{count}} fichiers)',
     title: 'Gestionnaire de fichiers',
     subtitle: 'Organisez vos fichiers d\'impression',
     uploadFiles: 'Téléverser fichiers',
@@ -7809,6 +7833,19 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
 
   // Print modal
   printModal: {
+    waitingForAmsStatus: 'En attente de l\'état de l\'AMS de {{printer}}…',
+    multiFile: {
+      groupLabel: 'Ce que deviennent les fichiers sélectionnés',
+      alternatives: 'Fichiers alternatifs',
+      separate: 'Tâches séparées',
+      alternativesHint: 'Une seule tâche. La première imprimante compatible qui se libère imprime son fichier.',
+      separateHint: 'Un élément de file par fichier, ajouté dans l\'ordre ci-dessous. Les options s\'appliquent à chaque élément.',
+      alternativesBlocked: 'Plusieurs fichiers sont tranchés pour {{model}}. Les alternatives exigent un modèle d\'imprimante différent pour chaque fichier.',
+      orderTitle: 'Ordre dans la file',
+      incompatible: 'Impossible d\'envoyer aux imprimantes {{model}} : {{files}}',
+      notSlicedFor: 'Non tranché pour {{model}} : {{files}}',
+      failed: 'Non mis en file : {{filename}} ({{message}}). Mis en file avant : {{queued}}.',
+    },
     variants: {
       editNote: 'Ces alternatives ont été définies lors de la mise en file. Annulez et remettez en file pour les modifier.',
       title: 'Alternatives d\'imprimante',
@@ -9717,6 +9754,8 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
       "tabSystem": "Système",
     },
     writeTag: {
+      writeWith: 'Écrire avec',
+      deviceOfflineOption: '{{name}} (hors ligne)',
       tabExisting: 'Bobine existante',
       tabNew: 'Nouvelle bobine',
       tabReplace: 'Remplacer le tag',
@@ -9823,6 +9862,7 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
         fail: 'Le port 990 répond, mais le service de transfert de fichiers (FTPS) n\'aboutit pas à la négociation TLS. PrintOps a mis en pause les nouvelles tentatives de transfert vers cette imprimante pendant {{remaining_seconds}}s pour éviter de saturer les journaux — les couvertures, les timelapses et l\'envoi d\'impressions ne fonctionneront pas d\'ici là. Si le problème persiste, essayez de redémarrer l\'imprimante.',
       },
       external_storage: {
+        skip_unsupported_model: "Ce modèle ne permet pas d'activer l'option : avec le firmware actuel, ni l'imprimante ni Bambu Studio ne la proposent. Rien à corriger ici ; les impressions archivées peuvent manquer de miniatures et de métadonnées du slicer jusqu'à ce que Bambu Lab l'ajoute.",
         title: 'Stocker les fichiers envoyés sur stockage externe (étape 4 de l\'installation)',
         pass: 'L\'imprimante signale que cette option est activée — les fichiers envoyés seront stockés sur la carte SD et les archives auront des miniatures et des métadonnées slicer.',
         fail: 'L\'imprimante signale que cette option est désactivée. Activez « Stocker les fichiers envoyés sur stockage externe » — sur les firmwares récents (P2S 01.02 / Bambu Studio 2.6+) l\'interrupteur se trouve dans les Paramètres d\'impression de l\'imprimante ; sur les versions antérieures, il est dans l\'onglet Périphérique de Bambu Studio / OrcaSlicer. Sans cette option, chaque impression archivée est dépourvue de miniature et de métadonnées slicer.',

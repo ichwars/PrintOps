@@ -89,6 +89,9 @@ def dispatch_trays(mapping: list[int] | None, use_ams: bool) -> set[int] | None:
 
 
 def _loaded_trays(state):
+    from backend.app.utils.tray_ids import TrayLayout
+
+    layout = TrayLayout.from_state(state)
     raw = getattr(state, "raw_data", None) or {}
     ams = raw.get("ams")
     units = ams.get("ams", []) if isinstance(ams, dict) else ams if isinstance(ams, list) else []
@@ -106,7 +109,7 @@ def _loaded_trays(state):
                 tray_id = int(tray["id"])
             except (KeyError, TypeError, ValueError):
                 continue
-            yield ams_id, tray_id, ams_id if ams_id >= 128 else ams_id * 4 + tray_id, tray
+            yield ams_id, tray_id, layout.global_tray_id(ams_id, tray_id), tray
     external = raw.get("vt_tray")
     external = [external] if isinstance(external, dict) else external
     for tray in external if isinstance(external, list) else []:
@@ -116,8 +119,9 @@ def _loaded_trays(state):
             global_id = int(tray.get("id", 254))
         except (TypeError, ValueError):
             continue
-        if global_id in (254, 255):
-            yield 255, global_id - 254, global_id, tray
+        if layout.is_external(global_id):
+            _, tray_id = layout.slot_key(global_id)
+            yield 255, tray_id, global_id, tray
 
 
 def _selection_lost(tray: dict) -> bool:

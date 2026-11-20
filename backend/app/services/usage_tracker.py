@@ -20,6 +20,8 @@ from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.services import spool_swaps
+from backend.app.utils.printer_models import has_ams3h, usage_progress
+from backend.app.utils.tray_ids import EXTERNAL_AMS_ID, TrayLayout, decode_wire_slot, external_slot_index
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +32,13 @@ def has_second_external_holder(raw_data: dict | None) -> bool:
     ``tray_now`` 255 means "nothing loaded" on a printer with one external
     holder, and the right-hand external spool on one with two (H2D, X2D),
     which lists it in ``vt_tray``. Both inventory modes read it this way
-    (#3405).
+    (#3405). Not on a nozzle-rack printer (H3C): it lists an external input
+    per hotend, 247-255, and its ``tray_now`` 255 is "nothing loaded".
     """
-    for vt in (raw_data or {}).get("vt_tray") or []:
+    vt_trays = (raw_data or {}).get("vt_tray") or []
+    if isinstance(vt_trays, list) and TrayLayout.from_units(None, vt_trays).rack:
+        return False
+    for vt in vt_trays:
         if not isinstance(vt, dict):
             continue
         try:
@@ -70,7 +76,7 @@ def _library_3mf_type_filter(library_file):
     )
 
 
-def _decode_mqtt_mapping(mapping_raw: list | None) -> list[int] | None:
+def _decode_mqtt_mapping(mapping_raw: list | None, layout: TrayLayout | None = None) -> list[int] | None:
     """Decode MQTT mapping field (snow-encoded) to printops global tray IDs.
 
     The printer's MQTT mapping field is an array indexed by slicer filament slot
@@ -85,24 +91,8 @@ def _decode_mqtt_mapping(mapping_raw: list | None) -> list[int] | None:
 
     result = []
     for value in mapping_raw:
-        if not isinstance(value, int) or value >= 65535:
-            result.append(-1)
-            continue
-
-        ams_hw_id = value >> 8
-        slot = value & 0xFF
-
-        if 0 <= ams_hw_id <= 3:
-            # Regular AMS: sequential global ID
-            result.append(ams_hw_id * 4 + (slot & 0x03))
-        elif 128 <= ams_hw_id <= 135:
-            # AMS-HT: global ID is the hardware ID (one slot per unit)
-            result.append(ams_hw_id)
-        elif ams_hw_id in (254, 255):
-            # External spool
-            result.append(254 if slot != 255 else 255)
-        else:
-            result.append(-1)
+        tray = decode_wire_slot(value, layout) if isinstance(value, int) else None
+        result.append(-1 if tray is None else tray)
 
     # Only return if at least one valid mapping exists
     if all(v < 0 for v in result):
@@ -222,6 +212,7 @@ def _match_slots_by_color(
 
     # Build map of normalized color → list of global tray IDs
     color_to_trays: dict[str, list[int]] = {}
+    layout = TrayLayout.from_units(ams_data if isinstance(ams_data, list) else None)
     for ams_unit in ams_data:
         ams_id = int(ams_unit.get("id", 0))
         for tray in ams_unit.get("tray", []):
@@ -232,11 +223,7 @@ def _match_slots_by_color(
                 continue
             # Normalize AMS color: strip alpha (last 2 chars), lowercase
             norm = tray_color[:6].lower() if len(tray_color) >= 6 else tray_color.lower()
-            if ams_id >= 128:
-                global_id = ams_id  # AMS-HT
-            else:
-                global_id = ams_id * 4 + tray_id
-            color_to_trays.setdefault(norm, []).append(global_id)
+            color_to_trays.setdefault(norm, []).append(layout.global_tray_id(ams_id, tray_id))
 
     if not color_to_trays:
         return None
@@ -688,11 +675,11 @@ async def on_print_start(
         if not isinstance(vt, dict):
             continue
         vt_id = int(vt.get("id", 254))
-        # VT tray id 254 → (ams_id=255, tray_id=0), id 255 → (ams_id=255, tray_id=1)
-        vt_tray_id = vt_id - 254
+        # VT tray id 254 → (ams_id=255, tray_id=0), id 255 → (ams_id=255, tray_id=1), 247-253 → 2-8
+        vt_tray_id = external_slot_index(vt_id)
         remain = vt.get("remain", -1)
         if isinstance(remain, int) and 0 <= remain <= 100:
-            tray_remain_start[(255, vt_tray_id)] = remain
+            tray_remain_start[(EXTERNAL_AMS_ID, vt_tray_id)] = remain
         else:
             skipped_invalid.append(f"VT{vt_id}(remain={remain})")
 
@@ -989,9 +976,9 @@ async def on_print_complete(
                 if not isinstance(vt, dict):
                     continue
                 vt_id = int(vt.get("id", 254))
-                vt_tray_id = vt_id - 254  # 254→0, 255→1
+                vt_tray_id = external_slot_index(vt_id)  # 254→0, 255→1, rack 247-253→2-8
                 remain = vt.get("remain", -1)
-                trays_to_check.append((255, vt_tray_id, remain, f"VT{vt_id}"))
+                trays_to_check.append((EXTERNAL_AMS_ID, vt_tray_id, remain, f"VT{vt_id}"))
 
             for assign_ams_id, assign_tray_id, current_remain, tray_label in trays_to_check:
                 key = (assign_ams_id, assign_tray_id)
@@ -1493,6 +1480,10 @@ async def _track_from_3mf(
     if source is None:
         return []
     file_path, archive, queue_item, filament_usage, plate_id = source
+    get_model = getattr(printer_manager, "get_model", None)
+    reported_model = get_model(printer_id) if callable(get_model) else None
+    model = reported_model if isinstance(reported_model, str) else None
+    tray_layout = TrayLayout.from_state(printer_manager.get_status(printer_id), has_ams3h(model))
 
     # --- Resolve slot-to-tray mapping ---
     mapping_source = None
@@ -1518,7 +1509,7 @@ async def _track_from_3mf(
         raw_data = getattr(state, "raw_data", None) if state else None
         if raw_data:
             mqtt_mapping = raw_data.get("mapping")
-            decoded = _decode_mqtt_mapping(mqtt_mapping)
+            decoded = _decode_mqtt_mapping(mqtt_mapping, tray_layout)
             if decoded:
                 slot_to_tray = decoded
                 mapping_source = "mqtt"
@@ -1600,7 +1591,16 @@ async def _track_from_3mf(
         scale = 1.0
     else:
         state = printer_manager.get_status(printer_id)
-        progress = state.progress if state else 0
+        progress = (
+            usage_progress(
+                model,
+                state.progress,
+                getattr(state, "layer_num", None),
+                getattr(state, "total_layers", None),
+            )
+            if state
+            else 0
+        )
         # Firmware resets progress to 0 on cancel — use last valid progress captured during print
         if progress <= 0 and last_progress > 0:
             progress = last_progress
@@ -1719,15 +1719,7 @@ async def _track_from_3mf(
                     continue
 
                 # Convert global tray ID to (ams_id, tray_id)
-                if tray_global >= 254:
-                    seg_ams_id = 255
-                    seg_tray_id = tray_global - 254
-                elif tray_global >= 128:
-                    seg_ams_id = tray_global
-                    seg_tray_id = 0
-                else:
-                    seg_ams_id = tray_global // 4
-                    seg_tray_id = tray_global % 4
+                seg_ams_id, seg_tray_id = tray_layout.slot_key(tray_global)
 
                 seg_key = (seg_ams_id, seg_tray_id)
                 if seg_key in covered_before:
@@ -1841,16 +1833,7 @@ async def _track_from_3mf(
             if global_tray_id is None:
                 global_tray_id = slot_id - 1
 
-        if global_tray_id >= 254:
-            # External spool: ams_id=255 (sentinel), tray_id=slot index (0 or 1)
-            ams_id = 255
-            tray_id = global_tray_id - 254
-        elif global_tray_id >= 128:
-            ams_id = global_tray_id
-            tray_id = 0
-        else:
-            ams_id = global_tray_id // 4
-            tray_id = global_tray_id % 4
+        ams_id, tray_id = tray_layout.slot_key(global_tray_id)
 
         logger.info(
             "[UsageTracker] 3MF: slot_id=%d -> global_tray=%d -> AMS%d-T%d (used_g=%.1f, tray_now_override=%s)",
@@ -1887,6 +1870,8 @@ async def _track_from_3mf(
             continue
 
         if slot_grams <= 0:
+            if not tray_is_guessed:
+                handled_trays.add(key)  # A measured zero takes precedence over transient AMS remain%.
             continue
 
         for share_spool_id, weight_grams in shares or [(spool_id, slot_grams)]:

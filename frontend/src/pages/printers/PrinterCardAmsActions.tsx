@@ -70,7 +70,7 @@ export function createAmsSlotActions(model: NonNullable<ReturnType<typeof usePri
           onClick={(e) => {
             e.stopPropagation();
             if (printerBusy || !canUsePrinterControl) return;
-            unloadAmsMutation.mutate();
+            unloadAmsMutation.mutate(model.trayLayout.rack ? loadTrayId : undefined);
           }}
           disabled={printerBusy || !canUsePrinterControl}
           title={printerBusy ? t('printers.bedJog.disabledWhilePrinting') : !canUsePrinterControl ? getPrinterControlUnavailableTitle('amsSlot') : undefined}

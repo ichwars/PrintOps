@@ -1,3 +1,4 @@
+import { isAms3hUnit } from '../../utils/amsHelpers';
 import { amsHasLoadedTray } from '../../utils/amsHelpers';
 import { slotCalibrationContext } from '../../utils/slotKProfiles';
 import { CheckCircle, Flame, Loader2, Pencil, ScanSearch, X, XCircle } from 'lucide-react';
@@ -642,6 +643,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
 
     {/* AMS Drying Popover — fixed position to avoid overflow/z-index issues */}
     {dryingPopoverAmsId !== null && dryingPopoverPos && (() => {
+      const dryingPopoverDrySlots = amsData.find(a => a.id === dryingPopoverAmsId)?.dryer_slots ?? [];
       const maxTemp = dryingPopoverModuleType === 'n3s' ? 85 : 65;
       const sliderMin = 35;
       const sliderMax = maxTemp + 10;
@@ -675,6 +677,11 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
             <div className="shrink-0 h-px bg-bambu-dark-tertiary" />
             {/* Body */}
             <div className="px-3 py-2.5 space-y-2.5 overflow-y-auto min-h-0">
+              {dryingPopoverDrySlots?.length === 2 && (
+                <p className="text-[length:var(--pc-t10,10px)] text-bambu-gray" data-testid="drying-popover-ams3h-slots">
+                  {t('printers.drying.ams3hDryerSlots', { a: dryingPopoverDrySlots[0] + 1, b: dryingPopoverDrySlots[1] + 1 })}
+                </p>
+              )}
               {/* Filament type select */}
               <div>
                 <label className="text-[10px] text-white/70 font-medium mb-1 block">{t('printers.filaments')}</label>
@@ -761,6 +768,8 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
                 const targetAms = dryingPopoverAmsId !== null
                   ? amsData.find(a => a.id === dryingPopoverAmsId)
                   : undefined;
+                // The AMS 3H can't turn its spools (the backend always sends rotate_tray false).
+                if (isAms3hUnit(targetAms)) return null;
                 const trayLoadedInThisAms = amsHasLoadedTray(targetAms, status?.tray_now, status?.extruder_slots);
                 const rotateChecked = dryingRotateTray && !trayLoadedInThisAms;
                 return (

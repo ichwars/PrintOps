@@ -106,7 +106,8 @@ async def completion_belongs_to_queue_item(
     if item_archive_id == event_archive_id:
         return True
 
-    observed_names = [name for name in (data.get("subtask_name"),) if isinstance(name, str) and name]
+    subtask = data.get("subtask_name")
+    observed_names = [subtask, subtask_name_from_filename(subtask)] if isinstance(subtask, str) and subtask else []
     if isinstance(data.get("filename"), str) and data["filename"]:
         observed_names.append(subtask_name_from_filename(data["filename"]))
     if not observed_names:

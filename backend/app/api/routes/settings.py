@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
@@ -24,7 +25,7 @@ from backend.app.core.auth import (
     resolve_optional_api_key,
 )
 from backend.app.core.config import settings as app_settings
-from backend.app.core.database import DB_SESSION
+from backend.app.core.database import DB_SESSION, H3C_QUEUE_TRAY_MIGRATION_KEY
 from backend.app.core.group_permission_backfills import GROUP_PERMISSION_BACKFILL_KEYS
 from backend.app.core.permissions import Permission
 from backend.app.core.printer_associations import OBICO_PRINTERS_KEY, VIRTUAL_PRINTER_MIGRATION_KEY
@@ -297,6 +298,11 @@ async def update_settings(
     # Expire all objects to ensure fresh reads after commit
     db.expire_all()
 
+    if "require_plate_clear" in update_data:
+        from backend.app.services.wled import wled_manager
+
+        wled_manager.require_plate_clear = bool(update_data["require_plate_clear"])
+
     # Reconfigure MQTT relay if any MQTT settings changed
     if mqtt_updated:
         try:
@@ -379,7 +385,12 @@ async def reset_settings(
 ):
     """Reset all settings to defaults."""
     # Reset public settings while preserving one-time authorization history.
-    preserved = (USER_PRINTER_SCOPE_MIGRATION_KEY, VIRTUAL_PRINTER_MIGRATION_KEY, *GROUP_PERMISSION_BACKFILL_KEYS)
+    preserved = (
+        USER_PRINTER_SCOPE_MIGRATION_KEY,
+        VIRTUAL_PRINTER_MIGRATION_KEY,
+        H3C_QUEUE_TRAY_MIGRATION_KEY,
+        *GROUP_PERMISSION_BACKFILL_KEYS,
+    )
     result = await db.execute(select(Settings).where(Settings.key.not_in(preserved)))
     for setting in result.scalars().all():
         await db.delete(setting)
@@ -387,7 +398,9 @@ async def reset_settings(
     await db.commit()
 
     from backend.app.services.camera_light import invalidate_settings
+    from backend.app.services.wled import wled_manager
 
+    wled_manager.require_plate_clear = DEFAULT_SETTINGS.require_plate_clear
     invalidate_settings()
     return DEFAULT_SETTINGS
 
@@ -1318,9 +1331,21 @@ async def restore_backup(
             await reinitialize_database()
             await init_db()
             await handle_restored_sessions()
+            from backend.app.core import database
+            from backend.app.services.backup_paths import convert_windows_paths
+
+            path_conversion_failed = False
+            try:
+                async with database.engine.begin() as conn:
+                    await convert_windows_paths(conn, base_dir)
+            except SQLAlchemyError:
+                logger.exception("Could not convert archived Windows paths after restore")
+                path_conversion_failed = True
 
             logger.info("Restore complete - restart required")
             message = "Backup restored successfully. Please restart PrintOps for changes to take effect."
+            if path_conversion_failed:
+                message += " Some stored Windows paths may need manual correction."
             if skipped_dirs:
                 message += f" Note: Some directories could not be restored ({', '.join(skipped_dirs)})."
             if document_integrity_issues:

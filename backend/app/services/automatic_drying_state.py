@@ -2,6 +2,7 @@
 
 import logging
 import time
+from dataclasses import dataclass
 
 from backend.app.services.ambient_humidity import AmbientHumidity
 from backend.app.services.drying_ownership import has_drying_reservation, printer_operation
@@ -19,15 +20,45 @@ def _remaining(unit):
         return None
 
 
+@dataclass
+class AutomaticDryAttempt:
+    generation: object
+    sent_at: float
+    attempts: int
+    suspended: bool = False
+
+
+def parked_retry(owner, key, telemetry, parked, remaining, humidity, threshold, now):
+    """Return whether an automatic start is eligible and whether suspension just began."""
+    attempt = owner._drying_attempts.get(key)
+    if attempt and (
+        attempt.generation is not telemetry or remaining == 0 or (humidity is not None and humidity <= threshold)
+    ):
+        owner._drying_attempts.pop(key, None)
+        attempt = None
+    if not parked:
+        return remaining == 0, False
+    if attempt is None or attempt.suspended:
+        return False, False
+    if now - attempt.sent_at < 30 * 60:
+        return False, False
+    if attempt.attempts >= 2:
+        attempt.suspended = True
+        return False, True
+    return True, False
+
+
 def init_drying_state(owner, *, reset=False):
     """Initialize passive observations, unconfirmed publications and stop authority."""
     if reset:
         owner._drying_pending.clear()
+        owner._drying_attempts.clear()
         owner._ambient_humidity.reset()
         return  # Preserve any existing explicit stop authority across scheduler lifecycle.
     owner._drying_in_progress: dict[int, float] = {}
     owner._drying_owned_ams: dict[int, set[int]] = {}
     owner._drying_pending: dict[tuple[int, int], tuple[float, object]] = {}
+    owner._drying_attempts = {}
     owner._ambient_humidity = AmbientHumidity()
 
 

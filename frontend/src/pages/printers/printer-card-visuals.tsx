@@ -1,3 +1,4 @@
+import { RACK_SLOT_COUNT } from '../../utils/trayIds';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -46,7 +47,11 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isEmpty = !slot.nozzle_diameter && !slot.nozzle_type;
-  const isMounted = slot.stat === 1;
+  // Mounted = on an extruder: ids below 0x10, rack ids from 0x10 up, as Bambu
+  // Studio tells them apart (DevNozzleSystem). `stat` says whether the nozzle's
+  // info is reliable and normal, not where it is (#3442: an H3C hotend without
+  // RFID reports stat 1 in the rack). Empty rack placeholders have negative ids.
+  const isMounted = slot.id >= 0 && slot.id < 16;
 
   useEffect(() => {
     if (isVisible && triggerRef.current && cardRef.current) {
@@ -148,6 +153,14 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleWear')}</span>
                     <span className="text-xs text-white font-semibold">{slot.wear}%</span>
+                  </div>
+                )}
+
+                {/* Print time (H2C firmware only, hide if not reported) */}
+                {slot.print_time_s != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzlePrintTime')}</span>
+                    <span className="text-xs text-white font-semibold">{formatDuration(slot.print_time_s)}</span>
                   </div>
                 )}
 
@@ -291,6 +304,12 @@ export function DualNozzleHoverCard({ leftSlot, rightSlot, activeNozzle, filamen
             <span className="text-xs text-white font-semibold">{slot.wear}%</span>
           </div>
         )}
+        {slot.print_time_s != null && (
+          <div className="flex items-center justify-between">
+            <span className="text-[length:var(--pc-t10,10px)] text-bambu-gray">{t('printers.nozzlePrintTime')}</span>
+            <span className="text-xs text-white font-semibold">{formatDuration(slot.print_time_s)}</span>
+          </div>
+        )}
         {/* Serial and max temp only available on the right (removable) nozzle */}
         {side === 'R' && slot.max_temp > 0 && (
           <div className="flex items-center justify-between">
@@ -366,7 +385,7 @@ export function DualNozzleHoverCard({ leftSlot, rightSlot, activeNozzle, filamen
 }
 
 // H2C Nozzle Rack Card — compact single row showing 6-position tool-changer dock
-export function NozzleRackCard({ slots, filamentInfo }: { slots: import('../../api/client').NozzleRackSlot[]; filamentInfo?: Record<string, { name: string; k: number | null }> }) {
+export function NozzleRackCard({ slots, filamentInfo, rackPrinter = false }: { slots: import('../../api/client').NozzleRackSlot[]; rackPrinter?: boolean; filamentInfo?: Record<string, { name: string; k: number | null }> }) {
   const { t } = useTranslation();
   // Rack nozzles only (IDs >= 2) — excludes L/R hotend nozzles (IDs 0, 1).
   // H2C rack slot IDs are fixed at 16..21. When a nozzle is picked up into the
@@ -374,11 +393,12 @@ export function NozzleRackCard({ slots, filamentInfo }: { slots: import('../../a
   // base — computing it from min(present IDs) shifts everything left when slot 16
   // is the one currently mounted (#943).
   const rackNozzles = slots.filter(s => s.id >= 2);
-  const RACK_SIZE = 6;
+  const RACK_SIZE = rackPrinter ? RACK_SLOT_COUNT : 6;
   const RACK_BASE_ID = 16;
+  const mountedAt = (i: number) => rackPrinter ? slots.find(s => s.id === 0 && s.addr_id === i) : undefined;
   const rackSlots: (import('../../api/client').NozzleRackSlot)[] = Array.from(
     { length: RACK_SIZE },
-    (_, i) => rackNozzles.find(s => s.id === RACK_BASE_ID + i) ?? {
+    (_, i) => rackNozzles.find(s => s.id === RACK_BASE_ID + i) ?? mountedAt(i) ?? {
       id: -(i + 1), nozzle_type: '', nozzle_diameter: '', wear: null, stat: null,
       max_temp: 0, serial_number: '', filament_color: '', filament_id: '', filament_type: '',
     },
@@ -387,9 +407,10 @@ export function NozzleRackCard({ slots, filamentInfo }: { slots: import('../../a
   return (
     <div className="text-center px-2.5 py-1.5 bg-bambu-dark rounded-lg flex-[2_1_190px] flex flex-col justify-center">
       <p className="text-[9px] text-bambu-gray mb-1">{t('printers.nozzleRack')}</p>
-      <div className="flex gap-[3px] justify-center">
+      <div className={`flex gap-[3px] justify-center${rackPrinter ? ' flex-wrap' : ''}`}>
         {rackSlots.map((slot, i) => {
           const isEmpty = !slot.nozzle_diameter && !slot.nozzle_type;
+          const isMounted = rackPrinter && slot.id === 0;
           const filamentBg = !isEmpty ? parseFilamentColor(slot.filament_color) : null;
           const lightBg = filamentBg ? isLightColor(slot.filament_color) : false;
 
@@ -400,10 +421,10 @@ export function NozzleRackCard({ slots, filamentInfo }: { slots: import('../../a
                   isEmpty
                     ? 'bg-bambu-dark-tertiary/20 border-bambu-dark-tertiary/20'
                     : 'bg-bambu-dark-tertiary/40 border-bambu-dark-tertiary/40'
-                }`}
+                }${isMounted ? ' ring-2 ring-bambu-green ring-offset-1 ring-offset-bambu-dark' : ''}`}
                 style={filamentBg ? { backgroundColor: filamentBg } : undefined}
               >
-                <span className={`text-[10px] font-semibold ${isEmpty ? 'text-bambu-gray/30' : lightBg ? 'text-black/80' : 'text-white'}`}
+                <span data-rack-diameter={slot.nozzle_diameter} className={`text-[10px] font-semibold ${isEmpty ? 'text-bambu-gray/30' : lightBg ? 'text-black/80' : 'text-white'}`}
                       style={filamentBg && !lightBg ? { textShadow: '0 1px 3px rgba(0,0,0,0.9)' } : undefined}
                 >
                   {isEmpty ? '—' : (slot.nozzle_diameter || '?')}

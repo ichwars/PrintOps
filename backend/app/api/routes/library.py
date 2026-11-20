@@ -3172,6 +3172,9 @@ async def _run_slicer_with_fallback(
     # specific fields the user changed (printer/process/filament) while
     # the embedded plate / model definitions remain intact.
     primary_bytes = model_bytes
+    # The process JSON before PrintOps layers its own settings on the picked
+    # preset, to tell which keys the output 3MF has to list as changed (#3497).
+    process_as_picked = presets.get("process", "")
     if is_3mf:
         # Strip known inherit/active-filament index markers from
         # Metadata/project_settings.config so the CLI's StaticPrintConfig
@@ -3190,6 +3193,25 @@ async def _run_slicer_with_fallback(
         # with a PVA slot loaded but never used.
         if not embedded_mode:
             presets["process"] = _patch_process_support_settings(presets["process"], primary_bytes)
+
+    # #3497: the slicer CLI leaves different_settings_to_system empty, so the
+    # keys set above are not marked as changed in the output 3MF and Bambu
+    # Studio reopens it with the stock preset's values. Only for a system
+    # process preset, bundled (standard) or Bambu's stock copy on Bambu Cloud,
+    # which signed-in users pick instead (#3386): the system preset is then
+    # the base those keys differ from. A private cloud, Orca Cloud or local
+    # preset already is the user's own preset.
+    from backend.app.api.routes.slicer_presets import is_stock_cloud_preset
+    from backend.app.services.design_settings import changed_process_keys, record_process_changes
+
+    process_ref = request.process_preset
+    process_changes = []
+    if not embedded_mode and request.export_3mf and process_ref is not None:
+        changes = changed_process_keys(process_as_picked, presets["process"])
+        if changes and (
+            process_ref.source == "standard" or await is_stock_cloud_preset(db, user, process_ref, "process")
+        ):
+            process_changes = changes
 
     used_embedded_settings = False
     service = SlicerApiService(api_url)
@@ -3483,6 +3505,10 @@ async def _run_slicer_with_fallback(
 
     _raise_for_unsafe_slicer_output(result.content, request, used_embedded_settings)
 
+    if process_changes and not used_embedded_settings:
+        result = result._replace(
+            content=await asyncio.to_thread(record_process_changes, result.content, process_changes)
+        )
     return result, used_embedded_settings
 
 

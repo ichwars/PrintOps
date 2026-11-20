@@ -3742,40 +3742,6 @@
                 }
             }
         ],
-        "./backend/app/services/camera_light.py": [
-            {
-                "code": "reportCallIssue",
-                "range": {
-                    "startColumn": 21,
-                    "endColumn": 37,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 26,
-                    "endColumn": 36,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 38,
-                    "endColumn": 57,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 40,
-                    "endColumn": 60,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./backend/app/services/camera_source_security.py": [
             {
                 "code": "reportArgumentType",

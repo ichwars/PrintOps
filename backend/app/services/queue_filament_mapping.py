@@ -19,6 +19,7 @@ from backend.app.services.notification_service import notification_service
 from backend.app.services.queue_dispatch_state import edited_since_loaded
 from backend.app.services.queue_item_printer import drop_printer_resolved
 from backend.app.utils.printer_models import is_dual_nozzle_model
+from backend.app.utils.tray_ids import TrayLayout
 
 logger = logging.getLogger(__name__)
 _UNMATCHED_HOLD_PREFIX = "Needs "
@@ -111,7 +112,8 @@ def _might_be_dual_nozzle(printer_model: str | None, status) -> bool:
     if raw.get("ams_extruder_map"):
         return True
     vt_trays = raw.get("vt_tray") or []
-    return isinstance(vt_trays, list) and len(vt_trays) > 1
+    # Not a nozzle-rack printer's one external input per hotend (H3C, 247-255).
+    return isinstance(vt_trays, list) and len(vt_trays) > 1 and not TrayLayout.from_units(None, vt_trays).rack
 
 
 def _int_or(value, default: int) -> int:
@@ -435,6 +437,7 @@ class QueueFilamentMapping:
             # place.
             return None
         by_tray = {f["global_tray_id"]: f for f in loaded}
+        layout = TrayLayout.from_state(status)
 
         # Cheap pass first, on live status alone: every tray the mapping names
         # has to exist here. This catches a foreign mapping without opening the
@@ -445,7 +448,7 @@ class QueueFilamentMapping:
                 continue
             if tray in by_tray:
                 continue
-            if tray >= 254:
+            if tray >= 254 or layout.is_external(tray):
                 # An external feed we have not heard about is absence of
                 # evidence about *that slot* — the rest of the mapping is still
                 # worth judging, so skip it rather than abandoning the pass.
@@ -494,7 +497,7 @@ class QueueFilamentMapping:
                 # has to match too: with only another colour in the AMS, the
                 # printer asking for the spool beats printing in that colour.
                 want = self._canonical_filament_type(req.get("type") or "")
-                if tray >= 254 and tray in empty_external and want:
+                if (tray >= 254 or layout.is_external(tray)) and tray in empty_external and want:
                     ams_tray = next(
                         (
                             f

@@ -55,7 +55,21 @@ export function FilamentProfileDefaults({ spoolman }: { spoolman: boolean }) {
     onError: reportError,
   });
   const apply = useMutation({
-    mutationFn: (id: number) => filamentProfileDefaultsApi.apply(id, spoolman),
+    mutationFn: async (ids: number[]) => {
+      let applied = 0;
+      let failed = 0;
+      for (const id of ids) {
+        try {
+          const result = await filamentProfileDefaultsApi.apply(id, spoolman);
+          applied += result.applied;
+          failed += result.failed;
+        } catch (error) {
+          if (ids.length === 1) throw error;
+          failed += 1;
+        }
+      }
+      return { applied, failed };
+    },
     onSuccess: ({ applied, failed }) => {
       for (const queryKey of ['inventory-spools', 'spoolman-inventory-spools', 'filament-profile-source-spools']) {
         void queryClient.invalidateQueries({ queryKey: [queryKey] });
@@ -74,14 +88,24 @@ export function FilamentProfileDefaults({ spoolman }: { spoolman: boolean }) {
   });
   const busy = save.isPending || apply.isPending || remove.isPending;
 
+  const editableIds = defaults.data?.filter(row => row.can_edit).map(row => row.id) ?? [];
   if (!canRead) return null;
   return (
     <Card id="card-filament-profile-defaults">
-      <CardHeader><h3 className="font-semibold">{t('profileDefaults.title')}</h3></CardHeader>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold">{t('profileDefaults.title')}</h3>
+          {canWrite && editableIds.length > 0 && (
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => apply.mutate(editableIds)}>
+              {t('profileDefaults.applyAll')}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-bambu-gray">{t('profileDefaults.description')}</p>
         {canWrite && (
-          <div className="space-y-2">
+          <div className="flex flex-wrap items-end gap-2">
             <LegacySelect aria-label={t('profileDefaults.pickSpool')} value={selected}
               onChange={event => setSelected(event.target.value)} disabled={busy || spoolQuery.isPending}>
               <option value="">{t('profileDefaults.pickSpool')}</option>
@@ -103,7 +127,7 @@ export function FilamentProfileDefaults({ spoolman }: { spoolman: boolean }) {
               <span>{[row.brand, row.material, row.subtype, row.color_name || t('profileDefaults.allColors')].filter(Boolean).join(' · ')}</span>
               {canWrite && row.can_edit && (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => apply.mutate(row.id)} disabled={busy}>
+                  <Button size="sm" variant="secondary" onClick={() => apply.mutate([row.id])} disabled={busy}>
                     {t('profileDefaults.apply')}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(row)} disabled={busy}>

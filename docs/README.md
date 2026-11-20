@@ -25,6 +25,7 @@ Screenshots gehören nicht in das Repository.
 | Netzwerk | [Proxy-Modus](images/proxy-mode-diagram.png) | Architekturdiagramm des Proxy-Modus |
 | Sicherheit und Release | [Release-Integrität und wöchentliche Wartung](release-security.md) | Security-Prüfungen, automatische Patch-Releases und Artefaktnachweise |
 | Sicherheit | [Alert-Triage 2026-07-23](security-alert-triage-2026-07-23.md) | Befund und Disposition der bereinigten GitHub-Sicherheitswarnungen |
+| Betrieb | [Druckbetrieb, Spulen und Geräte / Printing, spools and devices](bambuddy-november-2026.md) | Einzelaufträge, SpoolBuddy, AMS 3H, Kamerawand, WLED und Profilvorgaben (DE/EN) |
 | Upstream | [Gesamtabgleich 2026-10-11](upstream-comparison-2026-10-11.md) | Historische Funktions- und Korrekturmatrix mit fünf Kategorien, Prioritäten und vollständiger Commit-Liste |
 | Upstream | [Umsetzung 2026-10-11](upstream-implementation-2026-10-11.md) | Umsetzung der 36 wichtigen und fehlenden Punkte auf eigenem main, erhaltene PrintOps-Funktionen und Prüfergebnisse |
 | Bedienung | [Neue Druck-, Lager- und Dateifunktionen](upstream-features-guide.md) | Qualitätsbestätigung, Materialnummern, Warnungen, Etiketten, Dateivorschauen und Druckeralarme bedienen |

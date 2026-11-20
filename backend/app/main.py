@@ -17,6 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete, or_, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.commerce_router import router as commerce_router
 from backend.app.api.routes import (
@@ -144,6 +145,7 @@ from backend.app.services.printer_manager import (
     parse_plate_id,
     printer_manager,
     printer_state_to_dict,
+    printer_tray_layout,
     resolve_plate_id,
 )
 from backend.app.services.printer_status_fingerprint import machine_status_key
@@ -164,8 +166,10 @@ from backend.app.services.spoolman_tracking import (
     store_print_data as _store_spoolman_print_data,
 )
 from backend.app.services.tasmota import tasmota_service
+from backend.app.services.wled import wled_manager
 from backend.app.utils.filament_types import printer_filament_type
 from backend.app.utils.local_time import to_naive_utc, utcnow_naive
+from backend.app.utils.tray_ids import AmsType, external_tray_id, unit_ams_type, unit_label
 
 
 def _start_error_server(missing_packages: list):
@@ -1237,9 +1241,75 @@ def _take_new_hms_faults(printer_id: int, errors: list, print_state: str | None)
     return _hms_errors_to_notify(errors, new_keys)
 
 
+_HMS_MODULE_NAMES = {
+    0x03: "Print/Task",  # bed, nozzle temperatures, motors, the print itself
+    0x05: "System",  # USB/SD, network, firmware, files, AMS communication
+    0x07: "AMS/Filament",
+    0x08: "Toolhead",
+    0x0C: "Camera",  # cameras, lidar, first-layer and AI inspection
+    0x12: "AMS Lite",
+    0x18: "AMS-HT",
+    0x1A: "Tool Changer",
+    0x29: "Air Filter",
+    0x2A: "AMS 3H",
+}
+
+
+def _hms_error_title(module: int) -> str:
+    """The notification title for a fault of *module*."""
+    name = _HMS_MODULE_NAMES.get(module)
+    return f"{name} Error" if name else "Printer Error"
+
+
+async def _take_new_hms_faults_and_save(printer_id: int, errors: list, print_state: str | None = None) -> list:
+    """``_take_new_hms_faults``, and store the notified set when it changed (#3486).
+
+    The set lives in memory, so without this every restart sent each fault the
+    printer still lists once more. A failed write only costs that protection
+    for the next restart, so it is logged and the notification goes ahead.
+    """
+    before = set(_notified_hms_errors.get(printer_id, ()))
+    new = _take_new_hms_faults(printer_id, errors, print_state)
+    if set(_notified_hms_errors.get(printer_id, ())) != before:
+        from backend.app.services.hms_notified import save_notified_hms_faults
+
+        try:
+            await save_notified_hms_faults(printer_id, lambda: _notified_hms_errors.get(printer_id, {}).keys())
+        except Exception as e:
+            logging.getLogger(__name__).warning(
+                "Could not store the notified HMS faults of printer %s: %s", printer_id, e
+            )
+    return new
+
+
+async def _load_notified_hms_faults() -> None:
+    """Restore the faults notified before the restart (#3486).
+
+    Each counts as seen now: one still listed is not sent again, and one that
+    is gone is forgotten after the usual grace period.
+    """
+    from backend.app.services.hms_notified import load_notified_hms_faults
+
+    try:
+        loaded = await load_notified_hms_faults()
+    except Exception as e:
+        logging.getLogger(__name__).warning("Could not load the notified HMS faults: %s", e)
+        return
+    now = time.monotonic()
+    for printer_id, keys in loaded.items():
+        seen = _notified_hms_errors.setdefault(printer_id, {})
+        for key in keys:
+            seen.setdefault(key, now)
+
+
 async def on_printer_status_change(printer_id: int, state: PrinterState):
     """Handle printer status changes - broadcast via WebSocket."""
     check_kprofile_status(printer_id, state, spawn_background_task, logging.getLogger(__name__))
+    wled_manager.handle_status(
+        printer_id,
+        state,
+        awaiting_plate_clear=printer_manager.is_awaiting_plate_clear(printer_id),
+    )
     # Connected-edge reconciliation (#1542 follow-up). When the printer
     # transitions disconnected → connected — which covers both PrintOps
     # startup (no prior connection) and a mid-session MQTT reconnect — fire
@@ -1443,7 +1513,9 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
 
     # Check for new HMS errors and send notifications
     current_hms_errors = getattr(state, "hms_errors", []) or []
-    new_errors = _take_new_hms_faults(printer_id, current_hms_errors, state.state if state.connected else None)
+    new_errors = await _take_new_hms_faults_and_save(
+        printer_id, current_hms_errors, state.state if state.connected else None
+    )
     if new_errors:
         try:
             async with async_session() as db:
@@ -1453,16 +1525,6 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
                 printer = result.scalar_one_or_none()
                 printer_name = printer.name if printer else f"Printer {printer_id}"
 
-                # Format error details for notification
-                # Module 0x07 = AMS/Filament, 0x05 = Nozzle, 0x0C = Motion Controller, etc.
-                module_names = {
-                    0x03: "Print/Task",
-                    0x05: "Nozzle/Extruder",
-                    0x07: "AMS/Filament",
-                    0x0C: "Motion Controller",
-                    0x12: "Chamber",
-                }
-
                 # Capture camera snapshot once for all error notifications
                 error_image_data = await _capture_snapshot_for_notification(
                     printer_id, printer, logging.getLogger(__name__)
@@ -1470,7 +1532,6 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
 
                 sent_count = 0
                 for error in new_errors:
-                    module_name = module_names.get(error.module, f"Module 0x{error.module:02X}")
                     # Build short code like "0700_8010"
                     # Mask to 16 bits to handle printers that send larger values
                     error_code_int = int(error.code.replace("0x", ""), 16) if error.code else 0
@@ -1482,7 +1543,7 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
                     if not description or short_code in _HMS_NOTIFICATION_SUPPRESS:
                         continue
 
-                    error_type = f"{module_name} Error"
+                    error_type = _hms_error_title(error.module)
                     error_detail = description
 
                     await notification_service.on_printer_error(
@@ -1544,12 +1605,7 @@ def _slot_feeds_print(printer_id: int, ams_id: int, tray_id: int) -> bool:
     status = printer_manager.get_status(printer_id)
     if status is None:
         return False
-    if ams_id == 255:
-        global_id = 254 + tray_id
-    elif ams_id >= 128:
-        global_id = ams_id
-    else:
-        global_id = ams_id * 4 + tray_id
+    global_id = printer_tray_layout(printer_id, printer_manager).tray_from_slot_key(ams_id, tray_id)
     if getattr(status, "tray_now", None) == global_id:
         return True
     slots = getattr(status, "extruder_slots", None) or {}
@@ -1590,7 +1646,7 @@ async def _unlink_stale_assignments(printer_id: int, ams_data: list, _print_acti
                 if assignment.ams_id == 255:
                     ps = printer_manager.get_status(printer_id)
                     vt_tray_raw = ps.raw_data.get("vt_tray", []) if ps else []
-                    ext_id = assignment.tray_id + 254  # 0→254, 1→255
+                    ext_id = external_tray_id(assignment.tray_id)  # 0→254, 1→255, rack 2-8→247-253
                     current_tray = None
                     for vt in vt_tray_raw:
                         if isinstance(vt, dict) and int(vt.get("id", 254)) == ext_id:
@@ -4736,7 +4792,12 @@ async def on_print_complete(printer_id: int, data: dict):
     # Retire memory; the archive keeps the restart-safe snapshot.
     baseline = _timelapse_baselines.pop(printer_id, None) if not previous_run else None
 
-    if archive_id and not previous_run and data.get("timelapse_was_active") and print_status == "completed":
+    if (
+        archive_id
+        and not previous_run
+        and data.get("timelapse_was_active")
+        and print_status in {"completed", "failed", "aborted", "cancelled", "stopped"}
+    ):
         logger.info("[TIMELAPSE] Timelapse was active during print, scheduling auto-scan for archive %s", archive_id)
         # Schedule timelapse scan as background task with retries
         # The printer needs time to encode the video after print completion
@@ -4901,11 +4962,9 @@ async def record_ams_history():
                         recorded_count += 1
 
                         # Generate AMS label and determine if it's AMS-HT (A, B, C, D or HT-A for AMS-Lite/Hub)
-                        is_ams_ht = ams_id >= 128
-                        if is_ams_ht:
-                            ams_label = f"HT-{chr(65 + (ams_id - 128))}"
-                        else:
-                            ams_label = f"AMS-{chr(65 + ams_id)}"
+                        ams_type = unit_ams_type(ams_id, ams_data.get("info"))
+                        is_ams_ht = ams_type == AmsType.N3S
+                        ams_label = unit_label(ams_id, ams_type)
 
                         # Skip alarm dispatch for empty AMS units — humidity /
                         # temperature readings are ambient with no filament to
@@ -5567,6 +5626,19 @@ async def on_drying_cycle_end(printer_id: int, record):
         await record_drying_cycle(db, printer_id, record)
 
 
+async def initialize_wled_printers(db: AsyncSession) -> None:
+    """Seed WLED settings and apply offline presets before MQTT connections start."""
+    from backend.app.api.routes.settings import get_setting
+    from backend.app.models.printer import Printer
+
+    wled_manager.require_plate_clear = (await get_setting(db, "require_plate_clear") or "").lower() == "true"
+    result = await db.execute(select(Printer.id, Printer.wled_config, Printer.is_active))
+    for printer_id, config, is_active in result.all():
+        wled_manager.configure_printer(printer_id, config)
+        if not is_active and config:
+            wled_manager.handle_offline(printer_id)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -5579,6 +5651,7 @@ async def lifespan(app: FastAPI):
     install_proactor_reset_filter()
     raise_open_file_limit()
     await init_db()
+    await _load_notified_hms_faults()
     await check_pool_fits_server()
     from backend.app.services.archive_plate_estimates import fill_archive_plate_estimates
 
@@ -5656,6 +5729,11 @@ async def lifespan(app: FastAPI):
     _register_printer_callbacks(loop)
     # Rehydrate persisted awaiting-plate-clear gate (#961) so prompts survive restarts
     await printer_manager.load_awaiting_plate_clear_from_db()
+
+    # WLED is entirely optional. Seed its in-memory per-printer configuration
+    # before MQTT connections begin emitting status callbacks.
+    async with async_session() as db:
+        await initialize_wled_printers(db)
 
     # Layer change callback for external camera timelapse
     async def on_layer_change(printer_id: int, layer_num: int):
@@ -5925,6 +6003,8 @@ async def lifespan(app: FastAPI):
     await mqtt_smart_plug_service.disconnect(timeout=2)
 
     await mqtt_relay.disconnect(timeout=2)
+
+    await wled_manager.shutdown()
 
     # Drop the shared Bambu Cloud HTTP client we registered at startup.
     set_shared_http_client(None)

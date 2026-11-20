@@ -76,6 +76,7 @@ from backend.app.services.queue_drying import drying_holds, stop_drying_before_p
 from backend.app.services.queue_external_feed import external_feed_options
 from backend.app.services.queue_filament_mapping import (
     QueueFilamentMapping,
+    creator_printer_ids,
     filament_constraints,
 )
 from backend.app.services.queue_item_printer import drop_printer_resolved
@@ -85,6 +86,7 @@ from backend.app.services.queue_upload_refusal import asks_nothing_new, hold_rea
 from backend.app.services.scheduled_drying import scheduled_drying
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.smart_plug_selection import (
+    can_be_switched,
     pick_power_plug as select_power_plug,
     plugs_for_printer,
 )
@@ -144,6 +146,17 @@ def _effective_plate_id(explicit_plate_id: int | None, file_path: Path) -> int:
         logger.warning("Dispatch plate: cannot read %s (%s); falling back to plate 1", file_path, exc)
         return 1
     return resolved if resolved is not None else 1
+
+
+def _wear_order(printer: Printer) -> tuple[float, int]:
+    """Sort key for printers a model job could run on: fewest print hours, then id (#3480).
+
+    The same hours as maintenance's ``get_printer_total_hours``: the runtime
+    counter plus the baseline offset a user set for a second-hand or reset
+    machine.
+    """
+    hours = (printer.runtime_seconds or 0) / 3600.0 + (printer.print_hours_offset or 0.0)
+    return hours, printer.id
 
 
 class _UploadProgressBridge:
@@ -421,6 +434,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
         # Minimum cooldown between dispatches to the same printer (covers the
         # H2D's project_file digestion window).
         self._dispatch_min_cooldown = 60.0
+        self._model_wake_retry_at: dict[int, float] = {}
         # Hard timeout — drop the hold even if we never observed a transition,
         # so a lost MQTT session can't lock a printer out of the queue forever.
         # Matches the watchdog timeout (90 s) plus a safety margin so the
@@ -715,6 +729,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                 if candidate.cleanup_library_after_dispatch:
                     consumed_libs.add(lib_id)
 
+            model_wake_attempted = False
             for item in items:
                 # Check scheduled time first (scheduled_time is stored in UTC from ISO string)
                 if item.scheduled_time:
@@ -896,6 +911,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                             )
                         )
 
+                    scope = await creator_printer_ids(db, item.created_by_id)
                     for candidate in candidates:
                         effective_types, filament_overrides = filament_constraints(candidate)
 
@@ -935,6 +951,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                             drying_ids=drying_held,
                             unmatched_on=unmatched_on,
                             is_short=is_short,
+                            allowed_printer_ids=scope,
                         )
                         if match_id:
                             printer_id = match_id
@@ -942,6 +959,15 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                             break
                         per_model_reasons.append((candidate.target_model, match_reason or ""))
 
+                    if printer_id is None and not model_wake_attempted:
+                        model_wake_attempted = await self._wake_printer_for_model(
+                            db,
+                            item,
+                            candidates,
+                            busy_printers | interlocked.keys() | upload_held.keys() | drying_held | gate_blocked,
+                            scope,
+                            require_plate_clear,
+                        )
                     if printer_id is None and gate_blocked:
                         per_model_reasons = [(item.target_model, MODEL_GATE_WAIT_REASON)]
                     waiting_reason = None if printer_id else _collapse_waiting_reasons(per_model_reasons)
@@ -1111,6 +1137,53 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
             selected_printer = self._inflight.get(item_id, (None, item.printer_id))[1]
             await self._dispatch_with_claim(item_db, item, selected_printer)
 
+    async def _wake_printer_for_model(self, db, item, candidates, excluded, scope, require_plate_clear) -> bool:
+        """Wake at most one eligible printer; the next pass checks its fresh telemetry."""
+        now = time.monotonic()
+        self._model_wake_retry_at = {pid: at for pid, at in self._model_wake_retry_at.items() if at > now}
+        available_plugs = select(SmartPlug.printer_id).where(
+            SmartPlug.enabled.is_(True), SmartPlug.auto_on.is_(True), SmartPlug.controls_printer_power.is_(True)
+        )
+        for candidate in candidates:
+            if not candidate.target_model or not is_gcode_compatible(candidate.sliced_for, candidate.target_model):
+                continue
+            model = normalize_printer_model(candidate.target_model) or candidate.target_model
+            query = select(Printer).where(
+                Printer.is_active.is_(True),
+                func.lower(Printer.model) == model.lower(),
+                Printer.id.in_(available_plugs),
+                Printer.id.not_in(excluded | self._model_wake_retry_at.keys()),
+            )
+            if scope is not None:
+                query = query.where(Printer.id.in_(scope))
+            if item.target_location:
+                query = query.where(Printer.location == item.target_location)
+            required, overrides = filament_constraints(candidate)
+            forced = [o for o in overrides or [] if o.get("force_color_match")]
+            for printer in sorted((await db.scalars(query)).all(), key=_wear_order):
+                if printer_manager.is_connected(printer.id) or (require_plate_clear and printer.awaiting_plate_clear):
+                    continue
+                if (required and self._get_missing_filament_types(printer.id, required)) or (
+                    forced and self._get_missing_force_color_slots(printer.id, forced)
+                ):
+                    continue
+                if item.require_previous_success and not await self._check_previous_success(
+                    db, item, printer_id=printer.id
+                ):
+                    continue
+                unmatched, short = self._candidate_filament_checks(db, item, candidate)
+                if await unmatched(printer.id) or await short(printer.id) or await edited_since_loaded(db, item):
+                    continue
+                plugs = await plugs_for_printer(db, printer.id)
+                plug = select_power_plug(
+                    [p for p in plugs if p.auto_on and p.enabled and p.controls_printer_power and can_be_switched(p)]
+                )
+                if plug is not None:
+                    if not await self._power_on_and_wait(plug, printer.id, db):
+                        self._model_wake_retry_at[printer.id] = time.monotonic() + 300
+                    return True
+        return False
+
     async def _find_idle_printer_for_model(
         self,
         db: AsyncSession,
@@ -1161,7 +1234,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
             query = query.where(Printer.id.in_(allowed_printer_ids))
 
         result = await db.execute(query)
-        printers = list(result.scalars().all())
+        printers = sorted(result.scalars().all(), key=_wear_order)
 
         location_suffix = f" in {target_location}" if target_location else ""
         if not printers:

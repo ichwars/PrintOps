@@ -45,6 +45,7 @@ export function DiagnosticChecklist({ result }: { result: PrinterDiagnosticResul
         ? { protocol: 'RTSPS', port: 322, ...check.params }
         : check.params;
     let detailKey: string = check.status;
+    if (check.id === 'external_storage' && check.status === 'skip' && check.params?.unsupported_model) detailKey = 'skip_unsupported_model';
     if (check.id === 'network_mode') {
       const mode = check.params?.mode;
       if (mode === 'macvlan' || mode === 'ipvlan') detailKey = 'lan';

@@ -45,6 +45,8 @@ from backend.app.services.printer_manager import (
 from backend.app.services.printer_status_ams import build_ams_units, build_virtual_trays
 from backend.app.services.printer_status_slots import backup_trays, extruder_slots
 from backend.app.services.runout_tray import nozzle_wiring
+from backend.app.services.wled import wled_manager
+from backend.app.utils.tray_ids import TrayLayout
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -124,6 +126,7 @@ async def build_printer_status(db: AsyncSession, printer: Printer, cloud_configu
     drying_targets = printer_manager.get_drying_targets(printer_id) or {}
     ams_units, ams_exists = build_ams_units(raw_data, state, drying_targets, printer.model)
     vt_tray = build_virtual_trays(raw_data, state, printer.model)
+    tray_layout = TrayLayout.from_units(ams_units, vt_tray)
 
     # Convert nozzle info to response format
     nozzles = [
@@ -141,12 +144,14 @@ async def build_printer_status(db: AsyncSession, printer: Printer, cloud_configu
             nozzle_type=n.get("type", ""),
             nozzle_diameter=n.get("diameter", ""),
             wear=n.get("wear"),
+            print_time_s=n.get("print_time_s"),
             stat=n.get("stat"),
             max_temp=n.get("max_temp", 0),
             serial_number=n.get("serial_number", ""),
             filament_color=n.get("filament_color", ""),
             filament_id=n.get("filament_id", ""),
             filament_type=n.get("filament_type", ""),
+            addr_id=n.get("addr_id"),
         )
         for n in (state.nozzle_rack or [])
     ]
@@ -295,6 +300,7 @@ async def build_printer_status(db: AsyncSession, printer: Printer, cloud_configu
                 raw_data.get("mapping"),
                 active_extruder=state.active_extruder,
                 ams_extruder_map=nozzle_wiring(state),
+                tray_layout=tray_layout,
             )
             if state.state == "PAUSE"
             else None
@@ -306,6 +312,7 @@ async def build_printer_status(db: AsyncSession, printer: Printer, cloud_configu
                 raw_data.get("mapping"),
                 active_extruder=state.active_extruder,
                 ams_extruder_map=nozzle_wiring(state),
+                tray_layout=tray_layout,
             )
             if state.state == "PAUSE"
             else None
@@ -496,6 +503,7 @@ async def disconnect_printer(
         raise HTTPException(404, "Printer not found")
 
     printer_manager.disconnect_printer(printer_id)
+    wled_manager.handle_offline(printer_id)
     return {"connected": False}
 
 

@@ -1,5 +1,6 @@
 export default {
   profileDefaults: {
+    applyAll: 'Apply all',
     "title": "Product profile defaults",
     "description": "Copy slicer presets and K profiles from a configured spool. New spools of that product inherit missing settings.",
     "pickSpool": "Choose a configured spool",
@@ -2527,6 +2528,8 @@ export default {
     },
     temperatures: {
       nozzle: 'Nozzle',
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: 'Nozzle {{n}}',
       bed: 'Bed',
       chamber: 'Chamber',
     },
@@ -2578,10 +2581,15 @@ export default {
       summary: '{{live}} live, {{snap}} snapshots, {{total}} total',
       layer: 'Layer {{cur}}/{{total}}',
       timeLeft: '{{time}} left',
+      eta: 'ETA {{time}}',
       statusMode: {
         off: 'Off',
         compact: 'Compact',
         full: 'Full',
+      },
+      controlsMode: {
+        hover: 'On hover',
+        always: 'Always',
       },
       settings: {
         title: 'Cam wall settings',
@@ -2590,7 +2598,9 @@ export default {
         snapshotInterval: 'Snapshot interval (seconds)',
         snapshotIntervalHint: 'How often non-live tiles fetch a fresh snapshot.',
         statusOverlay: 'Status overlay',
-        statusOverlayHint: 'Compact: state badge only. Full: + progress, layer, time left.',
+        statusOverlayHint: 'Compact: state badge only. Full: + progress, layer, time left, finish time, temperatures.',
+        controls: 'Tile controls',
+        controlsHint: 'Pause, stop and the chamber light on each tile: on hover, or always. Touch screens always show them.',
       },
       page: {
         tokenRejected: 'This Cam Wall token was rejected or has expired.',
@@ -2617,6 +2627,7 @@ export default {
     // Printer card
     readyToPrint: 'Ready to print',
     external: 'External',
+    externalInputsEmpty: 'All {{count}} external inputs are empty',
     extL: 'Ext-L',
     extR: 'Ext-R',
     deleteArchives: 'Delete print archives',
@@ -2694,6 +2705,7 @@ export default {
     totalPrintHours: 'Print Hours',
     activeNozzle: 'Active: {{nozzle}} nozzle',
     nozzleRack: 'Nozzle Rack',
+    nozzleRackMounted: 'On the toolhead',
     nozzleDocked: 'Docked',
     nozzleMounted: 'Mounted',
     nozzleActive: 'Active',
@@ -2703,6 +2715,7 @@ export default {
     nozzleStatus: 'Status',
     nozzleFilament: 'Filament',
     nozzleWear: 'Wear',
+    nozzlePrintTime: 'Print time',
     nozzleMaxTemp: 'Max Temp',
     nozzleSerial: 'Serial',
     nozzleHardenedSteel: 'Hardened Steel',
@@ -2765,6 +2778,7 @@ export default {
       rfidRereadInitiated: 'RFID re-read initiated',
       loadInitiated: 'Loading filament…',
       unloadInitiated: 'Unloading filament…',
+      unloadAms3h: 'Unloading slot {{n}}. When the printer asks, pull the filament back out of the AMS 3H by hand.',
       failedToLoad: 'Failed to load filament',
       failedToUnload: 'Failed to unload filament',
     },
@@ -2967,6 +2981,7 @@ export default {
       screenOnly: 'Drying can only be controlled from this printer\'s screen',
       stoppingDrying: 'Stopping drying...',
       rotateTray: 'Rotate spool during drying',
+      ams3hDryerSlots: 'The AMS 3H dries slots {{a}} and {{b}} only',
       rotateUnavailableReason: 'Unavailable: a slot in this AMS still has filament fed into the tube, which locks the whole unit and stops it turning. Use "Unload filament" on that slot first, then rotation can be enabled.',
     },
     // AMS Filament Backup status badge (printer-wide auto-switch to another spool)
@@ -4188,6 +4203,14 @@ export default {
   },
 
   // Settings page
+  wled: {
+    connectionSection: 'Connection', mappingSection: 'Status mapping', testConnection: 'Test connection', notTested: 'Not tested', connected: 'Connected to WLED{{name}}{{version}}', notReachable: 'Unable to connect to WLED.', testPreset: 'Test', presetTested: 'Preset activated', presetTestFailed: 'Could not activate preset', mappingSummary: 'Configured states: {{configured}} · Disabled states: {{disabled}}',
+    title: 'WLED', description: 'Colours, effects and presets are managed directly in WLED. PrintOps only maps printer states to existing presets.',
+    printer: 'Printer', enabled: 'Enable WLED integration', baseUrl: 'WLED URL', loadPresets: 'Load presets', online: '{{count}} presets loaded', offlineHint: 'WLED is unavailable. Saved preset IDs are kept.', noPrinters: 'No printers configured.', noPreset: 'Disabled — no preset', savedUnavailable: 'Saved preset {{id}} — currently unavailable', finishedTimeout: 'Finished timeout (seconds)', finishedTimeoutHint: 'After this time, switch from Finished to the Idle preset. Set 0 to disable.', saved: 'WLED settings saved', saveError: 'Could not save WLED settings',
+    presetSegmentHint: 'Select the target segment when creating the preset in WLED and enable “Checked segments only”. During runtime, PrintOps only activates the configured preset.',
+    status: { idle: 'Idle', prepare: 'Preparing', printing: 'Printing', paused: 'Paused', finished: 'Finished', error: 'Failed / Error', queue_waiting: 'Awaiting plate clear', filament_problem: 'Filament problem', hms_error: 'HMS error', offline: 'Offline' },
+  },
+
   settings: {
     title: 'Settings',
     general: 'General',
@@ -4218,6 +4241,7 @@ export default {
       orderManagementFormatPreview: 'Format & Preview',
       filament: 'Filament',
       network: 'Network',
+      wled: 'WLED',
       apiKeys: 'API Keys',
       virtualPrinter: 'Virtual Printer',
       spoolbuddy: 'SpoolBuddy',
@@ -6633,8 +6657,8 @@ export default {
       groupAction: 'Group as versions',
       groupTooltip: 'Mark these files as the same job sliced for different printers',
       grouped: 'Grouped {{count}} files as versions',
-      printAlternatives: 'Print ({{count}} alternatives)',
     },
+    printFiles: 'Print ({{count}} files)',
     title: 'File Manager',
     subtitle: 'Organize and manage your print files',
     uploadFiles: 'Upload Files',
@@ -7901,6 +7925,19 @@ export default {
 
   // Print modal
   printModal: {
+    waitingForAmsStatus: 'Waiting for AMS status from {{printer}}…',
+    multiFile: {
+      groupLabel: 'What the selected files become',
+      alternatives: 'Alternatives',
+      separate: 'Separate jobs',
+      alternativesHint: 'One job. The first matching printer to free up prints its file.',
+      separateHint: 'One queue item per file, added in the order below. The options apply to every item.',
+      alternativesBlocked: 'More than one file is sliced for {{model}}. Alternatives need a different printer model for each file.',
+      orderTitle: 'Queue order',
+      incompatible: 'Cannot be dispatched to {{model}} printers: {{files}}',
+      notSlicedFor: 'Not sliced for {{model}}: {{files}}',
+      failed: 'Not queued: {{filename}} ({{message}}). Queued before it: {{queued}}.',
+    },
     variants: {
       editNote: 'These alternatives were set when the job was queued. Cancel and re-queue to change them.',
       title: 'Printer alternatives',
@@ -9814,6 +9851,8 @@ export default {
       "tabSystem": "System",
     },
     writeTag: {
+      writeWith: 'Write with',
+      deviceOfflineOption: '{{name}} (offline)',
       tabExisting: 'Existing Spool',
       tabNew: 'New Spool',
       tabReplace: 'Replace Tag',
@@ -9920,6 +9959,7 @@ export default {
         fail: 'Port 990 answers, but the file-transfer (FTPS) service is not completing its TLS handshake. PrintOps has paused further file-transfer attempts to this printer for {{remaining_seconds}}s to avoid flooding the logs — covers, timelapses, and sending prints will not work until this clears. If it keeps happening, try restarting the printer.',
       },
       external_storage: {
+        skip_unsupported_model: 'This model has no way to turn the option on: on current firmware neither the printer nor Bambu Studio offers it. Nothing to fix here; archived prints may lack thumbnails and slicer metadata until Bambu Lab adds it.',
         title: 'Store sent files on external storage (install step 4)',
         pass: 'The printer reports this option is on — sent files will be stored on the SD card and archives will have thumbnails and slicer metadata.',
         fail: 'The printer reports this option is off. Enable "Store sent files on external storage" — on newer firmware (P2S 01.02 / Bambu Studio 2.6+) the toggle lives on the printer\'s Print Settings; on older versions it\'s in Bambu Studio / OrcaSlicer\'s Device tab. Without it, every archived print is missing its thumbnail and slicer metadata.',

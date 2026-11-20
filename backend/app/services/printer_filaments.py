@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from backend.app.services.ams_slot_presence import spool_present
 from backend.app.services.printer_nozzle_evidence import reports_two_nozzles
 from backend.app.services.queue_color_substitutions import reported_rgb
+from backend.app.utils.tray_ids import TrayLayout, external_slot_index
 
 
 class PrinterLike(Protocol):
@@ -96,6 +97,7 @@ def build_loaded_filaments(status, normalize_color) -> list[dict]:
     Returns:
         List of loaded filament dicts with type, color, ams_id, tray_id, global_tray_id
     """
+    layout = TrayLayout.from_state(status)
     filaments = []
 
     # Get ams_extruder_map for dual-nozzle printers (H2D, H2D Pro)
@@ -119,7 +121,7 @@ def build_loaded_filaments(status, normalize_color) -> list[dict]:
                 color = normalize_color(tray_color)
                 # Calculate global tray ID
                 # AMS-HT units have IDs starting at 128 with a single tray
-                global_tray_id = ams_id if ams_id >= 128 else ams_id * 4 + tray_id
+                global_tray_id = layout.global_tray_id(ams_id, tray_id)
 
                 filaments.append(
                     {
@@ -149,7 +151,7 @@ def build_loaded_filaments(status, normalize_color) -> list[dict]:
                     "reported_color": reported_rgb(vt.get("tray_color")),
                     "tray_info_idx": vt.get("tray_info_idx", ""),
                     "ams_id": -1,
-                    "tray_id": idx,
+                    "tray_id": external_slot_index(tray_id) if layout.rack else idx,
                     "is_ht": False,
                     "is_external": True,
                     "global_tray_id": tray_id,

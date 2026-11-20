@@ -68,6 +68,7 @@ import {
 } from '../components/settings/DeviceManagement';
 import { GitHubBackupSettings } from '../components/GitHubBackupSettings';
 import { FailureDetectionSettings } from '../components/FailureDetectionSettings';
+import { WLEDSettings } from '../components/WLEDSettings';
 import { EmailSettings } from '../components/EmailSettings';
 import { LDAPSettings } from '../components/LDAPSettings';
 import { TwoFactorSettings } from '../components/TwoFactorSettings';
@@ -1562,7 +1563,7 @@ export function SettingsPage() {
 
   // Cross-tab search is powered by the module-level registry in lib/settingsSearch.
   // Resolve i18n labels here so language changes take effect without re-registering.
-  const searchIndex = getSettingsSearchEntries().map(e => ({
+  const searchIndex = getSettingsSearchEntries().filter(e => e.anchor !== 'card-wled' || hasPermission('printers:update')).map(e => ({
     ...e,
     label: t(e.labelKey, e.labelFallback ?? e.labelKey),
   }));
@@ -3433,6 +3434,7 @@ export function SettingsPage() {
       )}
 
       {/* Smart Home integration settings */}
+      {activeTab === 'integrations' && integrationSubTab === 'smart-home' && hasPermission('printers:update') && <WLEDSettings />}
       {activeTab === 'integrations' && integrationSubTab === 'smart-home' && localSettings && (
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left Column - External URL & FTP Retry */}

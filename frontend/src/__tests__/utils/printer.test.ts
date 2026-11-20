@@ -20,6 +20,18 @@ function queueItem(overrides: PrintQueueItem['filament_overrides']): PrintQueueI
 }
 
 describe('getPrinterImage', () => {
+  describe('H3C', () => {
+    it('uses its own image, by name or model code', () => {
+      expect(getPrinterImage('H3C')).toBe('/img/printers/h3c.png');
+      expect(getPrinterImage('h3c')).toBe('/img/printers/h3c.png');
+      expect(getPrinterImage('N10')).toBe('/img/printers/h3c.png');
+    });
+
+    it('does not take the H2C image', () => {
+      expect(getPrinterImage('H2C')).toBe('/img/printers/h2c.png');
+    });
+  });
+
   describe('X2D (#988)', () => {
     it('resolves display name "X2D" to x2d.png', () => {
       expect(getPrinterImage('X2D')).toBe('/img/printers/x2d.png');

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useOutletContext } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +32,7 @@ import {
   saveRecentColor,
 } from '../../components/spool-form/utils';
 import { MATERIALS } from '../../components/spool-form/constants';
+import { useKioskDevice } from '../../hooks/useKioskDevice';
 
 type Tab = 'existing' | 'new' | 'replace';
 type WriteStatus = 'idle' | 'selected' | 'writing' | 'success' | 'error';
@@ -76,19 +77,25 @@ export function SpoolBuddyWriteTagPage() {
     enabled: spoolmanModeReady,
   });
 
-  const { data: devices = [] } = useQuery({
-    queryKey: ['spoolbuddy-devices'],
-    queryFn: () => spoolbuddyApi.getDevices(),
-    refetchInterval: 5000,
-  });
+  const { device, devices, chooseDevice } = useKioskDevice(5000);
 
   const { data: settings } = useQuery({
     queryKey: ['settings', 'ui-flags'],
     queryFn: api.getUiFlags,
   });
 
-  const device = devices[0];
   const deviceOnline = sbState.deviceOnline;
+  const showDevicePicker = devices.length > 1 && devices.some((d) => d.online && d.device_id !== device?.device_id);
+  // Tag events from every reader reach every kiosk; only this device's count.
+  const deviceIdRef = useRef(device?.device_id);
+  useEffect(() => {
+    deviceIdRef.current = device?.device_id;
+  }, [device?.device_id]);
+  const fromOtherDevice = useCallback(
+    (detail: { device_id?: string } | null | undefined) =>
+      !!deviceIdRef.current && !!detail?.device_id && detail.device_id !== deviceIdRef.current,
+    [],
+  );
   const { currencySymbol } = useDisplayCurrency(settings?.currency);
 
   // Filter spools based on tab
@@ -115,30 +122,40 @@ export function SpoolBuddyWriteTagPage() {
     return list;
   }, [spools, activeTab, searchQuery]);
 
+  useEffect(() => {
+    setTagOnReader(false);
+    setTagUid(null);
+  }, [device?.device_id]);
+
   // Listen for tag events
   const handleUnknownTag = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     const sak = detail.sak ?? detail.data?.sak;
     if (sak === 0x00) {
       setTagOnReader(true);
       setTagUid(detail.tag_uid ?? detail.data?.tag_uid ?? null);
     }
-  }, []);
+  }, [fromOtherDevice]);
 
   const handleTagMatched = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     // Tag is on the reader — could be used for replace flow
     setTagOnReader(true);
     setTagUid(detail.tag_uid ?? detail.data?.tag_uid ?? null);
-  }, []);
+  }, [fromOtherDevice]);
 
-  const handleTagRemoved = useCallback(() => {
+  const handleTagRemoved = useCallback((e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     setTagOnReader(false);
     setTagUid(null);
-  }, []);
+  }, [fromOtherDevice]);
 
   const handleTagWritten = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     if (detail.spool_id === selectedSpool?.id || detail.data?.spool_id === selectedSpool?.id) {
       setWriteStatus('success');
       setWriteMessage(t('spoolbuddy.writeTag.writeSuccess', 'Tag written successfully!'));
@@ -149,15 +166,16 @@ export function SpoolBuddyWriteTagPage() {
         setWriteMessage('');
       }, 5000);
     }
-  }, [selectedSpool, t, refetchSpools]);
+  }, [fromOtherDevice, selectedSpool, t, refetchSpools]);
 
   const handleWriteFailed = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     if (detail.spool_id === selectedSpool?.id || detail.data?.spool_id === selectedSpool?.id) {
       setWriteStatus('error');
       setWriteMessage(detail.message ?? detail.data?.message ?? t('spoolbuddy.writeTag.writeFailed', 'Write failed'));
     }
-  }, [selectedSpool, t]);
+  }, [fromOtherDevice, selectedSpool, t]);
 
   useEffect(() => {
     window.addEventListener('spoolbuddy-unknown-tag', handleUnknownTag);
@@ -330,6 +348,23 @@ export function SpoolBuddyWriteTagPage() {
 
         {/* Right panel — NFC status + write action */}
         <div className="w-[340px] flex flex-col items-center justify-center p-6 shrink-0">
+          {showDevicePicker && (
+            <label className="w-full mb-4 text-sm text-white/60">
+              {t('spoolbuddy.writeTag.writeWith')}
+              <LegacySelect
+                value={device?.device_id ?? ''}
+                onChange={(e) => chooseDevice(e.target.value)}
+                disabled={writeStatus === 'writing'}
+                className="mt-1 w-full px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white"
+              >
+                {devices.map((d) => (
+                  <option key={d.device_id} value={d.device_id}>
+                    {d.online ? d.hostname : t('spoolbuddy.writeTag.deviceOfflineOption', { name: d.hostname })}
+                  </option>
+                ))}
+              </LegacySelect>
+            </label>
+          )}
           <NfcStatusPanel
             writeStatus={writeStatus}
             writeMessage={writeMessage}

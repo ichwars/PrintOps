@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from backend.app.utils.tray_ids import TrayLayout, is_ams_ht_id, mapped_trays_with_slot
+
 
 def nozzle_wiring(state) -> dict | None:
     """Which nozzle each AMS is wired to, for the runout hint; None with a
@@ -18,6 +20,7 @@ def _trays_on_extruder(
     ams_layout: list[tuple[int, bool]],
     active_extruder: int | None,
     ams_extruder_map: dict | None,
+    tray_layout: TrayLayout,
 ) -> set[int] | None:
     """The global trays a local ``raw_slot`` can be on the AMS units wired to
     ``active_extruder`` (an AMS-HT's one tray for slot 0), or None when the
@@ -35,10 +38,8 @@ def _trays_on_extruder(
             return None
         if nozzle != active_extruder:
             continue
-        if not is_ht:
-            trays.add(ams_id * 4 + raw_slot)
-        elif raw_slot == 0:
-            trays.add(ams_id)
+        if not is_ht or raw_slot == 0:
+            trays.add(tray_layout.global_tray_id(ams_id, raw_slot))
     return trays
 
 
@@ -48,6 +49,7 @@ def resolve_expected_tray(
     mapping_raw: object,
     active_extruder: int | None = None,
     ams_extruder_map: dict | None = None,
+    tray_layout: TrayLayout | None = None,
 ) -> int | None:
     """Globalise a raw firmware ``tray_tar``/``tray_pre`` value for the runout UI (#2587).
 
@@ -71,35 +73,34 @@ def resolve_expected_tray(
         * no regular AMS -> ``None``
     - ``4``-``15`` -> already a global regular-AMS ID, returned as-is
 
+    A printer with a rack AMS (``tray_layout``) reports the rack's raw slot 0-8.
+
     Returns ``None`` for anything it can't place, so the caller surfaces a
     "check the printer" message instead of pointing at the wrong slot.
     """
-    if type(raw_slot) is not int or raw_slot in (255, -1):
+    if isinstance(raw_slot, bool) or not isinstance(raw_slot, int) or raw_slot in (255, -1):
         return None
+    layout = tray_layout or TrayLayout()
+    if layout.rack_units:
+        rack_tray = layout.raw_slot_to_global(raw_slot)
+        if rack_tray is not None:
+            return rack_tray
+        return raw_slot if is_ams_ht_id(raw_slot) or layout.is_external(raw_slot) else None
     if raw_slot == 254:
         return 254
-    if 128 <= raw_slot <= 135:
+    if is_ams_ht_id(raw_slot):
         return raw_slot
     if 0 <= raw_slot <= 3:
         regular = [ams_id for ams_id, is_ht in ams_layout if not is_ht]
         if len(regular) == 1:
-            return regular[0] * 4 + raw_slot
+            return layout.global_tray_id(regular[0], raw_slot)
         if len(regular) > 1:
-            candidates: set[int] = set()
-            for value in mapping_raw if isinstance(mapping_raw, list) else []:
-                if type(value) is not int or value < 0 or value >= 65535:
-                    continue
-                ams_hw_id = value >> 8
-                slot = value & 0xFF
-                if 0 <= ams_hw_id <= 3 and (slot & 0x03) == raw_slot:
-                    candidates.add(ams_hw_id * 4 + raw_slot)
-                elif 128 <= ams_hw_id <= 135 and raw_slot == 0:
-                    candidates.add(ams_hw_id)
+            candidates = set(mapped_trays_with_slot(mapping_raw, raw_slot))
             if len(candidates) == 1:
                 return candidates.pop()
             # The print paused on the active nozzle, so the slot is on an AMS
             # that feeds it.
-            narrowed = _trays_on_extruder(raw_slot, ams_layout, active_extruder, ams_extruder_map)
+            narrowed = _trays_on_extruder(raw_slot, ams_layout, active_extruder, ams_extruder_map, layout)
             if narrowed is None:
                 return None
             if candidates:

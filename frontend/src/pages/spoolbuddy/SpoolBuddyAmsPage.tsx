@@ -1,3 +1,5 @@
+import { isAms3hUnit, isAmsHtUnit, rackExternalLabel, spoolBuddyAmsName } from '../../utils/amsHelpers';
+import { externalSlotIndex, isRackAms, layoutAmsType, locateTray, trayLayoutOf } from '../../utils/trayIds';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,12 +17,6 @@ import { ConfigureAmsSlotModal } from '../../components/ConfigureAmsSlotModal';
 import { AssignSpoolModal } from '../../components/AssignSpoolModal';
 import { LinkSpoolModal } from '../../components/LinkSpoolModal';
 import { useToast } from '../../contexts/ToastContext';
-
-function getAmsName(amsId: number): string {
-  if (amsId <= 3) return `AMS ${String.fromCharCode(65 + amsId)}`;
-  if (amsId >= 128 && amsId <= 135) return `AMS HT ${String.fromCharCode(65 + amsId - 128)}`;
-  return `AMS ${amsId}`;
-}
 
 
 function isTrayEmpty(tray: AMSTray): boolean {
@@ -239,6 +235,7 @@ export function SpoolBuddyAmsPage() {
     extruderId?: number;
     caliIdx?: number | null;
     savedPresetId?: string;
+    label?: string;
   } | null>(null);
 
   // Slot action picker: shown before opening configure or assign modal
@@ -347,21 +344,20 @@ export function SpoolBuddyAmsPage() {
     },
   });
 
+  const trayLayout = useMemo(() => trayLayoutOf(status?.ams, status?.vt_tray), [status?.ams, status?.vt_tray]);
+
   const getActiveSlotForAms = useCallback((amsId: number): number | null => {
     if (effectiveTrayNow === undefined) return null;
-    if (amsId <= 3) {
-      const activeAmsId = Math.floor(effectiveTrayNow / 4);
-      if (activeAmsId === amsId) return effectiveTrayNow % 4;
-    }
-    if (amsId >= 128 && amsId <= 135) {
-      // AMS-HT: global tray ID equals the AMS unit ID itself (128, 129, ...)
-      if (effectiveTrayNow === getGlobalTrayId(amsId, 0, false)) return 0;
+    if (amsId <= 3 || isAmsHtUnit(amsId) || isRackAms(layoutAmsType(trayLayout, amsId))) {
+      const active = locateTray(trayLayout, effectiveTrayNow);
+      if (active && active[0] === amsId) return active[1];
     }
     return null;
-  }, [effectiveTrayNow]);
+  }, [effectiveTrayNow, trayLayout]);
 
   const handleAmsSlotClick = useCallback((amsId: number, trayId: number, tray: AMSTray | null) => {
-    const globalTrayId = getGlobalTrayId(amsId, trayId, false);
+    const amsType = layoutAmsType(trayLayout, amsId);
+    const globalTrayId = getGlobalTrayId(amsId, trayId, false, amsType);
     const slotPreset = slotPresetDescribesTray(slotPresets?.[globalTrayId]?.preset_id, tray?.tray_info_idx, slotPresets?.[globalTrayId]?.tray_info_idx) ? slotPresets?.[globalTrayId] : undefined;
     const mappedExtruderId = amsExtruderMap[String(amsId)];
     const normalizedId = amsId >= 128 ? amsId - 128 : amsId;
@@ -378,15 +374,15 @@ export function SpoolBuddyAmsPage() {
       extruderId: isDualNozzle ? extruderId : undefined,
       caliIdx: tray?.cali_idx,
       savedPresetId: slotPreset?.preset_id,
-      location: `${getAmsName(amsId)} Slot ${trayId + 1}`,
+      location: `${spoolBuddyAmsName(amsId, amsType)} Slot ${trayId + 1}`,
     };
 
     setSlotActionPicker(slotData);
-  }, [slotPresets, amsExtruderMap, isDualNozzle]);
+  }, [slotPresets, amsExtruderMap, isDualNozzle, trayLayout]);
 
   const handleExtSlotClick = useCallback((extTray: AMSTray) => {
     const extTrayId = extTray.id ?? 254;
-    const slotTrayId = extTrayId - 254;
+    const slotTrayId = externalSlotIndex(extTrayId);
     const extSlotPreset = slotPresetDescribesTray(slotPresets?.[255 * 4 + slotTrayId]?.preset_id, extTray.tray_info_idx, slotPresets?.[255 * 4 + slotTrayId]?.tray_info_idx) ? slotPresets?.[255 * 4 + slotTrayId] : undefined;
     const slotData = {
       amsId: 255,
@@ -400,21 +396,24 @@ export function SpoolBuddyAmsPage() {
       extruderId: isDualNozzle ? (extTrayId === 254 ? 1 : 0) : undefined,
       caliIdx: extTray.cali_idx,
       savedPresetId: extSlotPreset?.preset_id,
-      location: isDualNozzle
-        ? (extTrayId === 254 ? 'Ext-L' : 'Ext-R')
-        : 'External',
+      location: trayLayout.rack
+        ? rackExternalLabel(extTrayId)
+        : isDualNozzle
+          ? (extTrayId === 254 ? 'Ext-L' : 'Ext-R')
+          : 'External',
     };
 
     setSlotActionPicker(slotData);
-  }, [slotPresets, isDualNozzle]);
+  }, [slotPresets, isDualNozzle, trayLayout.rack]);
 
   const openConfigureFromPicker = useCallback(() => {
     if (!slotActionPicker) return;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { tray, location, ...configData } = slotActionPicker;
     setSlotActionPicker(null);
-    setConfigureSlotModal(configData);
-  }, [slotActionPicker]);
+    // An H3C's per-hotend external input keeps its "Ext-n" name in the dialog.
+    setConfigureSlotModal({ ...configData, label: configData.amsId === 255 && trayLayout.rack ? location : undefined });
+  }, [slotActionPicker, trayLayout.rack]);
 
   const openAssignFromPicker = useCallback(() => {
     if (!slotActionPicker || !selectedPrinterId) return;
@@ -501,7 +500,7 @@ export function SpoolBuddyAmsPage() {
       const resolvedInvFill = (invFill === 0 && amsFill !== null && amsFill > 0) ? null : invFill;
       items.push({
         key: `ht-${unit.id}`,
-        label: getAmsName(unit.id),
+        label: spoolBuddyAmsName(unit.id),
         tray,
         isEmpty: isTrayEmpty(tray),
         isActive: getActiveSlotForAms(unit.id) === 0,
@@ -522,7 +521,7 @@ export function SpoolBuddyAmsPage() {
         ? (extTrayId === 254 && status?.active_extruder === 1) ||
           (extTrayId === 255 && status?.active_extruder === 0)
         : effectiveTrayNow === extTrayId;
-      const extSlotTrayId = extTrayId - 254;
+      const extSlotTrayId = externalSlotIndex(extTrayId);
       // Fill level fallback chain: Spoolman → Inventory → AMS remain
       const extSpoolmanFill = getSpoolmanFillForSlot(255, extSlotTrayId, isTrayEmpty(extTray) ? null : extTray);
       const extInvFill = fillOverrides[`255-${extSlotTrayId}`] ?? null;
@@ -531,9 +530,11 @@ export function SpoolBuddyAmsPage() {
       const extResolvedInvFill = (extInvFill === 0 && extAmsFill !== null && extAmsFill > 0) ? null : extInvFill;
       items.push({
         key: `ext-${extTrayId}`,
-        label: isDualNozzle
-          ? (extTrayId === 254 ? t('printers.extL', 'Ext-L') : t('printers.extR', 'Ext-R'))
-          : t('printers.ext', 'Ext'),
+        label: trayLayout.rack
+          ? rackExternalLabel(extTrayId)
+          : isDualNozzle
+            ? (extTrayId === 254 ? t('printers.extL', 'Ext-L') : t('printers.extR', 'Ext-R'))
+            : t('printers.ext', 'Ext'),
         tray: extTray,
         isEmpty: isTrayEmpty(extTray),
         isActive: isExtActive,
@@ -544,7 +545,7 @@ export function SpoolBuddyAmsPage() {
     }
 
     return items;
-  }, [htAms, vtTrays, isDualNozzle, effectiveTrayNow, status?.active_extruder, t, getActiveSlotForAms, getNozzleSide, handleAmsSlotClick, handleExtSlotClick, fillOverrides, getSpoolmanFillForSlot]);
+  }, [htAms, vtTrays, isDualNozzle, effectiveTrayNow, status?.active_extruder, t, getActiveSlotForAms, getNozzleSide, handleAmsSlotClick, handleExtSlotClick, fillOverrides, getSpoolmanFillForSlot, trayLayout.rack]);
 
   return (
     <div className="h-full flex flex-col p-4">
@@ -575,8 +576,9 @@ export function SpoolBuddyAmsPage() {
             {/* Regular AMS cards — 4-slot, 2-col grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {regularAms.map((unit) => (
+                // The AMS 3H takes the full width for its nine slots.
+                <div key={unit.id} className={isAms3hUnit(unit) ? 'md:col-span-2' : 'contents'}>
                 <AmsUnitCard
-                  key={unit.id}
                   unit={unit}
                   activeSlot={getActiveSlotForAms(unit.id)}
                   onConfigureSlot={handleAmsSlotClick}
@@ -586,6 +588,7 @@ export function SpoolBuddyAmsPage() {
                   fillOverrides={fillOverrides}
                   spoolmanFillOverrides={spoolmanFillOverrides}
                 />
+                </div>
               ))}
             </div>
 

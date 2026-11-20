@@ -13,6 +13,10 @@ from backend.app.services.drying_cycle import DryingCycleEnd
 from backend.app.services.pause_eta import next_pause
 from backend.app.services.printer_status_slots import extruder_slots
 from backend.app.services.runout_tray import nozzle_wiring, resolve_expected_tray
+from backend.app.utils.printer_models import has_ams3h
+from backend.app.utils.tray_ids import (
+    TrayLayout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +36,7 @@ CHAMBER_TEMP_SUPPORTED_MODELS = frozenset(
         "H2D",
         "H2DPRO",
         "H2S",  # H2 series
+        "H3C",  # H3 series
         # Internal codes (from MQTT/SSDP)
         "BL-P001",  # X1/X1C
         "C13",  # X1E
@@ -43,6 +48,7 @@ CHAMBER_TEMP_SUPPORTED_MODELS = frozenset(
         "O1E",  # H2D Pro
         "O2D",  # H2D Pro (alternate code)
         "N7",  # P2S
+        "N10",  # H3C
     ]
 )
 
@@ -104,6 +110,7 @@ CHAMBER_HEATER_MODELS = frozenset(
         "H2D",
         "H2DPRO",
         "H2S",
+        "H3C",
         "X2D",
         "X1E",
         "C13",
@@ -115,6 +122,7 @@ CHAMBER_HEATER_MODELS = frozenset(
         "O2D",  # H2D Pro alternate code
         "O1S",  # H2S
         "N6",  # X2D
+        "N10",  # H3C (65 °C active heater; BambuStudio support_chamber_temp_control "1")
     ]
 )
 
@@ -124,7 +132,7 @@ def supports_chamber_heater(model: str | None) -> bool:
 
     The chamber temperature SENSOR is more widely deployed than the chamber
     HEATER: X1C/P2S report chamber temp but ignore M141. Only H2C, H2D,
-    H2D Pro, H2S, X1E, X2D actually heat. Sensor-only models silently swallow the
+    H2D Pro, H2S, H3C, X1E, X2D actually heat. Sensor-only models silently swallow the
     command at the firmware level, so we 400 at the route to surface that.
     """
     if not model:
@@ -150,6 +158,7 @@ CHAMBER_AIRDUCT_MODELS = frozenset(
         "H2D",
         "H2DPRO",
         "H2S",
+        "H3C",
         # Internal codes (from MQTT/SSDP)
         "N7",  # P2S
         "N6",  # X2D
@@ -159,6 +168,7 @@ CHAMBER_AIRDUCT_MODELS = frozenset(
         "O1E",  # H2D Pro
         "O2D",  # H2D Pro alternate code
         "O1S",  # H2S
+        "N10",  # H3C
     ]
 )
 
@@ -166,7 +176,7 @@ CHAMBER_AIRDUCT_MODELS = frozenset(
 def supports_airduct(model: str | None) -> bool:
     """Check if a printer model has a cooling / heating airduct mode toggle.
 
-    Mirrors the frontend PrintersPage `['P2S', 'X2D', 'H2D', 'H2C', 'H2S']`
+    Mirrors the frontend PrintersPage `['P2S', 'X2D', 'H2D', 'H2C', 'H2S', 'H3C']`
     + H2D Pro whitelist. Distinct from `supports_chamber_heater` — P2S has
     the airduct toggle but no active heater, and X1E has the heater but no
     airduct. The preheat stage cares about the intersection (heater AND
@@ -420,7 +430,9 @@ class PrinterManager:
             return
         try:
             from backend.app.core.websocket import ws_manager
+            from backend.app.services.wled import wled_manager
 
+            wled_manager.handle_status(printer_id, state, awaiting_plate_clear=self.is_awaiting_plate_clear(printer_id))
             await ws_manager.send_printer_status(
                 printer_id,
                 printer_state_to_dict(
@@ -1086,6 +1098,7 @@ def printer_state_to_dict(
 
     raw_data = state.raw_data or {}
     ams_units, vt_tray = serialize_ams_state(state, model, drying_targets)
+    tray_layout = TrayLayout.from_units(ams_units, vt_tray)
 
     # Get ams_extruder_map from raw_data (populated by MQTT handler from AMS info field)
     ams_extruder_map = getattr(state, "ams_extruder_map", None) or {}
@@ -1138,6 +1151,7 @@ def printer_state_to_dict(
                 raw_data.get("mapping"),
                 active_extruder=state.active_extruder,
                 ams_extruder_map=nozzle_wiring(state),
+                tray_layout=tray_layout,
             )
             if state.state == "PAUSE"
             else None
@@ -1149,6 +1163,7 @@ def printer_state_to_dict(
                 raw_data.get("mapping"),
                 active_extruder=state.active_extruder,
                 ams_extruder_map=nozzle_wiring(state),
+                tray_layout=tray_layout,
             )
             if state.state == "PAUSE"
             else None
@@ -1197,12 +1212,14 @@ def printer_state_to_dict(
                 "nozzle_type": n.get("type", ""),
                 "nozzle_diameter": n.get("diameter", ""),
                 "wear": n.get("wear"),
+                "print_time_s": n.get("print_time_s"),
                 "stat": n.get("stat"),
                 "max_temp": n.get("max_temp", 0),
                 "serial_number": n.get("serial_number", ""),
                 "filament_color": n.get("filament_color", ""),
                 "filament_id": n.get("filament_id", ""),
                 "filament_type": n.get("filament_type", ""),
+                "addr_id": n.get("addr_id"),
             }
             for n in (state.nozzle_rack or [])
         ],
@@ -1236,3 +1253,11 @@ async def init_printer_connections(db: AsyncSession):
 
     for printer in printers:
         await printer_manager.connect_printer(printer)
+
+
+def printer_tray_layout(printer_id: int | None, manager: PrinterManager | None = None) -> TrayLayout:
+    """How printer ``printer_id`` numbers its trays: from its live AMS data, else its model."""
+    if printer_id is None:
+        return TrayLayout()
+    manager = manager or printer_manager
+    return TrayLayout.from_state(manager.get_status(printer_id), has_ams3h(manager.get_model(printer_id)))

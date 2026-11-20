@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, VideoOff, WifiOff } from 'lucide-react';
+import { AlertTriangle, Box, Flame, RectangleHorizontal, VideoOff, WifiOff } from 'lucide-react';
 import { getAuthToken } from '../api/client';
-import { formatDuration } from '../utils/date';
+import { formatDuration, formatETA, type TimeFormat } from '../utils/date';
 import { useStreamImgRef } from '../hooks/useStreamImgRef';
 import { useCameraViewport } from '../hooks/useCameraViewport';
 import { useCameraFeedRecovery } from '../hooks/useCameraFeedRecovery';
@@ -10,6 +10,14 @@ import { useCameraFeedAccess } from '../hooks/useCameraStreamToken';
 
 export type CameraTileMode = 'live' | 'snapshot' | 'paused';
 export type CameraTileStatusMode = 'off' | 'compact' | 'full';
+
+/** The heater readings a tile shows in the full overlay (#3479). */
+export interface CameraTileTemperatures {
+  nozzle?: number;
+  nozzle_2?: number;
+  bed?: number;
+  chamber?: number;
+}
 
 interface CameraTileProps {
   printerId: number;
@@ -31,6 +39,10 @@ interface CameraTileProps {
   totalLayers?: number | null;
   printName?: string | null;
   hmsErrorCount?: number;
+  // Full overlay only (#3479): the heaters, on every connected tile, and the
+  // finish time beside the time left while printing.
+  temperatures?: CameraTileTemperatures | null;
+  timeFormat?: TimeFormat;
 }
 
 // Tiles render lighter than EmbeddedCameraViewer's full window: lower fps,
@@ -81,6 +93,8 @@ export function CameraTile({
   totalLayers = null,
   printName = null,
   hmsErrorCount = 0,
+  temperatures = null,
+  timeFormat = 'system',
 }: CameraTileProps) {
   const { t } = useTranslation();
   const [bust, setBust] = useState(0);
@@ -159,6 +173,11 @@ export function CameraTile({
   const progressPct = progress != null ? Math.round(progress) : null;
   const hasLayers = layerNum != null && totalLayers != null && totalLayers > 0;
   const hasRemaining = remainingMin != null && remainingMin > 0;
+  // Heaters a printer has no sensor for are absent from its status, not 0.
+  const showTemps = connected && statusMode === 'full' && temperatures != null;
+  const nozzleTemps = [temperatures?.nozzle, temperatures?.nozzle_2].filter(
+    (v): v is number => v != null,
+  );
 
   return (
     <button
@@ -274,7 +293,35 @@ export function CameraTile({
                   })}
                 </span>
               )}
+              {/* A paused print has no finish time: it moves with the pause. */}
+              {hasRemaining && bucket === 'printing' && (
+                <span>
+                  {t('printers.camWall.eta', { time: formatETA(remainingMin ?? 0, timeFormat, t) })}
+                </span>
+              )}
             </div>
+          </div>
+        )}
+        {showTemps && (
+          <div className="mb-0.5 flex flex-wrap items-center gap-x-2 text-[11px] leading-tight text-bambu-gray">
+            {nozzleTemps.length > 0 && (
+              <span className="flex items-center gap-0.5" title={t('printers.temperatures.nozzle')}>
+                <Flame className="h-3 w-3" aria-label={t('printers.temperatures.nozzle')} />
+                {nozzleTemps.map((v) => `${Math.round(v)}°`).join(' / ')}
+              </span>
+            )}
+            {temperatures?.bed != null && (
+              <span className="flex items-center gap-0.5" title={t('printers.temperatures.bed')}>
+                <RectangleHorizontal className="h-3 w-3" aria-label={t('printers.temperatures.bed')} />
+                {Math.round(temperatures.bed)}°
+              </span>
+            )}
+            {temperatures?.chamber != null && (
+              <span className="flex items-center gap-0.5" title={t('printers.temperatures.chamber')}>
+                <Box className="h-3 w-3" aria-label={t('printers.temperatures.chamber')} />
+                {Math.round(temperatures.chamber)}°
+              </span>
+            )}
           </div>
         )}
         <span className="block truncate text-xs font-medium">{printerName}</span>

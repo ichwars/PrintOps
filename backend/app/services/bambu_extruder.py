@@ -3,6 +3,7 @@
 import logging
 
 from backend.app.services.mqtt_print_provenance import unexpired_tray_target
+from backend.app.utils.tray_ids import decode_wire_slot
 
 logger = logging.getLogger("backend.app.services.bambu_mqtt")
 
@@ -36,6 +37,14 @@ def parse_extruder_position(self, data: dict) -> bool:
             )
             self.state.active_extruder = new_extruder
     extruder_info = extruder.get("info")
+    if isinstance(extruder_info, list) and self.tray_layout.rack:
+        for entry in extruder_info:
+            if isinstance(entry, dict) and entry.get("id") in (0, "0"):
+                tray = decode_wire_slot(entry.get("snow"), self.tray_layout)
+                if tray is not None:
+                    self.state.h2d_extruder_snow[0] = tray
+                    return True
+        return False
     if not isinstance(extruder_info, list) or len(extruder_info) < 2:
         return False
     # Parse H2D snow field (slot now) for accurate tray_now disambiguation

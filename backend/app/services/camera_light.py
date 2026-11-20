@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from time import monotonic
 from typing import TYPE_CHECKING, Literal
 
+import anyio
+
 if TYPE_CHECKING:
     from backend.app.models.printer import Printer
     from backend.app.services.bambu_mqtt import BambuMQTTClient
@@ -54,9 +56,13 @@ async def _load_configuration() -> tuple[CameraLightMode, float]:
     if _config_cache and _config_cache[0] is factory and monotonic() - _config_cache[1] < _SETTINGS_TTL:
         return _config_cache[2:]
     try:
-        async with factory() as db:
-            rows = await db.execute(select(Settings.key, Settings.value).where(Settings.key.in_(CAMERA_LIGHT_SETTINGS)))
-            values = dict(rows.all())
+        values = {}
+        with anyio.CancelScope(shield=True):
+            async with factory() as db:
+                rows = await db.execute(
+                    select(Settings.key, Settings.value).where(Settings.key.in_(CAMERA_LIGHT_SETTINGS))
+                )
+                values = dict(rows.tuples())
     except Exception:
         logger.debug("Could not load automatic camera lighting settings", exc_info=True)
         return "off", _DEFAULT_DELAY

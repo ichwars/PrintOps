@@ -1,3 +1,5 @@
+import { isAms3hUnit, isAmsHtUnit, rackExternalLabel } from '../../utils/amsHelpers';
+import { isExternalTray, layoutAmsType, locateTray, trayLayoutOf } from '../../utils/trayIds';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { formatPrintName } from '../../utils/printName';
 import { BED_TEMP_DEFAULTS, CHAMBER_TEMP_DEFAULTS, FAN_SPEED_DEFAULTS, NOZZLE_TEMP_DEFAULTS } from '../../utils/temperatureFanPresets';
@@ -168,6 +170,7 @@ const [configureSlotModal, setConfigureSlotModal] = useState<{
     extruderId?: number;
     caliIdx?: number | null;
     savedPresetId?: string;
+    label?: string;
   } | null>(null);
 
 const [showFirmwareModal, setShowFirmwareModal] = useState(false);
@@ -189,6 +192,8 @@ const { data: status } = useQuery({
     queryFn: () => api.getPrinterStatus(printer.id),
     refetchInterval: 30000, // Fallback polling, WebSocket handles real-time
   });
+
+const trayLayout = trayLayoutOf(status?.ams, status?.vt_tray);
 
 // Check for firmware updates (cached for 5 minutes, can be disabled in settings)
 const { data: firmwareInfo } = useQuery({
@@ -412,13 +417,15 @@ const previousTray = status?.previous_tray ?? null;
 
 const formatRunoutSlotLabel = (globalId: number | null): string | null => {
     if (globalId === null) return null;
+    if (trayLayout.rack && isExternalTray(globalId, true)) return rackExternalLabel(globalId);
     if (globalId === 254) return t('printers.expectedSlot.external');
-    if (globalId >= 128 && globalId <= 135) {
-      return amsLabels?.[globalId] || getAmsLabel(globalId);
+    const located = locateTray(trayLayout, globalId);
+    if (!located) return null;
+    const [amsId, slot] = located;
+    if (isAmsHtUnit(amsId)) {
+      return amsLabels?.[amsId] || getAmsLabel(amsId);
     }
-    const amsId = Math.floor(globalId / 4);
-    const slot = globalId % 4;
-    const amsName = amsLabels?.[amsId] || getAmsLabel(amsId);
+    const amsName = amsLabels?.[amsId] || getAmsLabel(amsId, layoutAmsType(trayLayout, amsId));
     return t('printers.expectedSlot.label', { ams: amsName, slot: slot + 1 });
   };
 
@@ -1058,8 +1065,15 @@ const loadAmsTrayMutation = useMutation({
   });
 
 const unloadAmsMutation = useMutation({
-    mutationFn: () => api.unloadAms(printer.id),
-    onSuccess: (data) => {
+    mutationFn: (trayId: number | undefined) => api.unloadAms(printer.id, trayId),
+    onSuccess: (data, trayId) => {
+      // H3C: the AMS 3H can't rewind. The printer cuts the filament and pulls it
+      // out of the hotend, then waits for it to be pulled back by hand.
+      const ams3hSlot = trayId !== undefined ? locateTray(trayLayout, trayId) : null;
+      if (ams3hSlot && isAms3hUnit(status?.ams?.find((unit) => unit.id === ams3hSlot[0]))) {
+        showToast(t('printers.toast.unloadAms3h', { n: ams3hSlot[1] + 1 }), 'warning');
+        return;
+      }
       showToast(data.message || t('printers.toast.unloadInitiated'));
     },
     onError: (error: Error) => {
@@ -1423,7 +1437,7 @@ const footerIconButtonClass = '!h-8 !min-h-8 !w-8 !px-0 !py-0';
     airductMutation, bedJogMutation, xyJogMutation, extruderJogMutation,
     homeAxesMutation, plateDetectionMutation, maintenanceMutation, confirmMaintenanceEnter,
     setConfirmMaintenanceEnter, handleEnterMaintenance, objectsData, refreshingSlot,
-    refreshAmsSlotMutation, loadAmsTrayMutation, unloadAmsMutation, plateReferences,
+    refreshAmsSlotMutation, loadAmsTrayMutation, unloadAmsMutation, plateReferences, trayLayout,
     editingRefLabel, setEditingRefLabel, handleTogglePlateDetection, handleOpenPlateManagement,
     closePlateCheckModal, handleCalibratePlate, handleUpdateRefLabel, handleDeleteRef,
     handleSaveRoi, getImageSize, getTitleSize, getSpacing,

@@ -487,6 +487,7 @@ export const inventoryMaintenanceMethods = {
       tray_id: number;
       spoolman_spool_id: number;
       ams_label: string | null;
+      printer_model?: string | null;
     }>>(
       printerId !== undefined
         ? `/spoolman/inventory/slot-assignments/all?printer_id=${printerId}`

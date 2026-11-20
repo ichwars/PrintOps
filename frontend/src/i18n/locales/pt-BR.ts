@@ -1,5 +1,6 @@
 export default {
   profileDefaults: {
+    applyAll: 'Aplicar todos',
     "title": "Perfis padrão de produto",
     "description": "Copie os perfis do fatiador e os perfis K de um carretel configurado. Carretéis novos do mesmo produto recebem as configurações ausentes.",
     "pickSpool": "Escolher um carretel configurado",
@@ -2490,6 +2491,8 @@ export default {
     },
     temperatures: {
       nozzle: 'Bico',
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: 'Bico {{n}}',
       bed: 'Cama',
       chamber: 'Câmara',
     },
@@ -2541,10 +2544,15 @@ export default {
       summary: '{{live}} ao vivo, {{snap}} fotos, {{total}} no total',
       layer: 'Camada {{cur}}/{{total}}',
       timeLeft: 'faltam {{time}}',
+      eta: 'termina {{time}}',
       statusMode: {
         off: 'Desligado',
         compact: 'Compacto',
         full: 'Completo',
+      },
+      controlsMode: {
+        hover: 'Ao passar o mouse',
+        always: 'Sempre',
       },
       settings: {
         title: 'Configurações do mural de câmeras',
@@ -2553,7 +2561,9 @@ export default {
         snapshotInterval: 'Intervalo de foto (segundos)',
         snapshotIntervalHint: 'Com que frequência os blocos não ao vivo buscam uma nova foto.',
         statusOverlay: 'Sobreposição de status',
-        statusOverlayHint: 'Compacto: apenas o selo de status. Completo: + progresso, camada e tempo restante.',
+        statusOverlayHint: 'Compacto: apenas o selo de status. Completo: + progresso, camada, tempo restante, horário de término e temperaturas.',
+        controls: 'Controles do bloco',
+        controlsHint: 'Pausar, parar e luz da câmara em cada bloco: ao passar o mouse ou sempre. Telas sensíveis ao toque sempre os mostram.',
       },
       page: {
         tokenRejected: 'Este token do mural de câmeras foi rejeitado ou expirou.',
@@ -2580,6 +2590,7 @@ export default {
     // Printer card
     readyToPrint: 'Pronto para imprimir',
     external: 'Externo',
+    externalInputsEmpty: 'As {{count}} entradas externas estão vazias',
     extL: 'Ext-L',
     extR: 'Ext-R',
     deleteArchives: 'Excluir arquivos de impressão',
@@ -2654,6 +2665,7 @@ export default {
     totalPrintHours: 'Horas de impressão',
     activeNozzle: 'Ativo: {{nozzle}} bico',
     nozzleRack: 'Suporte de bicos',
+    nozzleRackMounted: 'Na cabeça de impressão',
     nozzleDocked: 'Acoplado',
     nozzleMounted: 'Montado',
     nozzleActive: 'Ativo',
@@ -2663,6 +2675,7 @@ export default {
     nozzleStatus: 'Status',
     nozzleFilament: 'Filamento',
     nozzleWear: 'Desgaste',
+    nozzlePrintTime: 'Tempo de impressão',
     nozzleMaxTemp: 'Temp Máx',
     nozzleSerial: 'Número de série',
     nozzleHardenedSteel: 'Aço Endurecido',
@@ -2725,6 +2738,7 @@ export default {
       rfidRereadInitiated: 'Releitura de RFID iniciada',
       loadInitiated: 'Carregando filamento…',
       unloadInitiated: 'Descarregando filamento…',
+      unloadAms3h: 'Descarregando o slot {{n}}. Quando a impressora pedir, puxe o filamento de volta do AMS 3H com a mão.',
       failedToLoad: 'Falha ao carregar filamento',
       failedToUnload: 'Falha ao descarregar filamento',
     },
@@ -2910,6 +2924,7 @@ export default {
     },
     // AMS Drying
     drying: {
+      ams3hDryerSlots: 'O AMS 3H seca apenas os slots {{a}} e {{b}}',
       start: 'Iniciar secagem',
       stop: 'Parar secagem',
       temperature: 'Temperatura',
@@ -4134,6 +4149,14 @@ export default {
   },
 
   // Settings page
+  wled: {
+    connectionSection: 'Conexão', mappingSection: 'Mapeamento de status', testConnection: 'Testar conexão', notTested: 'Não testado', connected: 'Conectado ao WLED{{name}}{{version}}', notReachable: 'Não foi possível conectar ao WLED.', testPreset: 'Testar', presetTested: 'Predefinição ativada', presetTestFailed: 'Não foi possível ativar a predefinição', mappingSummary: 'Estados configurados: {{configured}} · Estados desativados: {{disabled}}',
+    title: 'WLED', description: 'Cores, efeitos e predefinições são gerenciados diretamente no WLED. O PrintOps apenas associa estados da impressora a predefinições existentes.',
+    printer: 'Impressora', enabled: 'Ativar integração WLED', baseUrl: 'URL do WLED', loadPresets: 'Carregar predefinições', online: '{{count}} predefinições carregadas', offlineHint: 'WLED indisponível. Os IDs salvos serão mantidos.', noPrinters: 'Nenhuma impressora configurada.', noPreset: 'Desativado — sem predefinição', savedUnavailable: 'Predefinição {{id}} salva — indisponível', finishedTimeout: 'Tempo após conclusão (segundos)', finishedTimeoutHint: 'Depois muda da predefinição Concluída para Ociosa. 0 desativa.', saved: 'Configurações WLED salvas', saveError: 'Não foi possível salvar as configurações WLED',
+    presetSegmentHint: 'Selecione o segmento de destino ao criar a predefinição no WLED e ative “Checked segments only”. Durante a execução, o PrintOps ativa apenas a predefinição configurada.',
+    status: { idle: 'Ociosa', prepare: 'Preparando', printing: 'Imprimindo', paused: 'Pausada', finished: 'Concluída', error: 'Falha / Erro', queue_waiting: 'Aguardando liberar a mesa', filament_problem: 'Problema de filamento', hms_error: 'Erro HMS', offline: 'Offline' },
+  },
+
   settings: {
     title: 'Configurações',
     general: 'Geral',
@@ -4164,6 +4187,7 @@ export default {
       orderManagementFormatPreview: 'Format & Preview',
       filament: 'Filamento',
       network: 'Rede',
+      wled: 'WLED',
       apiKeys: 'Chaves API',
       virtualPrinter: 'Impressora Virtual',
       failureDetection: 'Detecção de Falhas',
@@ -6555,8 +6579,8 @@ export default {
       groupAction: 'Agrupar como versões',
       groupTooltip: 'Marcar estes arquivos como o mesmo trabalho fatiado para impressoras diferentes',
       grouped: '{{count}} arquivos agrupados como versões',
-      printAlternatives: 'Imprimir ({{count}} alternativas)',
     },
+    printFiles: 'Imprimir ({{count}} arquivos)',
     title: 'Gerenciador de Arquivos',
     subtitle: 'Organize e gerencie seus arquivos de impressão',
     uploadFiles: 'Enviar Arquivos',
@@ -7808,6 +7832,19 @@ useEmbedded: 'Usar as configurações internas do arquivo',
 
   // Print modal
   printModal: {
+    waitingForAmsStatus: 'Aguardando o status do AMS de {{printer}}…',
+    multiFile: {
+      groupLabel: 'O que os arquivos selecionados se tornam',
+      alternatives: 'Alternativas',
+      separate: 'Trabalhos separados',
+      alternativesHint: 'Um único trabalho. A primeira impressora compatível que ficar livre imprime o seu arquivo.',
+      separateHint: 'Um item de fila por arquivo, adicionado na ordem abaixo. As opções valem para todos os itens.',
+      alternativesBlocked: 'Mais de um arquivo está fatiado para {{model}}. As alternativas exigem um modelo de impressora diferente para cada arquivo.',
+      orderTitle: 'Ordem da fila',
+      incompatible: 'Não pode ser enviado para impressoras {{model}}: {{files}}',
+      notSlicedFor: 'Não fatiado para {{model}}: {{files}}',
+      failed: 'Não adicionado à fila: {{filename}} ({{message}}). Adicionados antes: {{queued}}.',
+    },
     variants: {
       editNote: 'Estas alternativas foram definidas ao enfileirar o trabalho. Cancele e enfileire de novo para alterá-las.',
       title: 'Alternativas de impressora',
@@ -9716,6 +9753,8 @@ useEmbedded: 'Usar as configurações internas do arquivo',
       "tabSystem": "Sistema",
     },
     writeTag: {
+      writeWith: 'Gravar com',
+      deviceOfflineOption: '{{name}} (dispositivo offline)',
       tabExisting: 'Bobina existente',
       tabNew: 'Nova bobina',
       tabReplace: 'Substituir tag',
@@ -9822,6 +9861,7 @@ useEmbedded: 'Usar as configurações internas do arquivo',
         fail: 'A porta 990 responde, mas o serviço de transferência de arquivos (FTPS) não conclui o handshake TLS. O PrintOps pausou novas tentativas de transferência para esta impressora por {{remaining_seconds}}s para evitar sobrecarregar os logs — capas, timelapses e o envio de impressões não funcionarão até lá. Se isso persistir, tente reiniciar a impressora.',
       },
       external_storage: {
+        skip_unsupported_model: 'Este modelo não permite ativar a opção: com o firmware atual, nem a impressora nem o Bambu Studio a oferecem. Não há nada a corrigir aqui; impressões arquivadas podem ficar sem miniaturas e metadados do fatiador até que a Bambu Lab a adicione.',
         title: 'Armazenar arquivos enviados no armazenamento externo (passo 4 da instalação)',
         pass: 'A impressora informa que esta opção está ligada — os arquivos enviados serão armazenados no cartão SD e os arquivos terão miniaturas e metadados do fatiador.',
         fail: 'A impressora informa que esta opção está desligada. Ative "Armazenar arquivos enviados no armazenamento externo" — em firmwares recentes (P2S 01.02 / Bambu Studio 2.6+) o interruptor fica nas Configurações de Impressão da impressora; em versões mais antigas, está na aba Dispositivo do Bambu Studio / OrcaSlicer. Sem essa opção, cada impressão arquivada fica sem miniatura nem metadados do fatiador.',

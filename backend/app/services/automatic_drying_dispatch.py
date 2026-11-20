@@ -5,7 +5,13 @@ from sqlalchemy import select
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.services.ambient_humidity import HumidityObservation, read_humidity
-from backend.app.services.automatic_drying_state import clear_pending, expire_pending, reconcile_pending
+from backend.app.services.automatic_drying_state import (
+    AutomaticDryAttempt,
+    clear_pending,
+    expire_pending,
+    parked_retry,
+    reconcile_pending,
+)
 from backend.app.services.queue_drying import queue_printer_sets
 
 
@@ -94,6 +100,9 @@ async def check_auto_drying(
         for key in self._ambient_humidity.streaks | self._ambient_humidity.samples | self._ambient_humidity.criteria
     } | set(self._drying_owned_ams)
     tracked_ids.update(key[0] for key in self._drying_pending)
+    for key in list(self._drying_attempts):
+        if key[0] not in active_ids:
+            self._drying_attempts.pop(key)
     for pid in tracked_ids - active_ids:
         clear_pending(self, pid)
         self._ambient_humidity.forget_printer(pid)
@@ -206,7 +215,19 @@ async def check_auto_drying(
             # The firmware stops when the configured duration elapses; scheduling
             # stops (print takes priority, queue no longer needs drying) are
             # handled separately via _stop_drying().
-            if dry_time > 0:
+            key = (pid, ams_id)
+            telemetry = state.drying_telemetry
+            parked = ams_id in telemetry.parked_countdowns
+            can_start, suspended = parked_retry(
+                self, key, telemetry, parked, dry_time, humidity, humidity_threshold, now
+            )
+            if suspended:
+                from backend.app.services.notification_service import notification_service
+
+                detail = f"AMS {ams_id}: automatic drying suspended after two starts with a stalled countdown."
+                logger.warning("Printer %d: %s", pid, detail)
+                await notification_service.on_printer_error(pid, printer.name, "Automatic drying suspended", db, detail)
+            if not can_start:
                 logger.debug(
                     "Auto-drying: printer %d AMS %d — drying (%dm left, humidity %s%%), letting it run",
                     pid,
@@ -273,6 +294,9 @@ async def check_auto_drying(
             )
             success = await start_drying(db, printer_manager, pid, ams_id, temp, duration_hours, filament_type)
             if success:
+                previous = self._drying_attempts.get(key)
+                attempts = previous.attempts + 1 if parked and previous else 1
+                self._drying_attempts[key] = AutomaticDryAttempt(telemetry, time.monotonic(), attempts)
                 # Publication is not attribution: ACK/no-op/manual-start reports are ambiguous.
                 self._drying_pending[(pid, ams_id)] = (time.monotonic(), state.drying_telemetry)
                 self._ambient_humidity.streaks.pop((pid, ams_id), None)

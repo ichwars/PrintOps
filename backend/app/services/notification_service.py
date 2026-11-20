@@ -26,6 +26,7 @@ from backend.app.services.notification_plain_text import escape_markdown, send_p
 from backend.app.services.notification_quality import NotificationQualityEvents
 from backend.app.services.notification_queue_events import NotificationQueueEvents
 from backend.app.services.notification_telegram import send_telegram
+from backend.app.utils.tray_ids import EXTERNAL_AMS_ID, is_ams_ht_id, unit_label
 
 logger = logging.getLogger(__name__)
 
@@ -1223,10 +1224,10 @@ class NotificationService(NotificationQueueEvents, NotificationQualityEvents, No
                     tray_id = u.get("tray_id", 0)
                     material = u.get("material", "Unknown") or "Unknown"
                     used = u.get("weight_used", 0)
-                    if ams_id >= 128:
+                    if ams_id == EXTERNAL_AMS_ID or is_ams_ht_id(ams_id):
                         slot_label = "Ext"
                     else:
-                        slot_label = f"AMS-{chr(65 + ams_id)} T{tray_id + 1}"
+                        slot_label = f"{unit_label(ams_id)} T{tray_id + 1}"
                     parts.append(f"{slot_label} {material}: {used:.1f}g")
                 variables["filament_details"] = " | ".join(parts)
             elif archive_data.get("filament_slots"):

@@ -1,8 +1,12 @@
 """Live nozzle presence for filament routing, separate from calibration authority."""
 
+from backend.app.utils.tray_ids import TrayLayout
+
 
 def reports_two_nozzles(state) -> bool:
     raw = getattr(state, "raw_data", None) or {}
+    if TrayLayout.from_state(state).rack:
+        return False
     nozzles = getattr(state, "nozzles", None)
     nozzles = nozzles if isinstance(nozzles, (list, tuple)) else []
     wiring = getattr(state, "ams_extruder_map", None)

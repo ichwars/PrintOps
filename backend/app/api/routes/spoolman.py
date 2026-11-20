@@ -5,7 +5,7 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +20,7 @@ from backend.app.models.settings import Settings
 from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
-from backend.app.schemas.spoolman import SlotAmsId, SlotTrayId
+from backend.app.schemas.spoolman import SlotAmsId, SlotTrayId, check_slot_tray_id
 from backend.app.services import slot_unlink_grace, spool_swaps
 from backend.app.services.active_print_provenance import printer_is_printing
 from backend.app.services.ams_assignment_lock import (
@@ -776,6 +776,11 @@ class LinkSpoolRequest(BaseModel):
     printer_id: int | None = None
     ams_id: SlotAmsId | None = None
     tray_id: SlotTrayId | None = None
+
+    @model_validator(mode="after")
+    def a_real_slot(self) -> "LinkSpoolRequest":
+        check_slot_tray_id(self.ams_id, self.tray_id)
+        return self
 
 
 @router.post("/spools/{spool_id}/link")

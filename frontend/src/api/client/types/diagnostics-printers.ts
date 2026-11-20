@@ -71,6 +71,7 @@ export type DiagnosticStatus = 'pass' | 'fail' | 'warn' | 'skip';
 
 export interface DiagnosticCheck {
   id:
+    | 'external_storage'
     | 'port_mqtt'
     | 'port_ftps'
     | 'port_rtsps'
@@ -176,7 +177,38 @@ export interface OverlayStatus {
 }
 
 // Printer types
+export interface WLEDPresets {
+  idle: number | null;
+  prepare: number | null;
+  printing: number | null;
+  paused: number | null;
+  finished: number | null;
+  error: number | null;
+  queue_waiting: number | null;
+  filament_problem: number | null;
+  hms_error: number | null;
+  offline: number | null;
+}
+
+export interface WLEDConfig {
+  enabled: boolean;
+  base_url: string | null;
+  presets: WLEDPresets;
+  finished_timeout_seconds: number | null;
+}
+
+export interface WLEDPreset {
+  id: number;
+  name: string;
+}
+
+export interface WLEDConnectionInfo {
+  name: string | null;
+  version: string | null;
+}
+
 export interface Printer {
+  wled_config?: WLEDConfig | null;
   id: number;
   name: string;
   serial_number: string;
@@ -256,6 +288,10 @@ export interface AMSTray {
 }
 
 export interface AMSUnit {
+  ams_type?: number | null;
+  dryer_slots?: number[];
+  dryer_humidity?: number | null;
+  dryer_temp?: number | null;
   id: number;
   humidity: number | null;
   temp: number | null;
@@ -282,12 +318,14 @@ export interface NozzleRackSlot {
   nozzle_type: string;
   nozzle_diameter: string;
   wear: number | null;
+  print_time_s?: number | null;  // H2C: seconds this nozzle has printed (#1908); null when not reported
   stat: number | null;  // Nozzle status (e.g. mounted/docked)
   max_temp: number;
   serial_number: string;
   filament_color: string;  // RGBA hex ("00000000" = no filament)
   filament_id: string;
   filament_type: string;  // Material type (e.g. "PLA", "PETG")
+  addr_id?: number | null;  // H3C: home rack position 0-8 (the mounted hotend reports id 0)
 }
 
 export interface PrintOptions {
@@ -436,6 +474,7 @@ export interface PrinterStatus {
 }
 
 export interface PrinterCreate {
+  wled_config?: WLEDConfig | null;
   name: string;
   serial_number: string;
   ip_address: string;

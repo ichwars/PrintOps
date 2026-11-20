@@ -57,6 +57,9 @@ async def forget_deleted_printer(printer_id: int) -> None:
     printers.printer_manager.forget_printer_runtime(printer_id)
     printers.printer_file_cache.forget_printer(printer_id)
     printers.clear_cover_cache(printer_id)
+    from backend.app.services.wled import wled_manager
+
+    wled_manager.remove_printer(printer_id)
     scheduler.forget_printer(printer_id)
     for state in (
         scheduler._upload_backoff,

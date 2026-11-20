@@ -1,5 +1,5 @@
 import type { InventorySpool } from '../api/client';
-import { formatSlotLabel } from './amsHelpers';
+import { formatAssignmentSlotLabel } from './amsHelpers';
 import { compareInventoryColors } from './inventoryColorSort';
 import { shownCostPerKg } from './spoolCost';
 import { parseUTCDate } from './date';
@@ -8,6 +8,7 @@ export type SortState = { column: string; direction: 'asc' | 'desc' } | null;
 
 // Fields shared by local and Spoolman slot assignments for location sorting.
 export type LocationDisplay = {
+  printer_model?: string | null;
   printer_id: number;
   printer_name: string | null;
   ams_id: number;
@@ -31,10 +32,8 @@ const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Re
   location: (s, am) => {
     const a = am[s.id];
     if (!a) return '';
-    const isExt = a.ams_id === 254 || a.ams_id === 255;
-    const isHt = !isExt && a.ams_id >= 128;
     const label = a.ams_label ? ` (${a.ams_label})` : '';
-    return `${a.printer_name || ''} ${formatSlotLabel(a.ams_id, a.tray_id, isHt, isExt)}${label}`;
+    return `${a.printer_name || ''} ${formatAssignmentSlotLabel(a)}${label}`;
   },
   storage_location: (s) => (s.storage_location || '').toLowerCase(),
   label_weight: (s) => s.label_weight,

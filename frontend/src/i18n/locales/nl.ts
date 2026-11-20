@@ -2,6 +2,7 @@
 // PrintOps-specific text and source changes translated for PrintOps.
 export default {
   profileDefaults: {
+    applyAll: 'Alles toepassen',
     "title": "Standaardprofielen per product",
     "description": "Kopieer slicerpresets en K-profielen van een ingestelde spoel. Nieuwe spoelen van dit product krijgen de ontbrekende instellingen.",
     "pickSpool": "Een ingestelde spoel kiezen",
@@ -2529,6 +2530,8 @@ export default {
     },
     temperatures: {
       nozzle: "Mondstuk",
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: 'Spuitmond {{n}}',
       bed: "Printbed",
       chamber: "Kamer",
     },
@@ -2580,10 +2583,15 @@ export default {
       summary: "{{live}} live, {{snap}} momentopnamen, {{total}} totaal",
       layer: "Laag {{cur}}/{{total}}",
       timeLeft: "{{time}} resterend",
+      eta: 'klaar {{time}}',
       statusMode: {
         off: "Uit",
         compact: "Compact",
         full: "Volledig",
+      },
+      controlsMode: {
+        hover: 'Bij aanwijzen',
+        always: 'Altijd',
       },
       settings: {
         title: "Instellingen camerawand",
@@ -2592,7 +2600,9 @@ export default {
         snapshotInterval: "Interval momentopnamen (seconden)",
         snapshotIntervalHint: "Hoe vaak niet-live tegels een nieuwe momentopname ophalen.",
         statusOverlay: "Statusoverlay",
-        statusOverlayHint: "Compact: alleen statusbadge. Volledig: + voortgang, laag, resterende tijd.",
+        statusOverlayHint: 'Compact: alleen statusbadge. Volledig: + voortgang, laag, resterende tijd, eindtijd, temperaturen.',
+        controls: 'Tegelbediening',
+        controlsHint: 'Pauzeren, stoppen en kamerlicht op elke tegel: bij aanwijzen of altijd. Touchscreens tonen ze altijd.',
       },
       page: {
         tokenRejected: "Dit Cam Wall-token is geweigerd of verlopen.",
@@ -2619,6 +2629,7 @@ export default {
     // Printer card
     readyToPrint: "Klaar om af te drukken",
     external: "Extern",
+    externalInputsEmpty: 'Alle {{count}} externe ingangen zijn leeg',
     extL: "Ext-L",
     extR: "Ext-R",
     deleteArchives: "Afdrukarchieven verwijderen",
@@ -2696,6 +2707,7 @@ export default {
     totalPrintHours: "Afdrukuren",
     activeNozzle: "Actief: {{nozzle}}-nozzle",
     nozzleRack: "Nozzlerek",
+    nozzleRackMounted: 'Op de printkop',
     nozzleDocked: "Gedockt",
     nozzleMounted: "Gemonteerd",
     nozzleActive: "Actief",
@@ -2705,6 +2717,7 @@ export default {
     nozzleStatus: "Status",
     nozzleFilament: "Filament",
     nozzleWear: "Slijtage",
+    nozzlePrintTime: 'Printtijd',
     nozzleMaxTemp: "Max. temp.",
     nozzleSerial: "Serienummer",
     nozzleHardenedSteel: "Gehard staal",
@@ -2767,6 +2780,7 @@ export default {
       rfidRereadInitiated: "Opnieuw uitlezen van RFID gestart",
       loadInitiated: "Filament laden…",
       unloadInitiated: "Filament ontladen…",
+      unloadAms3h: 'Sleuf {{n}} wordt ontladen. Trek het filament met de hand uit de AMS 3H terug zodra de printer daarom vraagt.',
       failedToLoad: "Filament laden mislukt",
       failedToUnload: "Filament ontladen mislukt",
     },
@@ -2952,6 +2966,7 @@ export default {
     },
     // AMS Drying
     drying: {
+      ams3hDryerSlots: 'De AMS 3H droogt alleen sleuven {{a}} en {{b}}',
       start: "Drogen starten",
       stop: "Drogen stoppen",
       temperature: "Temperatuur",
@@ -4190,6 +4205,14 @@ export default {
   },
 
   // Settings page
+  wled: {
+    connectionSection: 'Verbinding', mappingSection: 'Statustoewijzing', testConnection: 'Verbinding testen', notTested: 'Niet getest', connected: 'Verbonden met WLED{{name}}{{version}}', notReachable: 'Kan geen verbinding maken met WLED.', testPreset: 'Testen', presetTested: 'Preset geactiveerd', presetTestFailed: 'Preset kon niet worden geactiveerd', mappingSummary: 'Geconfigureerde statussen: {{configured}} · Uitgeschakelde statussen: {{disabled}}',
+    title: 'WLED', description: 'Kleuren, effecten en presets worden rechtstreeks in WLED beheerd. PrintOps koppelt alleen printerstatussen aan bestaande presets.',
+    printer: 'Printer', enabled: 'WLED-integratie inschakelen', baseUrl: 'WLED-URL', loadPresets: 'Presets laden', online: '{{count}} presets geladen', offlineHint: 'WLED is niet bereikbaar. Opgeslagen preset-ID’s blijven behouden.', noPrinters: 'Geen printers geconfigureerd.', noPreset: 'Uitgeschakeld — geen preset', savedUnavailable: 'Opgeslagen preset {{id}} — niet beschikbaar', finishedTimeout: 'Time-out na voltooiing (seconden)', finishedTimeoutHint: 'Schakel daarna van Voltooid naar de Inactief-preset. 0 schakelt dit uit.', saved: 'WLED-instellingen opgeslagen', saveError: 'WLED-instellingen konden niet worden opgeslagen',
+    presetSegmentHint: 'Selecteer het doelsegment wanneer je de preset in WLED maakt en schakel “Checked segments only” in. Tijdens gebruik activeert PrintOps alleen de geconfigureerde preset.',
+    status: { idle: 'Inactief', prepare: 'Voorbereiden', printing: 'Afdrukken', paused: 'Gepauzeerd', finished: 'Voltooid', error: 'Mislukt / Fout', queue_waiting: 'Wachten op lege plaat', filament_problem: 'Filamentprobleem', hms_error: 'HMS-fout', offline: 'Offline' },
+  },
+
   settings: {
     title: "Instellingen",
     general: "Algemeen",
@@ -4220,6 +4243,7 @@ export default {
       orderManagementFormatPreview: "Opmaak en voorbeeld",
       filament: "Filament",
       network: "Netwerk",
+      wled: 'WLED',
       apiKeys: "API-sleutels",
       virtualPrinter: "Virtuele printer",
       spoolbuddy: "SpoolBuddy",
@@ -6630,12 +6654,12 @@ export default {
       uploadFailed: 'Foto kon niet worden geüpload',
       deleteFailed: 'Foto kon niet worden verwijderd',
     },
+    printFiles: 'Afdrukken ({{count}} bestanden)',
     variants: {
       badge: "{{count}} versies",
       groupAction: "Als versies groeperen",
       groupTooltip: "Markeer deze bestanden als dezelfde taak, gesliced voor verschillende printers",
       grouped: "{{count}} bestanden als versies gegroepeerd",
-      printAlternatives: "Afdrukken ({{count}} alternatieven)",
     },
     title: "Bestandsbeheer",
     subtitle: "Organiseer en beheer je afdrukbestanden",
@@ -7903,6 +7927,19 @@ export default {
 
   // Print modal
   printModal: {
+    waitingForAmsStatus: 'Wachten op AMS-status van {{printer}}…',
+    multiFile: {
+      groupLabel: 'Wat er van de geselecteerde bestanden wordt',
+      alternatives: 'Alternatieven',
+      separate: 'Aparte opdrachten',
+      alternativesHint: 'Eén opdracht. De eerste passende printer die vrijkomt print zijn bestand.',
+      separateHint: 'Eén wachtrij-item per bestand, toegevoegd in de volgorde hieronder. De opties gelden voor elk item.',
+      alternativesBlocked: 'Meer dan één bestand is gesliced voor {{model}}. Alternatieven vragen om een ander printermodel per bestand.',
+      orderTitle: 'Volgorde in de wachtrij',
+      incompatible: 'Kan niet worden verzonden naar {{model}}-printers: {{files}}',
+      notSlicedFor: 'Niet gesliced voor {{model}}: {{files}}',
+      failed: 'Niet in de wachtrij gezet: {{filename}} ({{message}}). Eerder in de wachtrij gezet: {{queued}}.',
+    },
     variants: {
       editNote: "Deze alternatieven zijn ingesteld toen de taak in de wachtrij werd geplaatst. Annuleer en plaats opnieuw in de wachtrij om ze te wijzigen.",
       title: "Printeralternatieven",
@@ -9816,6 +9853,8 @@ export default {
       "tabSystem": "Systeem",
     },
     writeTag: {
+      writeWith: 'Schrijven met',
+      deviceOfflineOption: '{{name}} (apparaat offline)',
       tabExisting: "Bestaande spoel",
       tabNew: "Nieuwe spoel",
       tabReplace: "Tag vervangen",
@@ -9922,6 +9961,7 @@ export default {
         fail: "Poort 990 reageert, maar de bestandsoverdrachtservice (FTPS) voltooit de TLS-handshake niet. PrintOps heeft verdere bestandsoverdrachtpogingen naar deze printer {{remaining_seconds}} s gepauzeerd om te voorkomen dat de logboeken vollopen. Covers, timelapses en het verzenden van afdrukken werken pas weer als dit is opgelost. Probeer de printer opnieuw te starten als het probleem aanhoudt.",
       },
       external_storage: {
+        skip_unsupported_model: 'Bij dit model kan de optie niet worden ingeschakeld: met de huidige firmware bieden de printer en Bambu Studio haar geen van beide aan. Hier valt niets op te lossen; gearchiveerde prints kunnen miniaturen en slicer-metadata missen totdat Bambu Lab de optie toevoegt.',
         title: "Verzonden bestanden op externe opslag bewaren (installatiestap 4)",
         pass: "De printer meldt dat deze optie aanstaat — verzonden bestanden worden op de SD-kaart opgeslagen en archieven bevatten miniaturen en slicermetadata.",
         fail: "De printer meldt dat deze optie uitstaat. Schakel \"Verzonden bestanden op externe opslag bewaren\" in — op nieuwere firmware (P2S 01.02 / Bambu Studio 2.6+) staat de schakelaar in de Afdrukinstellingen van de printer; op oudere versies in het tabblad Apparaat van Bambu Studio / OrcaSlicer. Zonder deze optie mist elke gearchiveerde afdruk zijn miniatuur en slicermetadata.",
