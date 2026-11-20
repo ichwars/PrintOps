@@ -204,17 +204,16 @@ class TestWake:
                     )
                 )
             await db.commit()
-            candidate = _ModelCandidate("X1C", "X1C", None, None)
+            candidate = _ModelCandidate(
+                "X1C", "X1C", '["PLA"]', '[{"type":"PLA","color":"#000000","force_color_match":true}]'
+            )
             item = SimpleNamespace(target_location=None, require_previous_success=False)
             power_on = AsyncMock(return_value=True)
             with (
                 patch("backend.app.services.print_scheduler.printer_manager.is_connected", return_value=False),
                 patch("backend.app.services.print_scheduler.edited_since_loaded", AsyncMock(return_value=False)),
-                patch.object(
-                    scheduler,
-                    "_candidate_filament_checks",
-                    return_value=(AsyncMock(return_value=[]), AsyncMock(return_value=False)),
-                ),
+                patch("backend.app.services.print_scheduler.printer_manager.get_status", return_value=None),
+                patch.object(scheduler, "_candidate_filament_checks", side_effect=AssertionError("offline telemetry")),
                 patch.object(scheduler, "_power_on_and_wait", power_on),
             ):
                 assert await scheduler._wake_printer_for_model(db, item, [candidate], set(), {1, 2, 3}, True)
@@ -226,3 +225,8 @@ class TestWake:
                 assert await scheduler._wake_printer_for_model(db, item, [candidate], set(), {3}, True)
                 assert not await scheduler._wake_printer_for_model(db, item, [candidate], set(), {3}, True)
                 assert power_on.await_count == 2
+
+            with patch("backend.app.services.print_scheduler.printer_manager.get_status", return_value=None):
+                match, reason = await _find(farm, scheduler, required_filament_types=["PLA"])
+                assert match is None
+                assert reason and "PLA" in reason

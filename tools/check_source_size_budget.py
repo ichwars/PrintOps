@@ -87,7 +87,7 @@ FILE_ALLOWLIST = {
     "backend/app/main.py": 6568,
     "backend/app/services/bambu_mqtt.py": 5391,
     "backend/app/services/notification_service.py": 1925,
-    "backend/app/services/print_scheduler.py": 3489,
+    "backend/app/services/print_scheduler.py": 3483,
     "backend/tests/integration/test_mfa_api.py": 5084,
     "backend/tests/integration/test_printers_api.py": 4021,
     "backend/tests/unit/services/test_bambu_mqtt.py": 6568,

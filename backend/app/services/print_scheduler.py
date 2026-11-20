@@ -1064,21 +1064,15 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                 query = query.where(Printer.id.in_(scope))
             if item.target_location:
                 query = query.where(Printer.location == item.target_location)
-            required, overrides = filament_constraints(candidate)
-            forced = [o for o in overrides or [] if o.get("force_color_match")]
             for printer in sorted((await db.scalars(query)).all(), key=_wear_order):
                 if printer_manager.is_connected(printer.id) or (require_plate_clear and printer.awaiting_plate_clear):
                     continue
-                if (required and self._get_missing_filament_types(printer.id, required)) or (
-                    forced and self._get_missing_force_color_slots(printer.id, forced)
-                ):
-                    continue
+                # Only the next, connected match can verify the loaded filament, colour and quantity.
                 if item.require_previous_success and not await self._check_previous_success(
                     db, item, printer_id=printer.id
                 ):
                     continue
-                unmatched, short = self._candidate_filament_checks(db, item, candidate)
-                if await unmatched(printer.id) or await short(printer.id) or await edited_since_loaded(db, item):
+                if await edited_since_loaded(db, item):
                     continue
                 plugs = await plugs_for_printer(db, printer.id)
                 plug = select_power_plug(

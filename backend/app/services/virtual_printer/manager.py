@@ -423,6 +423,9 @@ class VirtualPrinterInstance:
             keep_ams=bound and not self.queue_force_color_match,
             keep_nozzle=bound or normalize_printer_model_id(model) != "H2C",
             dual_nozzle=dual_nozzle,
+            layout=self._target_tray_layout()
+            if bound and not self.queue_force_color_match and data.get("ams_mapping2")
+            else None,
         )
 
     async def _restamp_recent_queue_item(self, stash_key: str, data: dict) -> None:

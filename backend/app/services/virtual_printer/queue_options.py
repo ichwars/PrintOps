@@ -29,7 +29,7 @@ def _decode_list(value):
     return value if isinstance(value, list) and value else None
 
 
-def queue_options(data, *, bound, keep_ams, keep_nozzle, dual_nozzle):
+def queue_options(data, *, bound, keep_ams, keep_nozzle, dual_nozzle, layout=None):
     options = {}
     for field, column, companion in _WORKFLOW_FIELDS:
         value = (
@@ -48,7 +48,9 @@ def queue_options(data, *, bound, keep_ams, keep_nozzle, dual_nozzle):
     if keep_ams:
         flat = _decode_list(data.get("ams_mapping"))
         if flat and all(type(item) is int and -1 <= item <= 255 for item in flat):
-            mapping = resolve_external_spools_in_mapping(flat, _decode_list(data.get("ams_mapping2")), dual_nozzle)
+            mapping = resolve_external_spools_in_mapping(
+                flat, _decode_list(data.get("ams_mapping2")), dual_nozzle, layout
+            )
             if all(type(item) is int for item in mapping) and any(item >= 0 for item in mapping):
                 options["ams_mapping"] = json.dumps(mapping)
     return options
