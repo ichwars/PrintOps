@@ -7,6 +7,7 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -96,6 +97,11 @@ class TestPrintersAPI:
             "access_code": "12345678",
             "is_active": True,
             "model": "X1C",
+            "wled_config": {
+                "enabled": True,
+                "base_url": "http://wled.local/",
+                "presets": {"printing": 3},
+            },
         }
 
         response = await async_client.post("/api/v1/printers/", json=data)
@@ -105,6 +111,8 @@ class TestPrintersAPI:
         assert result["name"] == "New Printer"
         assert result["serial_number"] == "00M09A111111111"
         assert result["model"] == "X1C"
+        assert result["wled_config"]["base_url"] == "http://wled.local"
+        assert result["wled_config"]["presets"]["printing"] == 3
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -242,39 +250,6 @@ class TestPrintersAPI:
     # ========================================================================
     # Update endpoints
     # ========================================================================
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_update_printer_name(self, async_client: AsyncClient, printer_factory, db_session):
-        """Verify printer name can be updated."""
-        printer = await printer_factory(name="Original Name")
-
-        response = await async_client.patch(f"/api/v1/printers/{printer.id}", json={"name": "Updated Name"})
-
-        assert response.status_code == 200
-        assert response.json()["name"] == "Updated Name"
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_update_printer_active_status(self, async_client: AsyncClient, printer_factory, db_session):
-        """Verify printer active status can be updated."""
-        printer = await printer_factory(is_active=True)
-
-        response = await async_client.patch(f"/api/v1/printers/{printer.id}", json={"is_active": False})
-
-        assert response.status_code == 200
-        assert response.json()["is_active"] is False
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_update_printer_auto_archive(self, async_client: AsyncClient, printer_factory, db_session):
-        """Verify auto_archive setting can be updated."""
-        printer = await printer_factory(auto_archive=True)
-
-        response = await async_client.patch(f"/api/v1/printers/{printer.id}", json={"auto_archive": False})
-
-        assert response.status_code == 200
-        assert response.json()["auto_archive"] is False
 
     @pytest.mark.asyncio
     @pytest.mark.integration

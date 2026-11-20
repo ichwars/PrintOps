@@ -19,6 +19,7 @@ from backend.app.services.printer_manager import (
     drying_screen_only,
     supports_drying,
 )
+from backend.app.utils.tray_ids import EXTERNAL_AMS_ID, global_tray_id as studio_global_tray_id, legacy_tray_index
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -416,12 +417,11 @@ async def start_calibration(
 
 
 def _slot_preset_key(ams_id: int, tray_id: int) -> int:
-    # Mirrors frontend getGlobalTrayId (amsHelpers.ts): AMS-HT (128-135) is keyed
-    # by ams_id since each unit has a single slot and shares its global ID with
-    # the unit itself. Regular AMS and external (255) use ams_id*4+tray_id.
-    if 128 <= ams_id <= 135:
-        return ams_id
-    return ams_id * 4 + tray_id
+    # Mirrors frontend getGlobalTrayId (amsHelpers.ts): the slot's global tray
+    # id; the external inputs keep their 255 * 4 + tray_id key.
+    if ams_id == EXTERNAL_AMS_ID:
+        return legacy_tray_index(ams_id, tray_id)
+    return studio_global_tray_id(ams_id, tray_id)
 
 
 @router.get("/{printer_id}/slot-presets")

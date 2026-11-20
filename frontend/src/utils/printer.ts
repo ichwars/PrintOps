@@ -11,6 +11,8 @@ export function getPrinterImage(model: string | null | undefined): string {
   if (m.includes('h2dpro') || m.includes('h2d-pro')) return '/img/printers/h2dpro.png';
   if (m.includes('h2d')) return '/img/printers/h2d.png';
   if (m.includes('h2c')) return '/img/printers/h2c.png';
+  // Bambu Studio 02.09's own H3C render (resources/images/printer_thumbnail_N10_png.png).
+  if (m.includes('h3c') || m === 'n10') return '/img/printers/h3c.png';
   if (m.includes('h2s')) return '/img/printers/h2d.png';
   if (m.includes('p2s')) return '/img/printers/p1s.png';
   if (m.includes('p1s')) return '/img/printers/p1s.png';
@@ -88,4 +90,22 @@ export function filterCompatibleQueueItems(
 
     return true;
   });
+}
+
+const GCODE_COMPAT_FAMILIES: ReadonlyArray<ReadonlySet<string>> = [
+  new Set(['X1', 'X1C', 'X1E', 'P1P', 'P1S']),
+];
+
+/** True when G-code sliced for one model may be dispatched to the other.
+ *  Unknown/missing metadata on either side returns true (can't validate). */
+export function isGcodeCompatible(
+  slicedForModel: string | null | undefined,
+  targetModel: string | null | undefined,
+): boolean {
+  if (!slicedForModel || !targetModel) return true;
+  const norm = (m: string) => m.trim().toUpperCase().replace(/[\s-]/g, '');
+  const a = norm(slicedForModel);
+  const b = norm(targetModel);
+  if (a === b) return true;
+  return GCODE_COMPAT_FAMILIES.some((family) => family.has(a) && family.has(b));
 }

@@ -50,7 +50,13 @@ from backend.app.models.spool_refill_event import SpoolRefillEvent
 from backend.app.models.spoolman_k_profile import SpoolmanKProfile
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
-from backend.app.schemas.spoolman import SlotAmsId, SlotTrayId, SpoolmanFilamentPatch, SpoolmanSlotAssignmentEnriched
+from backend.app.schemas.spoolman import (
+    SlotAmsId,
+    SlotTrayId,
+    SpoolmanFilamentPatch,
+    SpoolmanSlotAssignmentEnriched,
+    check_slot_tray_id,
+)
 from backend.app.services.ams_assignment_lock import (
     get_ams_assignment_lock,
     lock_spoolman_assignments,
@@ -81,6 +87,7 @@ from backend.app.services.spoolman import (
     init_spoolman_client,
 )
 from backend.app.services.spoolman_costs import spoolman_full_price_from_cost_per_kg
+from backend.app.services.spoolman_live_slot import _live_slot_tray as _live_slot_tray
 from backend.app.services.spoolman_slot_release import release_spool_slots
 from backend.app.services.spoolman_slot_sync import slot_matches_spool
 from backend.app.services.spoolman_tracking import get_fallback_spool_tag_for_slot
@@ -466,6 +473,11 @@ class SpoolSlotAssignmentRequest(BaseModel):
     ams_id: SlotAmsId
     tray_id: SlotTrayId
     move: bool = False
+
+    @model_validator(mode="after")
+    def validate_slot(self):
+        check_slot_tray_id(self.ams_id, self.tray_id)
+        return self
 
 
 # Endpoints
@@ -1404,6 +1416,7 @@ async def get_all_spoolman_slot_assignments(
                 tray_id=s.tray_id,
                 spoolman_spool_id=s.spoolman_spool_id,
                 ams_label=_ams_label_for(s.printer_id, s.ams_id),
+                printer_model=s.printer.model if s.printer else None,
             )
         )
     return enriched
@@ -1752,13 +1765,17 @@ async def unassign_spoolman_slot(
 
 @router.get("/slot-assignments")
 async def get_spoolman_slot_assignment(
+    ams_id: SlotAmsId,
+    tray_id: SlotTrayId,
     printer_id: int = Query(..., gt=0),
-    ams_id: int = Query(..., ge=0, le=7),
-    tray_id: int = Query(..., ge=0, le=3),
     db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ) -> dict | None:
     """Return the Spoolman spool assigned to a specific printer slot, or null if unassigned."""
+    try:
+        check_slot_tray_id(ams_id, tray_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     client = await _get_client(db)
     result = await db.execute(select(Printer).where(Printer.id == printer_id))
     printer = result.scalar_one_or_none()
@@ -1964,25 +1981,3 @@ router.include_router(preset_router(spoolman=True))
 from backend.app.api.routes.spool_k_profiles import spoolman_router as k_profiles_router  # noqa: E402
 
 router.include_router(k_profiles_router)
-
-
-def _live_slot_tray(state, ams_id: int, tray_id: int) -> dict:
-    """The tray the printer reports for a slot right now, or {} (external: vt_tray 254/255)."""
-    raw = getattr(state, "raw_data", None) if state is not None else None
-    if not isinstance(raw, dict):
-        return {}
-    if ams_id == 255:
-        vt_trays = raw.get("vt_tray") or []
-        for vt in [vt_trays] if isinstance(vt_trays, dict) else vt_trays:
-            if isinstance(vt, dict) and str(vt.get("id", 254)) == str(254 + tray_id):
-                return vt
-        return {}
-    units = raw.get("ams") or []
-    if isinstance(units, dict):
-        units = units.get("ams") or []
-    for unit in units if isinstance(units, list) else []:
-        if isinstance(unit, dict) and str(unit.get("id")) == str(ams_id):
-            for tray in unit.get("tray") or []:
-                if isinstance(tray, dict) and str(tray.get("id")) == str(tray_id):
-                    return tray
-    return {}

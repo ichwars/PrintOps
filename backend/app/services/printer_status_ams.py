@@ -1,9 +1,45 @@
 """Shared REST/WebSocket representation of physical and virtual AMS trays."""
 
+import math
 from dataclasses import asdict
 
 from backend.app.schemas.printer import AMSTray, AMSUnit
 from backend.app.services.calibration_context import slot_context
+from backend.app.utils.tray_ids import RACK_SLOT_COUNT, unit_ams_type
+
+
+def _ams_temp(raw: object) -> float | None:
+    """The AMS unit temperature as a number, or None when it is not one."""
+    if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    # NaN or infinity would put a token in the WebSocket frame that the
+    # browser's JSON.parse rejects, dropping the whole status push.
+    return value if math.isfinite(value) else None
+
+
+def _dryer_fields(ams_data: dict) -> dict:
+    """An AMS 3H's dryer (its drying zone's slots and readings, lifted onto the unit by the MQTT layer)."""
+    raw_slots = ams_data.get("dry_zone_slots")
+    dry_slots: list[int] = []
+    for raw in raw_slots if isinstance(raw_slots, list) else []:
+        try:
+            slot = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= slot < RACK_SLOT_COUNT and slot not in dry_slots:
+            dry_slots.append(slot)
+    if not dry_slots:
+        return {"dryer_slots": [], "dryer_humidity": None, "dryer_temp": None}
+    humidity = _ams_temp(ams_data.get("dry_zone_humidity_raw"))
+    return {
+        "dryer_slots": dry_slots,
+        "dryer_humidity": int(round(humidity)) if humidity is not None and 0 <= humidity <= 100 else None,
+        "dryer_temp": _ams_temp(ams_data.get("dry_zone_temp")),
+    }
 
 
 def serialize_ams_state(state, model=None, drying_targets=None, raw_data=None) -> tuple[list, list]:
@@ -133,7 +169,7 @@ def serialize_ams_state(state, model=None, drying_targets=None, raw_data=None) -
                 {
                     "id": ams_id_int,
                     "humidity": humidity_value,
-                    "temp": ams_data.get("temp"),
+                    "temp": _ams_temp(ams_data.get("temp")),
                     "is_ams_ht": is_ams_ht,
                     "tray": trays,
                     # Serial number: Bambu MQTT uses "sn" key on AMS unit objects
@@ -151,6 +187,8 @@ def serialize_ams_state(state, model=None, drying_targets=None, raw_data=None) -
                     "dry_target_temp": dry_target_temp,
                     "dry_filament": dry_filament,
                     # Module type: "ams", "n3f", "n3s" (from get_version)
+                    "ams_type": int(unit_ams_type(int(ams_data.get("id", 0)), ams_data.get("info"))),
+                    **_dryer_fields(ams_data),
                     "module_type": str(ams_data.get("module_type") or ""),
                 }
             )

@@ -23,7 +23,7 @@ from backend.app.services.bambu_ftp import FTPS_COOLDOWN_SECONDS, _arm_ftps_cool
 from backend.app.services.camera import get_camera_port
 from backend.app.services.discovery import is_running_in_docker
 from backend.app.services.printer_manager import printer_manager
-from backend.app.utils.printer_models import has_external_storage
+from backend.app.utils.printer_models import has_external_storage, has_remote_storage_toggle
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +273,9 @@ async def run_connection_diagnostic(
     # A1-series user (#1703).
     state = printer_manager.get_status(printer.id) if printer else None
     model_has_slot = has_external_storage(getattr(printer, "model", None)) if printer else True
-    if not model_has_slot or state is None or not state.connected:
+    if printer and not has_remote_storage_toggle(printer.model):
+        checks.append(DiagnosticCheck(id="external_storage", status="skip", params={"unsupported_model": True}))
+    elif not model_has_slot or state is None or not state.connected:
         checks.append(DiagnosticCheck(id="external_storage", status="skip"))
     elif getattr(state, "store_to_sdcard", None) is True:
         checks.append(DiagnosticCheck(id="external_storage", status="pass"))

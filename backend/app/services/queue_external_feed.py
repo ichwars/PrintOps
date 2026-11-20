@@ -4,8 +4,8 @@ from pathlib import Path
 
 from backend.app.services.filament_requirements import extract_filament_requirements
 from backend.app.services.queue_filament_mapping import _might_be_dual_nozzle
-
-_EXTERNAL_TRAY_ID_MIN = 254
+from backend.app.utils.printer_models import has_ams3h
+from backend.app.utils.tray_ids import TrayLayout, is_external_tray
 
 
 def _consumed_mapping_entries(mapping: list | None, required: list[dict] | None) -> list | None:
@@ -39,25 +39,27 @@ def _consumed_mapping_entries(mapping: list | None, required: list[dict] | None)
     return entries or None
 
 
-def _is_external_tray(tray_id) -> bool:
-    """True for an explicit external-spool selection (254/255), not for an
-    unresolved slot and not for an AMS tray."""
+def _is_external_tray(tray_id, rack: bool = False) -> bool:
+    """True for an explicit external-spool selection (254/255, and 247-253 on a
+    ``rack`` printer), not for an unresolved slot and not for an AMS tray."""
     if tray_id is None:
         return False
     try:
-        return int(tray_id) >= _EXTERNAL_TRAY_ID_MIN
+        value = int(tray_id)
     except (TypeError, ValueError):
         return False
+    return is_external_tray(value, rack)
 
 
 def plate_uses_external_feed(printer_model, status, mapping, file_path: Path | None, plate_id: int) -> bool:
-    if not mapping or file_path is None or not any(_is_external_tray(tray) for tray in mapping):
+    rack = TrayLayout.from_state(status, has_ams3h(printer_model)).rack
+    if not mapping or file_path is None or not any(_is_external_tray(tray, rack) for tray in mapping):
         return False
     if _might_be_dual_nozzle(printer_model, status):
         return False
     required = extract_filament_requirements(file_path, plate_id=plate_id)
     consumed = _consumed_mapping_entries(mapping, required)
-    return bool(consumed) and all(_is_external_tray(tray) for tray in consumed)
+    return bool(consumed) and all(_is_external_tray(tray, rack) for tray in consumed)
 
 
 def external_feed_options(printer_model, status, mapping, file_path, plate_id, stored_use_ams) -> dict:

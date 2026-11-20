@@ -230,6 +230,7 @@ export interface SpoolAssignment {
   pending_config?: boolean;  // Slot was empty at assign time; will configure on insert
   created_at: string;
   ams_label?: string | null;  // User-defined friendly name for the AMS unit
+  printer_model?: string | null;  // names a rack printer's external inputs "Ext-n" (utils/trayIds)
 }
 
 export interface FilamentSkuSettings {

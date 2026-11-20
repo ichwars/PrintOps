@@ -8,6 +8,7 @@ import { DiagnosticModal } from '../../components/spoolbuddy/DiagnosticModal';
 import { FileText, Wand2, Zap } from 'lucide-react';
 import { parseUTCDate } from '../../utils/date';
 import { Slider, TextField } from '../../components/ui';
+import { useKioskDevice } from '../../hooks/useKioskDevice';
 
 
 function formatUptime(seconds: number): string {
@@ -1051,16 +1052,9 @@ export function SpoolBuddySettingsPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<SettingsTab>('device');
 
-  const { data: devices = [] } = useQuery({
-    queryKey: ['spoolbuddy-devices'],
-    queryFn: () => spoolbuddyApi.getDevices(),
-    refetchInterval: 10000,
-  });
-
-  // Use first device (most common setup) or find one matching current state
-  const device = sbState.deviceId
-    ? devices.find((d) => d.device_id === sbState.deviceId) ?? devices[0]
-    : devices[0];
+  // This kiosk's device, not the one the last WebSocket event came from:
+  // every device's weight updates reach every kiosk (#3504).
+  const { device } = useKioskDevice(10000);
 
 
   const tabs: { id: SettingsTab; label: string }[] = [

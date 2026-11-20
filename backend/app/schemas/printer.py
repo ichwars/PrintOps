@@ -1,12 +1,92 @@
 from datetime import date, datetime
 from decimal import Decimal
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
 from backend.app.core.logging_filters import redact_camera_url
 from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
 from backend.app.services.equipment_costs import calculate_hourly_rate, calculate_residual_value
 from backend.app.utils.printer_models import supports_nozzle_flow_type
+
+
+class WLEDPresets(BaseModel):
+    idle: int | None = Field(default=None, ge=1, le=250)
+    prepare: int | None = Field(default=None, ge=1, le=250)
+    printing: int | None = Field(default=None, ge=1, le=250)
+    paused: int | None = Field(default=None, ge=1, le=250)
+    finished: int | None = Field(default=None, ge=1, le=250)
+    error: int | None = Field(default=None, ge=1, le=250)
+    queue_waiting: int | None = Field(default=None, ge=1, le=250)
+    filament_problem: int | None = Field(default=None, ge=1, le=250)
+    hms_error: int | None = Field(default=None, ge=1, le=250)
+    offline: int | None = Field(default=None, ge=1, le=250)
+
+
+class WLEDStoredConfig(BaseModel):
+    enabled: bool = False
+    base_url: str | None = None
+    presets: WLEDPresets = Field(default_factory=WLEDPresets)
+    finished_timeout_seconds: int | None = Field(default=None, ge=0, le=86400)
+
+    @field_serializer("base_url")
+    def _mask_stored_url_login(self, value: str | None) -> str | None:
+        return redact_camera_url(value) if value else value
+
+
+class WLEDConfig(WLEDStoredConfig):
+    base_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().rstrip("/")
+        if not normalized:
+            return None
+
+        from backend.app.api.routes._url_safety import assert_safe_lan_service_url
+
+        assert_safe_lan_service_url(normalized, label="WLED URL")
+        parsed = urlparse(normalized)
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("WLED URL must not include credentials")
+        if parsed.path or parsed.params or parsed.query or parsed.fragment or not parsed.hostname or parsed.port == 0:
+            raise ValueError("WLED URL requires only the controller address and optional port")
+        return normalized
+
+    @model_validator(mode="after")
+    def _require_base_url_when_enabled(self):
+        if self.enabled and not self.base_url:
+            raise ValueError("base_url is required when WLED is enabled")
+        return self
+
+
+class WLEDPreset(BaseModel):
+    id: int
+    name: str
+
+
+class WLEDPresetListRequest(BaseModel):
+    base_url: str = Field(max_length=500)
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, value: str) -> str:
+        normalized = WLEDConfig._validate_base_url(value)
+        if not normalized:
+            raise ValueError("base_url is required")
+        return normalized
+
+
+class WLEDPresetTestRequest(WLEDPresetListRequest):
+    preset_id: int = Field(ge=1, le=250)
+
+
+class WLEDConnectionInfo(BaseModel):
+    name: str | None = None
+    version: str | None = None
 
 
 class PrinterBase(BaseModel):
@@ -67,6 +147,9 @@ class PrinterCreate(PrinterBase):
     # PrinterResponse. Direct exposure on PRINTERS_READ would let a Viewer
     # connect to the printer's MQTT and bypass PrintOps's RBAC.
     access_code: str = Field(..., min_length=1, max_length=20)
+    # Input shape validates the URL; PrinterResponse serialises stored rows
+    # with WLEDStoredConfig so one bad stored URL cannot break GET /printers.
+    wled_config: WLEDConfig | None = None
 
     @model_validator(mode="after")
     def _require_h2c_raw_model_code(self) -> "PrinterCreate":
@@ -114,9 +197,11 @@ class PrinterUpdate(IgnoresNullForRequiredColumns):
     annual_hours: Decimal | None = Field(default=None, gt=0)
     maintenance_rate: Decimal | None = Field(default=None, ge=0)
     nominal_power_watts: Decimal | None = Field(default=None, ge=0)
+    wled_config: WLEDConfig | None = None
 
 
 class PrinterResponse(PrinterBase):
+    wled_config: WLEDStoredConfig | None = None
     id: int
     is_active: bool
     nozzle_count: int = 1  # 1 or 2, auto-detected from MQTT
@@ -304,7 +389,11 @@ class AMSUnit(BaseModel):
     dry_sf_reason: list[int] = []  # Cannot-dry reasons from firmware (see CannotDryReason)
     dry_target_temp: int | None = None  # Active-cycle target °C (Bambu doesn't echo this)
     dry_filament: str | None = None  # Active-cycle filament name we sent
-    module_type: str = ""  # "ams", "n3f", "n3s"
+    module_type: str = ""
+    ams_type: int | None = None
+    dryer_slots: list[int] = Field(default_factory=list)
+    dryer_humidity: int | None = None
+    dryer_temp: float | None = None
 
 
 class NozzleInfoResponse(BaseModel):
@@ -319,12 +408,14 @@ class NozzleRackSlot(BaseModel):
     nozzle_type: str = ""
     nozzle_diameter: str = ""
     wear: int | None = None
+    print_time_s: int | None = None  # H2C: seconds this nozzle has printed, from "p_t" (#1908)
     stat: int | None = None  # Nozzle status (e.g. mounted/docked)
     max_temp: int = 0  # Max temperature rating °C (0 = not set)
     serial_number: str = ""  # Nozzle serial number
     filament_color: str = ""  # RGBA hex ("00000000" = no filament)
     filament_id: str = ""  # Bambu filament ID
     filament_type: str = ""  # Material type (e.g. "PLA", "PETG")
+    addr_id: int | None = None  # H3C: home rack position 0-8 (the mounted hotend reports id 0)
 
 
 class AmsLabelBody(BaseModel):

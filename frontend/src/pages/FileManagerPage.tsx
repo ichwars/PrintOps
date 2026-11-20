@@ -1,3 +1,4 @@
+import { ExternalFolderModal } from './FileManagerExternalFolderModal';
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -57,6 +58,7 @@ import type {
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PrintModal } from '../components/PrintModal';
+import type { SeparateJobsProgress } from '../components/PrintModal/separateJobs';
 import { ModelViewerModal } from '../components/ModelViewerModal';
 import { LibraryFileDetailsModal } from '../components/LibraryFileDetailsModal';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
@@ -85,7 +87,7 @@ import { formatFileSize } from '../utils/file';
 import { openInSlicer, resolveDesktopSlicer } from '../utils/slicer';
 import { isUnsliceableCadFilename } from '../utils/sliceFormats';
 import { isSliceableLibraryFile, isDesktopSliceableLibraryFile, isSlicedLibraryFile } from '../utils/libraryFiles';
-import { Checkbox, LegacySelect, TextField } from '../components/ui';
+import { LegacySelect, TextField } from '../components/ui';
 
 type SortField = 'name' | 'date' | 'size' | 'type' | 'prints';
 type SortDirection = 'asc' | 'desc';
@@ -141,100 +143,6 @@ function NewFolderModal({ parentId, onClose, onSave, isLoading, t }: NewFolderMo
             </Button>
             <Button type="submit" disabled={!name.trim() || isLoading}>
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t('common.create')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// External Folder Modal
-interface ExternalFolderModalProps {
-  onClose: () => void;
-  onSave: (data: ExternalFolderCreate) => void;
-  isLoading: boolean;
-  t: TFunction;
-}
-
-function ExternalFolderModal({ onClose, onSave, isLoading, t }: ExternalFolderModalProps) {
-  const [name, setName] = useState('');
-  const [path, setPath] = useState('');
-  const [readonly, setReadonly] = useState(true);
-  const [showHidden, setShowHidden] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({
-      name: name.trim(),
-      external_path: path.trim(),
-      readonly,
-      show_hidden: showHidden,
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-bambu-dark-secondary rounded-lg w-full max-w-md border border-bambu-dark-tertiary">
-        <div className="p-4 border-b border-bambu-dark-tertiary">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <FolderSymlink className="w-5 h-5 text-bambu-green" />
-            {t('fileManager.linkExternalFolder')}
-          </h2>
-          <p className="text-sm text-bambu-gray mt-1">{t('fileManager.linkExternalFolderDescription')}</p>
-        </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">
-              {t('fileManager.folderName')}
-            </label>
-            <TextField
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
-              placeholder={t('fileManager.externalFolderNamePlaceholder')}
-              autoFocus
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">
-              {t('fileManager.externalPath')}
-            </label>
-            <TextField
-              type="text"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green font-mono text-sm"
-              placeholder="/mnt/nas/3d-prints"
-              required
-            />
-            <p className="text-xs text-bambu-gray mt-1">{t('fileManager.externalPathHelp')}</p>
-          </div>
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={readonly}
-                onChange={(e) => setReadonly(e.target.checked)}
-              />
-              <span className="text-sm text-white">{t('fileManager.readOnly')}</span>
-              <span className="text-xs text-bambu-gray">({t('fileManager.readOnlyHelp')})</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={showHidden}
-                onChange={(e) => setShowHidden(e.target.checked)}
-              />
-              <span className="text-sm text-white">{t('fileManager.showHiddenFiles')}</span>
-            </label>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={!name.trim() || !path.trim() || isLoading}>
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t('fileManager.linkFolder')}
             </Button>
           </div>
         </form>
@@ -598,6 +506,10 @@ export function FileManagerPage() {
   const [linkFolder, setLinkFolder] = useState<LibraryFolderTree | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'file' | 'folder' | 'bulk'; id: number; count?: number } | null>(null);
   const [printFile, setPrintFile] = useState<LibraryFileListItem | null>(null);
+  // A separate-jobs run (#3462) that was partly queued: what is in the queue,
+  // so closing the dialog after a refusal doesn't queue it again on the next
+  // Print (#3471 review). Kept while the selection is exactly the files left.
+  const [separateJobsRun, setSeparateJobsRun] = useState<SeparateJobsProgress | null>(null);
   const [sliceFile, setSliceFile] = useState<LibraryFileListItem | null>(null);
   // Slicer Pipelines (#1425 PR B) — file gets "Run with pipeline" action.
   const [runPipelineFile, setRunPipelineFile] = useState<LibraryFileListItem | null>(null);
@@ -1166,13 +1078,46 @@ export function FileManagerPage() {
     enabled: !!printFile?.variant_group_id,
   });
 
+  // The selection is the rest of a partly queued run: the files it left, and
+  // nothing else. Any other selection is a new print.
+  const selectionIsRunRest = useMemo(() => {
+    if (!separateJobsRun) return false;
+    const left = separateJobsRun.remainingFileIds;
+    return (
+      left.length > 0 &&
+      selectedSlicedFiles.length === left.length &&
+      selectedSlicedFiles.every((f) => left.includes(f.id))
+    );
+  }, [separateJobsRun, selectedSlicedFiles]);
+  // With several files selected the dialog shows the selection whichever
+  // file's Print was clicked, so it is the run's rest then too; otherwise a
+  // card's Print would start it as a new run and queue again what a printer
+  // already has (#3471 review). One file left resumes only from that file.
+  const resumeRun =
+    selectionIsRunRest &&
+    !!printFile &&
+    (selectedSlicedFiles.length > 1 || separateJobsRun!.remainingFileIds.includes(printFile.id));
+
+  // A run whose rest is no longer selected is over; a later selection of the
+  // same files is a new print.
+  useEffect(() => {
+    if (separateJobsRun && !printFile && !selectionIsRunRest) setSeparateJobsRun(null);
+  }, [separateJobsRun, printFile, selectionIsRunRest]);
+
   // Candidates for a cross-model print (#671), or undefined for an ordinary one.
   // An explicit multi-selection wins over the group: the user just said, in this
-  // action, which files they meant.
+  // action, which files they meant. The rest of a partly queued run stays a
+  // list even with one file left: a printer may already have it.
   const printVariantFiles = useMemo(() => {
     if (!printFile) return undefined;
-    if (selectedSlicedFiles.length > 1) {
-      return selectedSlicedFiles.map(f => ({
+    if (selectedSlicedFiles.length > 1 || resumeRun) {
+      // The rest of a run keeps the order the run had in its dialog, not the
+      // order the files were ticked in.
+      const order = resumeRun ? separateJobsRun!.remainingFileIds : null;
+      const files = order
+        ? [...selectedSlicedFiles].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+        : selectedSlicedFiles;
+      return files.map(f => ({
         id: f.id,
         filename: f.filename,
         sliced_for_model: f.sliced_for_model,
@@ -1186,7 +1131,7 @@ export function FileManagerPage() {
       }));
     }
     return undefined;
-  }, [printFile, selectedSlicedFiles, printFileGroup]);
+  }, [resumeRun, separateJobsRun, printFile, selectedSlicedFiles, printFileGroup]);
 
   // Handlers
   const handleFileSelect = useCallback((id: number) => {
@@ -1838,6 +1783,7 @@ export function FileManagerPage() {
                       <Button
                         variant="primary"
                         size="sm"
+                        aria-label={selectedSlicedFiles.length > 1 ? t('fileManager.printFiles', { count: selectedSlicedFiles.length }) : t('common.print')}
                         onClick={() => setPrintFile(selectedSlicedFiles[0])}
                         disabled={!hasPermission('queue:create')}
                         title={!hasPermission('queue:create') ? t('fileManager.noPermissionAddToQueue') : undefined}
@@ -1845,7 +1791,7 @@ export function FileManagerPage() {
                         <Printer className="w-4 h-4 sm:mr-1" />
                         <span className="hidden sm:inline">
                           {selectedSlicedFiles.length > 1
-                            ? t('fileManager.variants.printAlternatives', { count: selectedSlicedFiles.length })
+                            ? t('fileManager.printFiles', { count: selectedSlicedFiles.length })
                             : t('common.print')}
                         </span>
                       </Button>
@@ -2408,6 +2354,12 @@ export function FileManagerPage() {
           mode="create"
           libraryFileId={printVariantFiles?.[0]?.id ?? printFile.id}
           variantFiles={printVariantFiles}
+          // A version group is by definition alternatives; only an explicit
+          // selection (the same one printVariantFiles prefers) may mean separate
+          // jobs (#3462).
+          separateJobsAllowed={selectedSlicedFiles.length > 1 || resumeRun}
+          resumeSeparateJobs={resumeRun ? separateJobsRun! : undefined}
+          onSeparateJobsProgress={setSeparateJobsRun}
           // Naming a cross-model job after one of its files reads as though the
           // others aren't part of it.
           archiveName={
@@ -2415,9 +2367,20 @@ export function FileManagerPage() {
               ? `${printVariantFiles[0].filename} ${t('common.plusNMore', { count: printVariantFiles.length - 1 })}`
               : printFile.print_name || printFile.filename
           }
-          onClose={() => setPrintFile(null)}
+          onClose={() => {
+            setPrintFile(null);
+            // Closed after a refusal: what went in leaves the selection, and the
+            // rest reopens as that run (see separateJobsRun).
+            if (separateJobsRun) {
+              const done = separateJobsRun.queuedFileIds;
+              setSelectedFiles((prev) => prev.filter((id) => !done.includes(id)));
+              queryClient.invalidateQueries({ queryKey: ['library-files'] });
+              queryClient.invalidateQueries({ queryKey: ['queue'] });
+            }
+          }}
           onSuccess={() => {
             setPrintFile(null);
+            setSeparateJobsRun(null);
             setSelectedFiles([]);
             queryClient.invalidateQueries({ queryKey: ['library-files'] });
             queryClient.invalidateQueries({ queryKey: ['queue'] });

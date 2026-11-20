@@ -6,19 +6,15 @@ import pytest
 
 
 def _extract_spoolman_slot_ddl(is_sqlite: bool) -> str:
-    """Extract the spoolman_slot_assignments DDL from database.py."""
-    import inspect
-    from unittest.mock import patch
+    """Capture the CREATE TABLE statement selected for the requested dialect."""
+    import asyncio
+    from unittest.mock import AsyncMock
 
-    import backend.app.core.database as db_module
+    from backend.app.core.spoolman_slot_migration import create_slot_assignments
 
-    source = inspect.getsource(db_module)
-    # Find the block that creates spoolman_slot_assignments
-    start = source.find("CREATE TABLE IF NOT EXISTS spoolman_slot_assignments")
-    assert start != -1, "spoolman_slot_assignments DDL not found"
-    # Scan forward to find the matching end of the SQL string
-    block = source[start : start + 2000]
-    return block
+    execute = AsyncMock()
+    asyncio.run(create_slot_assignments(None, execute, lambda: is_sqlite))
+    return execute.await_args_list[0].args[1]
 
 
 class TestSpoolmanSlotDdl:

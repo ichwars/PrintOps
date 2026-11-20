@@ -19,6 +19,10 @@ from backend.app.core.commerce_schema_migrations import (
 )
 from backend.app.core.config import settings
 from backend.app.core.db_dialect import is_already_applied as _is_already_applied, is_sqlite, postgres_connect_args
+from backend.app.core.h3c_queue_migration import (
+    H3C_QUEUE_TRAY_MIGRATION_KEY as H3C_QUEUE_TRAY_MIGRATION_KEY,
+    _migrate_h3c_queue_tray_ids as _migrate_h3c_queue_tray_ids,
+)
 from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files, repair_compound_3mf_library_types
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
 from backend.app.core.postgres_migration_ddl import (
@@ -29,8 +33,11 @@ from backend.app.core.postgres_migration_ddl import (
 )
 from backend.app.core.rfid_core_weight_migration import repair_rfid_core_weights
 from backend.app.core.spool_k_profile_migration import migrate_spool_k_profile_contexts
+from backend.app.core.sqlite_driver import make_aiosqlite_stop_idempotent
 
 logger = logging.getLogger(__name__)
+
+make_aiosqlite_stop_idempotent()
 
 
 def _set_sqlite_pragmas(dbapi_conn, connection_record):
@@ -272,6 +279,7 @@ def load_all_models():
         filament_sku_settings,
         github_backup,
         group,
+        hms_notified_fault,
         kprofile_note,
         label_template,
         library,
@@ -698,6 +706,7 @@ async def _migrate_update_auto_link_constraint(conn) -> None:
 async def _migrate_spool_assignments(conn) -> None:
     await _migrate_widen_spoolman_slot_ams_id_range(conn)
     await release_slots_of_archived_spools(conn)
+    await _migrate_h3c_queue_tray_ids(conn)
 
 
 async def _migrate_widen_spoolman_slot_ams_id_range(conn) -> None:
@@ -2181,6 +2190,7 @@ async def run_migrations(conn):
     )
 
     # Migration: Shortest-job-first scheduling columns on print_queue
+    await _safe_execute(conn, "ALTER TABLE printers ADD COLUMN wled_config JSON")
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN print_time_seconds INTEGER")
     await _safe_execute(conn, "ALTER TABLE print_queue ADD COLUMN been_jumped BOOLEAN DEFAULT FALSE NOT NULL")
 
@@ -2631,44 +2641,13 @@ async def run_migrations(conn):
             )
         )
 
-    # Migration: Create spoolman_slot_assignments table for local AMS-slot→Spoolman-spool mapping.
-    # Replaces the pattern of writing spool.location in Spoolman (which polluted the
-    # user-editable storage_location field in the UI).
-    # ck_ams_id_range formula was widened in #1274 to admit AMS-HT (ams_id 128-191).
-    await _safe_execute(
-        conn,
-        """
-        CREATE TABLE IF NOT EXISTS spoolman_slot_assignments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-            ams_id INTEGER NOT NULL CHECK ((ams_id >= 0 AND ams_id <= 7) OR (ams_id >= 128 AND ams_id <= 191) OR ams_id = 255),
-            tray_id INTEGER NOT NULL CHECK (tray_id >= 0 AND tray_id <= 3),
-            spoolman_spool_id INTEGER NOT NULL,
-            assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_slot_assignment UNIQUE(printer_id, ams_id, tray_id)
-        )
-        """
-        if is_sqlite()
-        else """
-        CREATE TABLE IF NOT EXISTS spoolman_slot_assignments (
-            id SERIAL PRIMARY KEY,
-            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
-            ams_id INTEGER NOT NULL CHECK ((ams_id >= 0 AND ams_id <= 7) OR (ams_id >= 128 AND ams_id <= 191) OR ams_id = 255),
-            tray_id INTEGER NOT NULL CHECK (tray_id >= 0 AND tray_id <= 3),
-            spoolman_spool_id INTEGER NOT NULL,
-            assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT uq_slot_assignment UNIQUE(printer_id, ams_id, tray_id)
-        )
-        """,
-    )
-    await _safe_execute(
-        conn,
-        "CREATE INDEX IF NOT EXISTS ix_slot_assignment_spool ON spoolman_slot_assignments (spoolman_spool_id)",
-    )
+    from backend.app.core.spoolman_slot_migration import create_slot_assignments
+
+    await create_slot_assignments(conn, _safe_execute, is_sqlite)
 
     # Migration: widen ck_ams_id_range on spoolman_slot_assignments to allow
-    # AMS-HT ids (128-191). Existing installs created before #1274 carry the
-    # stale formula which rejects every AMS-HT slot link with a CHECK violation.
+    # AMS-HT ids (128-191) and the H3C's AMS 3H (32, nine slots). Existing
+    # installs carry a stale formula which rejects such slot links.
     await _migrate_spool_assignments(conn)
 
     await migrate_spool_k_profile_contexts(conn)

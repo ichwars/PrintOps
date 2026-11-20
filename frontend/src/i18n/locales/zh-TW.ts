@@ -1,5 +1,6 @@
 export default {
   profileDefaults: {
+    applyAll: '全部套用',
     "title": "產品預設設定",
     "description": "從已設定的線軸複製切片預設與 K 值設定。同一產品的新線軸會繼承缺少的設定。",
     "pickSpool": "選取已設定的線軸",
@@ -2490,6 +2491,8 @@ export default {
     },
     temperatures: {
       nozzle: '噴嘴',
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: '噴嘴 {{n}}',
       bed: '熱床',
       chamber: '腔室',
     },
@@ -2541,10 +2544,15 @@ export default {
       summary: '直播 {{live}} 個，快照 {{snap}} 個，共 {{total}} 個',
       layer: '第 {{cur}}/{{total}} 層',
       timeLeft: '剩餘 {{time}}',
+      eta: '預計完成 {{time}}',
       statusMode: {
         off: '關閉',
         compact: '精簡',
         full: '完整',
+      },
+      controlsMode: {
+        hover: '懸停時',
+        always: '一律',
       },
       settings: {
         title: '攝影機牆設定',
@@ -2553,7 +2561,9 @@ export default {
         snapshotInterval: '快照重新整理間隔（秒）',
         snapshotIntervalHint: '非直播畫面取得新快照的頻率。',
         statusOverlay: '狀態疊加',
-        statusOverlayHint: '精簡：僅顯示狀態標籤。完整：加上進度、層數、剩餘時間。',
+        statusOverlayHint: '精簡：僅顯示狀態標籤。完整：加上進度、層數、剩餘時間、預計完成時間、溫度。',
+        controls: '圖塊控制',
+        controlsHint: '每個圖塊上的暫停、停止和腔體燈：懸停時顯示或一律顯示。觸控螢幕一律顯示。',
       },
       page: {
         tokenRejected: '此攝影機牆權杖已被拒絕或已過期。',
@@ -2580,6 +2590,7 @@ export default {
     // Printer card
     readyToPrint: '準備列印',
     external: '外部',
+    externalInputsEmpty: '{{count}} 個外部輸入皆為空',
     extL: '外接左',
     extR: '外接右',
     deleteArchives: '刪除列印歸檔',
@@ -2654,6 +2665,7 @@ export default {
     totalPrintHours: '列印時長',
     activeNozzle: '目前：{{nozzle}} 噴嘴',
     nozzleRack: '噴嘴架',
+    nozzleRackMounted: '在工具頭上',
     nozzleDocked: '已停靠',
     nozzleMounted: '已安裝',
     nozzleActive: '使用中',
@@ -2663,6 +2675,7 @@ export default {
     nozzleStatus: '狀態',
     nozzleFilament: '耗材',
     nozzleWear: '磨損',
+    nozzlePrintTime: '列印時長',
     nozzleMaxTemp: '最高溫度',
     nozzleSerial: '序列號',
     nozzleHardenedSteel: '硬化鋼',
@@ -2725,6 +2738,7 @@ export default {
       rfidRereadInitiated: '已發起 RFID 重新讀取',
       loadInitiated: '載入耗材中…',
       unloadInitiated: '卸載耗材中…',
+      unloadAms3h: '正在退出槽位 {{n}} 的線材。印表機提示時，請手動將線材從 AMS 3H 拉出。',
       failedToLoad: '載入耗材失敗',
       failedToUnload: '卸載耗材失敗',
     },
@@ -2910,6 +2924,7 @@ export default {
     },
     // AMS Drying
     drying: {
+      ams3hDryerSlots: 'AMS 3H 僅烘乾槽位 {{a}} 和 {{b}}',
       start: '開始乾燥',
       stop: '停止乾燥',
       temperature: '溫度',
@@ -4134,6 +4149,14 @@ export default {
   },
 
   // Settings page
+  wled: {
+    connectionSection: '連線', mappingSection: '狀態對應', testConnection: '測試連線', notTested: '尚未測試', connected: '已連線至 WLED{{name}}{{version}}', notReachable: '無法連線至 WLED。', testPreset: '測試', presetTested: '預設已啟用', presetTestFailed: '無法啟用預設', mappingSummary: '已設定狀態: {{configured}} · 已停用狀態: {{disabled}}',
+    title: 'WLED', description: '顏色、效果與預設均直接在 WLED 中管理。PrintOps 僅將印表機狀態對應至現有預設。',
+    printer: '印表機', enabled: '啟用 WLED 整合', baseUrl: 'WLED 網址', loadPresets: '載入預設', online: '已載入 {{count}} 個預設', offlineHint: 'WLED 無法使用。已儲存的預設 ID 將保留。', noPrinters: '尚未設定印表機。', noPreset: '已停用 — 無預設', savedUnavailable: '已儲存預設 {{id}} — 目前無法使用', finishedTimeout: '完成逾時（秒）', finishedTimeoutHint: '時間到後由完成預設切換至閒置預設。設為 0 可停用。', saved: 'WLED 設定已儲存', saveError: '無法儲存 WLED 設定',
+    presetSegmentHint: '在 WLED 中建立預設時選擇目標區段，並啟用「Checked segments only」。執行期間，PrintOps 只會啟用已設定的預設。',
+    status: { idle: '閒置', prepare: '準備中', printing: '列印中', paused: '已暫停', finished: '已完成', error: '失敗 / 錯誤', queue_waiting: '等待清空列印板', filament_problem: '耗材問題', hms_error: 'HMS 錯誤', offline: '離線' },
+  },
+
   settings: {
     title: '設定',
     general: '通用',
@@ -4164,6 +4187,7 @@ export default {
       orderManagementFormatPreview: 'Format & Preview',
       filament: '耗材',
       network: '網路',
+      wled: 'WLED',
       apiKeys: 'API 金鑰',
       virtualPrinter: '虛擬印表機',
       spoolbuddy: 'SpoolBuddy',
@@ -6555,8 +6579,8 @@ export default {
       groupAction: '歸為版本群組',
       groupTooltip: '將這些檔案標記為針對不同印表機切片的同一工作',
       grouped: '已將 {{count}} 個檔案歸為版本群組',
-      printAlternatives: '列印（{{count}} 個備選）',
     },
+    printFiles: '列印（{{count}} 個檔案）',
     title: '檔案管理器',
     subtitle: '組織和管理您的列印檔案',
     uploadFiles: '上傳檔案',
@@ -7808,6 +7832,19 @@ useEmbedded: '使用檔案內建設定',
 
   // Print modal
   printModal: {
+    waitingForAmsStatus: '正在等待 {{printer}} 的 AMS 狀態…',
+    multiFile: {
+      groupLabel: '所選檔案的處理方式',
+      alternatives: '備選',
+      separate: '獨立工作',
+      alternativesHint: '一項工作。第一台空閒且相符的印表機會列印它對應的檔案。',
+      separateHint: '每個檔案一個佇列項目，依下方順序加入。選項適用於每個項目。',
+      alternativesBlocked: '有多個檔案是為 {{model}} 切片的。備選要求每個檔案對應不同的印表機型號。',
+      orderTitle: '佇列順序',
+      incompatible: '無法傳送到 {{model}} 印表機：{{files}}',
+      notSlicedFor: '未為 {{model}} 切片：{{files}}',
+      failed: '未加入佇列：{{filename}}（{{message}}）。此前已加入：{{queued}}。',
+    },
     variants: {
       editNote: '這些備選在工作加入佇列時確定。如需變更，請取消後重新加入佇列。',
       title: '印表機備選',
@@ -9715,6 +9752,8 @@ useEmbedded: '使用檔案內建設定',
       "tabSystem": "系統",
     },
     writeTag: {
+      writeWith: '寫入裝置',
+      deviceOfflineOption: '{{name}}（離線）',
       tabExisting: '現有耗材',
       tabNew: '新耗材',
       tabReplace: '替換標籤',
@@ -9821,6 +9860,7 @@ useEmbedded: '使用檔案內建設定',
         fail: '連接埠 990 有回應，但檔案傳輸（FTPS）服務無法完成 TLS 交握。為避免記錄被灌爆，PrintOps 已暫停對此印表機的檔案傳輸嘗試 {{remaining_seconds}} 秒——在此期間封面圖、縮時錄影和傳送列印工作都無法使用。若問題持續發生，請嘗試重新啟動印表機。',
       },
       external_storage: {
+        skip_unsupported_model: '此型號無法開啟該選項：在目前韌體中，印表機和 Bambu Studio 都不提供此選項。這裡無需修復；在 Bambu Lab 新增之前，存檔的列印可能缺少縮圖和切片中繼資料。',
         title: '將傳送的檔案儲存在外部儲存中（安裝步驟 4）',
         pass: '印表機回報此選項已開啟 — 傳送的檔案將儲存在 SD 卡上，封存將包含縮圖和切片機中繼資料。',
         fail: '印表機回報此選項已關閉。請啟用「將傳送的檔案儲存在外部儲存中」 — 在較新韌體 (P2S 01.02 / Bambu Studio 2.6+) 中，開關位於印表機的列印設定中；在較舊版本中位於 Bambu Studio / OrcaSlicer 的裝置分頁中。如果未啟用此選項，每次封存的列印都將沒有縮圖也沒有切片機中繼資料。',

@@ -1,3 +1,4 @@
+import { saveCamWallControlsMode, savedCamWallControlsMode, type CamWallControlsMode } from '../../components/camWallControls';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { BED_TEMP_DEFAULTS, CHAMBER_TEMP_DEFAULTS, FAN_SPEED_DEFAULTS, NOZZLE_TEMP_DEFAULTS, parsePresetTriple } from '../../utils/temperatureFanPresets';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -146,6 +147,7 @@ export function PrintersPage() {
   // 'full' adds progress, layer, and time-left on printing/paused tiles.
   // Defaulting to 'full' because the cards already show this info — users who
   // pick cam-wall view still want to glance the same details without flipping.
+  const [camWallControlsMode, setCamWallControlsMode] = useState<CamWallControlsMode>(savedCamWallControlsMode);
   const [camWallStatusMode, setCamWallStatusMode] = useState<'off' | 'compact' | 'full'>(() => {
     const saved = localStorage.getItem('camWallStatusMode');
     return saved === 'off' || saved === 'compact' || saved === 'full' ? saved : 'full';
@@ -1097,6 +1099,13 @@ export function PrintersPage() {
             openCameraWindow(id);
           }}
           statusMode={camWallStatusMode}
+          showControls
+          controlsMode={camWallControlsMode}
+          onChangeControlsMode={(next) => {
+            setCamWallControlsMode(next);
+            saveCamWallControlsMode(next);
+          }}
+          timeFormat={settings?.time_format || 'system'}
           onChangeMaxLive={(next) => {
             setCamWallMaxLive(next);
             localStorage.setItem('camWallMaxLive', String(next));

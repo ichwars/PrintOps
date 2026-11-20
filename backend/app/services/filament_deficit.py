@@ -43,6 +43,7 @@ from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.services.filament_requirements import extract_filament_requirements
+from backend.app.services.printer_manager import printer_tray_layout
 from backend.app.services.spoolman_costs import nonnegative_finite_number, spoolman_usage_cost
 from backend.app.utils.filament_ids import normalize_slicer_filament
 from backend.app.utils.safe_path import PathTraversalError, safe_join_under
@@ -243,6 +244,7 @@ def _live_tray_keys(printer_id: int) -> dict[int, str]:
         return {}
     units = raw.get("ams")
     units = units.get("ams") if isinstance(units, dict) else units
+    layout = printer_tray_layout(printer_id)
     keys = {}
     for unit in units if isinstance(units, list) else []:
         if not isinstance(unit, dict):
@@ -257,7 +259,7 @@ def _live_tray_keys(printer_id: int) -> dict[int, str]:
                 continue
             if unit_id < 0 or slot_id < 0:
                 continue
-            global_id = _ams_key_to_global(unit_id, slot_id)
+            global_id = layout.global_tray_id(unit_id, slot_id)
             preset = tray.get("tray_info_idx")
             preset = preset.strip() if isinstance(preset, str) else ""
             color = tray.get("tray_color")
@@ -396,10 +398,11 @@ async def build_slot_materials(
     loaded_slots = _loaded_internal_slots(printer_id)
     if not loaded_slots:
         return []
+    layout = printer_tray_layout(printer_id)
     materials: list[SlotMaterial] = []
 
     def append_slot(ams_id: int, tray_id: int, material_key: str, remaining: float, cost: float | None) -> None:
-        global_tray_id = _ams_key_to_global(ams_id, tray_id)
+        global_tray_id = layout.tray_from_slot_key(ams_id, tray_id)
         materials.append(
             SlotMaterial(
                 ams_id=ams_id,
@@ -565,6 +568,7 @@ async def compute_deficit_for_queue_item(
     spoolman_mode = await _is_spoolman_mode(db)
     backup_on, ams_extruder_map, is_dual = await _get_printer_backup_context(printer_id)
     live_keys = _live_tray_keys(printer_id) if backup_on else {}
+    layout = printer_tray_layout(printer_id)
 
     # ------------------------------------------------------------------ phase 1
     # Resolve each requirement to (ams_id, tray_id, identity, remaining_grams).
@@ -615,7 +619,7 @@ async def compute_deficit_for_queue_item(
         if global_tray_id is None or global_tray_id < 0:
             _undetermined(req)
             continue
-        ams_id, tray_id = _global_to_ams_key(global_tray_id)
+        ams_id, tray_id = layout.slot_key(global_tray_id)
 
         identity = "attrs:|||"
         remaining: float | None = None

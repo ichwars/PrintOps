@@ -1,5 +1,6 @@
 export default {
   profileDefaults: {
+    applyAll: 'Applica tutti',
     "title": "Profili predefiniti per prodotto",
     "description": "Copia i preset dello slicer e i profili K di una bobina configurata. Le nuove bobine del prodotto ereditano le impostazioni mancanti.",
     "pickSpool": "Scegli una bobina configurata",
@@ -2490,6 +2491,8 @@ export default {
     },
     temperatures: {
       nozzle: 'Ugello',
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: 'Ugello {{n}}',
       bed: 'Piatto',
       chamber: 'Camera',
     },
@@ -2541,10 +2544,15 @@ export default {
       summary: '{{live}} live, {{snap}} foto, {{total}} totali',
       layer: 'Strato {{cur}}/{{total}}',
       timeLeft: '{{time}} rimanenti',
+      eta: 'fine {{time}}',
       statusMode: {
         off: 'Off',
         compact: 'Compatto',
         full: 'Completo',
+      },
+      controlsMode: {
+        hover: 'Al passaggio del mouse',
+        always: 'Sempre',
       },
       settings: {
         title: 'Impostazioni muro telecamere',
@@ -2553,7 +2561,9 @@ export default {
         snapshotInterval: 'Intervallo foto (secondi)',
         snapshotIntervalHint: 'Con quale frequenza le tessere non live scaricano una nuova foto.',
         statusOverlay: 'Overlay di stato',
-        statusOverlayHint: 'Compatto: solo badge di stato. Completo: + avanzamento, strato, tempo residuo.',
+        statusOverlayHint: 'Compatto: solo badge di stato. Completo: + avanzamento, strato, tempo residuo, ora di fine, temperature.',
+        controls: 'Controlli del riquadro',
+        controlsHint: 'Pausa, stop e luce della camera su ogni riquadro: al passaggio del mouse o sempre. Gli schermi touch li mostrano sempre.',
       },
       page: {
         tokenRejected: 'Questo token del muro telecamere è stato rifiutato o è scaduto.',
@@ -2580,6 +2590,7 @@ export default {
     // Printer card
     readyToPrint: 'Pronta a stampare',
     external: 'Esterna',
+    externalInputsEmpty: 'Tutti i {{count}} ingressi esterni sono vuoti',
     extL: 'Ext-L',
     extR: 'Ext-R',
     deleteArchives: 'Elimina archivi stampa',
@@ -2654,6 +2665,7 @@ export default {
     totalPrintHours: 'Ore di stampa',
     activeNozzle: 'Attivo: ugello {{nozzle}}',
     nozzleRack: 'Rack Ugelli',
+    nozzleRackMounted: 'Sulla testina',
     nozzleDocked: 'Agganciato',
     nozzleMounted: 'Montato',
     nozzleActive: 'Attivo',
@@ -2663,6 +2675,7 @@ export default {
     nozzleStatus: 'Stato',
     nozzleFilament: 'Filamento',
     nozzleWear: 'Usura',
+    nozzlePrintTime: 'Tempo di stampa',
     nozzleMaxTemp: 'Temp Max',
     nozzleSerial: 'Seriale',
     nozzleHardenedSteel: 'Acciaio Temprato',
@@ -2725,6 +2738,7 @@ export default {
       rfidRereadInitiated: 'Rilettura RFID avviata',
       loadInitiated: 'Caricamento filamento…',
       unloadInitiated: 'Scaricamento filamento…',
+      unloadAms3h: 'Scaricamento dello slot {{n}}. Quando la stampante lo chiede, estrai a mano il filamento dall\'AMS 3H.',
       failedToLoad: 'Caricamento filamento fallito',
       failedToUnload: 'Scaricamento filamento fallito',
     },
@@ -2927,6 +2941,7 @@ export default {
       toastNotStarted: 'La stampante ha accettato il comando, ma l\'AMS non ha avviato l\'essiccazione. Verifica che l\'alimentatore AMS sia collegato e che la stampante sia inattiva.',
       screenOnly: 'L\'essiccazione può essere controllata solo dallo schermo di questa stampante',
       rotateTray: 'Ruota la bobina durante l\'essiccazione',
+      ams3hDryerSlots: 'L\'AMS 3H asciuga solo gli slot {{a}} e {{b}}',
       rotateUnavailableReason: 'Non disponibile: uno slot di questo AMS ha ancora il filamento inserito nel tubo di alimentazione, il che blocca l\'intera unità. Usa prima "Scarica filamento" su quello slot, poi potrai attivare la rotazione.',
     },
     amsBackup: {
@@ -4134,6 +4149,14 @@ export default {
   },
 
   // Settings page
+  wled: {
+    connectionSection: 'Connessione', mappingSection: 'Mappatura stati', testConnection: 'Testa connessione', notTested: 'Non testata', connected: 'Connesso a WLED{{name}}{{version}}', notReachable: 'Impossibile connettersi a WLED.', testPreset: 'Test', presetTested: 'Preset attivato', presetTestFailed: 'Impossibile attivare il preset', mappingSummary: 'Stati configurati: {{configured}} · Stati disattivati: {{disabled}}',
+    title: 'WLED', description: 'Colori, effetti e preset vengono gestiti direttamente in WLED. PrintOps associa solo gli stati della stampante ai preset esistenti.',
+    printer: 'Stampante', enabled: 'Attiva integrazione WLED', baseUrl: 'URL WLED', loadPresets: 'Carica preset', online: '{{count}} preset caricati', offlineHint: 'WLED non è raggiungibile. Gli ID salvati vengono mantenuti.', noPrinters: 'Nessuna stampante configurata.', noPreset: 'Disattivato — nessun preset', savedUnavailable: 'Preset {{id}} salvato — non disponibile', finishedTimeout: 'Timeout fine (secondi)', finishedTimeoutHint: 'Poi passa dal preset Fine al preset Inattiva. 0 disattiva il timeout.', saved: 'Impostazioni WLED salvate', saveError: 'Impossibile salvare le impostazioni WLED',
+    presetSegmentHint: 'Seleziona il segmento di destinazione quando crei il preset in WLED e attiva “Checked segments only”. Durante l’esecuzione, PrintOps attiva solo il preset configurato.',
+    status: { idle: 'Inattiva', prepare: 'Preparazione', printing: 'Stampa', paused: 'In pausa', finished: 'Terminata', error: 'Fallita / Errore', queue_waiting: 'In attesa di liberare il piano', filament_problem: 'Problema filamento', hms_error: 'Errore HMS', offline: 'Offline' },
+  },
+
   settings: {
     title: 'Impostazioni',
     general: 'Generale',
@@ -4164,6 +4187,7 @@ export default {
       orderManagementFormatPreview: 'Format & Preview',
       filament: 'Filamento',
       network: 'Rete',
+      wled: 'WLED',
       apiKeys: 'Chiavi API',
       virtualPrinter: 'Stampante virtuale',
       failureDetection: 'Rilevamento guasti',
@@ -6555,8 +6579,8 @@ export default {
       groupAction: 'Raggruppa come versioni',
       groupTooltip: 'Segna questi file come lo stesso lavoro elaborato per stampanti diverse',
       grouped: '{{count}} file raggruppati come versioni',
-      printAlternatives: 'Stampa ({{count}} alternative)',
     },
+    printFiles: 'Stampa ({{count}} file)',
     title: 'Gestore file',
     subtitle: 'Organizza e gestisci i tuoi file di stampa',
     uploadFiles: 'Carica file',
@@ -7808,6 +7832,19 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
 
   // Print modal
   printModal: {
+    waitingForAmsStatus: 'In attesa dello stato AMS di {{printer}}…',
+    multiFile: {
+      groupLabel: 'Cosa diventano i file selezionati',
+      alternatives: 'Alternative',
+      separate: 'Lavori separati',
+      alternativesHint: 'Un solo lavoro. La prima stampante compatibile che si libera stampa il proprio file.',
+      separateHint: 'Un elemento in coda per file, aggiunto nell\'ordine sotto. Le opzioni valgono per ogni elemento.',
+      alternativesBlocked: 'Più di un file è stato elaborato per {{model}}. Le alternative richiedono un modello di stampante diverso per ogni file.',
+      orderTitle: 'Ordine in coda',
+      incompatible: 'Impossibile inviare alle stampanti {{model}}: {{files}}',
+      notSlicedFor: 'Non elaborato per {{model}}: {{files}}',
+      failed: 'Non messo in coda: {{filename}} ({{message}}). Messi in coda prima: {{queued}}.',
+    },
     variants: {
       editNote: 'Queste alternative sono state definite al momento dell\'accodamento. Annulla e riaccoda per modificarle.',
       title: 'Alternative di stampante',
@@ -9716,6 +9753,8 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
       "tabSystem": "Sistema",
     },
     writeTag: {
+      writeWith: 'Scrivi con',
+      deviceOfflineOption: '{{name}} (dispositivo offline)',
       tabExisting: 'Bobina esistente',
       tabNew: 'Nuova bobina',
       tabReplace: 'Sostituisci tag',
@@ -9822,6 +9861,7 @@ useEmbeddedHint: 'Esegue lo slicing come impostato dal designer (pareti, riempim
         fail: 'La porta 990 risponde, ma il servizio di trasferimento file (FTPS) non completa l\'handshake TLS. PrintOps ha messo in pausa ulteriori tentativi di trasferimento verso questa stampante per {{remaining_seconds}}s per evitare di intasare i log — copertine, timelapse e invio delle stampe non funzioneranno fino ad allora. Se il problema persiste, prova a riavviare la stampante.',
       },
       external_storage: {
+        skip_unsupported_model: "Su questo modello non è possibile attivare l'opzione: con il firmware attuale non la offrono né la stampante né Bambu Studio. Non c'è nulla da correggere; le stampe archiviate potrebbero non avere miniature e metadati dello slicer finché Bambu Lab non la aggiunge.",
         title: 'Memorizza file inviati su archiviazione esterna (passo 4 dell\'installazione)',
         pass: 'La stampante segnala che questa opzione è attiva — i file inviati saranno memorizzati sulla scheda SD e gli archivi avranno miniature e metadati dello slicer.',
         fail: 'La stampante segnala che questa opzione è disattivata. Abilita "Memorizza file inviati su archiviazione esterna" — nei firmware recenti (P2S 01.02 / Bambu Studio 2.6+) l\'interruttore si trova nelle Impostazioni di stampa della stampante; nelle versioni precedenti è nella scheda Dispositivo di Bambu Studio / OrcaSlicer. Senza questa opzione, ogni stampa archiviata è priva di miniatura e di metadati dello slicer.',

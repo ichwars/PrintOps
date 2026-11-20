@@ -1,3 +1,4 @@
+import type { WLEDPreset, WLEDConnectionInfo } from './types/diagnostics-printers';
 import { batchedList } from '../batch';
 import type {
   Equipment,
@@ -49,6 +50,21 @@ export const printersFilesMethods = {
       body: JSON.stringify(data),
     }),
 
+  getWledPresets: (id: number, baseUrl: string) =>
+    request<WLEDPreset[]>(`/printers/${id}/wled/presets`, {
+      method: 'POST',
+      body: JSON.stringify({ base_url: baseUrl }),
+    }),
+  testWledConnection: (id: number, baseUrl: string) =>
+    request<WLEDConnectionInfo>(`/printers/${id}/wled/test-connection`, {
+      method: 'POST',
+      body: JSON.stringify({ base_url: baseUrl }),
+    }),
+  testWledPreset: (id: number, baseUrl: string, presetId: number) =>
+    request<{ success: boolean }>(`/printers/${id}/wled/test-preset`, {
+      method: 'POST',
+      body: JSON.stringify({ base_url: baseUrl, preset_id: presetId }),
+    }),
   deletePrinter: (id: number, deleteArchives: boolean = true) =>
     request<{ status: string; archives_deleted: boolean }>(
       `/printers/${id}?delete_archives=${deleteArchives}`,
@@ -263,9 +279,9 @@ export const printersFilesMethods = {
     ),
 
   // Unload the currently loaded filament.
-  unloadAms: (printerId: number) =>
+  unloadAms: (printerId: number, trayId?: number) =>
     request<{ success: boolean; message: string }>(
-      `/printers/${printerId}/ams/unload`,
+      `/printers/${printerId}/ams/unload${trayId === undefined ? '' : `?tray_id=${trayId}`}`,
       { method: 'POST' }
     ),
 

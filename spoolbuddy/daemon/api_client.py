@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 MAX_BUFFER_SIZE = 100
 
 
+# Where a tag write's result goes; main checks the buffer for it (#3076).
+WRITE_RESULT_PATH = "/nfc/write-result"
+
+
 class APIClient:
     def __init__(self, backend_url: str, api_key: str):
         self._base = validate_backend_url(backend_url) + "/api/v1/spoolbuddy"
@@ -48,6 +52,10 @@ class APIClient:
         except Exception as e:
             logger.warning("GET %s failed: %s", path, e)
             return None
+
+    def has_buffered(self, path: str) -> bool:
+        """Whether a POST to *path* is still waiting in the buffer to be sent."""
+        return any(item["path"] == path for item in self._buffer)
 
     async def _flush_buffer(self):
         while self._buffer:
@@ -183,7 +191,7 @@ class APIClient:
         self, device_id: str, spool_id: int, tag_uid: str, success: bool, message: str | None = None
     ) -> dict | None:
         return await self._post(
-            "/nfc/write-result",
+            WRITE_RESULT_PATH,
             {
                 "device_id": device_id,
                 "spool_id": spool_id,

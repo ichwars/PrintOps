@@ -11,6 +11,7 @@ from contextlib import aclosing, suppress
 from io import BytesIO
 from time import monotonic
 
+import anyio.lowlevel
 import httpx
 import websockets
 import websockets.exceptions
@@ -609,8 +610,12 @@ async def create_stream_token(
 
 async def _stream_access_allowed(opener: StreamOpener, printer_id: int) -> bool:
     try:
-        async with asyncio.timeout(_STREAM_RECHECK_TIMEOUT):
-            return await stream_opener_still_allowed(opener, printer_id)
+        allowed = False
+        with anyio.CancelScope(shield=True):
+            async with asyncio.timeout(_STREAM_RECHECK_TIMEOUT):
+                allowed = await stream_opener_still_allowed(opener, printer_id)
+        await anyio.lowlevel.checkpoint()
+        return allowed
     except Exception:
         logger.warning("Camera access recheck failed for printer %s", printer_id)
         return False

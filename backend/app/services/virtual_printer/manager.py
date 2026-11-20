@@ -31,7 +31,8 @@ from backend.app.services.virtual_printer.queue_options import mapping_reaches_p
 from backend.app.services.virtual_printer.ssdp_server import SSDPProxy, VirtualPrinterSSDPServer
 from backend.app.services.virtual_printer.tcp_proxy import SlicerProxyManager, TCPProxy
 from backend.app.utils.advertised_address import validate_advertised_ip
-from backend.app.utils.printer_models import is_dual_nozzle_model, normalize_printer_model_id
+from backend.app.utils.printer_models import has_ams3h, is_dual_nozzle_model, normalize_printer_model_id
+from backend.app.utils.tray_ids import TrayLayout
 
 if TYPE_CHECKING:
     from backend.app.services.printer_manager import PrinterManager
@@ -325,6 +326,19 @@ class VirtualPrinterInstance:
             # IDLE reset was wrong — staying at FINISH is the designed
             # behaviour. The next upload's PREPARE→FINISH cycle starts fresh.
 
+    def _target_tray_layout(self) -> TrayLayout:
+        """How the target printer numbers its trays, which places an H3C's
+        per-hotend external inputs in the slicer's mapping.
+
+        The target's live AMS data, else its model; without a target printer
+        ("any available" queue mode), the VP's own model.
+        """
+        if self._printer_manager is not None and self.target_printer_id is not None:
+            from backend.app.services.printer_manager import printer_tray_layout
+
+            return printer_tray_layout(self.target_printer_id, self._printer_manager)
+        return TrayLayout.ams3h() if has_ams3h(self.model) else TrayLayout()
+
     async def on_print_command(self, filename: str, data: dict) -> None:
         """Handle print command from MQTT.
 
@@ -409,6 +423,9 @@ class VirtualPrinterInstance:
             keep_ams=bound and not self.queue_force_color_match,
             keep_nozzle=bound or normalize_printer_model_id(model) != "H2C",
             dual_nozzle=dual_nozzle,
+            layout=self._target_tray_layout()
+            if bound and not self.queue_force_color_match and data.get("ams_mapping2")
+            else None,
         )
 
     async def _restamp_recent_queue_item(self, stash_key: str, data: dict) -> None:

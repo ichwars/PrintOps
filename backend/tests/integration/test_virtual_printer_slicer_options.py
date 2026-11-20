@@ -185,6 +185,25 @@ async def test_late_options_only_update_unclaimed_original_targets(
         assert row.ams_mapping is None
 
 
+def test_bound_h3c_queue_uses_target_layout_for_all_external_inputs(tmp_path, test_engine):
+    from unittest.mock import Mock
+
+    manager = Mock()
+    manager.get_model.return_value = "N10"
+    manager.get_client.return_value = None
+    manager.get_status.return_value = None
+    instance = _queue_instance(tmp_path, test_engine, target_printer_id=8, printer_manager=manager)
+    external_inputs = list(range(255, 246, -1))
+    options = instance._captured_queue_options(
+        {
+            "ams_mapping": [-1] * 10,
+            "ams_mapping2": [{"ams_id": tray, "slot_id": 0} for tray in external_inputs]
+            + [{"ams_id": 32, "slot_id": 8}],
+        }
+    )
+    assert json.loads(options["ams_mapping"]) == [*external_inputs, 36]
+
+
 def test_model_wide_queue_drops_rack_assignments_and_strict_mode_keeps_color_matching(tmp_path, test_engine):
     data = {
         "ams_mapping": [4],

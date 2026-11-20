@@ -1,3 +1,4 @@
+import { saveCamWallControlsMode, savedCamWallControlsMode } from '../components/camWallControls';
 import { useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -64,6 +65,7 @@ export function CamWallPage() {
       MAX_SNAPSHOT_SEC,
     ),
   );
+  const [controlsMode, setControlsMode] = useState(savedCamWallControlsMode);
   const [statusMode, setStatusMode] = useState<CameraTileStatusMode>(() => {
     const requested = searchParams.get('status') ?? localStorage.getItem('camWallStatusMode');
     const allowed: CameraTileStatusMode[] = kiosk ? ['off', 'compact'] : ['off', 'compact', 'full'];
@@ -86,6 +88,11 @@ export function CamWallPage() {
     enabled: !kiosk && !authLoading && !authRetrying && (!authEnabled || user !== null),
     refetchInterval: KIOSK_POLL_MS,
   });
+
+  // The finish time on the tiles follows the user's 12h/24h choice (#3479).
+  // A kiosk token reaches no settings: its tiles show no finish time anyway.
+  const signedIn = !kiosk && !authLoading && (!authEnabled || user !== null);
+  const { data: uiSettings } = useQuery({ queryKey: ['settings', 'ui-flags'], queryFn: api.getUiFlags, enabled: signedIn });
 
   const kioskStatuses = useMemo(() => {
     const map = new Map<number, CameraWallStatus | undefined>();
@@ -143,6 +150,15 @@ export function CamWallPage() {
         statusMode={statusMode}
         statuses={kiosk ? kioskStatuses : undefined}
         showSettings={!kiosk}
+        // Read-only on a kiosk wall: its token cannot control a printer, and
+        // nobody stands at the screen (#3479).
+        showControls={!kiosk}
+        controlsMode={controlsMode}
+        onChangeControlsMode={(next) => {
+          setControlsMode(next);
+          saveCamWallControlsMode(next);
+        }}
+        timeFormat={uiSettings?.time_format || 'system'}
         onTileClick={kiosk ? undefined : (id) => {
           if (isIosHomeScreenApp()) navigate(`/camera/${id}`, { state: { fromCamWall: true } });
           else openCameraWindow(id);

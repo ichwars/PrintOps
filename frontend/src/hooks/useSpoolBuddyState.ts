@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useCallback, useRef } from 'react';
 
 export interface MatchedSpool {
   id: number;
@@ -44,6 +44,7 @@ const initialState: SpoolBuddyState = {
 };
 
 function reducer(state: SpoolBuddyState, action: Action): SpoolBuddyState {
+  if (state.deviceId && state.deviceId !== action.deviceId) state = initialState;
   switch (action.type) {
     case 'WEIGHT_UPDATE':
       return {
@@ -96,11 +97,23 @@ function reducer(state: SpoolBuddyState, action: Action): SpoolBuddyState {
   }
 }
 
-export function useSpoolBuddyState() {
-  const [state, dispatch] = useReducer(reducer, initialState);
+export function useSpoolBuddyState(deviceId?: string | null) {
+  const [rawState, dispatch] = useReducer(reducer, initialState);
+  const deviceIdRef = useRef(deviceId);
+  useLayoutEffect(() => {
+    deviceIdRef.current = deviceId;
+  }, [deviceId]);
+  const fromOtherDevice = useCallback(
+    (detail: { device_id?: string } | null | undefined) =>
+      !!deviceIdRef.current && !!detail?.device_id && detail.device_id !== deviceIdRef.current,
+    [],
+  );
+  // State that the previous device left behind is not this one's.
+  const state = deviceId && rawState.deviceId && rawState.deviceId !== deviceId ? initialState : rawState;
 
   const handleWeight = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     dispatch({
       type: 'WEIGHT_UPDATE',
       weight: detail.weight_grams ?? detail.data?.weight_grams,
@@ -108,10 +121,11 @@ export function useSpoolBuddyState() {
       rawAdc: detail.raw_adc ?? detail.data?.raw_adc ?? null,
       deviceId: detail.device_id ?? detail.data?.device_id ?? '',
     });
-  }, []);
+  }, [fromOtherDevice]);
 
   const handleTagMatched = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     const spool = detail.spool ?? detail.data?.spool;
     if (spool) {
       dispatch({
@@ -131,41 +145,45 @@ export function useSpoolBuddyState() {
         deviceId: detail.device_id ?? detail.data?.device_id ?? '',
       });
     }
-  }, []);
+  }, [fromOtherDevice]);
 
   const handleUnknownTag = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     dispatch({
       type: 'UNKNOWN_TAG',
       tagUid: detail.tag_uid ?? detail.data?.tag_uid ?? '',
       trayUuid: detail.tray_uuid ?? detail.data?.tray_uuid ?? null,
       deviceId: detail.device_id ?? detail.data?.device_id ?? '',
     });
-  }, []);
+  }, [fromOtherDevice]);
 
   const handleTagRemoved = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     dispatch({
       type: 'TAG_REMOVED',
       deviceId: detail.device_id ?? detail.data?.device_id ?? '',
     });
-  }, []);
+  }, [fromOtherDevice]);
 
   const handleOnline = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     dispatch({
       type: 'DEVICE_ONLINE',
       deviceId: detail.device_id ?? detail.data?.device_id ?? '',
     });
-  }, []);
+  }, [fromOtherDevice]);
 
   const handleOffline = useCallback((e: Event) => {
     const detail = (e as CustomEvent).detail;
+    if (fromOtherDevice(detail?.data ?? detail)) return;
     dispatch({
       type: 'DEVICE_OFFLINE',
       deviceId: detail.device_id ?? detail.data?.device_id ?? '',
     });
-  }, []);
+  }, [fromOtherDevice]);
 
   useEffect(() => {
     window.addEventListener('spoolbuddy-weight', handleWeight);

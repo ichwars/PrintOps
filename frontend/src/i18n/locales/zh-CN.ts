@@ -1,5 +1,6 @@
 export default {
   profileDefaults: {
+    applyAll: '全部应用',
     "title": "产品默认配置",
     "description": "从已配置的料盘复制切片预设和 K 值配置。同一产品的新料盘会继承缺失的设置。",
     "pickSpool": "选择已配置的料盘",
@@ -2490,6 +2491,8 @@ export default {
     },
     temperatures: {
       nozzle: '喷嘴',
+      // The H3C's nozzle on the toolhead, by its rack position (#3442).
+      mounted: '喷嘴 {{n}}',
       bed: '热床',
       chamber: '腔室',
     },
@@ -2541,10 +2544,15 @@ export default {
       summary: '直播 {{live}} 个，快照 {{snap}} 个，共 {{total}} 个',
       layer: '第 {{cur}}/{{total}} 层',
       timeLeft: '剩余 {{time}}',
+      eta: '预计完成 {{time}}',
       statusMode: {
         off: '关闭',
         compact: '简洁',
         full: '完整',
+      },
+      controlsMode: {
+        hover: '悬停时',
+        always: '始终',
       },
       settings: {
         title: '摄像头墙设置',
@@ -2553,7 +2561,9 @@ export default {
         snapshotInterval: '快照刷新间隔（秒）',
         snapshotIntervalHint: '非直播画面获取新快照的频率。',
         statusOverlay: '状态叠加',
-        statusOverlayHint: '简洁：仅显示状态标签。完整：加上进度、层数、剩余时间。',
+        statusOverlayHint: '简洁：仅显示状态标签。完整：加上进度、层数、剩余时间、预计完成时间、温度。',
+        controls: '磁贴控制',
+        controlsHint: '每个磁贴上的暂停、停止和腔体灯：悬停时显示或始终显示。触摸屏始终显示。',
       },
       page: {
         tokenRejected: '此摄像头墙令牌已被拒绝或已过期。',
@@ -2580,6 +2590,7 @@ export default {
     // Printer card
     readyToPrint: '准备打印',
     external: '外部',
+    externalInputsEmpty: '{{count}} 个外部输入均为空',
     extL: '外置左',
     extR: '外置右',
     deleteArchives: '删除打印归档',
@@ -2654,6 +2665,7 @@ export default {
     totalPrintHours: '打印时长',
     activeNozzle: '当前：{{nozzle}} 喷嘴',
     nozzleRack: '喷嘴架',
+    nozzleRackMounted: '在工具头上',
     nozzleDocked: '已停靠',
     nozzleMounted: '已安装',
     nozzleActive: '使用中',
@@ -2663,6 +2675,7 @@ export default {
     nozzleStatus: '状态',
     nozzleFilament: '耗材',
     nozzleWear: '磨损',
+    nozzlePrintTime: '打印时长',
     nozzleMaxTemp: '最高温度',
     nozzleSerial: '序列号',
     nozzleHardenedSteel: '硬化钢',
@@ -2725,6 +2738,7 @@ export default {
       rfidRereadInitiated: '已发起 RFID 重新读取',
       loadInitiated: '加载耗材中…',
       unloadInitiated: '卸载耗材中…',
+      unloadAms3h: '正在退出槽位 {{n}} 的耗材。打印机提示时，请手动将耗材从 AMS 3H 拉出。',
       failedToLoad: '加载耗材失败',
       failedToUnload: '卸载耗材失败',
     },
@@ -2910,6 +2924,7 @@ export default {
     },
     // AMS Drying
     drying: {
+      ams3hDryerSlots: 'AMS 3H 仅烘干槽位 {{a}} 和 {{b}}',
       start: '开始干燥',
       stop: '停止干燥',
       temperature: '温度',
@@ -4134,6 +4149,14 @@ export default {
   },
 
   // Settings page
+  wled: {
+    connectionSection: '连接', mappingSection: '状态映射', testConnection: '测试连接', notTested: '未测试', connected: '已连接到 WLED{{name}}{{version}}', notReachable: '无法连接到 WLED。', testPreset: '测试', presetTested: '预设已激活', presetTestFailed: '无法激活预设', mappingSummary: '已配置状态: {{configured}} · 已禁用状态: {{disabled}}',
+    title: 'WLED', description: '颜色、效果和预设均直接在 WLED 中管理。PrintOps 仅将打印机状态映射到现有预设。',
+    printer: '打印机', enabled: '启用 WLED 集成', baseUrl: 'WLED 地址', loadPresets: '加载预设', online: '已加载 {{count}} 个预设', offlineHint: 'WLED 不可用。已保存的预设 ID 将保留。', noPrinters: '尚未配置打印机。', noPreset: '已禁用 — 无预设', savedUnavailable: '已保存预设 {{id}} — 当前不可用', finishedTimeout: '完成超时（秒）', finishedTimeoutHint: '到时后从完成预设切换到空闲预设。设为 0 可禁用。', saved: 'WLED 设置已保存', saveError: '无法保存 WLED 设置',
+    presetSegmentHint: '在 WLED 中创建预设时选择目标分段，并启用“Checked segments only”。运行时，PrintOps 只会激活已配置的预设。',
+    status: { idle: '空闲', prepare: '准备中', printing: '打印中', paused: '已暂停', finished: '已完成', error: '失败 / 错误', queue_waiting: '等待清理打印板', filament_problem: '耗材问题', hms_error: 'HMS 错误', offline: '离线' },
+  },
+
   settings: {
     title: '设置',
     general: '通用',
@@ -4164,6 +4187,7 @@ export default {
       orderManagementFormatPreview: 'Format & Preview',
       filament: '耗材',
       network: '网络',
+      wled: 'WLED',
       apiKeys: 'API 密钥',
       virtualPrinter: '虚拟打印机',
       spoolbuddy: 'SpoolBuddy',
@@ -6555,8 +6579,8 @@ export default {
       groupAction: '归为版本组',
       groupTooltip: '将这些文件标记为针对不同打印机切片的同一任务',
       grouped: '已将 {{count}} 个文件归为版本组',
-      printAlternatives: '打印（{{count}} 个备选）',
     },
+    printFiles: '打印（{{count}} 个文件）',
     title: '文件管理器',
     subtitle: '组织和管理您的打印文件',
     uploadFiles: '上传文件',
@@ -7808,6 +7832,19 @@ useEmbedded: '使用文件内置设置',
 
   // Print modal
   printModal: {
+    waitingForAmsStatus: '正在等待 {{printer}} 的 AMS 状态…',
+    multiFile: {
+      groupLabel: '所选文件的处理方式',
+      alternatives: '备选',
+      separate: '独立任务',
+      alternativesHint: '一个任务。第一台空闲且匹配的打印机会打印它对应的文件。',
+      separateHint: '每个文件一个队列项，按下方顺序添加。选项适用于每个队列项。',
+      alternativesBlocked: '有多个文件是为 {{model}} 切片的。备选要求每个文件对应不同的打印机型号。',
+      orderTitle: '队列顺序',
+      incompatible: '无法发送到 {{model}} 打印机：{{files}}',
+      notSlicedFor: '未为 {{model}} 切片：{{files}}',
+      failed: '未加入队列：{{filename}}（{{message}}）。此前已加入：{{queued}}。',
+    },
     variants: {
       editNote: '这些备选在任务加入队列时确定。如需更改，请取消后重新加入队列。',
       title: '打印机备选',
@@ -9715,6 +9752,8 @@ useEmbedded: '使用文件内置设置',
       "tabSystem": "系统",
     },
     writeTag: {
+      writeWith: '写入设备',
+      deviceOfflineOption: '{{name}}（离线）',
       tabExisting: '现有耗材',
       tabNew: '新耗材',
       tabReplace: '替换标签',
@@ -9821,6 +9860,7 @@ useEmbedded: '使用文件内置设置',
         fail: '端口 990 有响应，但文件传输（FTPS）服务无法完成 TLS 握手。为避免日志被刷爆，PrintOps 已暂停对该打印机的文件传输尝试 {{remaining_seconds}} 秒——在此期间封面图、延时视频和发送打印任务都将无法使用。如果问题持续存在，请尝试重启打印机。',
       },
       external_storage: {
+        skip_unsupported_model: '此型号无法开启该选项：在当前固件中，打印机和 Bambu Studio 都不提供此选项。这里无需修复；在 Bambu Lab 添加之前，存档的打印可能缺少缩略图和切片元数据。',
         title: '将发送的文件存储在外部存储中（安装步骤 4）',
         pass: '打印机报告此选项已开启 — 发送的文件将存储在 SD 卡上，归档将包含缩略图和切片机元数据。',
         fail: '打印机报告此选项已关闭。请启用"将发送的文件存储在外部存储中" — 在较新固件 (P2S 01.02 / Bambu Studio 2.6+) 中，开关位于打印机的打印设置中；在较旧版本中位于 Bambu Studio / OrcaSlicer 的设备选项卡中。如果不启用此选项，每次归档的打印都将没有缩略图也没有切片机元数据。',

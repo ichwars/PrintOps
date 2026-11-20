@@ -85,6 +85,10 @@ from backend.app.schemas.library import (
 from backend.app.schemas.print_queue import PrintQueueItemCreate
 from backend.app.schemas.slicer import ORCA_ONLY_BED_TYPES, SliceRequest, SliceResponse
 from backend.app.services.archive import ThreeMFParser
+from backend.app.services.design_settings import (
+    _patch_process_bed_type as _patch_process_bed_type,
+    record_process_changes,
+)
 from backend.app.services.library_archive_folders import read_archive_folders
 from backend.app.services.library_folder_move import lock_folder_tree_for_move, validate_folder_move
 from backend.app.services.library_previews import generate_pdf_thumbnail
@@ -2985,29 +2989,6 @@ def _strip_3mf_embedded_settings(zip_bytes: bytes) -> bytes:
 _PROJECT_SETTINGS_SENTINEL_KEYS = PROJECT_SETTINGS_INHERIT_KEYS
 
 
-def _patch_process_bed_type(process_json: str, bed_type: str) -> str:
-    """Overwrite ``curr_bed_type`` in a process-profile JSON before forwarding
-    to the slicer sidecar.
-
-    The slicer CLI reads the build-plate type from the process profile's
-    ``curr_bed_type`` field. When the user picks a non-default plate in the
-    SliceModal (#1337), we patch the resolved JSON in place rather than
-    asking them to clone the preset just to switch a plate. Returns the
-    original string unchanged when the JSON can't be parsed or isn't a
-    dict — the slicer will then run with whatever the preset originally
-    specified, which is the safe fall-back path.
-    """
-    try:
-        profile = json.loads(process_json)
-    except json.JSONDecodeError:
-        logger.warning("Bed-type override skipped: process profile is not valid JSON")
-        return process_json
-    if not isinstance(profile, dict):
-        return process_json
-    profile["curr_bed_type"] = bed_type
-    return json.dumps(profile)
-
-
 # The sidecar prefixes the slicer CLI's own error_string with this when the
 # slicer ran and rejected the job (model off the bed, incompatible filament
 # temps, range validation) — as opposed to the CLI crashing before it could
@@ -3096,6 +3077,7 @@ async def _run_slicer_with_fallback(
     dispatcher.
     """
     from backend.app.api.routes.settings import get_setting
+    from backend.app.api.routes.slicer_presets import require_slicer_api_url, stock_process_changes
     from backend.app.services.preset_resolver import resolve_preset_ref
     from backend.app.services.slicer_api import (
         SlicerApiServerError,
@@ -3138,39 +3120,19 @@ async def _run_slicer_with_fallback(
             filament_jsons.append(await resolve_preset_ref(db, user, ref, "filament"))
         filament_jsons = _patch_filament_colours(filament_jsons, request.filament_colours, model_bytes)
 
+    # The process JSON before PrintOps layers its own settings on the picked
+    # preset, to tell which keys the output 3MF has to list as changed (#3497).
+    process_as_picked = presets.get("process", "")
     # Patch the selected bed onto the resolved process profile (#1337).
     if request.bed_type and not embedded_mode:
         presets["process"] = _patch_process_bed_type(presets["process"], request.bed_type)
 
-    # A configured sidecar URL takes precedence over the environment default.
-    if preferred == "orcaslicer":
-        configured = await get_setting(db, "orcaslicer_api_url")
-        api_url = (configured or app_settings.slicer_api_url).strip()
-    elif preferred == "bambu_studio":
-        configured = await get_setting(db, "bambu_studio_api_url")
-        api_url = (configured or app_settings.bambu_studio_api_url).strip()
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown preferred_slicer setting: '{preferred}'. Expected 'orcaslicer' or 'bambu_studio'.",
-        )
+    api_url = await require_slicer_api_url(db, preferred)
 
-    # Note: an earlier version of this code stripped Metadata/project_settings.
-    # config + model_settings.config + slice_info.config + cut_information.xml
-    # before forwarding the 3MF, the theory being that --load-settings would
-    # then take precedence cleanly. That theory was wrong: model_settings.
-    # config carries the plate definitions the CLI needs to map `--slice N`
-    # to a real plate, and slice_info / project_settings supply baseline
-    # config the CLI's StaticPrintConfig pass needs at all. Stripping ANY
-    # of them caused the CLI to silently exit immediately after
-    # "Initializing StaticPrintConfigs" — exit code 0, no result.json, no
-    # stderr — which Node's child_process treated as failure and PrintOps
-    # then masked by falling back to slice_without_profiles using the
-    # un-stripped bytes (and the source's embedded printer). Net effect:
-    # every 3MF slice with profiles silently produced wrong-printer output.
-    # Forwarding the original bytes lets --load-settings override the
-    # specific fields the user changed (printer/process/filament) while
-    # the embedded plate / model definitions remain intact.
+    # Keep plate definitions and embedded defaults in the source 3MF. Stripping
+    # model_settings, project_settings or slice_info can make the CLI exit without
+    # a result and trigger a fallback to the wrong printer. --load-settings
+    # overrides the selected profiles while retaining the rest of the model.
     primary_bytes = model_bytes
     if is_3mf:
         # Strip known inherit/active-filament index markers from
@@ -3190,6 +3152,12 @@ async def _run_slicer_with_fallback(
         # with a PVA slot loaded but never used.
         if not embedded_mode:
             presets["process"] = _patch_process_support_settings(presets["process"], primary_bytes)
+
+    process_changes = []
+    if request.export_3mf and not embedded_mode:
+        process_changes = await stock_process_changes(
+            db, user, request.process_preset, process_as_picked, presets["process"]
+        )
 
     used_embedded_settings = False
     service = SlicerApiService(api_url)
@@ -3483,6 +3451,10 @@ async def _run_slicer_with_fallback(
 
     _raise_for_unsafe_slicer_output(result.content, request, used_embedded_settings)
 
+    if process_changes and not used_embedded_settings:
+        result = result._replace(
+            content=await asyncio.to_thread(record_process_changes, result.content, process_changes)
+        )
     return result, used_embedded_settings
 
 

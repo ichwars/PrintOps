@@ -411,19 +411,29 @@ async def _resolve_slicer_api_url(db: AsyncSession) -> str | None:
     from backend.app.api.routes.settings import get_setting
 
     preferred = (await get_setting(db, "preferred_slicer")) or "bambu_studio"
+    return await configured_slicer_api_url(db, preferred) or None
+
+
+async def configured_slicer_api_url(db: AsyncSession, preferred: str) -> str | None:
+    from backend.app.api.routes.settings import get_setting
+
     if preferred == "orcaslicer":
         configured = await get_setting(db, "orcaslicer_api_url")
-        url = (configured or app_settings.slicer_api_url).strip()
-    elif preferred == "bambu_studio":
+        return (configured or app_settings.slicer_api_url).strip()
+    if preferred == "bambu_studio":
         configured = await get_setting(db, "bambu_studio_api_url")
-        url = (configured or app_settings.bambu_studio_api_url).strip()
-    else:
-        # Unknown preference — return None so the bundled tier is empty
-        # rather than crashing the modal. The slice route raises 400 here;
-        # we degrade silently because the modal's listing is informational.
-        logger.warning("Unknown preferred_slicer setting: %r — bundled tier disabled", preferred)
-        return None
-    return url or None
+        return (configured or app_settings.bambu_studio_api_url).strip()
+    return None
+
+
+async def require_slicer_api_url(db: AsyncSession, preferred: str) -> str:
+    url = await configured_slicer_api_url(db, preferred)
+    if url is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown preferred_slicer setting: '{preferred}'. Expected 'orcaslicer' or 'bambu_studio'.",
+        )
+    return url
 
 
 _STOCK_BAMBU_FILAMENT = re.compile(r"(.+) @BBL [A-Z0-9]+(?: \d\.\d nozzle)?")
@@ -658,6 +668,30 @@ def _stock_aliases(
 
 def listed_stock_ref(aliases: dict[str, PresetRef], slot: str, ref: PresetRef) -> PresetRef:
     return aliases.get(_stock_key(slot, ref.id), ref) if ref.source == "standard" else ref
+
+
+async def is_stock_cloud_preset(db: AsyncSession, user: User | None, ref: PresetRef, slot: str) -> bool:
+    """Whether ``ref`` is one of Bambu's stock presets on Bambu Cloud (#3497).
+
+    The cloud listing's "public" list, from the same cache as the listing; a
+    listing that can't be fetched counts as not stock.
+    """
+    if ref.source != "cloud":
+        return False
+    cloud, _status = await _fetch_cloud_presets(db, user)
+    return any(p.stock and p.id == ref.id for p in cloud.get(slot, []))
+
+
+async def stock_process_changes(db, user, process_ref, before_json: str, after_json: str) -> list[str]:
+    """Return overrides Studio can record relative to a known stock process preset."""
+    from backend.app.services.design_settings import changed_process_keys
+
+    if process_ref is None:
+        return []
+    changes = changed_process_keys(before_json, after_json)
+    if changes and (process_ref.source == "standard" or await is_stock_cloud_preset(db, user, process_ref, "process")):
+        return changes
+    return []
 
 
 async def load_stock_aliases(db: AsyncSession, user: User | None) -> dict[str, PresetRef]:

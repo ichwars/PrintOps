@@ -362,3 +362,7 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         "location_id": None,
         "k_profiles": [],
     }
+
+
+def _spoolman_is_enabled(settings: dict[str, str]) -> bool:
+    return settings.get("spoolman_enabled", "false").lower() == "true"

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes import filament_profile_defaults, inventory_usage
+from backend.app.api.routes._spoolman_helpers import _spoolman_is_enabled as _spoolman_is_enabled
 from backend.app.core.auth import (
     OwnershipAccess,
     RequireAnyPermissionIfAuthEnabled,
@@ -96,6 +97,7 @@ from backend.app.utils.filament_types import (
     tray_sub_brand,
 )
 from backend.app.utils.tag_normalization import normalize_tag_uid, normalize_tray_uuid
+from backend.app.utils.tray_ids import external_tray_id
 
 logger = logging.getLogger(__name__)
 
@@ -557,10 +559,6 @@ async def reset_spool_catalog(
 async def _load_settings_map(db: AsyncSession) -> dict[str, str]:
     result = await db.execute(select(Settings))
     return {s.key: s.value for s in result.scalars().all()}
-
-
-def _spoolman_is_enabled(settings: dict[str, str]) -> bool:
-    return settings.get("spoolman_enabled", "false").lower() == "true"
 
 
 async def _ensure_spoolman_client(settings: dict[str, str]) -> SpoolmanClient | None:
@@ -1909,7 +1907,7 @@ async def assign_spool(
         if data.ams_id == 255:
             # External slot: look up tray from vt_tray by global ID
             vt_tray = state.raw_data.get("vt_tray") or []
-            ext_id = data.tray_id + 254  # 0→254, 1→255
+            ext_id = external_tray_id(data.tray_id)  # 0→254, 1→255, rack 2-8→247-253
             for vt in vt_tray:
                 if isinstance(vt, dict) and int(vt.get("id", 254)) == ext_id:
                     slot_presence = spool_present(vt)

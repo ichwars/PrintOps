@@ -6,7 +6,6 @@ import logging
 import time
 import zipfile
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -76,15 +75,23 @@ from backend.app.services.queue_drying import drying_holds, stop_drying_before_p
 from backend.app.services.queue_external_feed import external_feed_options
 from backend.app.services.queue_filament_mapping import (
     QueueFilamentMapping,
+    creator_printer_ids,
     filament_constraints,
 )
 from backend.app.services.queue_item_printer import drop_printer_resolved
 from backend.app.services.queue_keep_warm import QueueKeepWarm
+from backend.app.services.queue_model_candidates import (
+    LibraryRowClaims as LibraryRowClaims,
+    _candidates_for as _candidates_for,
+    _ModelCandidate as _ModelCandidate,
+    _sliced_for_model as _sliced_for_model,
+)
 from backend.app.services.queue_print_attribution import QueuePrintAttribution
 from backend.app.services.queue_upload_refusal import asks_nothing_new, hold_reason, requeue_refused_upload
 from backend.app.services.scheduled_drying import scheduled_drying
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.smart_plug_selection import (
+    can_be_switched,
     pick_power_plug as select_power_plug,
     plugs_for_printer,
 )
@@ -144,6 +151,17 @@ def _effective_plate_id(explicit_plate_id: int | None, file_path: Path) -> int:
         logger.warning("Dispatch plate: cannot read %s (%s); falling back to plate 1", file_path, exc)
         return 1
     return resolved if resolved is not None else 1
+
+
+def _wear_order(printer: Printer) -> tuple[float, int]:
+    """Sort key for printers a model job could run on: fewest print hours, then id (#3480).
+
+    The same hours as maintenance's ``get_printer_total_hours``: the runtime
+    counter plus the baseline offset a user set for a second-hand or reset
+    machine.
+    """
+    hours = (printer.runtime_seconds or 0) / 3600.0 + (printer.print_hours_offset or 0.0)
+    return hours, printer.id
 
 
 class _UploadProgressBridge:
@@ -236,88 +254,6 @@ def _canonical_filament_type(ftype: str) -> str:
     """Return canonical type for equivalence matching."""
     upper = ftype.upper()
     return _FILAMENT_EQUIV_MAP.get(upper, upper)
-
-
-@dataclass(slots=True)
-class _ModelCandidate:
-    """One (file, printer model) pair the model-based matcher may try.
-
-    Model-based assignment used to have exactly one of these per item, held
-    directly in the item's own columns. Cross-model queue items (#671) have
-    several, held in ``print_queue_variants``. Both shapes are normalised into
-    this so the matching, the cross-model gate and the waiting-reason handling
-    are written once and an item without variants provably takes the same path
-    it took before variants existed.
-
-    ``variant`` is None for the item's own columns and set for a real variant
-    row, which is what :meth:`PrintScheduler._resolve_variant` writes onto the
-    item once that candidate wins.
-    """
-
-    target_model: str | None
-    sliced_for: str | None
-    required_filament_types: str | None
-    filament_overrides: str | None
-    variant: "PrintQueueVariant | None" = None
-
-
-def _sliced_for_model(archive, library_file) -> str | None:
-    """Model a 3MF declares it was sliced for, from whichever source holds it."""
-    if archive is not None:
-        return archive.sliced_for_model
-    if library_file is not None and library_file.file_metadata:
-        return library_file.file_metadata.get("sliced_for_model")
-    return None
-
-
-def _candidates_for(item: PrintQueueItem) -> list[_ModelCandidate]:
-    """Candidate files for ``item``, best first.
-
-    An item with no variant rows yields exactly one candidate built from its own
-    columns — the pre-#671 behaviour, unchanged.
-
-    Variants come back least-attempted first, ties broken by the user's
-    ``position``. On the first pass every count is zero, so this is purely the
-    user's priority order. After a start-watchdog bounce the printer that failed
-    drops behind, so the next lap tries the other machine rather than spending the
-    item's whole retry budget on the one that is wedged. Once every candidate has
-    been tried equally often they cycle again, which keeps the item-level
-    ``DISPATCH_MAX_ATTEMPTS`` bound from #2555 intact — a job with alternatives
-    still gives up, it just does not give up without trying them.
-    """
-    if not item.variants:
-        if not item.archive_id and not item.library_file_id:
-            # Nothing to print at all. Dispatching would fail deep in the upload
-            # on "No archive_id or library_file_id"; the caller holds the item
-            # with an explanation instead.
-            return []
-        return [
-            _ModelCandidate(
-                target_model=item.target_model,
-                sliced_for=_sliced_for_model(item.archive, item.library_file),
-                required_filament_types=item.required_filament_types,
-                filament_overrides=item.filament_overrides,
-            )
-        ]
-
-    # Drop candidates whose file is gone or in the trash. Both are reachable and
-    # neither is covered by the schema: library deletes are soft (the row lives
-    # on with ``deleted_at`` set, which no foreign key can express), and SQLite
-    # ships with ``PRAGMA foreign_keys`` off, so the ON DELETE CASCADE never
-    # fires there and a hard delete leaves the variant row pointing at nothing.
-    usable = [v for v in item.variants if v.library_file is not None and v.library_file.deleted_at is None]
-
-    ordered = sorted(usable, key=lambda v: (v.attempt_count or 0, v.position, v.id))
-    return [
-        _ModelCandidate(
-            target_model=v.target_model,
-            sliced_for=_sliced_for_model(None, v.library_file),
-            required_filament_types=v.required_filament_types,
-            filament_overrides=v.filament_overrides,
-            variant=v,
-        )
-        for v in ordered
-    ]
 
 
 def _collapse_waiting_reasons(per_model: list[tuple[str | None, str]]) -> str | None:
@@ -421,6 +357,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
         # Minimum cooldown between dispatches to the same printer (covers the
         # H2D's project_file digestion window).
         self._dispatch_min_cooldown = 60.0
+        self._model_wake_retry_at: dict[int, float] = {}
         # Hard timeout — drop the hold even if we never observed a transition,
         # so a lost MQTT session can't lock a printer out of the queue forever.
         # Matches the watchdog timeout (90 s) plus a safety margin so the
@@ -696,25 +633,9 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
             drying_held = await drying_holds(self, db, printer_manager)
             skip_reasons: dict[str, int] = {}
             dispatch_ids: list[int] = []
-            dispatch_libs: set[int] = set()
-            consumed_libs: set[int] = set()
+            library_rows = LibraryRowClaims()
 
-            def _library_row_conflict(candidate: PrintQueueItem) -> bool:
-                lib_id = candidate.library_file_id
-                if lib_id is None:
-                    return False
-                if candidate.cleanup_library_after_dispatch:
-                    return lib_id in dispatch_libs
-                return lib_id in consumed_libs
-
-            def _claim_library_row(candidate: PrintQueueItem) -> None:
-                lib_id = candidate.library_file_id
-                if lib_id is None:
-                    return
-                dispatch_libs.add(lib_id)
-                if candidate.cleanup_library_after_dispatch:
-                    consumed_libs.add(lib_id)
-
+            model_wake_attempted = False
             for item in items:
                 # Check scheduled time first (scheduled_time is stored in UTC from ISO string)
                 if item.scheduled_time:
@@ -844,12 +765,12 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                     if await self._block_on_unmatched_filament(db, item):
                         continue
 
-                    if _library_row_conflict(item):
+                    if library_rows.conflicts(item):
                         skip_reasons["library_row_in_use"] = skip_reasons.get("library_row_in_use", 0) + 1
                         busy_printers.add(item.printer_id)
                         continue
 
-                    _claim_library_row(item)
+                    library_rows.claim(item)
                     dispatch_ids.append(item.id)
                     busy_printers.add(item.printer_id)
 
@@ -896,6 +817,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                             )
                         )
 
+                    scope = await creator_printer_ids(db, item.created_by_id)
                     for candidate in candidates:
                         effective_types, filament_overrides = filament_constraints(candidate)
 
@@ -935,6 +857,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                             drying_ids=drying_held,
                             unmatched_on=unmatched_on,
                             is_short=is_short,
+                            allowed_printer_ids=scope,
                         )
                         if match_id:
                             printer_id = match_id
@@ -942,6 +865,15 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                             break
                         per_model_reasons.append((candidate.target_model, match_reason or ""))
 
+                    if printer_id is None and not model_wake_attempted:
+                        model_wake_attempted = await self._wake_printer_for_model(
+                            db,
+                            item,
+                            candidates,
+                            busy_printers | interlocked.keys() | upload_held.keys() | drying_held | gate_blocked,
+                            scope,
+                            require_plate_clear,
+                        )
                     if printer_id is None and gate_blocked:
                         per_model_reasons = [(item.target_model, MODEL_GATE_WAIT_REASON)]
                     waiting_reason = None if printer_id else _collapse_waiting_reasons(per_model_reasons)
@@ -978,7 +910,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                             )
 
                     if printer_id:
-                        if _library_row_conflict(item):
+                        if library_rows.conflicts(item):
                             skip_reasons["library_row_in_use"] = skip_reasons.get("library_row_in_use", 0) + 1
                             continue
 
@@ -1021,7 +953,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
                         if await self._block_on_unmatched_filament(db, item, release_assignment=True):
                             continue
 
-                        _claim_library_row(item)
+                        library_rows.claim(item)
                         dispatch_ids.append(item.id)
                         busy_printers.add(printer_id)
 
@@ -1111,6 +1043,47 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
             selected_printer = self._inflight.get(item_id, (None, item.printer_id))[1]
             await self._dispatch_with_claim(item_db, item, selected_printer)
 
+    async def _wake_printer_for_model(self, db, item, candidates, excluded, scope, require_plate_clear) -> bool:
+        """Wake at most one eligible printer; the next pass checks its fresh telemetry."""
+        now = time.monotonic()
+        self._model_wake_retry_at = {pid: at for pid, at in self._model_wake_retry_at.items() if at > now}
+        available_plugs = select(SmartPlug.printer_id).where(
+            SmartPlug.enabled.is_(True), SmartPlug.auto_on.is_(True), SmartPlug.controls_printer_power.is_(True)
+        )
+        for candidate in candidates:
+            if not candidate.target_model or not is_gcode_compatible(candidate.sliced_for, candidate.target_model):
+                continue
+            model = normalize_printer_model(candidate.target_model) or candidate.target_model
+            query = select(Printer).where(
+                Printer.is_active.is_(True),
+                func.lower(Printer.model) == model.lower(),
+                Printer.id.in_(available_plugs),
+                Printer.id.not_in(excluded | self._model_wake_retry_at.keys()),
+            )
+            if scope is not None:
+                query = query.where(Printer.id.in_(scope))
+            if item.target_location:
+                query = query.where(Printer.location == item.target_location)
+            for printer in sorted((await db.scalars(query)).all(), key=_wear_order):
+                if printer_manager.is_connected(printer.id) or (require_plate_clear and printer.awaiting_plate_clear):
+                    continue
+                # Only the next, connected match can verify the loaded filament, colour and quantity.
+                if item.require_previous_success and not await self._check_previous_success(
+                    db, item, printer_id=printer.id
+                ):
+                    continue
+                if await edited_since_loaded(db, item):
+                    continue
+                plugs = await plugs_for_printer(db, printer.id)
+                plug = select_power_plug(
+                    [p for p in plugs if p.auto_on and p.enabled and p.controls_printer_power and can_be_switched(p)]
+                )
+                if plug is not None:
+                    if not await self._power_on_and_wait(plug, printer.id, db):
+                        self._model_wake_retry_at[printer.id] = time.monotonic() + 300
+                    return True
+        return False
+
     async def _find_idle_printer_for_model(
         self,
         db: AsyncSession,
@@ -1161,7 +1134,7 @@ class PrintScheduler(QueueFilamentMapping, QueuePrintAttribution):
             query = query.where(Printer.id.in_(allowed_printer_ids))
 
         result = await db.execute(query)
-        printers = list(result.scalars().all())
+        printers = sorted(result.scalars().all(), key=_wear_order)
 
         location_suffix = f" in {target_location}" if target_location else ""
         if not printers:

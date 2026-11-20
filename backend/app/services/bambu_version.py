@@ -3,9 +3,10 @@
 import logging
 
 from backend.app.services.drying_telemetry import observe_version_info
+from backend.app.utils.tray_ids import AMS3H_UNIT_ID, AmsType, TrayLayout
 
 logger = logging.getLogger("backend.app.services.bambu_mqtt")
-_AMS_MODULE_PREFIXES = ("ams/", "ams_f1/", "n3f/", "n3s/")
+_AMS_MODULE_PREFIXES = ("ams/", "ams_f1/", "n3f/", "n3s/", "n10a/")
 
 
 class BambuVersionMixin:
@@ -65,6 +66,10 @@ class BambuVersionMixin:
             if not isinstance(module, dict):
                 continue
             name = module.get("name", "")
+            if name == "n10a":
+                layout = TrayLayout.from_units(ams_raw if isinstance(ams_raw, list) else None)
+                unit_id = next((uid for uid, kind in layout.rack_units if kind == AmsType.ZMULTI_A), AMS3H_UNIT_ID)
+                name = f"n10a/{unit_id}"
             if not isinstance(name, str) or not any(name.startswith(prefix) for prefix in _AMS_MODULE_PREFIXES):
                 continue
             try:

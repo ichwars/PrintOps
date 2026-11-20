@@ -1,3 +1,4 @@
+import { amsUnitSlotCount, trayForSlot, isAms3hUnit, spoolBuddyAmsName } from '../../utils/amsHelpers';
 import { useTranslation } from 'react-i18next';
 import type { AMSUnit, AMSTray } from '../../api/client';
 import { getFillBarColor } from '../../utils/amsHelpers';
@@ -19,12 +20,6 @@ function getEmptySlotKind(tray: AMSTray): 'physical' | 'reset' | null {
   if (tray.exists === false) return 'physical';
   const state = tray.state ?? null;
   return state === 9 || state === 10 ? 'physical' : 'reset';
-}
-
-function getAmsName(id: number): string {
-  if (id <= 3) return `AMS ${String.fromCharCode(65 + id)}`;
-  if (id >= 128 && id <= 135) return `AMS HT ${String.fromCharCode(65 + id - 128)}`;
-  return `AMS ${id}`;
 }
 
 // --- SVG Icons (matching PrintersPage Bambu Lab style) ---
@@ -150,13 +145,14 @@ function NozzleBadge({ side }: { side: 'L' | 'R' }) {
 interface SpoolSlotProps {
   tray: AMSTray;
   slotIndex: number;
+  slotLabel: string;
   isActive: boolean;
   fillOverride?: number | null;
   spoolmanFill?: number | null;
   onClick?: () => void;
 }
 
-function SpoolSlot({ tray, slotIndex, isActive, fillOverride, spoolmanFill, onClick }: SpoolSlotProps) {
+function SpoolSlot({ tray, slotIndex, slotLabel, isActive, fillOverride, spoolmanFill, onClick }: SpoolSlotProps) {
   const { t: translateInterface } = useTranslation();
   const isEmpty = isTrayEmpty(tray);
   const emptyKind = getEmptySlotKind(tray);
@@ -168,7 +164,12 @@ function SpoolSlot({ tray, slotIndex, isActive, fillOverride, spoolmanFill, onCl
   const effectiveFill = spoolmanFill ?? resolvedOverride ?? amsFill;
 
   return (
-    <div
+    <button
+      type="button"
+      data-testid="ams-slot"
+      aria-label={slotLabel}
+      aria-pressed={isActive}
+      disabled={!onClick}
       className={`relative flex flex-col items-center p-2.5 rounded-lg transition-all ${isActive ? 'ring-2 ring-bambu-green' : ''} ${onClick ? 'cursor-pointer hover:bg-white/5' : ''}`}
       onClick={onClick}
       title={onClick ? `AMS Slot ${slotIndex + 1}` : undefined}
@@ -216,7 +217,7 @@ function SpoolSlot({ tray, slotIndex, isActive, fillOverride, spoolmanFill, onCl
 
       {/* Slot number */}
       <span className="absolute top-1 right-1 text-xs text-white/30">{slotIndex + 1}</span>
-    </div>
+    </button>
   );
 }
 
@@ -239,16 +240,19 @@ interface AmsUnitCardProps {
 }
 
 export function AmsUnitCard({ unit, activeSlot, onConfigureSlot, isDualNozzle, nozzleSide, thresholds, fillOverrides, spoolmanFillOverrides }: AmsUnitCardProps) {
+  const { t } = useTranslation();
+  const translateSlot = t('ams.slot');
   const trays = unit.tray || [];
   const isHt = unit.is_ams_ht;
-  const slotCount = isHt ? 1 : 4;
+  const isAms3h = isAms3hUnit(unit);
+  const slotCount = isHt ? 1 : amsUnitSlotCount(unit);
 
   return (
     <div className="bg-bambu-dark-secondary rounded-lg p-3">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-white font-medium text-base">{getAmsName(unit.id)}</span>
+          <span className="text-white font-medium text-base">{spoolBuddyAmsName(unit.id, unit.ams_type)}</span>
           {isDualNozzle && nozzleSide && (
             <NozzleBadge side={nozzleSide} />
           )}
@@ -272,9 +276,9 @@ export function AmsUnitCard({ unit, activeSlot, onConfigureSlot, isDualNozzle, n
       </div>
 
       {/* Slots grid */}
-      <div className={`grid ${isHt ? 'grid-cols-1 max-w-[100px] mx-auto' : 'grid-cols-4'} gap-2`}>
+      <div className={`grid ${isHt ? 'grid-cols-1 max-w-[100px] mx-auto' : isAms3h ? 'grid-cols-5 md:grid-cols-9' : 'grid-cols-4'} gap-2`}>
         {Array.from({ length: slotCount }).map((_, i) => {
-          const tray = trays[i] || {
+          const tray = trayForSlot(trays, i) || {
             id: i,
             tray_color: null,
             tray_type: '',
@@ -288,12 +292,16 @@ export function AmsUnitCard({ unit, activeSlot, onConfigureSlot, isDualNozzle, n
             tray_uuid: null,
             nozzle_temp_min: null,
             nozzle_temp_max: null,
+            drying_temp: null,
+            drying_time: null,
+            state: null,
           };
           return (
             <SpoolSlot
               key={i}
               tray={tray}
               slotIndex={i}
+              slotLabel={`${spoolBuddyAmsName(unit.id, unit.ams_type)} ${translateSlot} ${i + 1}`}
               isActive={activeSlot === i}
               fillOverride={fillOverrides?.[`${unit.id}-${i}`] ?? null}
               spoolmanFill={spoolmanFillOverrides?.[`${unit.id}-${i}`] ?? null}

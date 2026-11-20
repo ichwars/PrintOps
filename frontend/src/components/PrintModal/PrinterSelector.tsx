@@ -439,6 +439,7 @@ export function PrinterSelector({
             <div>
               <label className="block text-xs text-bambu-gray mb-1">{translateInterface("orders.runtimeInterface.targetModel")}</label>
               <LegacySelect
+                aria-label={translateInterface("orders.runtimeInterface.targetModel")}
                 value={targetModel || ''}
                 onChange={(e) => {
                   onTargetModelChange!(e.target.value || null);
@@ -464,6 +465,7 @@ export function PrinterSelector({
             <div>
               <label className="block text-xs text-bambu-gray mb-1">{translateInterface("orders.runtimeInterface.locationFilterOptional")}</label>
               <LegacySelect
+                aria-label={translateInterface("orders.runtimeInterface.locationFilterOptional")}
                 value={targetLocation || ''}
                 onChange={(e) => onTargetLocationChange(e.target.value || null)}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none text-sm"
