@@ -39,6 +39,7 @@ Screenshots gehören nicht in das Repository.
 | Entwicklung | [README Editorial Guide](readme-editorial-guide.md) | Zielgruppen, Positionierung und Regeln für die zentrale Projekt-README |
 | Entwicklung | [Python-Abhängigkeiten](dependency-locking.md) | Hashgesicherte Runtime-/Entwicklungs-Locks, Python-Mindestversion und gezielte Sicherheitsupdates |
 | Entwicklung | [Dateien und Auslieferungsbuild](repository-layout.md) | Repository-Hygiene, lokale Artefakte und das benötigte native Frontend-Bundle |
+| Release | [Version 1.2.8.4](releases/1.2.8.4.md) | Warteschlange, SpoolBuddy, H3C/AMS 3H, Kamera und Wiederherstellung (DE/EN) |
 | Release | [Version 1.2.8.3](releases/1.2.8.3.md) | Bambuddy-Abgleich, Sicherheitskorrekturen und Docker-Upgrade |
 | Release | [Version 1.2.8.2](releases/1.2.8.2.md) | Security-Patch für optionalen nativen Slicer und Entwicklungsumgebungen |
 | Release | [Version 1.2.8.1](releases/1.2.8.1.md) | Security-Patch für Frontend, Python, Container und Windows-PDF-Renderer |
