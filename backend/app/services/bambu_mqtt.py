@@ -9,9 +9,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
 
 import paho.mqtt.client as mqtt
 
@@ -21,6 +19,28 @@ from backend.app.services.ams_backup_state import (
 )
 from backend.app.services.ams_slot_presence import attached_ams_units
 from backend.app.services.assignment_verification import AssignmentVerificationMixin
+from backend.app.services.bambu_ams_telemetry import (
+    A2L_LITE_GLOBAL_BASE as A2L_LITE_GLOBAL_BASE,
+    A2L_LITE_NORMALIZED_AMS_ID as A2L_LITE_NORMALIZED_AMS_ID,
+    A2L_LITE_PHYSICAL_AMS_ID as A2L_LITE_PHYSICAL_AMS_ID,
+    AMS3H_DRY_COOLING_TEMP as AMS3H_DRY_COOLING_TEMP,
+    AMS3H_DRY_COOLING_TEMP_DEFAULT as AMS3H_DRY_COOLING_TEMP_DEFAULT,
+    AMS3H_MODULE_NAME as AMS3H_MODULE_NAME,
+    _ams3h_unit_drying_fields as _ams3h_unit_drying_fields,
+    _ams3h_unit_env_fields as _ams3h_unit_env_fields,
+    _external_slot_to_merge as _external_slot_to_merge,
+    _mqtt_int as _mqtt_int,
+    a2l_lite_wire_ids as a2l_lite_wire_ids,
+    ams3h_drying_cooling_temp as ams3h_drying_cooling_temp,
+    ams3h_drying_zone as ams3h_drying_zone,
+    apply_rack_ams_zone_fields as apply_rack_ams_zone_fields,
+    apply_tray_exist_bits as apply_tray_exist_bits,
+    change_filament_wire_ids as change_filament_wire_ids,
+    normalize_am_unit_id as normalize_am_unit_id,
+    parse_ams_filament_backup_from_cfg as parse_ams_filament_backup_from_cfg,
+    resolve_external_spools_in_mapping as resolve_external_spools_in_mapping,
+    wire_tray_color as wire_tray_color,
+)
 from backend.app.services.bambu_extruder import parse_extruder_position, resolve_dual_nozzle_tray
 from backend.app.services.bambu_kprofiles import (
     CALI_ACK_UNCONFIRMED as CALI_ACK_UNCONFIRMED,
@@ -33,6 +53,21 @@ from backend.app.services.bambu_kprofiles import (
     publish_cali_write,
 )
 from backend.app.services.bambu_print_identity import update_job_identity, update_print_layer
+from backend.app.services.bambu_state import (
+    _HMS_USER_ACTION_CODES as _HMS_USER_ACTION_CODES,
+    STAGE_NAMES as STAGE_NAMES,
+    FilaSwitchState as FilaSwitchState,
+    HMSError as HMSError,
+    MQTTLogEntry as MQTTLogEntry,
+    NozzleInfo as NozzleInfo,
+    PrinterState as PrinterState,
+    PrintOptions as PrintOptions,
+    _hms_short_code as _hms_short_code,
+    _hms_short_codes as _hms_short_codes,
+    _is_print_error_entry as _is_print_error_entry,
+    get_stage_name as get_stage_name,
+    nozzle_print_time_s as nozzle_print_time_s,
+)
 from backend.app.services.bambu_version import BambuVersionMixin
 from backend.app.services.drying_cycle import DryingCycleEnd
 from backend.app.services.drying_telemetry import (
@@ -62,14 +97,11 @@ from backend.app.utils.tray_ids import (
     RACK_SLOT_COUNT,
     AmsType,
     TrayLayout,
-    ams_type_from_info,
     external_tray_id,
     global_tray_id,
     is_ams_ht_id,
-    is_external_tray,
     is_rack_ams,
     legacy_tray_index,
-    tray_flag_bit,
     unit_ams_type,
     unit_label,
 )
@@ -80,668 +112,6 @@ HMS_MQTT_VERIFY_FAILED = "0500050000010007"
 # gcode_state values that mean a printer must not receive a new project_file.
 # IDLE / FINISH / FAILED are valid start targets; these active states are not.
 _ACTIVE_PRINT_STATES = frozenset({"PREPARE", "SLICING", "RUNNING", "PAUSE"})
-
-
-AMS3H_MODULE_NAME = "n10a"  # its get_version module (no "/<unit>" suffix)
-
-
-def _mqtt_int(value: object) -> int | None:
-    """An MQTT id / number field as an int (they arrive as int or numeric str), else None."""
-    if isinstance(value, bool) or not isinstance(value, (int, str)):
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
-
-
-# AMS 3H drying (Bambu Studio 02.09, AMSDryControl.cpp): the unit reports
-# `zone_info[]` and only a zone with exactly two slots can dry; the others are
-# ambient readings. A drying start carries the filament's softening temperature
-# as `cooling_temp` (the preset's filament_dev_drying_softening_temperature).
-AMS3H_DRY_COOLING_TEMP = {"PLA": 65, "PETG": 75, "ABS": 95, "ASA": 95, "TPU": 70, "PA": 150, "PC": 120}
-AMS3H_DRY_COOLING_TEMP_DEFAULT = 50
-
-
-def ams3h_drying_zone(zone_info: object) -> dict | None:
-    """The zone of an AMS 3H's `zone_info` that can dry: the first holding exactly two slots."""
-    if not isinstance(zone_info, list):
-        return None
-    for zone in zone_info:
-        if isinstance(zone, dict) and isinstance(zone.get("zone_slots"), list) and len(zone["zone_slots"]) == 2:
-            return zone
-    return None
-
-
-def ams3h_drying_cooling_temp(filament: str) -> int:
-    """`cooling_temp` for an AMS 3H drying start: the filament's softening temperature."""
-    base = (filament or "").upper().split("-")[0].split(" ")[0]
-    return AMS3H_DRY_COOLING_TEMP.get(base, AMS3H_DRY_COOLING_TEMP_DEFAULT)
-
-
-def _ams3h_unit_drying_fields(unit: dict) -> dict:
-    """An AMS 3H's drying state, which lives on its drying zone, lifted onto the unit."""
-    zone = ams3h_drying_zone(unit.get("zone_info"))
-    if zone is None:
-        return {}
-    fields: dict = {"dry_zone_id": zone.get("zone_id", 0), "dry_zone_slots": list(zone.get("zone_slots") or [])}
-    for key in ("dry_time", "dry_setting", "dry_sf_reason"):
-        if key in zone:
-            fields[key] = zone[key]
-    if "info" not in unit and "info" in zone:
-        fields["info"] = zone["info"]
-    if "humidity_raw" in zone:
-        fields["dry_zone_humidity_raw"] = zone["humidity_raw"]
-    if "temp" in zone:
-        fields["dry_zone_temp"] = zone["temp"]
-    return fields
-
-
-def _ams3h_unit_env_fields(unit: dict) -> dict:
-    """An AMS 3H's humidity and temperature (the unit has none) from its first non-drying zone, as Studio shows it."""
-    zones = unit.get("zone_info")
-    if not isinstance(zones, list):
-        return {}
-    dry_zone = ams3h_drying_zone(zones)
-    ambient = next((z for z in zones if isinstance(z, dict) and z is not dry_zone), None)
-    if ambient is None:
-        return {}
-    return {key: ambient[key] for key in ("humidity_raw", "temp") if key in ambient and key not in unit}
-
-
-def apply_rack_ams_zone_fields(ams_list: object, known_types: dict[int, AmsType] | None = None) -> None:
-    """Lift a rack AMS's per-zone readings and drying state onto the unit, in place (type from `info`, else ``known_types``)."""
-    if not isinstance(ams_list, list):
-        return
-    for unit in ams_list:
-        if not isinstance(unit, dict) or not isinstance(unit.get("zone_info"), list):
-            continue
-        uid = _mqtt_int(unit.get("id"))
-        if uid is None:
-            continue
-        kind = ams_type_from_info(unit.get("info"))
-        if kind is None:
-            kind = (known_types or {}).get(uid, unit_ams_type(uid))
-        if not is_rack_ams(kind):
-            continue
-        unit.update({**_ams3h_unit_env_fields(unit), **_ams3h_unit_drying_fields(unit)})
-
-
-def resolve_external_spools_in_mapping(
-    ams_mapping: object, ams_mapping2: object, is_dual_nozzle: bool, layout: TrayLayout | None = None
-) -> object:
-    """Put the external spool back into a captured flat ``ams_mapping`` (#3166).
-
-    The firmware rejects 254/255 in the flat list, so BambuStudio and our own
-    dispatch both write an external spool there as -1 -- the same value as a
-    slot that isn't fed at all -- and carry the real target only in
-    ``ams_mapping2`` as ``{ams_id: 254|255, slot_id: 0}``. Capturing the flat
-    list alone turns "printed from the external spool" into "unmapped", and
-    usage then lands on whatever tray the fallback guesses.
-
-    Each -1 whose ``ams_mapping2`` entry names an external spool becomes the
-    global tray the rest of PrintOps uses: the ams_id itself on dual-nozzle
-    printers (254 = left/deputy, 255 = right/main), 254 on single-nozzle
-    printers, which have one external spool that the wire always calls 255.
-    ``{255, 255}`` is the unmapped marker and stays -1.
-
-    An A2L AMS-Lite tray is the local slot 0-3 in the flat list and
-    ``{ams_id: 16, slot_id: n}`` in ``ams_mapping2``; it becomes its normalised
-    global tray 24+n. Kept local, it read as a regular AMS tray, so usage was
-    charged to the wrong spool. A rack AMS slot (``{ams_id: 32, slot_id: k}``)
-    becomes its global tray 28+k, and on a rack printer each external input
-    247-255 keeps its own id. Every other entry is left exactly as captured.
-    Without a usable ``ams_mapping2`` the input is returned unchanged.
-    """
-    if not isinstance(ams_mapping, list) or not isinstance(ams_mapping2, list):
-        return ams_mapping
-    if len(ams_mapping2) != len(ams_mapping):
-        return ams_mapping
-    resolved = list(ams_mapping)
-    layout = layout or TrayLayout()
-    for i, (flat, detail) in enumerate(zip(ams_mapping, ams_mapping2, strict=True)):
-        if not isinstance(detail, dict):
-            continue
-        ams_id = detail.get("ams_id")
-        slot_id = detail.get("slot_id")
-        if ams_id == A2L_LITE_PHYSICAL_AMS_ID and slot_id in (0, 1, 2, 3):
-            resolved[i] = A2L_LITE_GLOBAL_BASE + slot_id
-            continue
-        if (
-            isinstance(ams_id, int)
-            and isinstance(slot_id, int)
-            and not is_external_tray(ams_id, layout.rack)
-            and is_rack_ams(layout.ams_type(ams_id))
-            and 0 <= slot_id < RACK_SLOT_COUNT
-        ):
-            resolved[i] = layout.global_tray_id(ams_id, slot_id)
-            continue
-        if flat != -1 or not is_external_tray(ams_id, layout.rack) or slot_id == 255:
-            continue
-        resolved[i] = ams_id if is_dual_nozzle or layout.rack else 254
-    return resolved
-
-
-def parse_ams_filament_backup_from_cfg(cfg_raw: object) -> bool | None:
-    """Extract AMS Filament Backup state from a Bambu push_status ``print.cfg`` value.
-
-    OrcaSlicer reads bit 18 of the hex string via
-    ``get_flag_bits(cfg, 18)`` (DeviceManager.cpp:4961). Old-protocol families
-    (A1 / A1 Mini) omit ``cfg`` entirely; this returns ``None`` for any input
-    that doesn't yield a clean integer so downstream consumers preserve today's
-    behaviour rather than treating "absent" as "OFF".
-    """
-    if not isinstance(cfg_raw, str) or not cfg_raw:
-        return None
-    try:
-        return bool((int(cfg_raw, 16) >> 18) & 1)
-    except ValueError:
-        return None
-
-
-A2L_LITE_PHYSICAL_AMS_ID = 16
-A2L_LITE_NORMALIZED_AMS_ID = 6
-A2L_LITE_GLOBAL_BASE = A2L_LITE_NORMALIZED_AMS_ID * 4
-
-
-def normalize_am_unit_id(ams_id: int) -> int:
-    """Normalize the A2L AMS Lite's physical unit id 16 to id 6."""
-    return A2L_LITE_NORMALIZED_AMS_ID if ams_id == A2L_LITE_PHYSICAL_AMS_ID else ams_id
-
-
-def wire_tray_color(tray_color: str | None) -> str:
-    """Return bare uppercase hex, the format AMS firmware parses reliably."""
-    return (tray_color or "").strip().lstrip("#").upper()
-
-
-def a2l_lite_wire_ids(ams_id: int, tray_id: int) -> tuple[int, int, int] | None:
-    """Translate a normalized A2L AMS Lite slot back to physical wire ids."""
-    if ams_id != A2L_LITE_NORMALIZED_AMS_ID:
-        return None
-    local_slot = tray_id % 4
-    return (
-        A2L_LITE_PHYSICAL_AMS_ID,
-        local_slot,
-        legacy_tray_index(A2L_LITE_PHYSICAL_AMS_ID, local_slot),
-    )
-
-
-def change_filament_wire_ids(tray_id: int, layout: TrayLayout | None = None) -> tuple[int, int, int]:
-    """``(ams_id, slot_id, target)`` of ``ams_change_filament`` for an AMS tray.
-
-    As BambuStudio's ``command_ams_change_filament`` builds them: a regular AMS
-    is addressed by unit and local slot with the global tray as target; a unit
-    id of 16 or more (the A2L AMS-Lite's physical 16, an AMS-HT's 128-135) has
-    the unit id itself as target. An AMS-HT holds one tray, so its global tray
-    id is its unit id and its slot is 0.
-    """
-    if is_ams_ht_id(tray_id):
-        return tray_id, 0, tray_id
-    ams_id, slot_id = (layout or TrayLayout()).slot_key(tray_id)
-    if (a2l := a2l_lite_wire_ids(ams_id, tray_id)) is not None:
-        return a2l[0], a2l[1], a2l[0]
-    return ams_id, slot_id, tray_id
-
-
-def apply_tray_exist_bits(
-    units: list,
-    tray_exist_bits_str: str | int | None,
-    *,
-    power_on_flag: bool = True,
-    log_label: str | None = None,
-    annotate_exists: bool = False,
-) -> int:
-    """Wipe stale per-tray filament fields on slots whose `tray_exist_bits` bit is 0.
-
-    `tray_exist_bits` is firmware's canonical "which slots have a spool" bitmask
-    (BambuStudio uses it too). For every slot whose bit is 0, promote the tray
-    `state` to 9 (firmware's "no spool" code) and clear `tray_type` / `tray_color`
-    / `tray_info_idx` / `tag_uid` / `tray_uuid` / `remain` etc so downstream
-    readers (PrintOps's AMS card, the VP slicer-facing cache, inventory short-
-    circuits keyed on `state in {9, 10}`) all see one canonical empty-slot signal
-    instead of guessing from payload shape (#1322, #147).
-
-    Two callers share this helper to keep their views consistent:
-
-    1. ``_handle_ams_data`` for PrintOps's internal AMS state (printer card).
-    2. ``virtual_printer.mqtt_bridge._on_printer_raw`` for the cached slicer-
-       facing push_status (#1726 — without this the VP would forward stale
-       per-tray fields for empty slots, and BambuStudio's Sync would render
-       phantom loaded slots).
-
-    Skipped only on the printer-shutdown pattern: all-zero bits paired with
-    ``power_on_flag=False`` (#765). Non-zero bits with ``power_on_flag=False``
-    is valid idle-printer state (#1365 — X1C between prints) and MUST be applied
-    so spool removal is detected without requiring a manual reconnect.
-
-    AMS-HT units (``id`` 128-135) are single-tray dry boxes whose presence bit
-    is packed at ``16 + (ams_id - 128)`` instead of ``ams_id * 4`` (#2670).
-
-    `tray_exist_bits_str` is expected as a hex string (firmware sends it that
-    way). Ints are tolerated for defensive symmetry but typically not seen
-    on the wire. ``None`` / empty / unparseable → no-op.
-
-    ``annotate_exists`` writes each processed slot's physical presence bit. The
-    printer-card path uses it to distinguish a present unconfigured spool from
-    a genuinely empty slot.
-
-    Mutates ``units`` in place. Returns the number of slots cleared.
-    """
-    if not tray_exist_bits_str:
-        return 0
-    try:
-        if isinstance(tray_exist_bits_str, int):
-            tray_exist_bits = tray_exist_bits_str
-        else:
-            tray_exist_bits = int(tray_exist_bits_str, 16)
-    except (ValueError, TypeError):
-        return 0
-    if tray_exist_bits == 0 and not power_on_flag:
-        return 0
-    if not isinstance(units, list):
-        return 0
-
-    cleared = 0
-    for ams_unit in units:
-        if not isinstance(ams_unit, dict):
-            continue
-        ams_id_raw = ams_unit.get("id")
-        if ams_id_raw is None:
-            continue
-        try:
-            ams_id = int(ams_id_raw) if isinstance(ams_id_raw, str) else ams_id_raw
-        except (ValueError, TypeError):
-            continue
-        if not isinstance(ams_id, int):
-            continue
-        kind = unit_ams_type(ams_id, ams_unit.get("info"))
-        for tray in ams_unit.get("tray", []):
-            if not isinstance(tray, dict):
-                continue
-            tray_id_raw = tray.get("id")
-            if tray_id_raw is None:
-                continue
-            try:
-                tray_id = int(tray_id_raw) if isinstance(tray_id_raw, str) else tray_id_raw
-            except (ValueError, TypeError):
-                continue
-            if not isinstance(tray_id, int):
-                continue
-            global_bit = tray_flag_bit(ams_id, tray_id, kind)
-            if global_bit is None or global_bit < 0:
-                continue
-            slot_exists = (tray_exist_bits >> global_bit) & 1
-            if annotate_exists:
-                tray["exists"] = bool(slot_exists)
-            if slot_exists:
-                continue
-            tray["state"] = 9
-            if tray.get("tray_type"):
-                if log_label:
-                    logger.debug(
-                        f"[{log_label}] Clearing empty slot: AMS {ams_id} slot {tray_id} "
-                        f"(tray_exist_bits bit {global_bit} = 0)"
-                    )
-                tray["tray_type"] = ""
-                tray["tray_sub_brands"] = ""
-                tray["tray_color"] = ""
-                tray["tray_id_name"] = ""
-                tray["tag_uid"] = "0000000000000000"
-                tray["tray_uuid"] = "00000000000000000000000000000000"
-                tray["tray_info_idx"] = ""
-                tray["remain"] = 0
-                cleared += 1
-    return cleared
-
-
-def _external_slot_to_merge(pushed: object, existing: object) -> dict | None:
-    """The one cached external slot a pushed ``vt_tray`` dict updates, or None (#3513).
-
-    It updates the slot when it names no slot or the cached one's. A push that
-    empties the slot (``tray_type`` ``""``) replaces it, so a removed spool
-    keeps no preset, K value or temperatures, as does one naming another slot.
-    """
-    if not isinstance(pushed, dict) or not isinstance(existing, list) or len(existing) != 1:
-        return None
-    cached = existing[0]
-    if not isinstance(cached, dict) or pushed.get("tray_type") == "":
-        return None
-    if "id" in pushed and str(pushed["id"]) != str(cached.get("id")):
-        return None
-    return cached
-
-
-@dataclass
-class MQTTLogEntry:
-    """Log entry for MQTT message debugging."""
-
-    timestamp: str
-    topic: str
-    direction: str  # "in" or "out"
-    payload: dict
-
-
-@dataclass
-class HMSError:
-    """Health Management System error from printer."""
-
-    code: str
-    attr: int  # Attribute value for constructing wiki URL
-    module: int
-    severity: int  # 1=error (stopped), 2=warning (paused), 3=notice, 0=invalid
-    message: str = ""
-    # User-facing remediation actions from the bundled HMS catalog (e.g. "RESUME_PRINTING",
-    # "CHECK_ASSISTANT"). Defaults to an empty list rather than None so the field always
-    # satisfies HMSErrorResponse.actions: list[str] — a future code path that builds an
-    # HMSError without explicitly passing actions can't silently land None on the schema
-    # boundary and raise ValidationError at routes/printers.py response time.
-    actions: list[str] = field(default_factory=list)
-    # The `subtask_id` snapshotted from PrinterState when this error surfaced; Bambu's
-    # HMS-aware commands echo it back as `job_id`. None for idle errors with no job.
-    job_id: str | None = None
-    # Canonical hex identifier for the firmware's `err` matching: 16 chars for the
-    # 64-bit `hms[]` array path (`f"{attr:08X}{code:08X}"`), 8 chars for the
-    # 32-bit `print_error` path. The frontend echoes this back to
-    # execute_hms_action; the truncated 8-char short code that `_parse_status`
-    # used to send caused the firmware to silently reject HMS commands on H2C
-    # (#1830) and on `hms[]`-sourced faults generally.
-    full_code: str = ""
-    description: str | None = None  # Manufacturer text, resolved once using the serial prefix.
-
-
-def _is_print_error_entry(error: HMSError) -> bool:
-    """Whether this entry came from the 32-bit `print_error` field, whose
-    full code has 8 hex digits; an `hms[]` entry's has 16."""
-    return len(error.full_code) == 8
-
-
-def _hms_short_code(error: HMSError) -> str:
-    """The MMMM_EEEE short code of an entry from either source."""
-    module = (error.attr >> 16) & 0xFFFF
-    # The low half only: an hms[] code carries its alert level above it
-    # (0x18061 for 0500_8061), and read whole it never matched, listing the
-    # fault twice (M-U9).
-    number = (int(error.code.replace("0x", ""), 16) & 0xFFFF) if error.code else 0
-    return f"{module:04X}_{number:04X}"
-
-
-def _hms_short_codes(errors: list) -> set[str]:
-    return {_hms_short_code(e) for e in errors}
-
-
-# HMS short codes the firmware emits during normal user-cancel sequences.
-# These aren't faults — they're status echoes that confirm the cancel happened.
-# Filtering them at parse-time keeps them out of state.hms_errors entirely,
-# so they don't drive the printer card's "X problem" badge, the red pip, or
-# any other consumer that treats hms_errors as the active-fault list.
-_HMS_USER_ACTION_CODES: frozenset[str] = frozenset(
-    {
-        "0300_400C",  # "The task was canceled."
-        "0500_400E",  # "Printing was cancelled."
-    }
-)
-
-
-@dataclass
-class NozzleInfo:
-    """Nozzle hardware configuration."""
-
-    nozzle_type: str = ""  # "stainless_steel" or "hardened_steel"
-    nozzle_diameter: str = ""  # e.g., "0.4"
-
-
-def nozzle_print_time_s(value: object) -> int | None:
-    """A nozzle's accumulated print time from its ``nozzle_info`` entry (#1908).
-
-    H2C firmware reports it per nozzle as ``p_t``, in seconds. Older firmware
-    and other models leave it out, which stays None so the UI hides the row
-    instead of showing "0h". A bool is an int to Python but never a duration.
-    """
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
-        return None
-    return int(value)
-
-
-@dataclass
-class FilaSwitchState:
-    """Filament Track Switch (FTS) accessory state.
-
-    The FTS is an external accessory that mediates filament routing between an
-    AMS and the printer's extruders. When installed, the AMS no longer has a
-    fixed extruder assignment — any slot can be routed to any extruder via the
-    track switch. Detected from print.device.fila_switch in MQTT.
-    """
-
-    installed: bool = False
-    # in[track] = currently loaded slot for that track (-1 = empty). The slot
-    # value is reported as observed in MQTT (treated as a global tray ID).
-    in_slots: list[int] = field(default_factory=list)
-    # out[track] = extruder this track terminates at (0 = right/main, 1 = left)
-    out_extruders: list[int] = field(default_factory=list)
-    stat: int = 0  # status flags (0 = idle)
-    info: int = 0  # info flags
-
-
-@dataclass
-class PrintOptions:
-    """AI detection and print options from xcam data."""
-
-    # Core AI detectors
-    spaghetti_detector: bool = False
-    print_halt: bool = False
-    halt_print_sensitivity: str = "medium"  # Spaghetti sensitivity
-    first_layer_inspector: bool = False
-    printing_monitor: bool = False  # AI print quality monitoring
-    buildplate_marker_detector: bool = False
-    allow_skip_parts: bool = False
-    # Additional AI detectors - decoded from cfg bitmask
-    nozzle_clumping_detector: bool = True
-    nozzle_clumping_sensitivity: str = "medium"
-    pileup_detector: bool = True
-    pileup_sensitivity: str = "medium"
-    airprint_detector: bool = True
-    airprint_sensitivity: str = "medium"
-    auto_recovery_step_loss: bool = True  # Uses print.print_option command
-    filament_tangle_detect: bool = False
-
-
-if TYPE_CHECKING:
-    from backend.app.services.pause_eta import PauseTracking
-
-
-@dataclass
-class PrinterState:
-    drying_telemetry: DryingTelemetry = field(default_factory=DryingTelemetry)
-    pause_tracking: "PauseTracking | None" = None
-    connection_generation: int = 0
-    connected: bool = False
-    state: str = "unknown"
-    current_print: str | None = None
-    subtask_name: str | None = None
-    progress: float = 0.0
-    remaining_time: int = 0
-    layer_num: int = 0
-    total_layers: int = 0
-    temperatures: dict = field(default_factory=dict)
-    raw_data: dict = field(default_factory=dict)
-    gcode_file: str | None = None
-    subtask_id: str | None = None
-    hms_errors: list = field(default_factory=list)  # List of HMSError
-    kprofile_diameters: set[str] = field(default_factory=set)
-    kprofiles: list = field(default_factory=list)  # List of KProfile
-    sdcard: bool = False  # SD card inserted
-    store_to_sdcard: bool = False  # Store sent files on SD card (home_flag bit 11)
-    timelapse: bool = False  # Timelapse recording active
-    ipcam: bool = False  # Live view / camera streaming enabled
-    wifi_signal: int | None = None  # WiFi signal strength in dBm
-    wired_network: bool = False  # Ethernet connection detected (home_flag bit 18)
-    door_open: bool = False  # Enclosure door open (home_flag bit 23; models with a door sensor: X1/X1C/X1E/X2D/P2S/H2*)
-    # Nozzle hardware info (for dual nozzle printers, index 0 = left, 1 = right)
-    nozzles: list = field(default_factory=lambda: [NozzleInfo(), NozzleInfo()])
-    # AI detection and print options
-    print_options: PrintOptions = field(default_factory=PrintOptions)
-    # Calibration stage tracking (from stg_cur and stg fields)
-    stg_cur: int = -1  # Current stage index (-1 = not calibrating)
-    stg: list = field(default_factory=list)  # List of stages to execute
-    # Air conditioning mode (0=cooling, 1=heating)
-    airduct_mode: int = 0
-    # Print speed level (1=silent, 2=standard, 3=sport, 4=ludicrous)
-    speed_level: int = 2
-    # Chamber light on/off
-    chamber_light: bool = False
-    # Active extruder for dual nozzle (0=right, 1=left) - from device.extruder.info[X].hnow
-    active_extruder: int = 0
-    # Currently loaded tray (global ID): 254/255 = external spools, 255 = no filament on legacy printers
-    tray_now: int = 255
-    # Raw firmware target/previous slot for paused AMS runout guidance.
-    tray_tar: int = 255
-    tray_pre: int = 255
-    # Last valid tray_now (0-253) — survives unload (255) for usage tracking after print completes
-    last_loaded_tray: int = -1
-    # Pending load target - used to track what tray we're loading for H2D disambiguation
-    pending_tray_target: int | None = None
-    pending_tray_target_at: float | None = None
-    # AMS status for filament change tracking (from print.ams.ams_status field)
-    # ams_status is a combined value: lower 8 bits = sub status, bits 8-15 = main status
-    # Main status: 0=idle, 1=filament_change, 2=rfid_identifying, 3=assist, 4=calibration, etc.
-    ams_status: int = 0
-    ams_status_main: int = 0  # (ams_status >> 8) & 0xFF
-    ams_status_sub: int = 0  # ams_status & 0xFF
-    # mc_print_sub_stage - filament change step indicator from print.mc_print_sub_stage
-    # Used by OrcaSlicer/BambuStudio to track progress during filament load/unload
-    mc_print_sub_stage: int = 0
-    # AMS mapping for dual nozzle: which slot is active (from ams.ams_exist_bits/tray_exist_bits)
-    ams_mapping: list = field(default_factory=list)
-    # Per-AMS extruder map: {ams_id: extruder_id} where 0=right/main, 1=left/deputy
-    print_ams_mapping: list[int] | None = None
-    ams_extruder_map: dict = field(default_factory=dict)
-    # Filament Track Switch (FTS) accessory — when installed, AMS info reports
-    # bits 8-11 = 0xE (uninitialized) because routing is dynamic. See #1162.
-    fila_switch: "FilaSwitchState" = field(default_factory=lambda: FilaSwitchState())
-    # Plate dispatched by PrintOps for the current print. Some firmware versions
-    # (P1S 01.10.00.00) only put the .3mf filename in print.gcode_file, so the
-    # regex used to derive the plate number from the path always falls back to
-    # plate 1 — and the printer card shows the wrong thumbnail (#1166). When
-    # PrintOps dispatches the print itself we know the plate authoritatively;
-    # we record it here and prefer it over the gcode_file regex. The subtask
-    # field guards against staleness: if the printer is currently running a
-    # different subtask (e.g. a Studio-direct dispatch), these values are
-    # ignored. Cleared on disconnect.
-    dispatched_plate_id: int | None = None
-    dispatched_subtask: str | None = None
-    # H2D per-extruder tray_now from snow field: {extruder_id: normalized_global_tray_id}
-    # snow encodes AMS ID in high byte: ams_id = snow >> 8, slot = snow & 0xFF
-    h2d_extruder_snow: dict = field(default_factory=dict)
-    # H2C nozzle rack: full device.nozzle.info array for tool-changer printers (>2 nozzles)
-    nozzle_rack: list = field(default_factory=list)
-    # Timestamp of last AMS data update (for RFID refresh detection)
-    last_ams_update: float = 0.0
-    # Printable objects for skip object functionality: {identify_id: object_name}
-    printable_objects: dict = field(default_factory=dict)
-    # Objects that have been skipped during the current print
-    skipped_objects: list = field(default_factory=list)
-    # Fan speeds (0-100 percentage, None if not available for this model)
-    cooling_fan_speed: int | None = None  # Part cooling fan
-    big_fan1_speed: int | None = None  # Auxiliary fan
-    big_fan2_speed: int | None = None  # Chamber/exhaust fan
-    heatbreak_fan_speed: int | None = None  # Hotend heatbreak fan
-    left_aux_fan_speed: int | None = None  # Part 10, second aux (right on X2D)
-    exhaust_fan_present: bool | None = None
-    # Tray change history during current print: [(global_tray_id, layer_num), ...]
-    # Used by usage tracker to split filament weight on mid-print tray switch
-    tray_change_log: list = field(default_factory=list)
-    # Spools assigned to a tray during the current print, and the spool each
-    # assigned tray held at its start (services.spool_swaps, #3325).
-    spool_change_log: list = field(default_factory=list)
-    # Firmware version info (from info.module[name="ota"].sw_ver)
-    firmware_version: str | None = None
-    # Developer LAN mode: parsed from MQTT "fun" field bit 0x20000000
-    # True = dev mode ON (no encryption), False = dev mode OFF (encryption required), None = unknown
-    developer_mode: bool | None = None
-    # AMS Filament Backup: bit 18 of top-level print.cfg hex on new-protocol Bambu
-    # printers (H/X/P/H2 families). True=ON, False=OFF, None=unknown (e.g. A1 family
-    # which uses the old protocol path; field not yet found). Consumers must treat
-    # None as "no opinion" — preserving today's behaviour, NOT as "disabled".
-    ams_filament_backup: bool | None = None
-
-
-# Stage name mapping from BambuStudio DeviceManager.cpp
-STAGE_NAMES = {
-    0: "Printing",
-    1: "Auto bed leveling",
-    2: "Heatbed preheating",
-    3: "Vibration compensation",
-    4: "Changing filament",
-    5: "M400 pause",
-    6: "Paused (filament ran out)",
-    7: "Heating nozzle",
-    8: "Calibrating dynamic flow",
-    9: "Scanning bed surface",
-    10: "Inspecting first layer",
-    11: "Identifying build plate type",
-    12: "Calibrating Micro Lidar",
-    13: "Homing toolhead",
-    14: "Cleaning nozzle tip",
-    15: "Checking extruder temperature",
-    16: "Paused by the user",
-    17: "Pause (front cover fall off)",
-    18: "Calibrating the micro lidar",
-    19: "Calibrating flow ratio",
-    20: "Pause (nozzle temperature malfunction)",
-    21: "Pause (heatbed temperature malfunction)",
-    22: "Filament unloading",
-    23: "Pause (step loss)",
-    24: "Filament loading",
-    25: "Motor noise cancellation",
-    26: "Pause (AMS offline)",
-    27: "Pause (low speed of the heatbreak fan)",
-    28: "Pause (chamber temperature control problem)",
-    29: "Cooling chamber",
-    30: "Pause (Gcode inserted by user)",
-    31: "Motor noise showoff",
-    32: "Pause (nozzle clumping)",
-    33: "Pause (cutter error)",
-    34: "Pause (first layer error)",
-    35: "Pause (nozzle clog)",
-    36: "Measuring motion precision",
-    37: "Enhancing motion precision",
-    38: "Measure motion accuracy",
-    39: "Nozzle offset calibration",
-    40: "High temperature auto bed leveling",
-    41: "Auto Check: Quick Release Lever",
-    42: "Auto Check: Door and Upper Cover",
-    43: "Laser Calibration",
-    44: "Auto Check: Platform",
-    45: "Confirming BirdsEye Camera location",
-    46: "Calibrating BirdsEye Camera",
-    47: "Auto bed leveling - phase 1",
-    48: "Auto bed leveling - phase 2",
-    49: "Heating chamber",
-    50: "Cooling heatbed",
-    51: "Printing calibration lines",
-    52: "Auto Check: Material",
-    53: "Live View Camera Calibration",
-    54: "Waiting for heatbed temperature",
-    55: "Auto Check: Material Position",
-    56: "Cutting Module Offset Calibration",
-    57: "Measuring Surface",
-    58: "Thermal Preconditioning",
-    59: "Homing Blade Holder",
-    60: "Calibrating Camera Offset",
-    61: "Calibrating Blade Holder Position",
-    62: "Hotend Pick and Place Test",
-    63: "Waiting for Chamber temperature",
-    64: "Preparing Hotend",
-    65: "Calibrating nozzle clumping detection",
-    66: "Purifying the chamber air",
-    74: "Preparing",  # Seen on H2D during print preparation
-    77: "Preparing AMS",
-}
-
-
-def get_stage_name(stage: int) -> str:
-    """Get human-readable stage name from stage number."""
-    return STAGE_NAMES.get(stage, f"Unknown stage ({stage})")
 
 
 class BambuMQTTClient(AssignmentVerificationMixin, BambuVersionMixin):
@@ -1952,6 +1322,46 @@ class BambuMQTTClient(AssignmentVerificationMixin, BambuVersionMixin):
                 return kind
         return None
 
+    def _update_ams_reported_slots(self, ams_data):
+        # IMPORTANT: Parse ams_status FIRST before tray_now, so we have fresh status
+        # when checking if we're in filament change mode for tray_now disambiguation
+        if "ams_status" in ams_data:
+            raw_ams_status = ams_data["ams_status"]
+            if isinstance(raw_ams_status, str):
+                try:
+                    self.state.ams_status = int(raw_ams_status)
+                except ValueError:
+                    self.state.ams_status = 0
+            else:
+                self.state.ams_status = raw_ams_status if raw_ams_status is not None else 0
+            # Compute main and sub status
+            self.state.ams_status_sub = self.state.ams_status & 0xFF
+            self.state.ams_status_main = (self.state.ams_status >> 8) & 0xFF
+            logger.debug(
+                f"[{self.serial_number}] ams_status: {self.state.ams_status} "
+                f"(main={self.state.ams_status_main}, sub={self.state.ams_status_sub})"
+            )
+
+        for tray_key, attr in (("tray_tar", "tray_tar"), ("tray_pre", "tray_pre")):
+            if tray_key in ams_data:
+                raw_value = ams_data[tray_key]
+                if isinstance(raw_value, str):
+                    try:
+                        parsed_value = int(raw_value)
+                    except ValueError:
+                        parsed_value = 255
+                else:
+                    parsed_value = raw_value if raw_value is not None else 255
+                previous = getattr(self.state, attr)
+                setattr(self.state, attr, parsed_value)
+                if parsed_value != previous and parsed_value not in (255, -1) and self.state.state == "PAUSE":
+                    logger.info(
+                        "[%s] AMS %s changed to %s while paused",
+                        self.serial_number,
+                        tray_key,
+                        parsed_value,
+                    )
+
     def _handle_ams_data(self, ams_data):
         """Handle AMS data changes for Spoolman integration.
 
@@ -1973,44 +1383,7 @@ class BambuMQTTClient(AssignmentVerificationMixin, BambuVersionMixin):
             if non_list_fields:
                 logger.debug("[%s] AMS dict fields: %s", self.serial_number, non_list_fields)
 
-            # IMPORTANT: Parse ams_status FIRST before tray_now, so we have fresh status
-            # when checking if we're in filament change mode for tray_now disambiguation
-            if "ams_status" in ams_data:
-                raw_ams_status = ams_data["ams_status"]
-                if isinstance(raw_ams_status, str):
-                    try:
-                        self.state.ams_status = int(raw_ams_status)
-                    except ValueError:
-                        self.state.ams_status = 0
-                else:
-                    self.state.ams_status = raw_ams_status if raw_ams_status is not None else 0
-                # Compute main and sub status
-                self.state.ams_status_sub = self.state.ams_status & 0xFF
-                self.state.ams_status_main = (self.state.ams_status >> 8) & 0xFF
-                logger.debug(
-                    f"[{self.serial_number}] ams_status: {self.state.ams_status} "
-                    f"(main={self.state.ams_status_main}, sub={self.state.ams_status_sub})"
-                )
-
-            for tray_key, attr in (("tray_tar", "tray_tar"), ("tray_pre", "tray_pre")):
-                if tray_key in ams_data:
-                    raw_value = ams_data[tray_key]
-                    if isinstance(raw_value, str):
-                        try:
-                            parsed_value = int(raw_value)
-                        except ValueError:
-                            parsed_value = 255
-                    else:
-                        parsed_value = raw_value if raw_value is not None else 255
-                    previous = getattr(self.state, attr)
-                    setattr(self.state, attr, parsed_value)
-                    if parsed_value != previous and parsed_value not in (255, -1) and self.state.state == "PAUSE":
-                        logger.info(
-                            "[%s] AMS %s changed to %s while paused",
-                            self.serial_number,
-                            tray_key,
-                            parsed_value,
-                        )
+            self._update_ams_reported_slots(ams_data)
 
             # Parse tray_now from AMS dict - this is the currently loaded tray global ID
             # Note: tray_tar is also available but on H2D it's just slot number (0-3), not global ID

@@ -80,3 +80,26 @@ def record_process_changes(zip_bytes: bytes, keys: list[str]) -> bytes:
         return zip_bytes
     logger.info("Recorded %d process setting(s) as changed from the system preset", len(keys))
     return dst.getvalue()
+
+
+def _patch_process_bed_type(process_json: str, bed_type: str) -> str:
+    """Overwrite ``curr_bed_type`` in a process-profile JSON before forwarding
+    to the slicer sidecar.
+
+    The slicer CLI reads the build-plate type from the process profile's
+    ``curr_bed_type`` field. When the user picks a non-default plate in the
+    SliceModal (#1337), we patch the resolved JSON in place rather than
+    asking them to clone the preset just to switch a plate. Returns the
+    original string unchanged when the JSON can't be parsed or isn't a
+    dict — the slicer will then run with whatever the preset originally
+    specified, which is the safe fall-back path.
+    """
+    try:
+        profile = json.loads(process_json)
+    except json.JSONDecodeError:
+        logger.warning("Bed-type override skipped: process profile is not valid JSON")
+        return process_json
+    if not isinstance(profile, dict):
+        return process_json
+    profile["curr_bed_type"] = bed_type
+    return json.dumps(profile)

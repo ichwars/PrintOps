@@ -17,36 +17,7 @@ import { server } from '../mocks/server';
 import { SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, SIDEBAR_ORDER_KEY } from '../../utils/sidebarLayout';
 import { setAuthToken } from '../../api/client';
 
-const mockSettings = {
-  auto_archive: true,
-  save_thumbnails: true,
-  capture_finish_photo: true,
-  default_filament_cost: 25.0,
-  currency: 'USD',
-  ams_humidity_good: 40,
-  ams_humidity_fair: 60,
-  ams_temp_good: 30,
-  ams_temp_fair: 35,
-  time_format: 'system',
-  date_format: 'system',
-  mqtt_enabled: false,
-  mqtt_host: '',
-  mqtt_port: 1883,
-  spoolman_enabled: false,
-  spoolman_url: '',
-  ha_enabled: false,
-  ha_url: '',
-  ha_token: '',
-  check_updates: false,
-  check_printer_firmware: false,
-  show_developer_lan_warning: true,
-  show_sponsor_prompts: true,
-  bed_cooled_threshold: 35,
-  ftp_retry_enabled: true,
-  ftp_retry_count: 3,
-  ftp_retry_delay: 2,
-  ftp_timeout: 30,
-};
+import { mockSettings, resetSettingsPage, setSettingsTabUrl } from './settingsPageFixtures';
 
 const settingsSidebarChildIds = [
   'settings-general',
@@ -78,11 +49,6 @@ type LegacyAliasLandingExpectation = {
   tabLabel: string;
   subTabLabel?: string;
 };
-
-function setSettingsTabUrl(tab: string, extraSearch = '') {
-  const search = tab === 'general' ? extraSearch : `?tab=${tab}${extraSearch}`;
-  window.history.replaceState({}, '', `/settings${search}`);
-}
 
 function navigateSettingsTab(tab: string, extraSearch = '') {
   const search = tab === 'general' ? extraSearch : `?tab=${tab}${extraSearch}`;
@@ -119,53 +85,7 @@ async function expectLegacyAliasLanding({
 }
 
 describe('SettingsPage', () => {
-  beforeEach(() => {
-    // BrowserRouter shares window.location across tests; reset it so a tab
-    // switch in one test (e.g. clicking "Printers & Production") doesn't carry into
-    // sibling tests that expect to land on the default General tab.
-    window.history.replaceState({}, '', '/');
-    vi.mocked(localStorage.getItem).mockReset();
-    vi.mocked(localStorage.setItem).mockReset();
-    vi.mocked(localStorage.removeItem).mockReset();
-    vi.mocked(localStorage.clear).mockReset();
-    localStorage.clear();
-    setAuthToken(null);
-    Element.prototype.scrollIntoView = vi.fn();
-
-    server.use(
-      http.get('/api/v1/settings/', () => {
-        return HttpResponse.json(mockSettings);
-      }),
-      http.put('/api/v1/settings/', async ({ request }) => {
-        const body = await request.json();
-        return HttpResponse.json({ ...mockSettings, ...body });
-      }),
-      http.get('/api/v1/printers/', () => {
-        return HttpResponse.json([]);
-      }),
-      http.get('/api/v1/smart-plugs/', () => {
-        return HttpResponse.json([]);
-      }),
-      http.get('/api/v1/notifications/', () => {
-        return HttpResponse.json([]);
-      }),
-      http.get('/api/v1/api-keys/', () => {
-        return HttpResponse.json([]);
-      }),
-      http.get('/api/v1/mqtt/status', () => {
-        return HttpResponse.json({ enabled: false });
-      }),
-      http.get('/api/v1/virtual-printer/status', () => {
-        return HttpResponse.json({ running: false });
-      }),
-      http.get('/api/v1/auth/status', () => {
-        return HttpResponse.json({ auth_enabled: false, requires_setup: false });
-      }),
-      http.get('/api/v1/external-links/', () => {
-        return HttpResponse.json([]);
-      })
-    );
-  });
+  beforeEach(resetSettingsPage);
 
   it('keeps general settings on the shared 500 ms autosave status flow', async () => {
     const updates: Array<Record<string, unknown>> = [];
@@ -1866,85 +1786,6 @@ describe('SettingsPage', () => {
       });
     });
 
-  });
-
-  describe('WLED permission', () => {
-    const signInWith = (permissions: string[]) => {
-      setAuthToken('test-token');
-      server.use(
-        http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
-        http.get('/api/v1/auth/me', () => HttpResponse.json({ id: 2, username: 'viewer', is_admin: false, is_active: true, role: 'user', groups: [], permissions })),
-      );
-    };
-    const serveWledPrinter = (onPresetRequest: () => void) => server.use(
-      http.get('/api/v1/printers/', () => HttpResponse.json([{
-        id: 1, name: 'Printer 1', wled_config: {
-          enabled: true, base_url: 'http://wled.local', presets: { printing: 3 }, finished_timeout_seconds: 0,
-        },
-      }])),
-      http.post('/api/v1/printers/1/wled/presets', () => {
-        onPresetRequest();
-        return HttpResponse.json([{ id: 3, name: 'Printing' }]);
-      }),
-    );
-
-    it.each([true, false])('shows WLED and loads presets when auth enabled=%s with access', async (authEnabled) => {
-      if (authEnabled) signInWith(['settings:read', 'settings:update', 'printers:update']);
-      let presetRequests = 0;
-      serveWledPrinter(() => { presetRequests += 1; });
-      setSettingsTabUrl('integrations', '&sub=smart-home');
-      render(<SettingsPage />);
-      expect(await screen.findByText('1 presets loaded')).toBeInTheDocument();
-      expect(document.getElementById('card-wled')).not.toBeNull();
-      expect(presetRequests).toBeGreaterThan(0);
-    });
-
-    it('hides WLED from navigation and search without printers:update', async () => {
-      signInWith(['settings:read', 'settings:update']);
-      let presetRequests = 0;
-      serveWledPrinter(() => { presetRequests += 1; });
-      setSettingsTabUrl('integrations', '&sub=smart-home');
-      render(<SettingsPage />);
-      await screen.findByText('MQTT Publishing');
-      expect(screen.queryByRole('button', { name: 'WLED' })).toBeNull();
-      await userEvent.type(screen.getByPlaceholderText(/Search settings/), 'wled');
-      expect(screen.queryByText('WLED')).toBeNull();
-      expect(document.getElementById('card-wled')).toBeNull();
-      expect(presetRequests).toBe(0);
-    });
-
-    it('keeps restricted WLED controls out of the Smart Home pane', async () => {
-      signInWith(['settings:read', 'settings:update']);
-      let presetRequests = 0;
-      serveWledPrinter(() => { presetRequests += 1; });
-      setSettingsTabUrl('integrations', '&sub=smart-home');
-      render(<SettingsPage />);
-      await screen.findByText('MQTT Publishing');
-      expect(screen.queryByRole('button', { name: 'WLED' })).toBeNull();
-      expect(document.getElementById('card-wled')).toBeNull();
-      expect(presetRequests).toBe(0);
-    });
-
-    it('unmounts WLED when printers:update is revoked during the session', async () => {
-      let permissions = ['settings:read', 'settings:update', 'printers:update'];
-      signInWith(permissions);
-      server.use(http.get('/api/v1/auth/me', () => HttpResponse.json({
-        id: 2, username: 'viewer', role: 'user', is_active: true, is_admin: false,
-        groups: [], permissions, created_at: '2026-01-01T00:00:00Z',
-      })));
-      let presetRequests = 0;
-      serveWledPrinter(() => { presetRequests += 1; });
-      setSettingsTabUrl('integrations', '&sub=smart-home');
-      render(<SettingsPage />);
-      expect(await screen.findByText('1 presets loaded')).toBeInTheDocument();
-      const requestsBeforeRevocation = presetRequests;
-
-      permissions = ['settings:read', 'settings:update'];
-      window.dispatchEvent(new CustomEvent('auth:recheck'));
-      await waitFor(() => expect(document.getElementById('card-wled')).toBeNull());
-      expect(screen.queryByRole('button', { name: 'WLED' })).toBeNull();
-      expect(presetRequests).toBe(requestsBeforeRevocation);
-    });
   });
 
   describe('external camera snapshot URL override (#1177)', () => {

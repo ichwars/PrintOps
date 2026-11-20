@@ -5,7 +5,7 @@ import { createAmsSlotActions } from './PrinterCardAmsActions';
 import { computePopoverPosition } from '../../utils/popoverPosition';
 import { buildPresetOptions } from '../../utils/temperatureFanPresets';
 import { Checkbox } from '../../components/ui';
-import { Link, Unlink, Signal, Clock, MoreVertical, Trash2, RefreshCw, RotateCw, HardDrive, AlertTriangle, Terminal, Zap, Wrench, ChevronDown, Pencil, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
+import { Link, Unlink, Signal, Clock, RefreshCw, HardDrive, AlertTriangle, Zap, Wrench, ChevronDown, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Layers, Loader2, Square, Pause, Play, X, Fan, Wind, AirVent, Download, ScanSearch, CheckCircle, CheckSquare, User, Home, Printer as PrinterIcon, Info, Cable, Flame, Snowflake, Gauge, DoorOpen, DoorClosed, Move, Stethoscope, LineChart as LineChartIcon } from 'lucide-react';
 import { formatDateOnly, formatETA, formatDuration } from '../../utils/date';
 import { Card, CardContent } from '../../components/Card';
 import { PrinterCardScaledContent } from './PrinterCardTextScale';
@@ -40,54 +40,46 @@ import { CameraLaunchButton } from '../../components/CameraLaunchButton';
 import { useExternalSpoolDisplay } from '../../hooks/useExternalSpoolDisplay';
 import { PrinterFilamentHeader } from './PrinterFilamentHeader';
 
+import { PrinterCardActionsMenu } from './PrinterCardActionsMenu';
+
 export function PrinterCard(props: PrinterCardProps) {
   const cameraPreference = useCameraViewPreference(props.printer.serial_number);
   const externalDisplay = useExternalSpoolDisplay(props.printer.serial_number);
   const model = usePrinterCardModel(props);
   if (!model) return null;
   const {
-    printer, maintenanceInfo, viewMode, cardSize,
-    amsThresholds, spoolmanEnabled, linkedSpools, spoolmanUrl,
-    onGetAssignment, onUnassignSpool, spoolmanSpools,
-    spoolmanSlotAssignments, spoolmanLoading, onUnassignSpoolmanSpool, timeFormat,
-    cameraViewMode, onOpenEmbeddedCamera, checkPrinterFirmware, dryingPresets,
-    selectionMode, isSelected, onToggleSelect, nozzleTempPresets,
-    bedTempPresets, chamberTempPresets, fanSpeedPresets, t,
-    navigate, hasPermission, showMenu, setShowMenu,
-    showDeleteConfirm, setShowDeleteConfirm, deleteArchives, setDeleteArchives,
-    setShowEditModal, setShowFileManager, setShowMQTTDebug, showControlMatrix,
-    setShowControlMatrix, setShowPowerOnConfirm, setShowPowerOffConfirm, setHaToggleConfirm,
-    setShowHMSModal, setAmsBackupModalOpen, setShowStopConfirm, setShowPauseConfirm,
-    showSpeedMenu, setShowSpeedMenu, showAirductMenu, setShowAirductMenu,
-    showBedJogMenu, setShowBedJogMenu, statusControlMenu, setStatusControlMenu,
-    bedJogStep, setBedJogStep, setShowResumeConfirm,
-    setShowSkipObjectsModal, setShowUploadForPrint, setShowPrinterInfo, setShowDiagnostic,
-    dryingPopoverAmsId, setDryingPopoverAmsId, setDryingPopoverModuleType, setDryingFilament,
-    setDryingTemp, setDryingDuration, setDryingRotateTray, setDryingPopoverPos,
-    isDraggingFile, isDropUploading, printerActionsMenuRef, setAmsHistoryModal,
-    setHeaterHistoryModal, setAssignSpoolModal, setConfigureSlotModal,
-    setShowFirmwareModal, isCheckingPlate, status, firmwareInfo,
-    loadedFilamentTypes, loadedFilaments, loadedVariants, filamentInfo,
-    slotPresets, amsLabels, refetchAmsLabels, wifiSignal,
-    isConnected, amsExtruderMap, amsData, effectiveTrayNow,
-    expectedTray, previousTray, smartPlug, scriptPlugs,
-    plugStatus, queueCount, currentPrintUser, lastPrint,
-    needsPlateClear, showClearPlateButton, hasPrinterControlPermission, localPrinterControlUnavailable,
-    cloudControlConfigured, activeControlPath, canUsePrinterControlAction, canUseTemperatureControls,
-    canUseFanControls, canUseLightControl, getLocalPrinterControlUnavailableTitle, getPrinterControlUnavailableTitle,
-    getControlActionTitle, canUsePrinterControl, activePrintName, retainedPrintJob,
-    plateStatus, deleteMutation, connectMutation, forceRefreshMutation,
-    stopDryingMutation, powerControlMutation, toggleAutoOffMutation,
+    printer, maintenanceInfo, viewMode, cardSize, amsThresholds, spoolmanEnabled, linkedSpools,
+    spoolmanUrl, onGetAssignment, onUnassignSpool, spoolmanSpools, spoolmanSlotAssignments,
+    spoolmanLoading, onUnassignSpoolmanSpool, timeFormat, cameraViewMode, onOpenEmbeddedCamera,
+    checkPrinterFirmware, dryingPresets, selectionMode, isSelected, onToggleSelect,
+    nozzleTempPresets, bedTempPresets, chamberTempPresets, fanSpeedPresets, t, navigate,
+    hasPermission, showDeleteConfirm, setShowDeleteConfirm, deleteArchives, setDeleteArchives,
+    setShowFileManager, showControlMatrix, setShowControlMatrix, setShowPowerOnConfirm,
+    setShowPowerOffConfirm, setHaToggleConfirm, setShowHMSModal, setAmsBackupModalOpen,
+    setShowStopConfirm, setShowPauseConfirm, showSpeedMenu, setShowSpeedMenu, showAirductMenu,
+    setShowAirductMenu, showBedJogMenu, setShowBedJogMenu, statusControlMenu, setStatusControlMenu,
+    bedJogStep, setBedJogStep, setShowResumeConfirm, setShowSkipObjectsModal, setShowUploadForPrint,
+    setShowDiagnostic, dryingPopoverAmsId, setDryingPopoverAmsId, setDryingPopoverModuleType,
+    setDryingFilament, setDryingTemp, setDryingDuration, setDryingRotateTray, setDryingPopoverPos,
+    isDraggingFile, isDropUploading, setAmsHistoryModal, setHeaterHistoryModal, setAssignSpoolModal,
+    setConfigureSlotModal, setShowFirmwareModal, isCheckingPlate, status, firmwareInfo,
+    loadedFilamentTypes, loadedFilaments, loadedVariants, filamentInfo, slotPresets, amsLabels,
+    refetchAmsLabels, wifiSignal, isConnected, amsExtruderMap, amsData, effectiveTrayNow,
+    expectedTray, previousTray, smartPlug, scriptPlugs, plugStatus, queueCount, currentPrintUser,
+    lastPrint, needsPlateClear, showClearPlateButton, hasPrinterControlPermission,
+    localPrinterControlUnavailable, cloudControlConfigured, activeControlPath,
+    canUsePrinterControlAction, canUseTemperatureControls, canUseFanControls, canUseLightControl,
+    getLocalPrinterControlUnavailableTitle, getPrinterControlUnavailableTitle,
+    getControlActionTitle, canUsePrinterControl, activePrintName, retainedPrintJob, plateStatus,
+    deleteMutation, stopDryingMutation, powerControlMutation, toggleAutoOffMutation,
     runScriptMutation, stopPrintMutation, pausePrintMutation, resumePrintMutation,
-    clearPlateMutation, nozzleTemperatureMutation, bedTemperatureMutation, chamberTemperatureMutation,
-    fanSpeedMutation, selectExtruderMutation, chamberLightMutation, printSpeedMutation,
-    airductMutation, bedJogMutation, xyJogMutation, extruderJogMutation,
-    homeAxesMutation, plateDetectionMutation, maintenanceMutation, handleEnterMaintenance,
-    objectsData, refreshingSlot, handleTogglePlateDetection, handleOpenPlateManagement, getImageSize,
-    getTitleSize, getSpacing, canDrop, handleCardDragEnter,
-    handleCardDragOver, handleCardDragLeave, handleCardDrop, handleCardClick,
-    footerActionButtonClass, footerIconButtonClass,
-    trayLayout,
+    clearPlateMutation, nozzleTemperatureMutation, bedTemperatureMutation,
+    chamberTemperatureMutation, fanSpeedMutation, selectExtruderMutation, chamberLightMutation,
+    printSpeedMutation, airductMutation, bedJogMutation, xyJogMutation, extruderJogMutation,
+    homeAxesMutation, plateDetectionMutation, maintenanceMutation, objectsData, refreshingSlot,
+    handleTogglePlateDetection, handleOpenPlateManagement, getImageSize, getTitleSize, getSpacing,
+    canDrop, handleCardDragEnter, handleCardDragOver, handleCardDragLeave, handleCardDrop,
+    handleCardClick, footerActionButtonClass, footerIconButtonClass, trayLayout,
   } = model;
 
 const plateStatusPill = plateStatus ? (
@@ -97,130 +89,7 @@ const plateStatusPill = plateStatus ? (
   ) : null;
 
 const renderAmsSlotActions = createAmsSlotActions(model);
-const printerActionsMenu = (
-    <div ref={printerActionsMenuRef} className="relative flex-shrink-0">
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => setShowMenu(!showMenu)}
-        title={t('common.more', 'More')}
-        className={footerIconButtonClass}
-      >
-        <MoreVertical className="w-4 h-4" />
-      </Button>
-      {showMenu && (
-        <div className="absolute left-0 bottom-full mb-2 w-48 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg z-20">
-          <button
-            className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-              hasPermission('printers:update')
-                ? 'hover:bg-bambu-dark-tertiary'
-                : 'opacity-50 cursor-not-allowed'
-            }`}
-            onClick={() => {
-              if (!hasPermission('printers:update')) return;
-              setShowEditModal(true);
-              setShowMenu(false);
-            }}
-            title={!hasPermission('printers:update') ? t('printers.permission.noEdit') : undefined}
-          >
-            <Pencil className="w-4 h-4" />
-            {t('common.edit')}
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm hover:bg-bambu-dark-tertiary flex items-center gap-2"
-            onClick={() => {
-              setShowPrinterInfo(true);
-              setShowMenu(false);
-            }}
-          >
-            <Info className="w-4 h-4" />
-            {t('printers.printerInformation')}
-          </button>
-          {/* Maintenance Mode toggle (#1476) — leverages backend is_active flag */}
-          <button
-            className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-              hasPermission('printers:update')
-                ? 'hover:bg-bambu-dark-tertiary'
-                : 'opacity-50 cursor-not-allowed'
-            }`}
-            disabled={maintenanceMutation.isPending || !hasPermission('printers:update')}
-            onClick={() => {
-              if (!hasPermission('printers:update')) return;
-              setShowMenu(false);
-              if (printer.is_active !== false) {
-                handleEnterMaintenance();
-              } else {
-                maintenanceMutation.mutate(true);
-              }
-            }}
-            title={!hasPermission('printers:update') ? t('printers.permission.noEdit') : undefined}
-          >
-            <Wrench className="w-4 h-4" />
-            {printer.is_active !== false
-              ? t('printers.maintenance.menuEnter')
-              : t('printers.maintenance.menuExit')}
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm hover:bg-bambu-dark-tertiary flex items-center gap-2"
-            onClick={() => {
-              connectMutation.mutate();
-              setShowMenu(false);
-            }}
-          >
-            <RefreshCw className="w-4 h-4" />
-            {t('printers.reconnect')}
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm hover:bg-bambu-dark-tertiary flex items-center gap-2 disabled:opacity-50"
-            disabled={forceRefreshMutation.isPending}
-            onClick={() => {
-              forceRefreshMutation.mutate();
-              setShowMenu(false);
-            }}
-          >
-            <RotateCw className={`w-4 h-4 ${forceRefreshMutation.isPending ? 'animate-spin' : ''}`} />
-            {t('printers.forceRefresh')}
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm hover:bg-bambu-dark-tertiary flex items-center gap-2"
-            onClick={() => {
-              setShowMQTTDebug(true);
-              setShowMenu(false);
-            }}
-          >
-            <Terminal className="w-4 h-4" />
-            {t('printers.mqttDebug')}
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm hover:bg-bambu-dark-tertiary flex items-center gap-2"
-            onClick={() => {
-              setShowDiagnostic(true);
-              setShowMenu(false);
-            }}
-          >
-            <Stethoscope className="w-4 h-4" />
-            {t('diagnostic.runButton')}
-          </button>
-          <button
-            className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-              hasPermission('printers:delete')
-                ? 'text-red-700 dark:text-red-400 hover:bg-bambu-dark-tertiary'
-                : 'text-red-700/50 dark:text-red-400/50 cursor-not-allowed'
-            }`}
-            onClick={() => {
-              if (!hasPermission('printers:delete')) return;
-              setShowDeleteConfirm(true);
-              setShowMenu(false);
-            }}
-            title={!hasPermission('printers:delete') ? t('printers.permission.noDelete') : undefined}
-          >
-            <Trash2 className="w-4 h-4" />
-            {t('common.delete')}
-          </button>
-        </div>
-      )}
-    </div>
-  );
+const printerActionsMenu = <PrinterCardActionsMenu model={model} />;
 return (
     <Card
       id={`printer-card-${printer.id}`}

@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
@@ -1331,21 +1330,9 @@ async def restore_backup(
             await reinitialize_database()
             await init_db()
             await handle_restored_sessions()
-            from backend.app.core import database
-            from backend.app.services.backup_paths import convert_windows_paths
+            from backend.app.services.backup_paths import restored_path_message
 
-            path_conversion_failed = False
-            try:
-                async with database.engine.begin() as conn:
-                    await convert_windows_paths(conn, base_dir)
-            except SQLAlchemyError:
-                logger.exception("Could not convert archived Windows paths after restore")
-                path_conversion_failed = True
-
-            logger.info("Restore complete - restart required")
-            message = "Backup restored successfully. Please restart PrintOps for changes to take effect."
-            if path_conversion_failed:
-                message += " Some stored Windows paths may need manual correction."
+            message = await restored_path_message(base_dir)
             if skipped_dirs:
                 message += f" Note: Some directories could not be restored ({', '.join(skipped_dirs)})."
             if document_integrity_issues:

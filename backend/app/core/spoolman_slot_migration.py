@@ -118,3 +118,45 @@ async def widen_spoolman_slot_ams_id_range(conn, _safe_execute, is_sqlite) -> No
             exc_info=True,
         )
         raise
+
+
+async def create_slot_assignments(conn, _safe_execute, is_sqlite):
+    # Migration: Create spoolman_slot_assignments table for local AMS-slot→Spoolman-spool mapping.
+    # Replaces the pattern of writing spool.location in Spoolman (which polluted the
+    # user-editable storage_location field in the UI).
+    # ck_ams_id_range formula was widened in #1274 to admit AMS-HT (ams_id 128-191),
+    # and for the H3C's AMS 3H (as models.spoolman_slot_assignment).
+    await _safe_execute(
+        conn,
+        """
+        CREATE TABLE IF NOT EXISTS spoolman_slot_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+            ams_id INTEGER NOT NULL,
+            tray_id INTEGER NOT NULL,
+            spoolman_spool_id INTEGER NOT NULL,
+            assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_slot_assignment UNIQUE(printer_id, ams_id, tray_id),
+            CONSTRAINT ck_ams_id_range CHECK ((ams_id >= 0 AND ams_id <= 7) OR ams_id = 32 OR (ams_id >= 128 AND ams_id <= 191) OR ams_id = 255),
+            CONSTRAINT ck_tray_id_range CHECK (tray_id >= 0 AND (tray_id <= 3 OR (ams_id IN (32, 255) AND tray_id <= 8)))
+        )
+        """
+        if is_sqlite()
+        else """
+        CREATE TABLE IF NOT EXISTS spoolman_slot_assignments (
+            id SERIAL PRIMARY KEY,
+            printer_id INTEGER NOT NULL REFERENCES printers(id) ON DELETE CASCADE,
+            ams_id INTEGER NOT NULL,
+            tray_id INTEGER NOT NULL,
+            spoolman_spool_id INTEGER NOT NULL,
+            assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_slot_assignment UNIQUE(printer_id, ams_id, tray_id),
+            CONSTRAINT ck_ams_id_range CHECK ((ams_id >= 0 AND ams_id <= 7) OR ams_id = 32 OR (ams_id >= 128 AND ams_id <= 191) OR ams_id = 255),
+            CONSTRAINT ck_tray_id_range CHECK (tray_id >= 0 AND (tray_id <= 3 OR (ams_id IN (32, 255) AND tray_id <= 8)))
+        )
+        """,
+    )
+    await _safe_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS ix_slot_assignment_spool ON spoolman_slot_assignments (spoolman_spool_id)",
+    )

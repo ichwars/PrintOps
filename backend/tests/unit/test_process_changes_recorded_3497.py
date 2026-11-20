@@ -213,6 +213,10 @@ class TestTheSlice:
 
         assert listed == ["enable_support;support_type", "", ""]
 
+    async def test_selected_bed_is_recorded_as_a_process_override(self):
+        listed = await _slice(_request(bed_type="Textured PEI Plate"))
+        assert listed == ["curr_bed_type", "", ""]
+
     async def test_no_overrides_lists_nothing(self):
         assert await _slice(_request()) == ["", "", ""]
 

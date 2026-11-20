@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes import filament_profile_defaults, inventory_usage
+from backend.app.api.routes._spoolman_helpers import _spoolman_is_enabled as _spoolman_is_enabled
 from backend.app.core.auth import (
     OwnershipAccess,
     RequireAnyPermissionIfAuthEnabled,
@@ -558,10 +559,6 @@ async def reset_spool_catalog(
 async def _load_settings_map(db: AsyncSession) -> dict[str, str]:
     result = await db.execute(select(Settings))
     return {s.key: s.value for s in result.scalars().all()}
-
-
-def _spoolman_is_enabled(settings: dict[str, str]) -> bool:
-    return settings.get("spoolman_enabled", "false").lower() == "true"
 
 
 async def _ensure_spoolman_client(settings: dict[str, str]) -> SpoolmanClient | None:

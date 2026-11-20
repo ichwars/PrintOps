@@ -72,3 +72,24 @@ async def convert_windows_paths(conn: AsyncConnection, base_dir: Path, *, window
     if changed:
         logger.info("Converted Windows file paths in %d restored row(s) to this platform's separator", changed)
     return changed
+
+
+async def restored_path_message(base_dir: Path) -> str:
+    """Convert restored paths using the reopened engine and report partial success."""
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from backend.app.core import database
+
+    path_conversion_failed = False
+    try:
+        async with database.engine.begin() as conn:
+            await convert_windows_paths(conn, base_dir)
+    except SQLAlchemyError:
+        logger.exception("Could not convert archived Windows paths after restore")
+        path_conversion_failed = True
+
+    logger.info("Restore complete - restart required")
+    message = "Backup restored successfully. Please restart PrintOps for changes to take effect."
+    if path_conversion_failed:
+        message += " Some stored Windows paths may need manual correction."
+    return message

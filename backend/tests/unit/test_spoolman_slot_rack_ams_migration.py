@@ -169,16 +169,16 @@ def test_the_model_admits_what_the_migration_does():
     )
 
 
-def test_the_fresh_install_ddl_matches_the_model():
-    import inspect
+@pytest.mark.parametrize("sqlite", [True, False])
+async def test_the_fresh_install_ddl_matches_the_model(sqlite):
+    from unittest.mock import AsyncMock
 
-    import backend.app.core.database as database_module
+    from backend.app.core.spoolman_slot_migration import create_slot_assignments
 
-    source = inspect.getsource(database_module)
-    for dialect_marker in ("id INTEGER PRIMARY KEY AUTOINCREMENT,\n            printer_id", "id SERIAL PRIMARY KEY,"):
-        start = source.index("CREATE TABLE IF NOT EXISTS spoolman_slot_assignments (\n            " + dialect_marker)
-        ddl = source[start : source.index(')\n        """', start)]
-        assert f"CHECK ({AMS_ID_CHECK})" in ddl and f"CHECK ({TRAY_ID_CHECK})" in ddl
+    execute = AsyncMock()
+    await create_slot_assignments(None, execute, lambda: sqlite)
+    ddl = execute.await_args_list[0].args[1]
+    assert f"CHECK ({AMS_ID_CHECK})" in ddl and f"CHECK ({TRAY_ID_CHECK})" in ddl
 
 
 def test_the_request_schema_admits_the_ams3h():

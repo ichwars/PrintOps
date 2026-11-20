@@ -113,3 +113,19 @@ def resolve_expected_tray(
     if 24 <= raw_slot <= 27:
         return raw_slot
     return None
+
+
+def paused_trays(state, ams_units, mapping, tray_layout) -> dict:
+    trays: dict[str, int | None] = {"expected_tray": None, "previous_tray": None}
+    if state.state == "PAUSE":
+        units = [(u["id"], u.get("is_ams_ht", False)) for u in ams_units]
+        for key, reported in (("expected_tray", state.tray_tar), ("previous_tray", state.tray_pre)):
+            trays[key] = resolve_expected_tray(
+                reported,
+                units,
+                mapping,
+                active_extruder=state.active_extruder,
+                ams_extruder_map=nozzle_wiring(state),
+                tray_layout=tray_layout,
+            )
+    return trays

@@ -390,3 +390,12 @@ def mapped_trays_with_slot(mapping_raw: object, local_slot: int) -> dict[int, in
         if slot == local_slot and (ams_id in _REGULAR_WIRE_AMS_IDS or is_ams_ht_id(ams_id)):
             found[tray] = ams_id
     return found
+
+
+def calibration_tray_index(ams_id: int, tray_id: int) -> int:
+    """Flat index used by extrusion_cali_set, relative to the AMS-HT range."""
+    if ams_id <= 3:
+        return legacy_tray_index(ams_id, tray_id)
+    if is_ams_ht_id(ams_id):
+        return legacy_tray_index(ams_id - AMS_HT_IDS.start, tray_id)
+    return tray_id

@@ -12,7 +12,11 @@ from backend.app.services.bambu_mqtt import BambuMQTTClient, MQTTLogEntry, Print
 from backend.app.services.drying_cycle import DryingCycleEnd
 from backend.app.services.pause_eta import next_pause
 from backend.app.services.printer_status_slots import extruder_slots
-from backend.app.services.runout_tray import nozzle_wiring, resolve_expected_tray
+from backend.app.services.runout_tray import (
+    nozzle_wiring as nozzle_wiring,
+    paused_trays,
+    resolve_expected_tray as resolve_expected_tray,
+)
 from backend.app.utils.printer_models import has_ams3h
 from backend.app.utils.tray_ids import (
     TrayLayout,
@@ -1144,30 +1148,7 @@ def printer_state_to_dict(
         "ams_status_sub": state.ams_status_sub,
         "tray_now": state.tray_now,
         "extruder_slots": extruder_slots(state),
-        "expected_tray": (
-            resolve_expected_tray(
-                state.tray_tar,
-                [(u["id"], u.get("is_ams_ht", False)) for u in ams_units],
-                raw_data.get("mapping"),
-                active_extruder=state.active_extruder,
-                ams_extruder_map=nozzle_wiring(state),
-                tray_layout=tray_layout,
-            )
-            if state.state == "PAUSE"
-            else None
-        ),
-        "previous_tray": (
-            resolve_expected_tray(
-                state.tray_pre,
-                [(u["id"], u.get("is_ams_ht", False)) for u in ams_units],
-                raw_data.get("mapping"),
-                active_extruder=state.active_extruder,
-                ams_extruder_map=nozzle_wiring(state),
-                tray_layout=tray_layout,
-            )
-            if state.state == "PAUSE"
-            else None
-        ),
+        **paused_trays(state, ams_units, raw_data.get("mapping"), tray_layout),
         # Per-AMS extruder map: {ams_id: extruder_id} where 0=right, 1=left
         "ams_extruder_map": ams_extruder_map,
         # WiFi signal strength

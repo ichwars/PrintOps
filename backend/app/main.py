@@ -103,6 +103,14 @@ from backend.app.services.ams_assignment_lock import get_ams_assignment_lock
 from backend.app.services.ams_weight_sync import sync_automatic_weight
 from backend.app.services.archive import ArchiveService, peek_plate_index_in_3mf, swap_plate_suffix
 from backend.app.services.archive_cost_estimate import schedule_archive_cost_estimate, settle_archive_cost_estimate
+from backend.app.services.archive_hms import (
+    _HMS_FAILURE_REASONS as _HMS_FAILURE_REASONS,
+    _HMS_MODULE_NAMES as _HMS_MODULE_NAMES,
+    _format_hms_error_summary as _format_hms_error_summary,
+    _hms_error_title as _hms_error_title,
+    _hms_short_code as _hms_short_code,
+    derive_failure_reason as derive_failure_reason,
+)
 from backend.app.services.archive_purge import archive_purge_service
 from backend.app.services.bambu_ftp import (
     FileNotOnPrinterError,
@@ -477,72 +485,6 @@ _PRINTER_OFFLINE_NOTIFY_DEBOUNCE_SECONDS = 60.0
 # HMS short-code → human-readable failure reason. Used by _dispatch_archive_update
 # when status="failed" to label the print's failure_reason in archives.
 #
-# Earlier code matched on `module` alone (e.g. "any module 0x0C HMS → Layer shift"),
-# which is wrong on two counts:
-#   1. Real layer-shift codes live in module 0x03 (see Bambu wiki), not 0x0C.
-#   2. Module 0x0C is "Motion Controller" — broad category that also covers cameras
-#      and visual markers, AND the H2D firmware emits a 0x0C HMS (0C00_001B, not in
-#      the public wiki) as part of its user-cancel sequence. Matching on the module
-#      alone caused user-cancellations to be archived as "Layer shift" failures.
-# We now match by full short code only — anything not in this map leaves
-# failure_reason=None rather than guessing.
-_HMS_FAILURE_REASONS: dict[str, str] = {
-    # Layer shift / step loss
-    "0300_4057": "Layer shift",
-    "0300_4068": "Layer shift",
-    "0300_800C": "Layer shift",
-    # Filament runout (printer-side & per-AMS-slot)
-    "0300_8004": "Filament runout",
-    "0700_8011": "Filament runout",
-    "0701_8011": "Filament runout",
-    "0702_8011": "Filament runout",
-    "0703_8011": "Filament runout",
-    "0704_8011": "Filament runout",
-    "0705_8011": "Filament runout",
-    "0706_8011": "Filament runout",
-    "0707_8011": "Filament runout",
-    "07FF_8011": "Filament runout",
-    # Clogged nozzle / extruder
-    "0300_4006": "Clogged nozzle",
-    "0300_8016": "Clogged nozzle",
-    "0300_801C": "Clogged nozzle",
-    "0700_8003": "Clogged nozzle",
-    "0700_8007": "Clogged nozzle",
-    "0700_8013": "Clogged nozzle",
-    "0701_8003": "Clogged nozzle",
-    "0701_8007": "Clogged nozzle",
-    "0701_8013": "Clogged nozzle",
-    "0702_8003": "Clogged nozzle",
-}
-
-
-def _hms_short_code(attr: int, code: int | str) -> str:
-    """Build the canonical "MMMM_CCCC" HMS short code from raw attr/code values."""
-    if isinstance(code, str):
-        code_int = int(code.replace("0x", ""), 16) if code else 0
-    else:
-        code_int = int(code or 0)
-    attr_int = int(attr or 0)
-    return f"{(attr_int >> 16) & 0xFFFF:04X}_{code_int & 0xFFFF:04X}"
-
-
-def derive_failure_reason(status: str, hms_errors: list[dict] | None) -> str | None:
-    """Derive a human-readable failure_reason for an archived print.
-
-    Returns "User cancelled" for cancelled/aborted prints; for failed prints,
-    returns the first matching reason from _HMS_FAILURE_REASONS, or None when
-    no HMS code matches (don't guess — null is honest).
-    """
-    if status in ("aborted", "cancelled"):
-        return "User cancelled"
-    if status != "failed":
-        return None
-    for err in hms_errors or []:
-        short_code = _hms_short_code(err.get("attr", 0), err.get("code", 0))
-        if short_code in _HMS_FAILURE_REASONS:
-            return _HMS_FAILURE_REASONS[short_code]
-    return None
-
 
 # Track created_by_id for expected prints so the user email can be sent even when
 # the archive itself doesn't have created_by_id set (e.g. library-file-based prints).
@@ -1042,41 +984,6 @@ def _maybe_start_layer_timelapse(printer, printer_id: int, archive_id: int) -> b
     return True
 
 
-def _format_hms_error_summary(hms_errors: list[dict]) -> str | None:
-    """Build a human-readable failure reason from MQTT hms_errors for PrintQueueItem.error_message.
-
-    Current payloads carry the resolved manufacturer description and full code.
-    Historical payloads without those fields keep their print_error short-code
-    lookup. A 64-bit HMS code never borrows text from the 32-bit keyspace.
-    Unknown faults retain their code; an empty list returns None.
-    """
-    if not hms_errors:
-        return None
-    from backend.app.services.hms_errors import describe_fault, get_error_description
-
-    parts: list[str] = []
-    for err in hms_errors:
-        try:
-            code_str = str(err.get("code", "")).replace("0x", "")
-            error_num = int(code_str, 16) if code_str else 0
-            module_num = (int(err.get("attr", 0)) >> 16) & 0xFFFF
-            short_code = f"{module_num:04X}_{error_num:04X}"
-        except (TypeError, ValueError):
-            continue
-        full_code = err.get("full_code") or ""
-        if "description" in err:
-            description = err["description"]
-        elif full_code:
-            description = describe_fault(full_code)
-        else:
-            description = get_error_description(short_code)
-        display_code = (
-            "-".join(full_code[index : index + 4] for index in range(0, 16, 4)) if len(full_code) == 16 else short_code
-        )
-        parts.append(f"[{display_code}] {description}" if description else f"[{display_code}]")
-    return "; ".join(parts) if parts else None
-
-
 def mark_printer_stopped_by_user(printer_id: int) -> None:
     """Mark that the active print on this printer was stopped by the user from the queue UI.
 
@@ -1239,26 +1146,6 @@ def _take_new_hms_faults(printer_id: int, errors: list, print_state: str | None)
     if not forget:
         _hms_forget_when_gone.pop(printer_id, None)
     return _hms_errors_to_notify(errors, new_keys)
-
-
-_HMS_MODULE_NAMES = {
-    0x03: "Print/Task",  # bed, nozzle temperatures, motors, the print itself
-    0x05: "System",  # USB/SD, network, firmware, files, AMS communication
-    0x07: "AMS/Filament",
-    0x08: "Toolhead",
-    0x0C: "Camera",  # cameras, lidar, first-layer and AI inspection
-    0x12: "AMS Lite",
-    0x18: "AMS-HT",
-    0x1A: "Tool Changer",
-    0x29: "Air Filter",
-    0x2A: "AMS 3H",
-}
-
-
-def _hms_error_title(module: int) -> str:
-    """The notification title for a fault of *module*."""
-    name = _HMS_MODULE_NAMES.get(module)
-    return f"{name} Error" if name else "Printer Error"
 
 
 async def _take_new_hms_faults_and_save(printer_id: int, errors: list, print_state: str | None = None) -> list:
@@ -3822,6 +3709,28 @@ async def on_finish_photo_moment(printer_id: int, data: dict):
 
 
 @hold_completion_charges
+def _schedule_completed_timelapse(
+    printer_id, archive_id, previous_run, data, print_status, run_plate, completed_run_id, logger, log_timing
+):
+    # Retire memory; the archive keeps the restart-safe snapshot.
+    baseline = _timelapse_baselines.pop(printer_id, None) if not previous_run else None
+
+    if (
+        archive_id
+        and not previous_run
+        and data.get("timelapse_was_active")
+        and print_status in {"completed", "failed", "aborted", "cancelled", "stopped"}
+    ):
+        logger.info("[TIMELAPSE] Timelapse was active during print, scheduling auto-scan for archive %s", archive_id)
+        # Schedule timelapse scan as background task with retries
+        # The printer needs time to encode the video after print completion
+        spawn_background_task(
+            _scan_for_timelapse_with_retries(archive_id, baseline, plate_id=run_plate, run_id=completed_run_id),
+            name=f"scan-timelapse-{archive_id}",
+        )
+        log_timing("Timelapse scan scheduled")
+
+
 async def on_print_complete(printer_id: int, data: dict):
     """Handle print completion - update the archive status."""
     import time
@@ -4789,23 +4698,9 @@ async def on_print_complete(printer_id: int, data: dict):
 
     log_timing("All background tasks scheduled")
 
-    # Retire memory; the archive keeps the restart-safe snapshot.
-    baseline = _timelapse_baselines.pop(printer_id, None) if not previous_run else None
-
-    if (
-        archive_id
-        and not previous_run
-        and data.get("timelapse_was_active")
-        and print_status in {"completed", "failed", "aborted", "cancelled", "stopped"}
-    ):
-        logger.info("[TIMELAPSE] Timelapse was active during print, scheduling auto-scan for archive %s", archive_id)
-        # Schedule timelapse scan as background task with retries
-        # The printer needs time to encode the video after print completion
-        spawn_background_task(
-            _scan_for_timelapse_with_retries(archive_id, baseline, plate_id=run_plate, run_id=completed_run_id),
-            name=f"scan-timelapse-{archive_id}",
-        )
-        log_timing("Timelapse scan scheduled")
+    _schedule_completed_timelapse(
+        printer_id, archive_id, previous_run, data, print_status, run_plate, completed_run_id, logger, log_timing
+    )
 
     logger.info("[CALLBACK] on_print_complete finished for printer %s, archive %s", printer_id, archive_id)
 
@@ -5626,6 +5521,51 @@ async def on_drying_cycle_end(printer_id: int, record):
         await record_drying_cycle(db, printer_id, record)
 
 
+# Layer change callback for external camera timelapse
+async def on_layer_change(printer_id: int, layer_num: int):
+    """Capture timelapse frame on layer change + first layer notification."""
+    from backend.app.services.layer_timelapse import on_layer_change as tl_layer_change
+
+    await tl_layer_change(printer_id, layer_num)
+
+    # First layer complete notification (layer_num >= 2 means layer 1 is done).
+    # Gate on actual printing state — Bambu firmware ticks layer_num during
+    # the pre-print calibration sequence (homing / mesh-level / bed scan /
+    # nozzle clean), so a bare layer_num check can fire minutes before the
+    # first real extrusion. We require gcode_state == RUNNING and
+    # mc_print_sub_stage in (0 = "Printing", None) so calibration sub-stages
+    # (1, 9, 14, ...) are excluded. The window widens to [2, 10] because if
+    # the layer counter advanced past 2 during PREPARE, the next on_layer_change
+    # edge fires later; _first_layer_notified stays clear until we actually send
+    # so a deferred re-evaluation can win. See issue #1837.
+    if 2 <= layer_num <= 10 and not _first_layer_notified.get(printer_id, False):
+        client = printer_manager.get_client(printer_id)
+        state = client.state if client else None
+        if not state or state.state != "RUNNING":
+            return
+        if state.mc_print_sub_stage not in (None, 0):
+            return
+        _first_layer_notified[printer_id] = True
+        try:
+            async with async_session() as db:
+                from backend.app.models.printer import Printer
+
+                result = await db.execute(select(Printer).where(Printer.id == printer_id))
+                printer = result.scalar_one_or_none()
+                if not printer:
+                    return
+                printer_name = printer.name
+                filename = (state.subtask_name or state.gcode_file or "Unknown") if state else "Unknown"
+                total_layers = state.total_layers if state else 0
+
+                image_data = await _capture_snapshot_for_notification(printer_id, printer, logging.getLogger(__name__))
+                await notification_service.on_first_layer_complete(
+                    printer_id, printer_name, filename, total_layers, db, image_data=image_data
+                )
+        except Exception as e:
+            logging.getLogger(__name__).warning("First layer notification failed: %s", e)
+
+
 async def initialize_wled_printers(db: AsyncSession) -> None:
     """Seed WLED settings and apply offline presets before MQTT connections start."""
     from backend.app.api.routes.settings import get_setting
@@ -5734,52 +5674,6 @@ async def lifespan(app: FastAPI):
     # before MQTT connections begin emitting status callbacks.
     async with async_session() as db:
         await initialize_wled_printers(db)
-
-    # Layer change callback for external camera timelapse
-    async def on_layer_change(printer_id: int, layer_num: int):
-        """Capture timelapse frame on layer change + first layer notification."""
-        from backend.app.services.layer_timelapse import on_layer_change as tl_layer_change
-
-        await tl_layer_change(printer_id, layer_num)
-
-        # First layer complete notification (layer_num >= 2 means layer 1 is done).
-        # Gate on actual printing state — Bambu firmware ticks layer_num during
-        # the pre-print calibration sequence (homing / mesh-level / bed scan /
-        # nozzle clean), so a bare layer_num check can fire minutes before the
-        # first real extrusion. We require gcode_state == RUNNING and
-        # mc_print_sub_stage in (0 = "Printing", None) so calibration sub-stages
-        # (1, 9, 14, ...) are excluded. The window widens to [2, 10] because if
-        # the layer counter advanced past 2 during PREPARE, the next on_layer_change
-        # edge fires later; _first_layer_notified stays clear until we actually send
-        # so a deferred re-evaluation can win. See issue #1837.
-        if 2 <= layer_num <= 10 and not _first_layer_notified.get(printer_id, False):
-            client = printer_manager.get_client(printer_id)
-            state = client.state if client else None
-            if not state or state.state != "RUNNING":
-                return
-            if state.mc_print_sub_stage not in (None, 0):
-                return
-            _first_layer_notified[printer_id] = True
-            try:
-                async with async_session() as db:
-                    from backend.app.models.printer import Printer
-
-                    result = await db.execute(select(Printer).where(Printer.id == printer_id))
-                    printer = result.scalar_one_or_none()
-                    if not printer:
-                        return
-                    printer_name = printer.name
-                    filename = (state.subtask_name or state.gcode_file or "Unknown") if state else "Unknown"
-                    total_layers = state.total_layers if state else 0
-
-                    image_data = await _capture_snapshot_for_notification(
-                        printer_id, printer, logging.getLogger(__name__)
-                    )
-                    await notification_service.on_first_layer_complete(
-                        printer_id, printer_name, filename, total_layers, db, image_data=image_data
-                    )
-            except Exception as e:
-                logging.getLogger(__name__).warning("First layer notification failed: %s", e)
 
     printer_manager.set_layer_change_callback(on_layer_change)
 

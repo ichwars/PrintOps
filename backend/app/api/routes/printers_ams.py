@@ -33,7 +33,7 @@ from backend.app.utils.filament_finish import finish_generic_id
 from backend.app.utils.filament_ids import filament_id_to_setting_id, setting_id_to_filament_id
 from backend.app.utils.filament_types import generic_filament_id, printer_filament_type
 from backend.app.utils.printer_models import has_ams3h
-from backend.app.utils.tray_ids import AMS_HT_IDS, TrayLayout, is_ams_ht_id, legacy_tray_index
+from backend.app.utils.tray_ids import TrayLayout, calibration_tray_index, is_ams_ht_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["printers"])
@@ -248,16 +248,8 @@ async def configure_ams_slot(
     # hardcoded extruder_id=0 and nozzle_id=HS00.
     k_value_unsent = False
     if k_value > 0 and cali_idx < 0:
-        # extrusion_cali_set's flat tray index; an AMS-HT counts from 128.
-        if ams_id <= 3:
-            cali_tray_id = legacy_tray_index(ams_id, tray_id)
-        elif is_ams_ht_id(ams_id):
-            cali_tray_id = legacy_tray_index(ams_id - AMS_HT_IDS.start, tray_id)
-        else:
-            cali_tray_id = tray_id
-
         k_value_unsent = not client.extrusion_cali_set(
-            tray_id=cali_tray_id,
+            tray_id=calibration_tray_index(ams_id, tray_id),
             k_value=k_value,
             nozzle_diameter=nozzle_diameter,
             nozzle_temp=nozzle_temp_max,
