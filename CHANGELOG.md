@@ -4,6 +4,14 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.8.4] - 2026-11-20
+
+- Improve resumed print attribution, zero-gram accounting and multi-file queue submission. Equally eligible printers are ranked by operating hours.
+- Add H3C and AMS 3H support, including per-hotend external inputs. Improve SpoolBuddy NFC verification, AMS telemetry and drying, and HMS fault tracking.
+- Improve camera cleanup, timelapse retrieval and cross-platform backup restores. Add camera wall controls, WLED presets, bulk filament profile defaults and 3MF process override tracking.
+
+See the [German and English release notes](docs/releases/1.2.8.4.md) and the [guide to all 34 changes](docs/bambuddy-november-2026.md).
+
 ## [1.2.8.3] - 2026-11-12
 
 ### Security

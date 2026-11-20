@@ -65,7 +65,9 @@ describe('PrintModal filament deficit parity', () => {
     );
 
     await waitFor(() => expect(screen.getByText(/Filament Mapping/i)).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: /^print$/i }));
+    const print = screen.getByRole('button', { name: /^print$/i });
+    await waitFor(() => expect(print).toBeEnabled());
+    await user.click(print);
 
     expect(await screen.findByText(/needs 80g, 70g available across matching spools/i)).toBeInTheDocument();
     expect(queueCalls).toBe(0);
@@ -88,6 +90,7 @@ describe('PrintModal filament deficit parity', () => {
         return HttpResponse.json({ id: 1, status: 'pending' });
       }),
     );
+    const onClose = vi.fn();
     const user = userEvent.setup();
     render(
       <PrintModal
@@ -95,14 +98,17 @@ describe('PrintModal filament deficit parity', () => {
         archiveId={1}
         archiveName="Covered.gcode.3mf"
         initialSelectedPrinterIds={[1]}
-        onClose={vi.fn()}
+        onClose={onClose}
       />,
     );
 
     await waitFor(() => expect(screen.getByText(/Filament Mapping/i)).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: /^print$/i }));
+    const print = screen.getByRole('button', { name: /^print$/i });
+    await waitFor(() => expect(print).toBeEnabled());
+    await user.click(print);
 
-    await waitFor(() => expect(queueCalls).toBe(1));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(queueCalls).toBe(1);
     expect(screen.queryByText(/Not enough filament/i)).not.toBeInTheDocument();
   });
 });
