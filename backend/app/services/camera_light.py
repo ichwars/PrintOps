@@ -62,7 +62,7 @@ async def _load_configuration() -> tuple[CameraLightMode, float]:
                 rows = await db.execute(
                     select(Settings.key, Settings.value).where(Settings.key.in_(CAMERA_LIGHT_SETTINGS))
                 )
-                values = dict(rows.tuples())
+                values = dict(rows.tuples().all())
     except Exception:
         logger.debug("Could not load automatic camera lighting settings", exc_info=True)
         return "off", _DEFAULT_DELAY

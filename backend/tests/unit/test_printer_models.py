@@ -14,12 +14,12 @@ from backend.app.utils.printer_models import (
     LINEAR_RAIL_MODELS,
     STEEL_ROD_MODELS,
     get_rod_type,
+    h2c_nozzle_mapping_capability,
     has_ethernet,
     has_external_storage,
     has_remote_storage_toggle,
     is_dual_nozzle_model,
     is_gcode_compatible,
-    is_nozzle_rack_model,
     normalize_printer_model,
     normalize_printer_model_id,
     supports_nozzle_flow_type,
@@ -207,9 +207,9 @@ class TestH3CModel:
         assert get_camera_port(model) == 322
 
     @pytest.mark.parametrize("model", ["H3C", "N10"])
-    def test_is_not_dual_nozzle_or_rack(self, model: str):
+    def test_has_no_dual_nozzle_or_h2c_rack_dispatch(self, model: str):
         assert is_dual_nozzle_model(model) is False
-        assert is_nozzle_rack_model(model) is False
+        assert h2c_nozzle_mapping_capability(model, "N10", "01.02.00.00") == (False, "not_h2c")
 
     @pytest.mark.parametrize("model", ["H3C", "N10"])
     def test_chamber_sensor_heater_and_airduct(self, model: str):
