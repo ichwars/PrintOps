@@ -287,8 +287,29 @@ async def update_settings(
         "mqtt_password",
         "mqtt_topic_prefix",
         "mqtt_use_tls",
+        "ha_discovery_enabled",
+        "ha_discovery_prefix",
     }
     mqtt_updated = bool(mqtt_keys & set(update_data.keys()))
+
+    # HA discovery prefix must differ from the relay topic prefix and must not
+    # contain MQTT wildcards (checked here so the settings save fails loudly).
+    if "ha_discovery_prefix" in update_data or "mqtt_topic_prefix" in update_data:
+        from backend.app.services.mqtt_discovery import validate_discovery_prefix
+
+        new_prefix = update_data.get("ha_discovery_prefix")
+        if new_prefix is None:
+            new_prefix = await get_setting(db, "ha_discovery_prefix") or "homeassistant"
+        new_topic = update_data.get("mqtt_topic_prefix")
+        if new_topic is None:
+            new_topic = await get_setting(db, "mqtt_topic_prefix") or "printops"
+        discovery_on = update_data.get("ha_discovery_enabled")
+        if discovery_on is None:
+            discovery_on = (await get_setting(db, "ha_discovery_enabled") or "false") == "true"
+        if discovery_on:
+            prefix_error = validate_discovery_prefix(str(new_prefix), str(new_topic))
+            if prefix_error:
+                raise HTTPException(status_code=400, detail=prefix_error)
 
     for key, value in update_data.items():
         await set_setting(db, key, "" if key in SETTINGS_SECRETS and value is None else _serialize_setting(value))
@@ -317,6 +338,8 @@ async def update_settings(
                 "mqtt_password": mqtt.get("mqtt_password") or "",
                 "mqtt_topic_prefix": mqtt.get("mqtt_topic_prefix") or "printops",
                 "mqtt_use_tls": mqtt.get("mqtt_use_tls") == "true",
+                "ha_discovery_enabled": mqtt.get("ha_discovery_enabled") == "true",
+                "ha_discovery_prefix": mqtt.get("ha_discovery_prefix") or "homeassistant",
             }
             await mqtt_relay.configure(mqtt_settings)
         except Exception:
