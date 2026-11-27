@@ -15,7 +15,12 @@ import logging
 import threading
 from typing import TYPE_CHECKING, Any
 
-from backend.app.services.ha_entity_model import node_id_for_serial, printer_device_config
+from backend.app.services.ha_entity_model import (
+    ams_device_config,
+    ams_node_id,
+    node_id_for_serial,
+    printer_device_config,
+)
 
 if TYPE_CHECKING:
     from backend.app.services.mqtt_relay import MQTTRelayService
@@ -115,15 +120,19 @@ class MQTTDiscoveryService:
         return ok
 
     def remove_printer(self, serial: str) -> bool:
-        """Remove one printer device (empty retained config)."""
+        """Remove one printer device and its AMS sub-devices (empty retained config)."""
         node_id = node_id_for_serial(serial)
         with self._lock:
-            self._devices.pop(node_id, None)
+            ams_nodes = [n for n in self._devices if n.startswith(f"{node_id}_ams_")]
+            for n in [node_id, *ams_nodes]:
+                self._devices.pop(n, None)
             if not self.enabled or self._relay is None or not self._relay.connected:
-                self._pending_removals.add(node_id)
+                self._pending_removals.update({node_id, *ams_nodes})
                 return False
-            self._pending_removals.discard(node_id)
-        return self._publish_config(node_id, "")
+            self._pending_removals.difference_update({node_id, *ams_nodes})
+        for n in [node_id, *ams_nodes]:
+            self._publish_config(n, "")
+        return True
 
     def clear_all(self) -> None:
         """Remove all announced devices (discovery off, prefix change, shutdown)."""
@@ -174,12 +183,61 @@ class MQTTDiscoveryService:
         """Clear all devices on clean shutdown."""
         self.clear_all()
 
+    def announce_ams_unit(
+        self,
+        *,
+        printer_serial: str,
+        printer_name: str,
+        unit: dict,
+    ) -> bool:
+        """Announce (or refresh) one AMS sub-device of a printer."""
+        if not self.enabled:
+            return False
+        node_id = ams_node_id(printer_serial, unit["id"])
+        payload = ams_device_config(
+            topic_prefix=self.topic_prefix,
+            printer_serial=printer_serial,
+            printer_name=printer_name,
+            unit=unit,
+        )
+        with self._lock:
+            self._devices[node_id] = payload
+            self._pending_removals.discard(node_id)
+        return self._publish_config(node_id, payload)
+
+    def sync_ams_units(
+        self,
+        *,
+        printer_serial: str,
+        printer_name: str,
+        units: list[dict],
+    ) -> None:
+        """Announce new AMS units and retract removed ones."""
+        if not self.enabled:
+            return
+        prefix = f"{node_id_for_serial(printer_serial)}_ams_"
+        current = {ams_node_id(printer_serial, unit["id"]): unit for unit in units}
+        with self._lock:
+            announced = {n: p for n, p in self._devices.items() if n.startswith(prefix)}
+        for node_id, unit in current.items():
+            if node_id not in announced:
+                self.announce_ams_unit(
+                    printer_serial=printer_serial,
+                    printer_name=printer_name,
+                    unit=unit,
+                )
+        for node_id in announced:
+            if node_id not in current:
+                with self._lock:
+                    self._devices.pop(node_id, None)
+                self._publish_config(node_id, "")
+
 
 mqtt_discovery = MQTTDiscoveryService()
 
 
-async def maybe_announce_printer(printer_info: Any) -> None:
-    """Announce a printer to HA discovery once per process.
+async def maybe_announce_printer(printer_info: Any, state: Any = None) -> None:
+    """Announce a printer and its AMS units to HA discovery once per process.
 
     Called from the printer status callback; does nothing unless discovery is
     enabled and the printer has not been announced yet.
@@ -188,6 +246,12 @@ async def maybe_announce_printer(printer_info: Any) -> None:
         return
     node_id = node_id_for_serial(printer_info.serial_number)
     if node_id in mqtt_discovery._devices:
+        # Printer already announced; still keep AMS sub-devices in sync.
+        mqtt_discovery.sync_ams_units(
+            printer_serial=printer_info.serial_number,
+            printer_name=printer_info.name,
+            units=_build_ams_units(printer_info, state),
+        )
         return
     external_url = None
     try:
@@ -205,3 +269,54 @@ async def maybe_announce_printer(printer_info: Any) -> None:
         firmware=getattr(printer_info, "firmware_version", None),
         external_url=external_url,
     )
+    # Keep AMS sub-devices in sync with what the printer reports.
+    mqtt_discovery.sync_ams_units(
+        printer_serial=printer_info.serial_number,
+        printer_name=printer_info.name,
+        units=_build_ams_units(printer_info, state),
+    )
+
+
+def _build_ams_units(printer_info: Any, state: Any) -> list[dict]:
+    """Build the relay-format AMS payload dicts from the printer state."""
+    if state is None:
+        return []
+    try:
+        from backend.app.services.printer_status_ams import build_ams_units
+
+        units, _ = build_ams_units(
+            getattr(state, "raw_data", None) or {},
+            state,
+            {},
+            getattr(printer_info, "model", None),
+        )
+    except Exception:
+        logger.debug("Could not build AMS units for HA discovery", exc_info=True)
+        return []
+    return [
+        {
+            "id": unit.id,
+            "humidity": unit.humidity,
+            "temp": unit.temp,
+            "dry_time": unit.dry_time,
+            "dry_status": unit.dry_status,
+            "serial_number": unit.serial_number,
+            "sw_ver": unit.sw_ver,
+            "is_ams_ht": unit.is_ams_ht,
+            "module_type": unit.module_type,
+            "trays": [
+                {
+                    "id": tray.id,
+                    "type": tray.tray_type,
+                    "color": tray.tray_color,
+                    "remain": tray.remain,
+                    "brand": tray.tray_sub_brands,
+                    "name": tray.tray_id_name,
+                    "exists": tray.exists,
+                    "state": tray.state,
+                }
+                for tray in unit.tray
+            ],
+        }
+        for unit in units
+    ]

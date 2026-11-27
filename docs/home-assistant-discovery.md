@@ -53,6 +53,15 @@ Event entities: print started / completed / failed, printer error,
 filament low (state topics `printops/printers/{serial}/print/...`,
 `.../error`, `.../filament/low`).
 
+### AMS units
+
+Each AMS unit appears as its own device, connected through its printer
+(named like `X1C AMS 1`). Entities: humidity, temperature, drying time
+remaining, and one slot sensor per tray — state is the filament type (e.g.
+`PLA`) or `empty`, with `color`, `remaining`, `brand` and `name` as
+attributes. AMS units are announced from the printer's status report: a new
+unit appears as a device, a removed unit is retracted.
+
 ## Lifecycle
 
 - A printer is announced after it connects and sends its first status.

@@ -297,6 +297,40 @@ class MQTTRelayService:
         self._last_printer_status[printer_id] = now
 
         # Build status payload from PrinterState
+        ams_units: list = []
+        try:
+            from backend.app.services.printer_status_ams import build_ams_units
+
+            ams_units, _ = build_ams_units(state.raw_data or {}, state, {}, None)
+        except Exception:
+            logger.debug("Could not build AMS units for relay payload", exc_info=True)
+        ams_payload = [
+            {
+                "id": unit.id,
+                "humidity": unit.humidity,
+                "temp": unit.temp,
+                "dry_time": unit.dry_time,
+                "dry_status": unit.dry_status,
+                "serial_number": unit.serial_number,
+                "sw_ver": unit.sw_ver,
+                "is_ams_ht": unit.is_ams_ht,
+                "module_type": unit.module_type,
+                "trays": [
+                    {
+                        "id": tray.id,
+                        "type": tray.tray_type,
+                        "color": tray.tray_color,
+                        "remain": tray.remain,
+                        "brand": tray.tray_sub_brands,
+                        "name": tray.tray_id_name,
+                        "exists": tray.exists,
+                        "state": tray.state,
+                    }
+                    for tray in unit.tray
+                ],
+            }
+            for unit in ams_units
+        ]
         payload = {
             "printer_id": printer_id,
             "printer_name": printer_name,
@@ -319,6 +353,7 @@ class MQTTRelayService:
             "big_fan1_speed": state.big_fan1_speed,
             "big_fan2_speed": state.big_fan2_speed,
             "heatbreak_fan_speed": state.heatbreak_fan_speed,
+            "ams": ams_payload,
         }
 
         self._publish(

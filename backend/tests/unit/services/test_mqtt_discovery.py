@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.app.services.ha_entity_model import node_id_for_serial, printer_device_config
+from backend.app.services.ha_entity_model import ams_device_config, node_id_for_serial, printer_device_config
 from backend.app.services.mqtt_discovery import (
     MQTTDiscoveryService,
     validate_discovery_prefix,
@@ -184,3 +184,142 @@ def test_clear_all_retracts_every_device(discovery):
         assert call.args[1] == ""
         assert call.kwargs.get("retain") is True
     assert discovery._devices == {}
+
+
+# --- AMS sub-devices -----------------------------------------------------------
+
+
+AMS_UNIT = {
+    "id": 1,
+    "humidity": 12,
+    "temp": 31.5,
+    "dry_time": 45,
+    "dry_status": 2,
+    "serial_number": "AMS01",
+    "sw_ver": "01.02.00",
+    "is_ams_ht": False,
+    "module_type": "AMS",
+    "trays": [
+        {
+            "id": 0,
+            "type": "PLA",
+            "color": "#FF0000",
+            "remain": 80,
+            "brand": "Bambu PLA Basic",
+            "name": "A00-Y2",
+            "exists": True,
+            "state": 11,
+        },
+        {"id": 1, "type": None, "color": None, "remain": 0, "brand": None, "name": None, "exists": False, "state": 9},
+    ],
+}
+
+
+def test_ams_device_config_structure():
+    cfg = ams_device_config(
+        topic_prefix="printops",
+        printer_serial="00M09ABC",
+        printer_name="X1C",
+        unit=AMS_UNIT,
+    )
+    device = cfg["device"]
+    assert device["identifiers"] == ["printops_00m09abc_ams_1"]
+    assert device["name"] == "X1C AMS 1"
+    assert device["via_device"] == "printops_00m09abc"
+    assert device["model"] == "AMS"
+    assert device["sw_version"] == "01.02.00"
+
+    humidity = next(e for e in cfg["entities"] if e["object_id"].endswith("_ams_1_humidity"))
+    assert humidity["unit_of_measurement"] == "%"
+    assert "value_json.ams[0].humidity" in humidity["value_template"]
+
+    slot = next(e for e in cfg["entities"] if e["object_id"].endswith("_ams_1_slot_0"))
+    assert slot["name"] == "Slot 1"
+    assert "value_json.ams[0].trays[0].type or 'empty'" in slot["value_template"]
+    assert "json_attributes_template" in slot
+
+
+def test_sync_ams_units_announces_and_retracts(discovery):
+    relay = make_relay()
+    discovery.configure({"ha_discovery_enabled": True}, relay)
+    discovery.announce_printer(serial="00M09ABC", name="X1C")
+    relay._publish.reset_mock()
+
+    discovery.sync_ams_units(printer_serial="00M09ABC", printer_name="X1C", units=[AMS_UNIT])
+    assert relay._publish.call_count == 1
+    topic, payload = relay._publish.call_args.args[:2]
+    assert topic == "homeassistant/device/printops_00m09abc_ams_1/config"
+    assert payload["device"]["name"] == "X1C AMS 1"
+
+    # Same unit again: no change. A removed unit: retracted.
+    relay._publish.reset_mock()
+    discovery.sync_ams_units(printer_serial="00M09ABC", printer_name="X1C", units=[AMS_UNIT])
+    relay._publish.assert_not_called()
+    discovery.sync_ams_units(printer_serial="00M09ABC", printer_name="X1C", units=[])
+    assert relay._publish.call_count == 1
+    assert relay._publish.call_args.args[1] == ""
+    assert "printops_00m09abc_ams_1" not in discovery._devices
+
+
+def test_remove_printer_retracts_ams_devices(discovery):
+    relay = make_relay()
+    discovery.configure({"ha_discovery_enabled": True}, relay)
+    discovery.announce_printer(serial="00M09ABC", name="X1C")
+    discovery.sync_ams_units(printer_serial="00M09ABC", printer_name="X1C", units=[AMS_UNIT])
+    relay._publish.reset_mock()
+
+    assert discovery.remove_printer("00M09ABC") is True
+    assert relay._publish.call_count == 2
+    topics = {call.args[0] for call in relay._publish.call_args_list}
+    assert "homeassistant/device/printops_00m09abc/config" in topics
+    assert "homeassistant/device/printops_00m09abc_ams_1/config" in topics
+    assert discovery._devices == {}
+
+
+def test_relay_status_payload_includes_ams():
+    """The relay status topic carries the AMS summary discovery templates read."""
+    from types import SimpleNamespace
+
+    from backend.app.services.mqtt_relay import MQTTRelayService
+
+    relay = MQTTRelayService()
+    relay.enabled = True
+    relay.connected = True
+    relay.topic_prefix = "printops"
+    relay.client = MagicMock()
+
+    captured = {}
+
+    def fake_publish(topic, payload, retain=False):
+        captured["topic"] = topic
+        captured["payload"] = payload
+        return True
+
+    relay._publish = fake_publish
+
+    state = SimpleNamespace(
+        raw_data={},
+        connected=True,
+        state="RUNNING",
+        progress=10.0,
+        remaining_time=5,
+        layer_num=1,
+        total_layers=10,
+        current_print="x",
+        subtask_name="y",
+        gcode_file="z.3mf",
+        temperatures={"nozzle": 200},
+        wifi_signal=-50,
+        chamber_light=True,
+        speed_level=2,
+        cooling_fan_speed=30,
+        big_fan1_speed=40,
+        big_fan2_speed=50,
+        heatbreak_fan_speed=60,
+    )
+    import asyncio
+
+    asyncio.run(relay.on_printer_status(1, state, "X1C", "00M09ABC"))
+    assert captured["topic"] == "printops/printers/00M09ABC/status"
+    assert "ams" in captured["payload"]
+    assert isinstance(captured["payload"]["ams"], list)

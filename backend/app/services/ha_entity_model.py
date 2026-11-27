@@ -380,3 +380,87 @@ def printer_device_config(
         "entities": entities,
         "origin": {"name": ORIGIN_NAME, "url": ORIGIN_URL},
     }
+
+
+def ams_node_id(printer_serial: str, unit_id: int) -> str:
+    return f"{node_id_for_serial(printer_serial)}_ams_{unit_id}"
+
+
+def ams_device_config(
+    *,
+    topic_prefix: str,
+    printer_serial: str,
+    printer_name: str,
+    unit: dict[str, Any],
+) -> dict[str, Any]:
+    """Device discovery payload for one AMS unit (sub-device of the printer)."""
+    unit_id = unit["id"]
+    entities: list[dict[str, Any]] = [
+        _sensor(
+            topic_prefix,
+            printer_serial,
+            f"ams_{unit_id}_humidity",
+            "Humidity",
+            value_template=f"{{{{ value_json.ams[{unit_id - 1}].humidity }}}}",
+            unit="%",
+            icon="mdi:water-percent",
+        ),
+        _sensor(
+            topic_prefix,
+            printer_serial,
+            f"ams_{unit_id}_temp",
+            "Temperature",
+            value_template=f"{{{{ value_json.ams[{unit_id - 1}].temp }}}}",
+            unit="°C",
+            device_class="temperature",
+            state_class="measurement",
+        ),
+        _sensor(
+            topic_prefix,
+            printer_serial,
+            f"ams_{unit_id}_dry_time",
+            "Drying time remaining",
+            value_template=f"{{{{ value_json.ams[{unit_id - 1}].dry_time }}}}",
+            unit="min",
+            device_class="duration",
+            icon="mdi:tumble-dryer",
+        ),
+    ]
+    for tray in unit.get("trays") or []:
+        tray_id = tray["id"]
+        entities.append(
+            {
+                "component": "sensor",
+                "object_id": f"{ams_node_id(printer_serial, unit_id)}_slot_{tray_id}",
+                "unique_id": f"{ams_node_id(printer_serial, unit_id)}_slot_{tray_id}",
+                "name": f"Slot {tray_id + 1}",
+                "state_topic": printer_status_topic(topic_prefix, printer_serial),
+                "value_template": (f"{{{{ value_json.ams[{unit_id - 1}].trays[{tray_id}].type or 'empty' }}}}"),
+                "availability": _availability(topic_prefix, printer_serial),
+                "icon": "mdi:alpha-s-circle-outline",
+                "json_attributes_topic": printer_status_topic(topic_prefix, printer_serial),
+                "json_attributes_template": (
+                    f"{{{{ {{'color': value_json.ams[{unit_id - 1}].trays[{tray_id}].color, "
+                    f"'remaining': value_json.ams[{unit_id - 1}].trays[{tray_id}].remain, "
+                    f"'brand': value_json.ams[{unit_id - 1}].trays[{tray_id}].brand, "
+                    f"'name': value_json.ams[{unit_id - 1}].trays[{tray_id}].name}} | tojson }}}}"
+                ),
+            }
+        )
+    model = unit.get("module_type") or ("AMS HT" if unit.get("is_ams_ht") else "AMS")
+    device: dict[str, Any] = {
+        "identifiers": [ams_node_id(printer_serial, unit_id)],
+        "name": f"{printer_name} AMS {unit_id}",
+        "manufacturer": MANUFACTURER,
+        "model": model,
+        "via_device": node_id_for_serial(printer_serial),
+    }
+    if unit.get("serial_number"):
+        device["serial_number"] = unit["serial_number"]
+    if unit.get("sw_ver"):
+        device["sw_version"] = unit["sw_ver"]
+    return {
+        "device": device,
+        "entities": entities,
+        "origin": {"name": ORIGIN_NAME, "url": ORIGIN_URL},
+    }

@@ -1347,7 +1347,7 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         if printer_info:
             await mqtt_relay.on_printer_status(printer_id, state, printer_info.name, printer_info.serial_number)
             # Announce the printer to HA device discovery (once per process)
-            await maybe_announce_printer(printer_info)
+            await maybe_announce_printer(printer_info, state)
     except Exception:
         pass  # Don't fail status callback if MQTT fails
 
