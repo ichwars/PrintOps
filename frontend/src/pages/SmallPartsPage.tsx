@@ -160,10 +160,9 @@ function statusLabels(part: SmallPart): string[] {
 }
 
 function statusClass(label: string): string {
-  if (label === text('low')) return 'bg-amber-500/20 text-amber-200';
-  if (label === text('inactive')) return 'bg-bambu-dark-tertiary text-bambu-gray';
-  if (label === text('new')) return 'bg-sky-500/20 text-sky-200';
-  return 'bg-bambu-dark-tertiary text-bambu-gray-light';
+  if (label === text('low')) return 'bg-amber-500/20 text-amber-900 dark:text-amber-200';
+  if (label === text('new')) return 'bg-sky-500/20 text-sky-900 dark:text-sky-200';
+  return 'bg-bambu-dark-tertiary text-table-secondary';
 }
 
 function matchesQuery(part: SmallPart, query: string): boolean {
@@ -258,13 +257,13 @@ function MaterialTable({
 }) {
   const columnLabel = new Map(DEFAULT_COLUMNS.map((column) => [column.id, text(column.label)]));
   const cell = (part: SmallPart, column: string) => {
-    if (column === 'sku') return <span className="font-mono text-xs text-bambu-green">{part.sku}</span>;
+    if (column === 'sku') return <span className="font-mono text-xs text-accent-foreground">{part.sku}</span>;
     if (column === 'name') return <span className="font-medium text-white">{part.name}</span>;
     if (column === 'category') return <span>{part.category?.name ?? text('noCategory')}</span>;
     if (column === 'location') return <span>{locationLabel(part)}</span>;
     if (column === 'physical') return <span className="text-white">{quantity(part.balance.physical, part)}</span>;
     if (column === 'reserved') return <span>{quantity(part.balance.reserved, part)}</span>;
-    if (column === 'available') return <span className="font-medium text-bambu-green-light">{quantity(part.balance.available, part)}</span>;
+    if (column === 'available') return <span className="font-medium text-accent-foreground">{quantity(part.balance.available, part)}</span>;
     if (column === 'minimum_stock') return <span>{wholeQuantity(part.minimum_stock)}</span>;
     if (column === 'unit_cost') return <span>{money(part.unit_cost)}</span>;
     if (column === 'supplier') return <span>{part.preferred_offer?.supplier.name ?? '-'}</span>;
@@ -295,8 +294,8 @@ function MaterialTable({
                 <th
                   key={column}
                   className={`${tableHeaderCellClass} select-none ${alignClass} ${
-                    sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
-                  } ${isActive ? '!text-bambu-green' : ''}`}
+                    sortable ? 'cursor-pointer transition-colors hover:text-accent-foreground' : ''
+                  } ${isActive ? 'text-accent-foreground!' : ''}`}
                   onClick={sortable ? () => onSort(column) : undefined}
                 >
                   <span className={`inline-flex items-center gap-1 ${alignClass === 'text-center' ? 'justify-center' : ''}`}>
@@ -317,7 +316,7 @@ function MaterialTable({
         </thead>
         <tbody>
           {items.map((part) => (
-            <tr key={part.id} className="border-b border-bambu-dark-tertiary/50 text-bambu-gray hover:bg-bambu-dark-tertiary/30">
+            <tr key={part.id} className="border-b border-bambu-dark-tertiary/50 text-table-secondary hover:bg-bambu-dark-tertiary/30">
               {visibleColumns.map((column) => (
                 <td key={column} className={`px-4 py-3 align-middle ${columnAlignment[column] ?? 'text-left'}`}>{cell(part, column)}</td>
               ))}
@@ -360,7 +359,7 @@ function MaterialForecast({ items }: { items: SmallPart[] }) {
                     <p className="font-mono text-xs text-bambu-green">{part.sku}</p>
                     <h3 className="mt-1 font-semibold text-white">{part.name}</h3>
                   </div>
-                  <span className={`rounded px-2 py-1 text-xs ${part.balance.is_low_stock ? 'bg-amber-500/20 text-amber-200' : 'bg-bambu-dark-tertiary text-bambu-gray-light'}`}>
+                  <span className={`rounded px-2 py-1 text-xs ${part.balance.is_low_stock ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200' : 'bg-bambu-dark-tertiary text-bambu-gray-light'}`}>
                     {part.balance.is_low_stock ? text('reorder') : text('watch')}
                   </span>
                 </div>
@@ -630,7 +629,7 @@ export function SmallPartsPage() {
         <div className="flex overflow-hidden rounded-lg border border-bambu-dark-tertiary">
           <button type="button" onClick={() => setMaterialFilter('all')} className={`px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'all' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>{text('all')}</button>
           <button type="button" onClick={() => setMaterialFilter('new')} className={`px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'new' ? 'bg-bambu-green/20 text-bambu-green' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>{text('new')}</button>
-          <button type="button" onClick={() => setMaterialFilter('lowstock')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'lowstock' ? 'bg-amber-500/20 text-amber-200' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
+          <button type="button" onClick={() => setMaterialFilter('lowstock')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${materialFilter === 'lowstock' ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200' : 'text-bambu-gray hover:bg-bambu-dark-tertiary'}`}>
             <AlertTriangle className="h-3.5 w-3.5" />{text('lowStock')}
           </button>
         </div>

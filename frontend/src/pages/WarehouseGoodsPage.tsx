@@ -64,17 +64,17 @@ export function WarehouseGoodsPage() {
             </thead>
             <tbody>
               {query.data.items.map((article) => (
-                <tr key={article.id} className="border-b border-bambu-dark-tertiary/50 text-bambu-gray transition-colors last:border-b-0 hover:bg-bambu-dark-tertiary/30">
+                <tr key={article.id} className="border-b border-bambu-dark-tertiary/50 text-table-secondary transition-colors last:border-b-0 hover:bg-bambu-dark-tertiary/30">
                   <td className="px-4 py-3 align-middle">
-                    <button type="button" className="rounded font-mono text-xs text-bambu-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green" onClick={() => setSelected(article.id)}>{article.sku}</button>
+                    <button type="button" className="rounded font-mono text-xs text-accent-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green" onClick={() => setSelected(article.id)}>{article.sku}</button>
                   </td>
                   <td className="min-w-52 px-4 py-3 align-middle">
                     <button type="button" className="rounded text-left font-medium text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green" onClick={() => setSelected(article.id)}>{article.name}</button>
-                    <p className="mt-1 text-xs text-bambu-gray">{copy[article.stock_source]} · {article.is_active ? copy.active : copy.archived}</p>
+                    <p className="mt-1 text-xs text-table-secondary">{copy[article.stock_source]} · {article.is_active ? copy.active : copy.archived}</p>
                   </td>
                   <td className="px-4 py-3 align-middle">{copy[article.kind]}</td>
                   {(['physical', 'reserved', 'available'] as const).map((key) => (
-                    <td key={key} className={`whitespace-nowrap px-4 py-3 text-center align-middle tabular-nums ${key === 'available' ? `font-medium ${article.balance.is_low_stock ? 'text-amber-300' : 'text-bambu-green-light'}` : key === 'physical' ? 'text-white' : ''}`}>
+                    <td key={key} className={`whitespace-nowrap px-4 py-3 text-center align-middle tabular-nums ${key === 'available' ? `font-medium ${article.balance.is_low_stock ? 'text-amber-800 dark:text-amber-300' : 'text-accent-foreground'}` : key === 'physical' ? 'text-white' : ''}`}>
                       {article.kind === 'service' ? '—' : `${warehouseQuantity(article.balance[key])} ${article.unit_code}`}
                     </td>
                   ))}

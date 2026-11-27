@@ -15,9 +15,9 @@ export function StorageLocationSensors({ locationId, locationName }: { locationI
     enabled: hasPermission('inventory:read'), refetchInterval: 15000,
   });
   return <div className="space-y-1">
-    {isError && <span className="text-bambu-gray">{t('storageSensors.loadFailed')}</span>}
+    {isError && <span className="text-table-secondary">{t('storageSensors.loadFailed')}</span>}
     {readings.filter((reading) => reading.location_id === locationId).map((reading) => (
-      <div key={reading.id} className={reading.alerting ? 'text-amber-500' : 'text-bambu-gray'}>
+      <div key={reading.id} className={reading.alerting ? 'text-amber-800 dark:text-amber-300' : 'text-table-secondary'}>
         {reading.name}: {reading.value === null ? '—' : `${reading.value} ${reading.unit}`}
         <span className="ml-1 text-xs">{t(`storageSensors.${reading.status}`)}</span>
         {reading.last_read_at && <time className="block text-xs" dateTime={`${reading.last_read_at}Z`}>

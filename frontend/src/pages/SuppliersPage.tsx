@@ -153,13 +153,13 @@ export function SuppliersPage() {
               <article key={supplier.id} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-white">{supplier.name}</h2>{!supplier.is_active ? <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray-light">{t('suppliers.filters.inactive')}</span> : null}</div>
-                    <p className="mt-1 text-sm text-bambu-gray">{[supplier.contact_name, supplier.email, supplier.city].filter(Boolean).join(' · ') || t('suppliers.noContact')}</p>
-                    <p className="mt-3 text-sm text-bambu-gray-light">{t('suppliers.leadTime', { count: supplier.default_lead_time_days })}</p>
+                    <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-white">{supplier.name}</h2>{!supplier.is_active ? <span className="rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-table-secondary">{t('suppliers.filters.inactive')}</span> : null}</div>
+                    <p className="mt-1 text-sm text-table-secondary">{[supplier.contact_name, supplier.email, supplier.city].filter(Boolean).join(' · ') || t('suppliers.noContact')}</p>
+                    <p className="mt-3 text-sm text-table-secondary">{t('suppliers.leadTime', { count: supplier.default_lead_time_days })}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     {canUpdate ? <Button type="button" variant="ghost" size="sm" aria-label={t('suppliers.actions.edit', { name: supplier.name })} onClick={() => setEditor({ supplier, canEdit: true })}><Pencil aria-hidden="true" className="h-4 w-4" /></Button> : null}
-                    {canDelete ? <Button type="button" variant="ghost" size="sm" aria-label={`${t('suppliers.actions.delete')}: ${supplier.name}`} onClick={() => setEditor({ supplier, canEdit: false })}><Trash2 aria-hidden="true" className="h-4 w-4 text-red-400" /></Button> : null}
+                    {canDelete ? <Button type="button" variant="ghost" size="sm" aria-label={`${t('suppliers.actions.delete')}: ${supplier.name}`} onClick={() => setEditor({ supplier, canEdit: false })}><Trash2 aria-hidden="true" className="h-4 w-4 text-red-700 dark:text-red-300" /></Button> : null}
                   </div>
                 </div>
               </article>

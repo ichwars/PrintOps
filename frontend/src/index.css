@@ -41,6 +41,11 @@
   --color-status-error: var(--status-error);
   --color-status-warning: var(--status-warning);
 
+  /* Foreground colors for dense data and controls on themed surfaces. */
+  --color-table-secondary: color-mix(in srgb, var(--text-primary) 30%, var(--text-secondary));
+  --color-accent-foreground: color-mix(in srgb, var(--text-primary) 60%, var(--accent));
+  --color-secondary-action-hover: color-mix(in srgb, var(--bg-tertiary) 87%, var(--text-primary));
+
   /* Theme-aware colors via CSS variables */
   --color-bambu-dark: var(--bg-primary);
   --color-bambu-dark-secondary: var(--bg-secondary);
@@ -59,6 +64,8 @@ html {
 }
 
 :root {
+  color-scheme: light;
+
   /* Default accent color (green) */
   --accent: #00ae42;
   --accent-light: #00c64d;
@@ -94,6 +101,8 @@ html {
 
 /* Dark mode base */
 .dark {
+  color-scheme: dark;
+
   --bg-primary: #1a1a1a;
   --bg-secondary: #2d2d2d;
   --bg-tertiary: #3d3d3d;
@@ -301,6 +310,13 @@ body {
 /* Override text-white to be theme-aware */
 .text-white {
   color: var(--text-primary);
+}
+
+/* Keep the hover variant theme-aware on hover-capable devices. */
+@media (hover: hover) {
+  .hover\:text-white:hover {
+    color: var(--text-primary);
+  }
 }
 
 /* Smooth transitions for theme changes */

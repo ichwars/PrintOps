@@ -4,6 +4,8 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+- Improve light and dark theme contrast for warehouse tables, row actions and checkboxes. Archived filament rows use a distinct background, and native browser controls follow the active theme.
+
 ## [1.2.8.4] - 2026-11-20
 
 - Improve resumed print attribution, zero-gram accounting and multi-file queue submission. Equally eligible printers are ranked by operating hours.

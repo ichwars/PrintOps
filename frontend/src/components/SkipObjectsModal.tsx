@@ -216,7 +216,7 @@ export function SkipObjectsModal({ printerId, isOpen, onClose }: SkipObjectsModa
             event.stopPropagation();
             setEnlarged(true);
           }}
-          className="absolute right-2 top-2 rounded bg-black/65 p-1.5 text-white/80 hover:text-white"
+          className="absolute right-2 top-2 rounded bg-black/65 p-1.5 text-white/80 hover:text-white/100"
           title={t('common.expand')}
         >
           <Maximize2 className="h-4 w-4" />

@@ -72,11 +72,11 @@ export function WarehouseArticleDetail({ id, onClose }: { id: number; onClose: (
                 </tr>
               </thead>
               <tbody>{article.locations.map((location) => (
-                <tr key={location.location_id ?? 'none'} className="border-b border-bambu-dark-tertiary/50 text-bambu-gray last:border-b-0 hover:bg-bambu-dark-tertiary/30">
+                <tr key={location.location_id ?? 'none'} className="border-b border-bambu-dark-tertiary/50 text-table-secondary last:border-b-0 hover:bg-bambu-dark-tertiary/30">
                   <td className="px-4 py-3 text-white">{location.location_name}</td>
                   <td className="px-4 py-3 text-center tabular-nums text-white">{warehouseQuantity(location.physical)}</td>
                   <td className="px-4 py-3 text-center tabular-nums">{warehouseQuantity(location.reserved)}</td>
-                  <td className={`px-4 py-3 text-center font-medium tabular-nums ${location.is_low_stock ? 'text-amber-300' : 'text-bambu-green-light'}`}>{warehouseQuantity(location.available)}</td>
+                  <td className={`px-4 py-3 text-center font-medium tabular-nums ${location.is_low_stock ? 'text-amber-800 dark:text-amber-300' : 'text-accent-foreground'}`}>{warehouseQuantity(location.available)}</td>
                 </tr>
               ))}</tbody>
             </table>

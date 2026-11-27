@@ -218,16 +218,16 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     <span className="text-sm font-medium text-white">{spool.id}</span>
   ),
   added_time: ({ spool, dateFormat }) => (
-    <span className="text-sm text-bambu-gray">{formatInventoryDate(spool.created_at, dateFormat)}</span>
+    <span className="text-sm text-table-secondary">{formatInventoryDate(spool.created_at, dateFormat)}</span>
   ),
   encode_time: ({ spool, dateFormat }) => (
-    <span className="text-sm text-bambu-gray">{formatInventoryDate(spool.encode_time, dateFormat)}</span>
+    <span className="text-sm text-table-secondary">{formatInventoryDate(spool.encode_time, dateFormat)}</span>
   ),
   last_used_time: ({ spool, dateFormat }) => (
-    <span className="text-sm text-bambu-gray">{spool.last_used ? formatInventoryDate(spool.last_used, dateFormat) : 'Never'}</span>
+    <span className="text-sm text-table-secondary">{spool.last_used ? formatInventoryDate(spool.last_used, dateFormat) : 'Never'}</span>
   ),
   last_dried: ({ spool, dateFormat }) => (
-    <div className="text-sm text-bambu-gray">
+    <div className="text-sm text-table-secondary">
       {formatInventoryDate(spool.last_dried_at ?? null, dateFormat)}
       {spool.last_dried_at && <div className="text-xs">{formatSpoolDryingDetails(spool)}</div>}
     </div>
@@ -247,37 +247,37 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     <span className="text-sm text-white">{spool.material}</span>
   ),
   material_number: ({ spool }) => (
-    <span className="text-sm font-mono text-bambu-gray">{spool.material_number || '-'}</span>
+    <span className="text-sm font-mono text-table-secondary">{spool.material_number || '-'}</span>
   ),
   subtype: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.subtype || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.subtype || '-'}</span>
   ),
   color_name: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{resolveSpoolColorName(spool.color_name, spool.rgba) || '-'}</span>
+    <span className="text-sm text-table-secondary">{resolveSpoolColorName(spool.color_name, spool.rgba) || '-'}</span>
   ),
   brand: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.brand || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.brand || '-'}</span>
   ),
   slicer_filament: ({ spool }) => (
-    <span className="text-sm text-bambu-gray" title={spool.slicer_filament || undefined}>
+    <span className="text-sm text-table-secondary" title={spool.slicer_filament || undefined}>
       {spool.slicer_filament_name || spool.slicer_filament || '-'}
     </span>
   ),
   location: ({ spool, assignmentMap }) => {
     const assignment = assignmentMap[spool.id];
-    if (!assignment) return <span className="text-sm text-bambu-gray">-</span>;
+    if (!assignment) return <span className="text-sm text-table-secondary">-</span>;
     const printerLabel = assignment.printer_name || `Printer ${assignment.printer_id}`;
     const slotLabel = formatAssignmentSlotLabel(assignment);
     return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
         {printerLabel} {slotLabel}{assignment.ams_label ? ` (${assignment.ams_label})` : ''}
       </span>
     );
   },
   storage_location: ({ spool }) => {
-    if (!spool.storage_location) return <span className="text-sm text-bambu-gray">-</span>;
+    if (!spool.storage_location) return <span className="text-sm text-table-secondary">-</span>;
     return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
         {spool.storage_location}
       </span>
     );
@@ -289,43 +289,43 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     <span className="text-sm text-white">{formatWeight(remaining)}</span>
   ),
   gross: ({ spool, remaining }) => (
-    <span className="text-sm text-bambu-gray">{formatWeight(remaining + spool.core_weight)}</span>
+    <span className="text-sm text-table-secondary">{formatWeight(remaining + spool.core_weight)}</span>
   ),
   used: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.weight_used > 0 ? formatWeight(spool.weight_used) : '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.weight_used > 0 ? formatWeight(spool.weight_used) : '-'}</span>
   ),
   printed_total: () => (
-    <span className="text-sm text-bambu-gray/50">-</span>
+    <span className="text-sm text-table-secondary">-</span>
   ),
   printed_since_weight: () => (
-    <span className="text-sm text-bambu-gray/50">-</span>
+    <span className="text-sm text-table-secondary">-</span>
   ),
   note: ({ spool }) => (
-    <span className="text-sm text-bambu-gray max-w-[150px] truncate block" title={spool.note || undefined}>{spool.note || '-'}</span>
+    <span className="text-sm text-table-secondary max-w-[150px] truncate block" title={spool.note || undefined}>{spool.note || '-'}</span>
   ),
   pa_k: ({ spool }) => {
     const count = spool.k_profiles?.length ?? 0;
-    if (count === 0) return <span className="text-sm text-bambu-gray">-</span>;
+    if (count === 0) return <span className="text-sm text-table-secondary">-</span>;
     return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-bambu-green/20 text-bambu-green">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-bambu-green/20 text-accent-foreground">
         K
       </span>
     );
   },
   tag_id: ({ spool }) => {
     const tag = spool.tag_uid || spool.tray_uuid;
-    if (!tag) return <span className="text-sm text-bambu-gray/50">-</span>;
+    if (!tag) return <span className="text-sm text-table-secondary">-</span>;
     return (
-      <span className="text-sm text-bambu-gray font-mono" title={tag}>
+      <span className="text-sm text-table-secondary font-mono" title={tag}>
         {tag.length > 12 ? `${tag.slice(0, 6)}...${tag.slice(-4)}` : tag}
       </span>
     );
   },
   data_origin: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.data_origin || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.data_origin || '-'}</span>
   ),
   tag_type: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.tag_type || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.tag_type || '-'}</span>
   ),
   stock: ({ spool, t }) => {
     if (!spool.slicer_filament) {
@@ -335,7 +335,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
         </span>
       );
     }
-    return <span className="text-sm text-bambu-gray">-</span>;
+    return <span className="text-sm text-table-secondary">-</span>;
   },
   remaining: ({ remaining, pct }) => (
     <div className="flex items-center gap-2">
@@ -345,21 +345,21 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
-      <span className="text-xs text-bambu-gray min-w-[40px] text-right">{Math.round(remaining)}g</span>
+      <span className="text-xs text-table-secondary min-w-[40px] text-right">{Math.round(remaining)}g</span>
     </div>
   ),
   spool_name: ({ spool, catalogMap }) => {
     const entry = spool.core_weight_catalog_id != null ? catalogMap[spool.core_weight_catalog_id] : undefined;
-    return <span className="text-sm text-bambu-gray">{entry?.name || '-'}</span>;
+    return <span className="text-sm text-table-secondary">{entry?.name || '-'}</span>;
   },
   cost_per_kg: ({ spool, currencySymbol, t }) => {
     const rate = shownCostPerKg(spool);
     const inherited = spool.effective_cost_per_kg != null && !(spool.cost_per_kg && spool.cost_per_kg > 0);
-    return <span className="text-sm text-bambu-gray" title={inherited ? t('inventory.costFromFilament') : undefined}>{rate != null ? `${currencySymbol}${rate.toFixed(2)}` : '-'}</span>;
+    return <span className="text-sm text-table-secondary" title={inherited ? t('inventory.costFromFilament') : undefined}>{rate != null ? `${currencySymbol}${rate.toFixed(2)}` : '-'}</span>;
   },
   weight_check: ({ spool, onSyncWeight }) => {
     const scaleWeight = spool.last_scale_weight;
-    if (scaleWeight == null) return <span className="text-sm text-bambu-gray/50" title={interfaceI18n.t("orders.runtimeInterface.noScaleMeasurement")}>-</span>;
+    if (scaleWeight == null) return <span className="text-sm text-table-secondary" title={interfaceI18n.t("orders.runtimeInterface.noScaleMeasurement")}>-</span>;
 
     const coreWeight = spool.core_weight || 0;
     const calculatedWeight = Math.max(0, spool.label_weight - spool.weight_used) + coreWeight;
@@ -399,7 +399,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
                   e.preventDefault();
                   onSyncWeight(spool);
                 }}
-                className="p-1 hover:bg-bambu-green/20 rounded transition-colors text-bambu-green"
+                className="p-1 hover:bg-bambu-green/20 rounded transition-colors text-accent-foreground"
                 title={interfaceI18n.t("orders.runtimeInterface.syncTrustScaleWeightAndResetTracking")}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -2047,8 +2047,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         <th
                           key={colId}
                           className={`${tableHeaderCellClass} select-none ${colId === 'remaining' ? 'min-w-[150px]' : ''} ${
-                            sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
-                          } ${isActive ? '!text-bambu-green' : ''}`}
+                            sortable ? 'cursor-pointer transition-colors hover:text-accent-foreground' : ''
+                          } ${isActive ? 'text-accent-foreground!' : ''}`}
                           aria-sort={sortable ? isActive ? sortState.direction === 'asc' ? 'ascending' : 'descending' : 'none' : undefined}
                         >
                           {sortable ? <Button variant="unstyled" onClick={() => handleSort(colId)} className="inline-flex min-h-11 min-w-11 items-center gap-1">
@@ -2598,8 +2598,8 @@ function SpoolTableRow({
   return (
     <tr
       className={`border-b border-bambu-dark-tertiary/50 hover:bg-bambu-dark-tertiary/30 transition-colors cursor-pointer ${
-        spool.archived_at ? 'opacity-50' : ''
-      } ${isSelected ? 'bg-bambu-green/10' : ''}`}
+        isSelected ? 'bg-bambu-green/10' : spool.archived_at ? 'bg-bambu-dark-tertiary/20' : ''
+      }`}
       onClick={onEdit}
     >
       <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
@@ -2618,16 +2618,16 @@ function SpoolTableRow({
       ))}
       <td className="py-3 px-4">
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <button onClick={onEdit} className="p-1.5 text-bambu-gray hover:text-white rounded transition-colors" title={t('common.edit')}>
+          <button onClick={onEdit} className="p-1.5 text-table-secondary hover:text-white rounded transition-colors" title={t('common.edit')}>
             <Edit2 className="w-4 h-4" />
           </button>
           {onCopy && (
-            <button onClick={onCopy} className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors" title={t('inventory.copySpool')}>
+            <button onClick={onCopy} className="p-1.5 text-table-secondary hover:text-accent-foreground rounded transition-colors" title={t('inventory.copySpool')}>
               <Copy className="w-4 h-4" />
             </button>
           )}
           {onPrintLabel && (
-            <button onClick={onPrintLabel} className="p-1.5 text-bambu-gray hover:text-white rounded transition-colors" title={t('inventory.labels.printOne')}>
+            <button onClick={onPrintLabel} className="p-1.5 text-table-secondary hover:text-white rounded transition-colors" title={t('inventory.labels.printOne')}>
               <Printer className="w-4 h-4" />
             </button>
           )}
@@ -2636,7 +2636,7 @@ function SpoolTableRow({
             // archived consumed weight now counts in "Total Consumed", so
             // the user needs a way to zero an archived spool's tracking
             // counter individually without having to un-archive it first.
-            <button onClick={onResetConsumedCounter} className="p-1.5 text-bambu-gray hover:text-orange-600 dark:hover:text-orange-400 rounded transition-colors" title={t('inventory.resetConsumedCounterTooltip')}>
+            <button onClick={onResetConsumedCounter} className="p-1.5 text-table-secondary hover:text-orange-800 dark:hover:text-orange-300 rounded transition-colors" title={t('inventory.resetConsumedCounterTooltip')}>
               <Eraser className="w-4 h-4" />
             </button>
           )}
@@ -2644,22 +2644,22 @@ function SpoolTableRow({
             <button
               onClick={onRefill}
               disabled={!!refilling}
-              className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors disabled:opacity-50"
+              className="p-1.5 text-table-secondary hover:text-accent-foreground rounded transition-colors disabled:opacity-50"
               title={t('inventory.refill')}
             >
               {refilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             </button>
           )}
           {spool.archived_at ? (
-            <button onClick={onRestore} className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors" title={t('inventory.restore')}>
+            <button onClick={onRestore} className="p-1.5 text-table-secondary hover:text-accent-foreground rounded transition-colors" title={t('inventory.restore')}>
               <RotateCcw className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={onArchive} className="p-1.5 text-bambu-gray hover:text-yellow-600 dark:hover:text-yellow-400 rounded transition-colors" title={t('inventory.archive')}>
+            <button onClick={onArchive} className="p-1.5 text-table-secondary hover:text-amber-800 dark:hover:text-amber-300 rounded transition-colors" title={t('inventory.archive')}>
               <Archive className="w-4 h-4" />
             </button>
           )}
-          <button onClick={onDelete} className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 rounded transition-colors" title={t('common.delete')}>
+          <button onClick={onDelete} className="p-1.5 text-table-secondary hover:text-red-700 dark:hover:text-red-300 rounded transition-colors" title={t('common.delete')}>
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -2724,11 +2724,11 @@ function SpoolTableGroup({
           <td key={colId} className="py-3 px-4">
             {idx === 0 ? (
               <div className="flex items-center gap-2">
-                <ChevronDown className={`w-4 h-4 text-bambu-gray transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                <ChevronDown className={`w-4 h-4 text-table-secondary transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
                 {columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight })}
               </div>
             ) : colId === 'id' ? (
-              <span className="text-xs font-medium bg-bambu-green/20 text-bambu-green px-2 py-0.5 rounded-full">
+              <span className="text-xs font-medium bg-bambu-green/20 text-accent-foreground px-2 py-0.5 rounded-full">
                 {t('inventory.groupedSpools', { count: spools.length })}
               </span>
             ) : (
@@ -2737,7 +2737,7 @@ function SpoolTableGroup({
           </td>
         ))}
         <td className="py-3 px-4">
-          <span className="text-xs text-bambu-gray">
+          <span className="text-xs text-table-secondary">
             {spools.map((s) => `#${s.id}`).join(', ')}
           </span>
         </td>
