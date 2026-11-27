@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="static/img/printops_logo.svg" alt="PrintOps logo" width="360">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/printops-readme-logo-dark.svg">
+    <img src="docs/images/printops-readme-logo-light.svg" alt="PrintOps logo" width="360">
+  </picture>
 </p>
 
 <h1 align="center">PrintOps</h1>
