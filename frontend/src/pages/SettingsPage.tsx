@@ -2,6 +2,7 @@ import './settings/inlineSettingsSearch';
 import { FilamentProfileDefaults } from '../components/FilamentProfileDefaults';
 import { SensorHistoryRetentionFields } from '../components/SensorHistoryRetentionFields';
 import { AppNotificationKeyToggle } from '../components/AppNotificationKeyToggle';
+import { HaDiscoverySettings } from '../components/HaDiscoverySettings';
 import { APIKeyScopeControl } from '../components/APIKeyScopeControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Cog, QrCode, Workflow, Info, UploadCloud } from 'lucide-react';
@@ -1146,6 +1147,8 @@ export function SettingsPage() {
       settings.mqtt_password !== localSettings.mqtt_password ||
       settings.mqtt_topic_prefix !== localSettings.mqtt_topic_prefix ||
       settings.mqtt_use_tls !== localSettings.mqtt_use_tls ||
+      settings.ha_discovery_enabled !== localSettings.ha_discovery_enabled ||
+      settings.ha_discovery_prefix !== localSettings.ha_discovery_prefix ||
       (isAdmin && (settings.external_url || window.location.origin) !== localSettings.external_url) ||
       settings.ha_enabled !== localSettings.ha_enabled ||
       settings.ha_url !== localSettings.ha_url ||
@@ -1232,6 +1235,8 @@ export function SettingsPage() {
         mqtt_password: localSettings!.mqtt_password,
         mqtt_topic_prefix: localSettings!.mqtt_topic_prefix,
         mqtt_use_tls: localSettings!.mqtt_use_tls,
+        ha_discovery_enabled: localSettings!.ha_discovery_enabled,
+        ha_discovery_prefix: localSettings!.ha_discovery_prefix,
         ha_enabled: localSettings!.ha_enabled,
         ...(localSettings!.ha_url_from_env ? {} : { ha_url: localSettings!.ha_url }),
         ...(localSettings!.ha_token_from_env ? {} : { ha_token: localSettings!.ha_token }),
@@ -3665,6 +3670,9 @@ export function SettingsPage() {
                       {t('settings.topicPrefixHint', { prefix: localSettings.mqtt_topic_prefix || 'printops' })}
                     </p>
                   </div>
+
+                  {/* Home Assistant Discovery */}
+                  <HaDiscoverySettings localSettings={localSettings} updateSetting={updateSetting} />
 
                   {/* Connection Info */}
                   {mqttStatus && (

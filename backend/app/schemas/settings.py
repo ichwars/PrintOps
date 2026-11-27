@@ -212,6 +212,13 @@ class AppSettings(BaseModel):
     mqtt_password: str = Field(default="", description="MQTT password for authentication (optional)")
     mqtt_topic_prefix: str = Field(default="printops", description="Topic prefix for all published messages")
     mqtt_use_tls: bool = Field(default=False, description="Use TLS/SSL encryption for MQTT connection")
+    # Home Assistant device discovery published via the MQTT relay
+    ha_discovery_enabled: bool = Field(
+        default=False, description="Publish HA MQTT device discovery messages for every printer"
+    )
+    ha_discovery_prefix: str = Field(
+        default="homeassistant", description="MQTT discovery prefix Home Assistant listens on"
+    )
 
     # External URL for notifications
     external_url: str = Field(
@@ -583,6 +590,8 @@ class AppSettingsUpdate(BaseModel):
     mqtt_password: str | None = None
     mqtt_topic_prefix: str | None = None
     mqtt_use_tls: bool | None = None
+    ha_discovery_enabled: bool | None = None
+    ha_discovery_prefix: str | None = None
     external_url: str | None = None
     ha_enabled: bool | None = None
     ha_url: str | None = None

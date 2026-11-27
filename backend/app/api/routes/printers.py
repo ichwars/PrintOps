@@ -502,6 +502,13 @@ async def delete_printer(
 
     for plug_id, plug_type in plugs:
         forget_deleted_smart_plug(plug_id, plug_type)
+    # Retract the printer's Home Assistant discovery device
+    try:
+        from backend.app.services.mqtt_discovery import mqtt_discovery
+
+        mqtt_discovery.remove_printer(printer.serial_number)
+    except Exception:
+        pass
     printer_manager.disconnect_printer(printer_id)
     await ws_manager.refresh_live_access()
     await finish_virtual_printer_deletions(upload_dirs)

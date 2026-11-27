@@ -126,6 +126,7 @@ from backend.app.services.github_backup import github_backup_service
 from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.homeassistant import homeassistant_service
 from backend.app.services.library_trash import library_trash_service
+from backend.app.services.mqtt_discovery import maybe_announce_printer
 from backend.app.services.mqtt_relay import mqtt_relay
 from backend.app.services.mqtt_smart_plug import mqtt_smart_plug_service
 from backend.app.services.notification_service import notification_service
@@ -1345,6 +1346,8 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         printer_info = printer_manager.get_printer(printer_id)
         if printer_info:
             await mqtt_relay.on_printer_status(printer_id, state, printer_info.name, printer_info.serial_number)
+            # Announce the printer to HA device discovery (once per process)
+            await maybe_announce_printer(printer_info, state)
     except Exception:
         pass  # Don't fail status callback if MQTT fails
 
@@ -5728,6 +5731,8 @@ async def lifespan(app: FastAPI):
             "mqtt_password": await get_setting(db, "mqtt_password") or "",
             "mqtt_topic_prefix": await get_setting(db, "mqtt_topic_prefix") or "printops",
             "mqtt_use_tls": (await get_setting(db, "mqtt_use_tls") or "false") == "true",
+            "ha_discovery_enabled": (await get_setting(db, "ha_discovery_enabled") or "false") == "true",
+            "ha_discovery_prefix": await get_setting(db, "ha_discovery_prefix") or "homeassistant",  # noqa: E501
         }
         await mqtt_relay.configure(mqtt_settings)
 

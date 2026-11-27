@@ -78,6 +78,8 @@ export interface AppSettings {
   mqtt_password: string;
   mqtt_topic_prefix: string;
   mqtt_use_tls: boolean;
+  ha_discovery_enabled: boolean;
+  ha_discovery_prefix: string;
   // External URL for notifications
   external_url: string;
   // Home Assistant integration

@@ -4,6 +4,8 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+- Add optional Home Assistant MQTT device discovery to the MQTT relay: enable it under Settings → Network → MQTT Publishing to have HA create one device per printer (state, progress, temperatures, fans, online/light binary sensors, print/error/filament-low events) plus one sub-device per AMS unit (humidity, temperature, drying time, slot sensors) automatically from the existing retained topics. See [docs/home-assistant-discovery.md](docs/home-assistant-discovery.md).
+
 ## [1.2.8.4] - 2026-11-20
 
 - Improve resumed print attribution, zero-gram accounting and multi-file queue submission. Equally eligible printers are ranked by operating hours.

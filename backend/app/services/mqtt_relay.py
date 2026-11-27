@@ -52,6 +52,11 @@ class MQTTRelayService:
             await self.disconnect()
             # Also configure smart plug service (will disable it)
             await self._configure_smart_plug_service(settings)
+            from backend.app.services.mqtt_discovery import mqtt_discovery
+
+            if mqtt_discovery.enabled:
+                mqtt_discovery.clear_all()
+                mqtt_discovery.enabled = False
             logger.info("MQTT relay disabled")
             return True
 
@@ -61,6 +66,25 @@ class MQTTRelayService:
         password = settings.get("mqtt_password", "")
         self.topic_prefix = settings.get("mqtt_topic_prefix", "printops")
         use_tls = settings.get("mqtt_use_tls", False)
+
+        # Home Assistant device discovery on top of the relay topics
+        from backend.app.services.mqtt_discovery import mqtt_discovery
+
+        was_discovery_enabled = mqtt_discovery.enabled
+        old_prefix = mqtt_discovery.discovery_prefix
+        old_devices = dict(mqtt_discovery._devices)
+        discovery_error = mqtt_discovery.configure(settings, self)
+        if discovery_error and was_discovery_enabled:
+            logger.warning("HA discovery turned off: %s", discovery_error)
+        if was_discovery_enabled and (
+            not mqtt_discovery.enabled
+            or old_prefix != mqtt_discovery.discovery_prefix
+            or self.topic_prefix != mqtt_discovery.topic_prefix
+        ):
+            # Retract devices announced under the old prefix / old topic prefix.
+            for node_id in old_devices:
+                self._publish(f"{old_prefix}/device/{node_id}/config", "", retain=True)
+            mqtt_discovery._devices.clear()
 
         if not broker:
             logger.warning("MQTT enabled but no broker configured")
@@ -116,6 +140,7 @@ class MQTTRelayService:
             # Set up callbacks
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
+            self.client.on_message = self._on_message
 
             # Configure authentication
             if username:
@@ -169,6 +194,13 @@ class MQTTRelayService:
             logger.info("MQTT relay connected successfully")
             # Publish online status
             self._publish_status("online")
+            # Re-announce HA discovery devices and listen for HA's birth message
+            try:
+                from backend.app.services.mqtt_discovery import mqtt_discovery
+
+                mqtt_discovery.on_broker_connect()
+            except Exception:
+                logger.exception("HA discovery announce on connect failed")
         else:
             self.connected = False
             logger.error("MQTT relay connection failed: %s", reason_code)
@@ -192,6 +224,16 @@ class MQTTRelayService:
             logger.info("MQTT relay disconnected cleanly")
         if self._disconnection_event:
             self._disconnection_event.set()
+
+    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage):
+        """Forward messages to the HA discovery service (birth message)."""
+        try:
+            from backend.app.services.mqtt_discovery import mqtt_discovery
+
+            if mqtt_discovery.enabled:
+                mqtt_discovery.handle_message(msg.topic, msg.payload.decode("utf-8", "replace"))
+        except Exception:
+            logger.debug("MQTT message handler error (ignored)", exc_info=True)
 
     async def disconnect(self, timeout: float = 0):
         """Disconnect from MQTT broker."""
@@ -255,6 +297,40 @@ class MQTTRelayService:
         self._last_printer_status[printer_id] = now
 
         # Build status payload from PrinterState
+        ams_units: list = []
+        try:
+            from backend.app.services.printer_status_ams import build_ams_units
+
+            ams_units, _ = build_ams_units(state.raw_data or {}, state, {}, None)
+        except Exception:
+            logger.debug("Could not build AMS units for relay payload", exc_info=True)
+        ams_payload = [
+            {
+                "id": unit.id,
+                "humidity": unit.humidity,
+                "temp": unit.temp,
+                "dry_time": unit.dry_time,
+                "dry_status": unit.dry_status,
+                "serial_number": unit.serial_number,
+                "sw_ver": unit.sw_ver,
+                "is_ams_ht": unit.is_ams_ht,
+                "module_type": unit.module_type,
+                "trays": [
+                    {
+                        "id": tray.id,
+                        "type": tray.tray_type,
+                        "color": tray.tray_color,
+                        "remain": tray.remain,
+                        "brand": tray.tray_sub_brands,
+                        "name": tray.tray_id_name,
+                        "exists": tray.exists,
+                        "state": tray.state,
+                    }
+                    for tray in unit.tray
+                ],
+            }
+            for unit in ams_units
+        ]
         payload = {
             "printer_id": printer_id,
             "printer_name": printer_name,
@@ -277,6 +353,7 @@ class MQTTRelayService:
             "big_fan1_speed": state.big_fan1_speed,
             "big_fan2_speed": state.big_fan2_speed,
             "heatbreak_fan_speed": state.heatbreak_fan_speed,
+            "ams": ams_payload,
         }
 
         self._publish(
