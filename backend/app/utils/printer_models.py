@@ -322,6 +322,7 @@ def has_remote_storage_toggle(model: str | None) -> bool:
         "N9",
         "A1",
         "A1MINI",
+        "A1M",
         "N1",
         "N2S",
         "A04",
@@ -528,4 +529,4 @@ def uses_exhaust_fan_label(model: str | None) -> bool:
     P3C) ships with the default "Exhaust" label.
     """
     normalized = (model or "").strip().upper().replace(" ", "").replace("-", "")
-    return normalized not in {"X1", "X1C", "X1E", "P1S", "BLP001", "BLP002", "C12", "C13"}
+    return normalized not in {"X1", "X1C", "X1E", "P1S", "BLP001", "BLP002", "BLP003", "C12", "C13"}

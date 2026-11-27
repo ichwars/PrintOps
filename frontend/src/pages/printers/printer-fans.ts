@@ -4,7 +4,8 @@ import type { PrinterStatus } from '../../api/client';
 export function usesExhaustFanLabel(model?: string | null): boolean {
   // BambuStudio machine profiles label fan 3 "Chamber" only on the
   // X1/X1C/X1E and P1S; every other model ships the default "Exhaust" label.
-  return !['X1', 'X1C', 'X1E', 'P1S', 'BL-P001', 'BL-P002', 'C12', 'C13'].includes(
+  // Array entries are normalized like the model (uppercase, no dashes/spaces).
+  return !['X1', 'X1C', 'X1E', 'P1S', 'BLP001', 'BLP002', 'BLP003', 'C12', 'C13'].includes(
     (model || '').toUpperCase().replace(/[ -]/g, '')
   );
 }

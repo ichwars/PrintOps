@@ -267,10 +267,12 @@ async def run_connection_diagnostic(
     # /cache directory is always writable from PrintOps regardless of
     # either toggle, so the probe always passes and detects nothing.
     #
-    # Skip entirely on models with no external-storage slot at all (A1
-    # and A1 Mini). They never set home_flag bit 11, so a naive read of
+    # Skip entirely on models that never surface the store-to-external
+    # option: the card-only printers (A1 family, A2L, P1 family) and the
+    # eMMC generation without any card slot (P2S/X2D/H2/H3C/P3C). The A1
+    # family never sets home_flag bit 11 (#1703), so a naive read of
     # `store_to_sdcard` would fall through to a false `fail` for every
-    # A1-series user (#1703).
+    # A1-series user.
     state = printer_manager.get_status(printer.id) if printer else None
     model_has_slot = has_external_storage(getattr(printer, "model", None)) if printer else True
     if printer and not has_remote_storage_toggle(printer.model):

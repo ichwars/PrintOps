@@ -230,10 +230,14 @@ MODEL_MAINTENANCE_TYPES: dict[str, list[dict]] = {"H3C": H3C_MAINTENANCE_TYPES}
 _MODEL_ONLY_TYPES: dict[str, str] = {t["name"]: m for m, types in MODEL_MAINTENANCE_TYPES.items() for t in types}
 
 _H3C_MODELS = frozenset(["H3C"])
-# Generic system types a model's own one replaces there.
+# Generic system types a model's own one replaces there. The H3C runs on
+# metal linear rods (rods class), so its own X/Y-rail tasks replace BOTH
+# the generic rail tasks and the generic steel-rod tasks.
 _REPLACED_ON_MODELS: dict[str, frozenset[str]] = {
     "Lubricate Linear Rails": _H3C_MODELS,  # -> X/Y rails + Z lead screws
     "Clean Linear Rails": _H3C_MODELS,  # -> X/Y rails (wiped before oiling)
+    "Lubricate Steel Rods": _H3C_MODELS,  # same physical X/Y rods
+    "Clean Steel Rods": _H3C_MODELS,
     "Clean Nozzle/Hotend": _H3C_MODELS,  # -> Clean Hotends
     "Check PTFE Tube": _H3C_MODELS,  # -> Check Filament Tubes
 }

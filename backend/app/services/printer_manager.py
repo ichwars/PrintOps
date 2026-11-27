@@ -41,7 +41,10 @@ CHAMBER_TEMP_SUPPORTED_MODELS = frozenset(
         "H2DPRO",
         "H2S",  # H2 series
         "H3C",  # H3 series
-        "P3C",  # P3 series (enclosed; exhaust fan speed is chamber-temp driven)
+        # P3C: the adaptive-airflow unit's exhaust speed is auto-controlled
+        # by chamber temperature (cooling-fan-system wiki), so the chamber
+        # temp is measured and reported — sensor-only, like the enclosed P2S.
+        "P3C",  # P3 series
         # Internal codes (from MQTT/SSDP)
         "BL-P001",  # X1/X1C
         "C13",  # X1E

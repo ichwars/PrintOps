@@ -476,7 +476,7 @@ class TestExternalStorageClassification:
     def test_sd_slot_models_keep_storage_check(self, model: str):
         assert has_external_storage(model) is True
 
-    @pytest.mark.parametrize("model", ["A1", "A1 Mini", "N1", "N2S", "A04", "A11", "A12"])
+    @pytest.mark.parametrize("model", ["A1", "A1 Mini", "N1", "N2S", "A04", "A11", "A12", "A1M"])
     def test_a1_series_has_no_remote_storage_toggle(self, model: str):
         """#1703 regression guard: the A1 family stores prints on its MicroSD
         (no internal storage), so the "store to external storage" option never
@@ -512,7 +512,7 @@ class TestExhaustFanLabel:
     X1/X1C/X1E and P1S; every other model (P1P, P2S, X2D, H2 series, H3C,
     P3C) uses the default "Exhaust" label."""
 
-    @pytest.mark.parametrize("model", ["X1", "X1C", "X1E", "P1S", "BL-P001", "BL-P002", "C12", "C13"])
+    @pytest.mark.parametrize("model", ["X1", "X1C", "X1E", "P1S", "BL-P001", "BL-P002", "BL-P003", "C12", "C13"])
     def test_chamber_label_models(self, model: str):
         assert uses_exhaust_fan_label(model) is False
 

@@ -136,6 +136,12 @@ class TestH3CMaintenance:
             "Clean Carbon Rods",
             "Lubricate Linear Rails",
             "Clean Linear Rails",
+            # The H3C is rods-class since its X/Y rods replaced the rail
+            # tasks; its own X/Y-rail tasks must also replace the GENERIC
+            # steel-rod tasks, or an H3C gets the same physical rods on
+            # two conflicting schedules.
+            "Lubricate Steel Rods",
+            "Clean Steel Rods",
             "Clean Nozzle/Hotend",
             "Check PTFE Tube",
         ):

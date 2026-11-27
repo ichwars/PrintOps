@@ -128,6 +128,8 @@ API_KEY_TO_WIKI_PATH = {
     "p2s": "/en/p2s/manual/p2s-firmware-release-history",
     "x2d": "/en/x2d/manual/x2d-firmware-release-history",
     "h2d-pro": "/en/h2d-pro/manual/firmware-release-history",
+    # A2L wiki page is published (a2l-firmware-release-history); a 404
+    # would still be safe — _fetch_all_versions_from_wiki returns [].
     "a2l": "/en/a2l/manual/a2l-firmware-release-history",
     # H3C: no model prefix in the page name, like the H2D Pro.
     "h3c": "/en/h3c/manual/firmware-release-history",
