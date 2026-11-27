@@ -207,6 +207,7 @@ export default {
     logout: 'ログアウト',
     installApp: 'アプリをインストール',
     installAppSuccess: 'PrintOpsをインストールしました',
+    installAppIosHint: 'iPhoneまたはiPadにPrintOpsをインストールするには：Safariの共有ボタンをタップし、「ホーム画面に追加」を選択してください。',
   },
 
   printops: {

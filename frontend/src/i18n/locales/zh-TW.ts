@@ -207,6 +207,7 @@ export default {
     logout: '登出',
     installApp: '安裝應用程式',
     installAppSuccess: 'PrintOps 已安裝',
+    installAppIosHint: '若要在 iPhone 或 iPad 上安裝 PrintOps：請點一下 Safari 中的分享按鈕，然後選擇「加入主畫面」。',
   },
 
   printops: {

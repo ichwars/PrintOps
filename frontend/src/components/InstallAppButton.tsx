@@ -10,20 +10,38 @@ interface BeforeInstallPromptEvent extends Event {
   readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
+// iOS Safari never fires beforeinstallprompt; the only install path is the
+// Share-sheet "Add to Home Screen" action. Modern iPadOS masquerades as
+// desktop Safari, so touch points are the reliable tablet signal.
+function isIos(): boolean {
+  const ua = navigator.userAgent;
+  const isIosUa = /iPhone|iPad|iPod/.test(ua);
+  const isIpadOs = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  return isIosUa || isIpadOs;
+}
+
+function isStandalone(): boolean {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
 /**
  * Sidebar-footer button that installs PrintOps as a PWA.
  *
  * Chrome for Android removed the automatic install banner in Chrome 108, so
  * without an in-app trigger the only install path on Android is a buried
  * browser-menu item (#1460). This button captures the `beforeinstallprompt`
- * event and re-fires it on click. It renders nothing when the browser has no
- * pending prompt - already installed, unsupported browser, or iOS Safari
- * (which has no programmatic install at all).
+ * event and re-fires it on click. On iOS Safari (which has no programmatic
+ * install at all) the button instead surfaces the Share-sheet instructions,
+ * and it renders nothing when the app is already running standalone.
  */
 export function InstallAppButton() {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [iosHint, setIosHint] = useState(false);
 
   useEffect(() => {
     const onBeforeInstallPrompt = (e: Event) => {
@@ -35,17 +53,24 @@ export function InstallAppButton() {
     const onInstalled = () => setPromptEvent(null);
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
     window.addEventListener('appinstalled', onInstalled);
+    if (!isStandalone() && isIos()) {
+      setIosHint(true);
+    }
     return () => {
       window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
       window.removeEventListener('appinstalled', onInstalled);
     };
   }, []);
 
-  if (!promptEvent) {
+  if (!promptEvent && !iosHint) {
     return null;
   }
 
   const handleInstall = async () => {
+    if (!promptEvent) {
+      showToast(t('nav.installAppIosHint'), 'info');
+      return;
+    }
     await promptEvent.prompt();
     const { outcome } = await promptEvent.userChoice;
     // A captured prompt can only be used once; drop it either way so the

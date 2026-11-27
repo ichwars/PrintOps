@@ -207,6 +207,7 @@ export default {
     logout: '退出登录',
     installApp: '安装应用',
     installAppSuccess: 'PrintOps 已安装',
+    installAppIosHint: '要在 iPhone 或 iPad 上安装 PrintOps：请点击 Safari 中的分享按钮，然后选择“添加到主屏幕”。',
   },
 
   printops: {

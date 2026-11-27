@@ -213,6 +213,7 @@ export default {
     logout: 'Cerrar sesión',
     installApp: 'Instalar app',
     installAppSuccess: 'PrintOps se ha instalado',
+    installAppIosHint: 'Para instalar PrintOps en tu iPhone o iPad: pulsa el botón Compartir en Safari y elige “Añadir a pantalla de inicio”.',
   },
 
   printops: {

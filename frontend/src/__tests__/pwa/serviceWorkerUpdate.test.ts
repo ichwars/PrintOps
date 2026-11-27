@@ -17,8 +17,8 @@ describe('service worker update contract', () => {
   it('uses the current cache generation for runtime and static assets', () => {
     const source = fs.readFileSync(path.join(publicRoot, 'sw.js'), 'utf8');
 
-    expect(source).toContain("const CACHE_NAME = 'printops-v4';");
-    expect(source).toContain("const STATIC_CACHE = 'printops-static-v3';");
+    expect(source).toContain("const CACHE_NAME = 'printops-v5';");
+    expect(source).toContain("const STATIC_CACHE = 'printops-static-v4';");
   });
 
   it('serves versioned assets from cache, and keeps HTML errors out of that cache', async () => {

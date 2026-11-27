@@ -1,6 +1,6 @@
 // PrintOps Service Worker
-const CACHE_NAME = 'printops-v4';
-const STATIC_CACHE = 'printops-static-v3';
+const CACHE_NAME = 'printops-v5';
+const STATIC_CACHE = 'printops-static-v4';
 const HASHED_ASSET = /^\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$/;
 const ENTRY_SCRIPT = /\/assets\/index-[A-Za-z0-9_-]{8}\.js/;
 const ENTRY_CACHE_KEY = '/__printops_active_build__';
@@ -49,6 +49,8 @@ const STATIC_ASSETS = [
   '/img/apple-touch-icon.png',
   '/img/android-chrome-192x192.png',
   '/img/android-chrome-512x512.png',
+  '/img/android-chrome-maskable-192x192.png',
+  '/img/android-chrome-maskable-512x512.png',
   // Self-hosted Inter font (#1460) - cached so the UI renders offline.
   '/fonts/inter-latin.woff2',
   '/fonts/inter-latin-ext.woff2',
