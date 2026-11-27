@@ -284,55 +284,57 @@ function MaterialTable({
 
   return (
     <div className="overflow-hidden rounded-lg border border-bambu-dark-tertiary">
-      <table className="w-full text-sm">
-        <thead className={tableHeaderClass}>
-          <tr className={tableHeaderRowClass}>
-            {visibleColumns.map((column) => {
-              const sortable = Boolean(columnSortValues[column]);
-              const isActive = sortState?.column === column;
-              const alignClass = columnAlignment[column] ?? 'text-left';
-              return (
-                <th
-                  key={column}
-                  className={`${tableHeaderCellClass} select-none ${alignClass} ${
-                    sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
-                  } ${isActive ? '!text-bambu-green' : ''}`}
-                  onClick={sortable ? () => onSort(column) : undefined}
-                >
-                  <span className={`inline-flex items-center gap-1 ${alignClass === 'text-center' ? 'justify-center' : ''}`}>
-                    {columnLabel.get(column) ?? column}
-                    {sortable && (
-                      isActive
-                        ? sortState.direction === 'asc'
-                          ? <ArrowUp className="h-3 w-3" />
-                          : <ArrowDown className="h-3 w-3" />
-                        : <ArrowUpDown className="h-3 w-3 opacity-30" />
-                    )}
-                  </span>
-                </th>
-              );
-            })}
-            <th className={tableHeaderActionCellClass}>{text('actions')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((part) => (
-            <tr key={part.id} className="border-b border-bambu-dark-tertiary/50 text-bambu-gray hover:bg-bambu-dark-tertiary/30">
-              {visibleColumns.map((column) => (
-                <td key={column} className={`px-4 py-3 align-middle ${columnAlignment[column] ?? 'text-left'}`}>{cell(part, column)}</td>
-              ))}
-              <td className="px-4 py-3">
-                <div className="flex items-center justify-end gap-1">
-                  <IconButton label={text('editMaterial')} icon={Pencil} onClick={() => onEdit(part)} />
-                  <Button type="button" size="sm" variant="secondary" onClick={() => onStock(part)}>
-                    <PackagePlus className="h-4 w-4" />{text('stock')}
-                  </Button>
-                </div>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className={tableHeaderClass}>
+            <tr className={tableHeaderRowClass}>
+              {visibleColumns.map((column) => {
+                const sortable = Boolean(columnSortValues[column]);
+                const isActive = sortState?.column === column;
+                const alignClass = columnAlignment[column] ?? 'text-left';
+                return (
+                  <th
+                    key={column}
+                    className={`${tableHeaderCellClass} select-none ${alignClass} ${
+                      sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
+                    } ${isActive ? '!text-bambu-green' : ''}`}
+                    onClick={sortable ? () => onSort(column) : undefined}
+                  >
+                    <span className={`inline-flex items-center gap-1 ${alignClass === 'text-center' ? 'justify-center' : ''}`}>
+                      {columnLabel.get(column) ?? column}
+                      {sortable && (
+                        isActive
+                          ? sortState.direction === 'asc'
+                            ? <ArrowUp className="h-3 w-3" />
+                            : <ArrowDown className="h-3 w-3" />
+                          : <ArrowUpDown className="h-3 w-3 opacity-30" />
+                      )}
+                    </span>
+                  </th>
+                );
+              })}
+              <th className={`${tableHeaderActionCellClass} sticky right-0 z-10 bg-bambu-dark-tertiary/95`}>{text('actions')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.map((part) => (
+              <tr key={part.id} className="border-b border-bambu-dark-tertiary/50 text-bambu-gray hover:bg-bambu-dark-tertiary/30">
+                {visibleColumns.map((column) => (
+                  <td key={column} className={`px-4 py-3 align-middle ${columnAlignment[column] ?? 'text-left'}`}>{cell(part, column)}</td>
+                ))}
+                <td className="sticky right-0 z-10 bg-bambu-dark-secondary px-4 py-3 shadow-[-14px_0_18px_-18px_rgba(0,0,0,0.85)]">
+                  <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                    <IconButton label={text('editMaterial')} icon={Pencil} onClick={() => onEdit(part)} />
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onStock(part)}>
+                      <PackagePlus className="h-4 w-4" />{text('stock')}
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -494,14 +496,14 @@ export function SmallPartsPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <header className="flex items-center justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-bold text-white">
             <Boxes className="h-7 w-7 text-bambu-green" />{text('material')}
           </h1>
           <p className="mt-1 text-bambu-gray">{text('subtitle')}</p>
         </div>
-        <Button type="button" onClick={() => setEditorPart(null)}>
+        <Button type="button" className="shrink-0" onClick={() => setEditorPart(null)}>
           <Plus className="h-4 w-4" />{text('addMaterial')}
         </Button>
       </header>

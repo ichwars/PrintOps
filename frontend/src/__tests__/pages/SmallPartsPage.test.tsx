@@ -148,6 +148,27 @@ describe('SmallPartsPage', () => {
     expect(screen.getByText('42 Stück verfügbar')).toBeInTheDocument();
   });
 
+  it('keeps the stock action column pinned inside a horizontally scrollable table wrapper', async () => {
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 })),
+    );
+    renderPage();
+
+    // #265: the "+Bestand" button must stay reachable at narrow viewports.
+    const stockButton = await screen.findByRole('button', { name: 'Bestand' });
+    const actionCell = stockButton.closest('td');
+    expect(actionCell).not.toBeNull();
+    expect(actionCell).toHaveClass('sticky', 'right-0', 'z-10');
+    expect(actionCell!.querySelector('div')).toHaveClass('whitespace-nowrap');
+
+    const actionHeader = screen.getByRole('columnheader', { name: 'Aktionen' });
+    expect(actionHeader).toHaveClass('sticky', 'right-0', 'z-10');
+
+    const scrollWrapper = screen.getByRole('table').parentElement;
+    expect(scrollWrapper).toHaveClass('overflow-x-auto');
+    expect(scrollWrapper!.parentElement).toHaveClass('overflow-hidden', 'rounded-lg', 'border');
+  });
+
   it('preserves a material column draft during a background catalog refresh and language change', async () => {
     const savedColumns = new Map<string, string>();
     vi.mocked(localStorage.getItem).mockImplementation(key => savedColumns.get(key) ?? null);
