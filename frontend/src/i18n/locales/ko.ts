@@ -205,7 +205,8 @@ export default {
     smartSwitches: '스마트 스위치',
     logout: '로그아웃',
     installApp: '앱 설치',
-    installAppSuccess: 'PrintOps가 설치되었습니다'
+    installAppSuccess: 'PrintOps가 설치되었습니다',
+    installAppIosHint: 'iPhone 또는 iPad에 PrintOps를 설치하려면: Safari의 공유 버튼을 누른 후 \'홈 화면에 추가\'를 선택하세요.',
   },
   printops: {
     nav: {

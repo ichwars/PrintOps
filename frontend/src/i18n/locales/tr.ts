@@ -207,6 +207,7 @@ export default {
     logout: 'Çıkış',
     installApp: 'Uygulamayı yükle',
     installAppSuccess: 'PrintOps yüklendi',
+    installAppIosHint: 'PrintOps’u iPhone veya iPad’inize yüklemek için: Safari’deki Paylaş düğmesine dokunun ve “Ana Ekrana Ekle”yi seçin.',
   },
 
   printops: {

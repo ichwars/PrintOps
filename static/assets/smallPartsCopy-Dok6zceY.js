@@ -1,0 +1,1 @@
+import{n as e}from"./jsx-runtime-DSvWr6Vg.js";import{Dt as t,Ot as n}from"./index-DyKbqR6P.js";function r(e,n={}){return t.t(`orders.runtimeDomain.smallParts.${e}`,n)}function i(){return t.resolvedLanguage||t.language||`en`}function a(t){let{t:r}=e(void 0,t?{lng:n(t)}:void 0);return(e,t={})=>r(`orders.runtimeDomain.smallParts.${e}`,t)}export{r as n,a as r,i as t};

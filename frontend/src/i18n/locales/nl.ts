@@ -209,6 +209,7 @@ export default {
     logout: "Uitloggen",
     installApp: "App installeren",
     installAppSuccess: "PrintOps is geïnstalleerd",
+    installAppIosHint: "Om PrintOps op je iPhone of iPad te installeren: tik in Safari op de deelknop en kies “Voeg toe aan beginscherm”.",
   },
 
   printops: {

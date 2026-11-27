@@ -19,6 +19,8 @@ describe('PrintOps brand references', () => {
     expect(manifest.icons).toEqual([
       { src: '/img/android-chrome-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/img/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/img/android-chrome-maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      { src: '/img/android-chrome-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ]);
     expect(manifest.shortcuts.every((shortcut: { icons: Array<{ src: string }> }) =>
       shortcut.icons[0].src === '/img/android-chrome-192x192.png')).toBe(true);
