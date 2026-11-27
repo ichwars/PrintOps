@@ -70,9 +70,14 @@ async def protect_warehouse_location(db: AsyncSession, location_id: int) -> None
     )
     if history is not None:
         raise ValueError("Lagerort wird in der unveränderlichen Warenhistorie verwendet")
-    if await db.scalar(
-        select(ProjectProductionOutput.project_id).where(ProjectProductionOutput.location_id == location_id).limit(1)
-    ) is not None:
+    if (
+        await db.scalar(
+            select(ProjectProductionOutput.project_id)
+            .where(ProjectProductionOutput.location_id == location_id)
+            .limit(1)
+        )
+        is not None
+    ):
         raise ValueError("Lagerort ist einem Produktionsprojekt zugeordnet")
     if await db.scalar(select(SmallPart.id).where(SmallPart.location_id == location_id).limit(1)) is not None:
         raise ValueError("Location has materials assigned and cannot be deleted")

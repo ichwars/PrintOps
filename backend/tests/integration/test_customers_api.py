@@ -891,7 +891,10 @@ async def test_list_filters_searches_projects_profile_fields_and_paginates_disti
                 BASE_URL + "/",
                 params={
                     "business_profile_id": selected_profile["id"],
-                    "sort": sort, "direction": "desc", "limit": 1, "offset": offset,
+                    "sort": sort,
+                    "direction": "desc",
+                    "limit": 1,
+                    "offset": offset,
                 },
             )
             assert sorted_page.status_code == 200, sorted_page.text

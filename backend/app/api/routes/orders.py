@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import NoReturn
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +24,7 @@ from backend.app.services.order_errors import OrderDomainError, ResourceNotFound
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-def _raise(error: OrderDomainError):
+def _raise(error: OrderDomainError) -> NoReturn:
     code = status.HTTP_404_NOT_FOUND if isinstance(error, ResourceNotFoundError) else status.HTTP_409_CONFLICT
     detail_code = "not_found" if isinstance(error, ResourceNotFoundError) else "invalid_reservation_state"
     raise HTTPException(code, detail={"code": detail_code, "message": str(error)})

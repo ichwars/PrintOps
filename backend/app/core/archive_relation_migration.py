@@ -1,4 +1,4 @@
-"""Apply the reviewed archival and queue delete rules on SQLite."""
+"""Apply archival, queue, and production delete rules."""
 
 from collections import defaultdict
 
@@ -27,11 +27,15 @@ _REFERENCES = {
     "spool_usage_history": ("printer_id",),
     "telegram_quality_messages": ("archive_id",),
 }
+_SQLITE_PRODUCTION_PROJECT_REFERENCES = {
+    "project_production_outputs": ("project_id",),
+    "project_production_receipts": ("project_id",),
+}
 _FTS_REBUILD_KEY = "_archive_fts_rebuilt_once"
 
 
-def _rules(metadata: MetaData):
-    for table, columns in _REFERENCES.items():
+def _rules(metadata: MetaData, references):
+    for table, columns in references.items():
         for name in columns:
             column = metadata.tables[table].c[name]
             (key,) = column.foreign_keys
@@ -52,9 +56,7 @@ async def rebuild_legacy_archive_fts(conn: AsyncConnection) -> None:
         await conn.exec_driver_sql("INSERT INTO archive_fts(archive_fts) VALUES ('rebuild')")
 
 
-async def _sqlite_rules(conn: AsyncConnection, metadata: MetaData, rules) -> None:
-    from backend.app.services.library_queue_references import release_queue_references
-
+async def _create_sqlite_delete_triggers(conn: AsyncConnection, rules, suffix: str) -> None:
     quote = conn.dialect.identifier_preparer.quote_identifier
     statements_by_parent = defaultdict(list)
     for child, parent, action in rules:
@@ -67,11 +69,27 @@ async def _sqlite_rules(conn: AsyncConnection, metadata: MetaData, rules) -> Non
             delete_statement = f"UPDATE {table} SET {name} = NULL"  # nosec B608
         statements_by_parent[parent.table.name].append(f"{delete_statement} WHERE {name} = OLD.id;")
     for parent, statements in statements_by_parent.items():
-        name = quote(f"printops_delete_{parent}_refs")
+        name = quote(f"printops_delete_{parent}_{suffix}")
         body = "\n".join(statements)
         await conn.exec_driver_sql(
             f"CREATE TRIGGER IF NOT EXISTS {name} AFTER DELETE ON {quote(parent)} BEGIN {body} END"
         )
+
+
+async def _sqlite_rules(conn: AsyncConnection, metadata: MetaData, rules) -> None:
+    from backend.app.services.library_queue_references import release_queue_references
+
+    production_rules = tuple(_rules(metadata, _SQLITE_PRODUCTION_PROJECT_REFERENCES))
+    await _create_sqlite_delete_triggers(conn, rules, "refs")
+    # Older installs already have the projects trigger. Add a companion trigger.
+    await _create_sqlite_delete_triggers(conn, production_rules, "production_refs")
+    await conn.exec_driver_sql("""
+        CREATE TRIGGER IF NOT EXISTS printops_restrict_delete_booked_runs BEFORE DELETE ON print_log_entries
+        WHEN EXISTS (SELECT 1 FROM project_production_receipts WHERE run_id = OLD.id)
+        BEGIN
+            SELECT RAISE(ABORT, 'Print run is linked to a production receipt');
+        END
+    """)
 
     queue = metadata.tables["print_queue"]
     files = metadata.tables["library_files"]
@@ -86,7 +104,7 @@ async def _sqlite_rules(conn: AsyncConnection, metadata: MetaData, rules) -> Non
     missing_archive = queue.c.archive_id.is_not(None) & ~exists().where(archives.c.id == queue.c.archive_id)
     await conn.execute(update(queue).where(missing_archive, queue.c.status == "printing").values(archive_id=None))
 
-    for child, parent, action in rules:
+    for child, parent, action in (*rules, *production_rules):
         missing = child.is_not(None) & ~exists().where(parent == child)
         if action == "CASCADE":
             await conn.execute(delete(child.table).where(missing))
@@ -94,6 +112,12 @@ async def _sqlite_rules(conn: AsyncConnection, metadata: MetaData, rules) -> Non
             values = {column.key: column for column in child.table.c if column.onupdate is not None}
             values[child.key] = None
             await conn.execute(update(child.table).where(missing).values(values))
+
+    # Preserve the ledger and receipt when a pre-upgrade deletion left a missing run.
+    receipts = metadata.tables["project_production_receipts"]
+    runs = metadata.tables["print_log_entries"]
+    missing_run = receipts.c.run_id.is_not(None) & ~exists().where(runs.c.id == receipts.c.run_id)
+    await conn.execute(update(receipts).where(missing_run).values(run_id=None))
 
 
 def _fk_map(sync):
@@ -124,9 +148,40 @@ async def _postgres_rules(conn: AsyncConnection, rules) -> None:
         )
 
 
+def _postgres_production_run_fk(sync):
+    return next(
+        (
+            fk
+            for fk in inspect(sync).get_foreign_keys("project_production_receipts")
+            if fk["constrained_columns"] == ["run_id"] and fk["referred_table"] == "print_log_entries"
+        ),
+        None,
+    )
+
+
+async def _postgres_protect_booked_runs(conn: AsyncConnection) -> None:
+    existing = await conn.run_sync(_postgres_production_run_fk)
+    if existing is not None and existing["options"].get("ondelete") == "RESTRICT":
+        return
+    # Serialize concurrent upgrades before changing the constraint.
+    await conn.exec_driver_sql("LOCK TABLE project_production_receipts IN ACCESS EXCLUSIVE MODE")
+    existing = await conn.run_sync(_postgres_production_run_fk)
+    if existing is not None and existing["options"].get("ondelete") == "RESTRICT":
+        return
+    if existing is not None and existing["name"] is not None:
+        name = conn.dialect.identifier_preparer.quote_identifier(existing["name"])
+        await conn.exec_driver_sql(f"ALTER TABLE project_production_receipts DROP CONSTRAINT {name}")
+    await conn.exec_driver_sql("""
+        ALTER TABLE project_production_receipts
+        ADD CONSTRAINT project_production_receipts_run_id_fkey
+        FOREIGN KEY (run_id) REFERENCES print_log_entries (id) ON DELETE RESTRICT
+    """)
+
+
 async def migrate_archive_relations(conn: AsyncConnection, metadata: MetaData) -> None:
-    rules = tuple(_rules(metadata))
+    rules = tuple(_rules(metadata, _REFERENCES))
     if conn.dialect.name == "sqlite":
         await _sqlite_rules(conn, metadata, rules)
     elif conn.dialect.name == "postgresql":
         await _postgres_rules(conn, rules)
+        await _postgres_protect_booked_runs(conn)

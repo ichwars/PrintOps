@@ -156,7 +156,9 @@ Vor dem Speichern wählst du den Ziellagerort.
 
 Für Projekte mit einem solchen Lagerziel bestätigst du zuerst die Gutteile der
 fertigen Druckläufe. Beim Projektabschluss bucht PrintOps diese Stückzahl am
-gewählten Lagerort. Ein Drucklauf wird dabei einmal berücksichtigt. Ohne
+gewählten Lagerort. Ein Drucklauf wird dabei einmal berücksichtigt. Wenn nach
+der Buchung eine Mengenberichtigung erforderlich ist, erfolgt sie im Warenjournal.
+Gebuchte Druckläufe bleiben auch beim Bereinigen des Druckprotokolls erhalten. Ohne
 Lagerziel bleibt der übliche Projektabschluss ohne automatische Lagerbuchung.
 Zum Festlegen des Ziels und zur automatischen Buchung beim Abschluss ist
 `inventory:update` zusätzlich zu den Projektrechten erforderlich.

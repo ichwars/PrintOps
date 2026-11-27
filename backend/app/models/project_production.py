@@ -15,7 +15,7 @@ class ProjectProductionOutput(Base):
 
 
 class ProjectProductionReceipt(Base):
-    """One inventory receipt per print run, retained if print history is pruned."""
+    """One inventory receipt per print run, with a durable link to the booked run."""
 
     __tablename__ = "project_production_receipts"
 
@@ -24,5 +24,5 @@ class ProjectProductionReceipt(Base):
     )
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), index=True)
     run_id: Mapped[int | None] = mapped_column(
-        ForeignKey("print_log_entries.id", ondelete="SET NULL"), unique=True, index=True
+        ForeignKey("print_log_entries.id", ondelete="RESTRICT"), unique=True, index=True
     )

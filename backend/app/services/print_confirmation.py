@@ -16,6 +16,7 @@ from backend.app.models.print_batch import PrintBatchPlate
 from backend.app.models.print_log import RUN_OPEN, PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.project_production import ProjectProductionOutput
+from backend.app.services.print_log_run import lock_print_run, production_receipt
 
 _locks: weakref.WeakValueDictionary[int, asyncio.Lock] = weakref.WeakValueDictionary()
 TOKEN_LIFETIME = timedelta(hours=48)
@@ -80,7 +81,9 @@ async def initialize_queue_outcome(db: AsyncSession, item: PrintQueueItem, archi
         production = (
             production
             or await db.get(ProjectProductionOutput, item.project_id) is not None
-            or bool(await db.scalar(select(CustomerOrder.id).where(CustomerOrder.project_id == item.project_id).limit(1)))
+            or bool(
+                await db.scalar(select(CustomerOrder.id).where(CustomerOrder.project_id == item.project_id).limit(1))
+            )
         )
     # Production requires inspection even when a caller omitted the optional toggle.
     item.confirm_outcome = bool(item.confirm_outcome or production)
@@ -156,6 +159,15 @@ async def record_outcome(
         raise OutcomeConflict("This print has changed; reload the current run before confirming")
     if good_quantity < 0 or reject_quantity < 0 or good_quantity + reject_quantity != run.quantity:
         raise OutcomeConflict(f"Good and rejected quantities must total the intended {run.quantity} parts")
+    if token_hash is None:
+        # Serialize manual corrections with the project's receipt transaction.
+        if not await lock_print_run(db, run.id):
+            raise OutcomeConflict("This print has changed; reload the current run before confirming")
+        await db.refresh(run, attribute_names=["good_quantity"])
+        if good_quantity != run.good_quantity and await db.scalar(production_receipt(run.id)) is not None:
+            raise OutcomeConflict(
+                "The confirmed parts were received into stock. Correct the quantity in the stock journal."
+            )
     verdict = "good" if reject_quantity == 0 else "reject" if good_quantity == 0 else "mixed"
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     current_archive = select(PrintArchive.id).where(

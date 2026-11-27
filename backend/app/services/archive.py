@@ -1653,14 +1653,14 @@ class ArchiveService:
             from sqlalchemy import delete
 
             from backend.app.models.print_log import INCLUDE_OPEN_RUNS, PrintLogEntry
+            from backend.app.services.print_log_run import production_receipt
 
             await self.db.execute(
                 delete(PrintLogEntry)
-                .where(PrintLogEntry.archive_id == archive_id)
+                .where(PrintLogEntry.archive_id == archive_id, ~production_receipt(PrintLogEntry.id).exists())
                 .execution_options(**{INCLUDE_OPEN_RUNS: True})
             )
-        else:
-            await _clear_archived_run_media(self.db, archive_id)
+        await _clear_archived_run_media(self.db, archive_id)
 
         # Delete database record FIRST — if the commit fails (e.g. database locked
         # during concurrent bulk deletes), the files stay on disk and nothing is lost.

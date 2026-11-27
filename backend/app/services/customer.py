@@ -321,7 +321,9 @@ async def create_customer(
 def _customer_order(sort: CustomerSortKey, direction: CustomerSortDirection):
     if sort == "contact":
         name = func.nullif(
-            func.trim(func.coalesce(CustomerContact.first_name, "") + " " + func.coalesce(CustomerContact.last_name, "")),
+            func.trim(
+                func.coalesce(CustomerContact.first_name, "") + " " + func.coalesce(CustomerContact.last_name, "")
+            ),
             "",
         )
         column = (

@@ -248,15 +248,22 @@ async def test_document_sort_is_applied_before_pagination(document_client, db_se
                 result = await document_client.get(
                     f"{BASE}/documents",
                     headers=payment_reader,
-                    params={"connection_id": connection.id, "sort": sort, "direction": direction,
-                            "limit": 1, "offset": offset},
+                    params={
+                        "connection_id": connection.id,
+                        "sort": sort,
+                        "direction": direction,
+                        "limit": 1,
+                        "offset": offset,
+                    },
                 )
                 assert result.status_code == 200, result.text
                 assert result.json()["total"] == 3
                 assert [item["voucher_number"] for item in result.json()["items"]] == [number]
 
         # A read-only list uses the redacted status even to order results.
-        response = await document_client.get(f"{BASE}/documents", headers=reader, params={"sort": "status", "direction": "asc"})
+        response = await document_client.get(
+            f"{BASE}/documents", headers=reader, params={"sort": "status", "direction": "asc"}
+        )
         assert response.status_code == 200, response.text
         assert [row["id"] for row in response.json()["items"]] == [document.id for document in reversed(documents)]
         assert all(row["voucher_status"] == "final" for row in response.json()["items"])

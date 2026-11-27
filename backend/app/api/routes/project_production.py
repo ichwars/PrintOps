@@ -1,33 +1,39 @@
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import is_auth_enabled
+from backend.app.core.auth import OwnershipAccess, _check_apikey_permissions, is_auth_enabled
 from backend.app.core.permissions import Permission
 from backend.app.models.project import Project
 from backend.app.models.project_production import ProjectProductionOutput
-from backend.app.models.user import User
 from backend.app.schemas.project import ProjectProductionDestination
 from backend.app.services import project_production
 from backend.app.services.warehouse_articles import WarehouseError
 
 
+def production_destination(output: ProjectProductionOutput | None) -> ProjectProductionDestination | None:
+    if output is None:
+        return None
+    return ProjectProductionDestination.model_validate(output)
+
+
 async def update_production_output(
     db: AsyncSession,
     project: Project,
-    user: User | None,
+    access: OwnershipAccess,
     destination: ProjectProductionDestination | None,
     *,
     completing: bool = False,
-) -> ProjectProductionOutput | None:
+) -> ProjectProductionDestination | None:
     output = await db.get(ProjectProductionOutput, project.id)
     if destination is None and not (completing and output is not None):
-        return output
-    if user is None:
-        permitted = not await is_auth_enabled(db)
+        return production_destination(output)
+    user = access.user
+    if access.api_key is not None:
+        _check_apikey_permissions(access.api_key, [Permission.INVENTORY_UPDATE.value])
     else:
-        permitted = user.has_permission(Permission.INVENTORY_UPDATE.value)
-    if not permitted:
-        raise HTTPException(status_code=403, detail="inventory:update is required for production stock")
+        permitted = user.has_permission(Permission.INVENTORY_UPDATE.value) if user else not await is_auth_enabled(db)
+        if not permitted:
+            raise HTTPException(status_code=403, detail="inventory:update is required for production stock")
     try:
         if destination is not None:
             if project.is_template:
@@ -37,4 +43,4 @@ async def update_production_output(
             await project_production.book_confirmed_output(db, output, actor_id=user.id if user else None)
     except WarehouseError as exc:
         raise HTTPException(exc.status, detail={"code": exc.code, "message": str(exc)}) from exc
-    return output
+    return production_destination(output)

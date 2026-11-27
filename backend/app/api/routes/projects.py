@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.library import get_library_dir
-from backend.app.api.routes.project_production import update_production_output
+from backend.app.api.routes.project_production import production_destination, update_production_output
 from backend.app.core.auth import (
     OwnershipAccess,
     RequirePermissionIfAuthEnabled,
@@ -378,7 +378,7 @@ async def list_projects(
     result = await db.execute(query)
     projects = result.scalars().all()
     production_outputs = {
-        output.project_id: output
+        output.project_id: production_destination(output)
         for output in await db.scalars(
             select(ProjectProductionOutput).where(ProjectProductionOutput.project_id.in_([p.id for p in projects]))
         )
@@ -494,7 +494,7 @@ async def list_projects(
 async def create_project(
     data: ProjectCreate,
     db: AsyncSession = DB_SESSION,
-    user: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_CREATE),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_CREATE)),
 ):
     """Create a new project."""
     if data.priority not in PROJECT_PRIORITIES:
@@ -525,7 +525,7 @@ async def create_project(
     db.add(project)
     await db.flush()
     await db.refresh(project)
-    output = await update_production_output(db, project, user, data.production_output)
+    output = await update_production_output(db, project, access, data.production_output)
 
     stats = await compute_project_stats(db, project.id, project.target_count, project.target_parts_count)
 
@@ -718,7 +718,7 @@ async def get_project(
         status=project.status,
         target_count=project.target_count,
         target_parts_count=project.target_parts_count,
-        production_output=await db.get(ProjectProductionOutput, project.id),
+        production_output=production_destination(await db.get(ProjectProductionOutput, project.id)),
         notes=project.notes,
         attachments=project.attachments,
         url=project.url,
@@ -745,7 +745,7 @@ async def update_project(
     project_id: int,
     data: ProjectUpdate,
     db: AsyncSession = DB_SESSION,
-    user: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_UPDATE)),
 ):
     """Update a project."""
     if data.status == "completed" or data.production_output is not None:
@@ -758,7 +758,7 @@ async def update_project(
         raise HTTPException(status_code=404, detail="Project not found")
 
     output = await update_production_output(
-        db, project, user, data.production_output, completing=data.status == "completed"
+        db, project, access, data.production_output, completing=data.status == "completed"
     )
 
     # Update fields if provided

@@ -145,7 +145,7 @@ async def _page_by_open_amount(db: AsyncSession, filters, direction: SortDirecti
             unknown.append(document.id)
     known.sort(key=lambda entry: entry[1], reverse=direction == "desc")
     ids = [document_id for document_id, _ in known] + unknown
-    return ids[offset:offset + limit]
+    return ids[offset : offset + limit]
 
 
 @router.get("/documents", response_model=LexwareDocumentList, response_model_exclude_unset=True)
@@ -184,9 +184,13 @@ async def list_documents(
         rows_by_id = {document.id: (document, connection) for document, connection in documents}
         rows = [rows_by_id[document_id] for document_id in ids if document_id in rows_by_id]
     else:
-        visible_status = LexwareDocument.voucher_status if financial else case(
-            (LexwareDocument.voucher_status.in_(FINAL_STATUSES), "final"),
-            else_=LexwareDocument.voucher_status,
+        visible_status = (
+            LexwareDocument.voucher_status
+            if financial
+            else case(
+                (LexwareDocument.voucher_status.in_(FINAL_STATUSES), "final"),
+                else_=LexwareDocument.voucher_status,
+            )
         )
         column = {
             "number": func.lower(func.nullif(LexwareDocument.voucher_number, "")),

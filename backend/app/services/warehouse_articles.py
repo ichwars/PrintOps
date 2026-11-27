@@ -1,11 +1,15 @@
 """Article master data. Callers own the transaction and commit."""
 
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_CEILING, Decimal
+from sqlite3 import OperationalError as SQLiteOperationalError
 
-from sqlalchemy import Select, case, func, select, type_coerce, update
+from sqlalchemy import Select, String, case, func, select, type_coerce, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.types import TypeDecorator
 
 from backend.app.models.calculation import CalculationRevision
 from backend.app.models.location import Location
@@ -233,7 +237,35 @@ def _article_balance(source: str, minimum_stock: Decimal, physical: Decimal, res
     )
 
 
-def _article_stock_query(statement: Select[tuple[WarehouseArticle]]):
+class _SQLiteScaledSum(TypeDecorator):
+    """Decode the overflow path's integer millionths without SQLite arithmetic."""
+
+    impl = String
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        return Decimal(sum(map(int, value.split(",")))) / 1_000_000 if value is not None else None
+
+
+def _scaled_sum(value, sqlite_wide: bool):
+    if sqlite_wide:
+        return type_coerce(func.group_concat(value), _SQLiteScaledSum())
+    return type_coerce(func.sum(value), WarehouseDecimal())
+
+
+async def _execute_stock_sums(session: AsyncSession, query: Callable[[bool], Select]):
+    try:
+        return await session.execute(query(False))
+    except OperationalError as exc:
+        if not isinstance(exc.orig, SQLiteOperationalError) or str(exc.orig) != "integer overflow":
+            raise
+    # SQLite SUM(int) can overflow even with individually valid ledger entries.
+    # The failed SELECT leaves the transaction usable. Retry as one SELECT to
+    # keep stock balances and consumption in the same snapshot.
+    return await session.execute(query(True))
+
+
+def _article_stock_query(statement: Select[tuple[WarehouseArticle]], sqlite_wide: bool):
     candidates = statement.with_only_columns(
         WarehouseArticle.id,
         WarehouseArticle.name,
@@ -248,11 +280,10 @@ def _article_stock_query(statement: Select[tuple[WarehouseArticle]]):
     own = (
         select(
             own_entry.article_id,
-            type_coerce(
-                func.sum(case((own_entry.target_location_id.is_(None), own_entry.physical_delta), else_=0)),
-                WarehouseDecimal(),
+            _scaled_sum(
+                case((own_entry.target_location_id.is_(None), own_entry.physical_delta), else_=0), sqlite_wide
             ).label("physical"),
-            func.sum(own_entry.reserved_delta).label("reserved"),
+            _scaled_sum(own_entry.reserved_delta, sqlite_wide).label("reserved"),
         )
         .join(candidates, candidates.c.id == own_entry.article_id)
         .group_by(own_entry.article_id)
@@ -288,8 +319,12 @@ async def balances_for_listing(
     session: AsyncSession, statement: Select[tuple[WarehouseArticle]]
 ) -> list[tuple[int, WarehouseBalance | None]]:
     """Read exact article totals in one query, without loading the individual journals."""
-    candidates, stock = _article_stock_query(statement)
-    rows = await session.execute(stock.order_by(candidates.c.name, candidates.c.id))
+
+    def query(sqlite_wide: bool):
+        candidates, stock = _article_stock_query(statement, sqlite_wide)
+        return stock.order_by(candidates.c.name, candidates.c.id)
+
+    rows = await _execute_stock_sums(session, query)
     return [
         (
             article_id,
@@ -314,17 +349,16 @@ def active_article_issue():
     )
 
 
-async def forecast_articles(session: AsyncSession, *, limit: int, offset: int) -> WarehouseForecastPage:
-    now = datetime.now(timezone.utc)
-    start = now - timedelta(days=FORECAST_WINDOW_DAYS)
+def _forecast_query(start: datetime, now: datetime, sqlite_wide: bool):
     candidates, stock = _article_stock_query(
         select(WarehouseArticle).where(
             WarehouseArticle.is_active.is_(True), WarehouseArticle.stock_source.in_(("own", "material"))
-        )
+        ),
+        sqlite_wide,
     )
     own = WarehouseArticleLedgerEntry
     own_usage = (
-        select(own.article_id, func.sum(own.quantity).label("consumed"))
+        select(own.article_id, _scaled_sum(own.quantity, sqlite_wide).label("consumed"))
         .join(candidates, candidates.c.id == own.article_id)
         .where(active_article_issue(), own.created_at.between(start, now))
         .group_by(own.article_id)
@@ -338,8 +372,7 @@ async def forecast_articles(session: AsyncSession, *, limit: int, offset: int) -
         .group_by(material.small_part_id)
         .subquery()
     )
-    # Read both balances and consumption in the same snapshot as stock can change concurrently.
-    rows = await session.execute(
+    return (
         stock.add_columns(
             candidates.c.name,
             candidates.c.sku,
@@ -350,6 +383,12 @@ async def forecast_articles(session: AsyncSession, *, limit: int, offset: int) -
         .outerjoin(own_usage, candidates.c.id == own_usage.c.article_id)
         .outerjoin(material_usage, candidates.c.small_part_id == material_usage.c.small_part_id)
     )
+
+
+async def forecast_articles(session: AsyncSession, *, limit: int, offset: int) -> WarehouseForecastPage:
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=FORECAST_WINDOW_DAYS)
+    rows = await _execute_stock_sums(session, lambda sqlite_wide: _forecast_query(start, now, sqlite_wide))
     items = []
     for row in rows:
         if row.stock_source == "material":
@@ -411,14 +450,15 @@ async def usage_for_articles(session: AsyncSession, articles: list[WarehouseArti
     own_ids = [article.id for article in articles if article.stock_source == "own"]
     if own_ids:
         entry = WarehouseArticleLedgerEntry
-        rows = await session.execute(
-            select(entry.article_id, func.max(entry.created_at), func.sum(entry.quantity))
-            .where(
-                entry.article_id.in_(own_ids),
-                active_article_issue(),
+
+        def query(sqlite_wide: bool):
+            return (
+                select(entry.article_id, func.max(entry.created_at), _scaled_sum(entry.quantity, sqlite_wide))
+                .where(entry.article_id.in_(own_ids), active_article_issue())
+                .group_by(entry.article_id)
             )
-            .group_by(entry.article_id)
-        )
+
+        rows = await _execute_stock_sums(session, query)
         result.update({identifier: StockUsage(last_used, quantity) for identifier, last_used, quantity in rows})
     return result
 

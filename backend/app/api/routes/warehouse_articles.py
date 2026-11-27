@@ -145,16 +145,22 @@ async def list_articles(
         )
     if location_id is not None:
         entry = WarehouseArticleLedgerEntry
-        own_balance = (
+        # Sum a location in journal order. Its valid running balance fits SQLite's integer range.
+        location_deltas = (
             select(
-                func.sum(case((entry.location_id == location_id, entry.physical_delta), else_=-entry.physical_delta))
+                case((entry.location_id == location_id, entry.physical_delta), else_=-entry.physical_delta).label(
+                    "delta"
+                )
             )
             .where(
                 entry.article_id == WarehouseArticle.id,
                 or_(entry.location_id == location_id, entry.target_location_id == location_id),
             )
-            .scalar_subquery()
+            .order_by(entry.id)
+            .correlate(WarehouseArticle)
+            .subquery()
         )
+        own_balance = select(func.sum(location_deltas.c.delta)).scalar_subquery()
         material_location = (
             select(SmallPart.id)
             .where(
@@ -186,7 +192,7 @@ async def list_articles(
             else_=WarehouseArticle.stock_checked_at,
         ),
     }
-    field = fields.get(sort_by)
+    field = fields.get(sort_by) if sort_by is not None else None
     order = [WarehouseArticle.name.asc(), WarehouseArticle.id.asc()]
     if field is not None:
         order.insert(0, (field.desc() if sort_dir == "desc" else field.asc()).nulls_last())
@@ -199,13 +205,13 @@ async def list_articles(
                 if balance is not None and (not low_stock or balance.is_low_stock)
             ]
             if sort_by in ("consumed", "last_used_at"):
-                usage = await service.usage_for_articles(db, list(await db.scalars(statement)))
-                dated = [row for row in stocked if sort_by == "consumed" or row[0] in usage]
+                usage_by_id = await service.usage_for_articles(db, list(await db.scalars(statement)))
+                dated = [row for row in stocked if sort_by == "consumed" or row[0] in usage_by_id]
                 dated.sort(
-                    key=lambda row: getattr(usage.get(row[0], StockUsage()), sort_by),
+                    key=lambda row: getattr(usage_by_id.get(row[0], StockUsage()), sort_by),
                     reverse=sort_dir == "desc",
                 )
-                stocked = dated + [row for row in stocked if sort_by == "last_used_at" and row[0] not in usage]
+                stocked = dated + [row for row in stocked if sort_by == "last_used_at" and row[0] not in usage_by_id]
             else:
                 attribute = "physical" if sort_by == "remaining" else sort_by
                 stocked.sort(key=lambda row: getattr(row[1], attribute), reverse=sort_dir == "desc")
@@ -236,7 +242,7 @@ async def list_articles(
             return WarehouseArticlePage(
                 items=rows[offset : offset + limit], total=len(rows), limit=limit, offset=offset
             )
-        total = await db.scalar(select(func.count()).select_from(statement.subquery()))
+        total = (await db.execute(select(func.count()).select_from(statement.subquery()))).scalar_one()
         articles = list(await db.scalars(statement.order_by(*order).offset(offset).limit(limit)))
         return WarehouseArticlePage(
             items=await service.read_articles(db, articles),

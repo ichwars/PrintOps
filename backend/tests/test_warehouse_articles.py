@@ -77,6 +77,56 @@ async def move(client, identifier, kind, quantity="1", key=None, **fields):
     return await client.post(f"/warehouse-articles/{identifier}/ledger", json=data)
 
 
+async def test_sorted_stock_and_forecast_support_totals_above_sqlite_integer_range(warehouse_client, db_session):
+    db_session.add_all(Location(id=n, name=f"Depot {n}", name_key=f"depot-{n}") for n in range(3, 11))
+    await db_session.commit()
+    client = warehouse_client
+    item = await article(client, sku="LARGE-STOCK", unit_code="KGM")
+    quantity = "999999999999.999999"
+    for location_id in range(1, 11):
+        assert (
+            await move(client, item["id"], "receipt", quantity, key=f"receipt-{location_id}", location_id=location_id)
+        ).status_code == 201
+        assert (
+            await move(
+                client, item["id"], "reservation", quantity, key=f"reserve-{location_id}", location_id=location_id
+            )
+        ).status_code == 201
+
+    response = await client.get("/warehouse-articles", params={"sort_by": "available"})
+    assert response.status_code == 200, response.text
+    (row,) = response.json()["items"]
+    assert Decimal(row["balance"]["physical"]) == Decimal("9999999999999.999990")
+    assert Decimal(row["balance"]["reserved"]) == Decimal("9999999999999.999990")
+    assert Decimal(row["balance"]["available"]) == Decimal("0")
+    response = await client.get("/warehouse-articles/forecast")
+    assert response.status_code == 200, response.text
+    (row,) = response.json()["items"]
+    assert Decimal(row["available"]) == Decimal("0")
+    assert row["daily_usage"] is None
+
+
+async def test_repeated_large_issues_keep_exact_consumption_after_sqlite_integer_range(warehouse_client):
+    client = warehouse_client
+    item = await article(client, sku="LARGE-TURNOVER", unit_code="KGM")
+    quantity = "999999999999.999999"
+    for number in range(10):
+        assert (await move(client, item["id"], "receipt", quantity, key=f"receipt-{number}")).status_code == 201
+        assert (await move(client, item["id"], "issue", quantity, key=f"withdraw-{number}")).status_code == 201
+    assert (await move(client, item["id"], "receipt", "0.000001")).status_code == 201
+
+    response = await client.get("/warehouse-articles", params={"sort_by": "consumed"})
+    assert response.status_code == 200, response.text
+    (row,) = response.json()["items"]
+    assert Decimal(row["consumed"]) == Decimal("9999999999999.999990")
+    assert Decimal(row["balance"]["available"]) == Decimal("0.000001")
+    response = await client.get("/warehouse-articles/forecast")
+    assert response.status_code == 200, response.text
+    (row,) = response.json()["items"]
+    assert Decimal(row["daily_usage"]) == Decimal("333333333333.333333")
+    assert Decimal(row["projected_available"]) == Decimal("0")
+
+
 async def test_forecast_counts_only_recent_effective_issues_against_available_stock(warehouse_client, db_session):
     client = warehouse_client
     item = await article(client, minimum_stock="6")

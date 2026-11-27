@@ -7,7 +7,7 @@ from backend.app.models.print_log import INCLUDE_OPEN_RUNS, RUN_OPEN, PrintLogEn
 from backend.app.models.printer import Printer
 from backend.app.models.user import User
 from backend.app.services.github_restore import _created_at_matches, _parse_dt, _restored_number
-from backend.app.services.print_log_run import project_latest_finished_run
+from backend.app.services.print_log_run import lock_print_run, production_receipt, project_latest_finished_run
 
 _TERMINAL = frozenset({"completed", "failed", "aborted", "cancelled", "stopped", "skipped"})
 
@@ -132,6 +132,12 @@ async def restore_run_records(db, payload, overwrite, tally, archive_ids):
         existing = await _find_run(db, archive_id, fields, created)
         if existing is not None:
             if not overwrite or existing.status in (RUN_OPEN, "paused") or entry.get("status") in (RUN_OPEN, "paused"):
+                tally.skipped += 1
+                continue
+            if (
+                not await lock_print_run(db, existing.id)
+                or await db.scalar(production_receipt(existing.id)) is not None
+            ):
                 tally.skipped += 1
                 continue
             for key, value in fields.items():

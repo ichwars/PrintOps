@@ -3,8 +3,10 @@ from decimal import Decimal
 
 import pytest
 
-from backend.app.core.auth import create_access_token, get_password_hash
+from backend.app.core.auth import create_access_token, generate_api_key, get_password_hash
 from backend.app.core.database import get_db
+from backend.app.models.api_key import APIKey
+from backend.app.models.archive import PrintArchive
 from backend.app.models.group import Group
 from backend.app.models.location import Location
 from backend.app.models.print_log import PrintLogEntry
@@ -86,6 +88,58 @@ async def test_completion_books_good_parts_once(client, db_session, destination)
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("historical", [False, True])
+async def test_booking_prevents_later_changes_to_the_received_quantity(client, db_session, destination, historical):
+    created = await client.post(f"{PROJECTS}/", json={"name": "Production", "production_output": destination})
+    assert created.status_code == 200, created.text
+    project_id = created.json()["id"]
+    archive = PrintArchive(filename="project.3mf", file_path="project.3mf", file_size=1, status="completed", quantity=8)
+    db_session.add(archive)
+    await db_session.flush()
+    run = PrintLogEntry(archive_id=archive.id, project_id=project_id, quantity=8, status="completed")
+    db_session.add(run)
+    await db_session.commit()
+    outcome_path = f"/api/v1/archives/{archive.id}"
+    if historical:
+        outcome_path += f"/runs/{run.id}"
+    outcome_path += "/outcome"
+    original = {"run_id": run.id, "good_quantity": 6, "reject_quantity": 2}
+    assert (await client.post(outcome_path, json=original)).status_code == 200
+    completed = await client.patch(f"{PROJECTS}/{project_id}", json={"status": "completed"})
+    assert completed.status_code == 200, completed.text
+
+    corrected = await client.post(outcome_path, json={**original, "good_quantity": 4, "reject_quantity": 4})
+    assert corrected.status_code == 409, corrected.text
+    await db_session.refresh(run)
+    assert (run.good_quantity, run.reject_quantity) == (6, 2)
+    [entry] = (await client.get(f"{ARTICLES}/{destination['article_id']}/ledger")).json()
+    assert Decimal(entry["physical_delta"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_print_log_clear_retains_only_stock_booked_runs(client, db_session, destination):
+    created = await client.post(f"{PROJECTS}/", json={"name": "Production", "production_output": destination})
+    project_id = created.json()["id"]
+    booked = PrintLogEntry(project_id=project_id, quantity=6, good_quantity=6, reject_quantity=0, status="completed")
+    other = PrintLogEntry(quantity=1, status="completed")
+    db_session.add_all([booked, other])
+    await db_session.commit()
+    booked_id, other_id = booked.id, other.id
+
+    completed = await client.patch(f"{PROJECTS}/{project_id}", json={"status": "completed"})
+    assert completed.status_code == 200, completed.text
+    protected = await client.delete(f"/api/v1/print-log/{booked_id}")
+    assert protected.status_code == 409, protected.text
+    cleared = await client.delete("/api/v1/print-log/")
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["deleted"] == 1
+    assert await db_session.get(PrintLogEntry, booked_id, populate_existing=True) is not None
+    assert await db_session.get(PrintLogEntry, other_id, populate_existing=True) is None
+    [entry] = (await client.get(f"{ARTICLES}/{destination['article_id']}/ledger")).json()
+    assert Decimal(entry["physical_delta"]) == 6
+
+
+@pytest.mark.asyncio
 async def test_project_editor_needs_inventory_write_for_linked_production(client, db_session, destination):
     created = await client.post(f"{PROJECTS}/", json={"name": "Production", "production_output": destination})
     assert created.json()["production_output"] == destination
@@ -113,3 +167,31 @@ async def test_project_editor_needs_inventory_write_for_linked_production(client
         project_url, json={"notes": "Production note"}, headers={"Authorization": f"Bearer {valid}"}
     )
     assert updated.status_code == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("projects, inventory, expected", [(True, False, 403), (False, True, 403), (True, True, 200)])
+async def test_api_key_requires_both_scopes_to_set_production_destination(
+    client, db_session, destination, projects, inventory, expected
+):
+    key, digest, prefix = generate_api_key()
+    db_session.add_all(
+        [
+            Settings(key="auth_enabled", value="true"),
+            APIKey(
+                name="Automation",
+                key_hash=digest,
+                key_prefix=prefix,
+                can_manage_projects=projects,
+                can_manage_inventory=inventory,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.post(
+        f"{PROJECTS}/",
+        json={"name": "Production", "production_output": destination},
+        headers={"X-API-Key": key},
+    )
+    assert response.status_code == expected, response.text
