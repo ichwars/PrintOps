@@ -64,7 +64,7 @@ export function TextBlocksSection({ documentType, blocks, catalog, findings, dis
         <MessageSquareText className="h-4 w-4 text-bambu-green" aria-hidden="true" />
         <h3 id="document-text-blocks-heading" className="font-semibold text-white">{t('settings.documents.textBlocks.title', 'Text blocks')}</h3>
       </div>
-      <p className="mt-1 text-sm text-gray-400">{t('settings.documents.textBlocks.description', 'Reusable wording with document-specific placeholders.')}</p>
+      <p className="mt-1 text-sm text-table-secondary">{t('settings.documents.textBlocks.description', 'Reusable wording with document-specific placeholders.')}</p>
       <div className="mt-4 max-w-xl">
         <Select ariaLabel={t('settings.documents.textBlocks.insertPlaceholder', 'Insert placeholder')} value={placeholder} placeholder={t('settings.documents.textBlocks.choosePlaceholder', 'Choose placeholder')} options={options} disabled={disabled || options.length === 0} onValueChange={insertPlaceholder} />
       </div>

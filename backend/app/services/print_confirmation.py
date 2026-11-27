@@ -15,6 +15,7 @@ from backend.app.models.commerce import CustomerOrder
 from backend.app.models.print_batch import PrintBatchPlate
 from backend.app.models.print_log import RUN_OPEN, PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem
+from backend.app.models.project_production import ProjectProductionOutput
 
 _locks: weakref.WeakValueDictionary[int, asyncio.Lock] = weakref.WeakValueDictionary()
 TOKEN_LIFETIME = timedelta(hours=48)
@@ -76,8 +77,10 @@ async def initialize_queue_outcome(db: AsyncSession, item: PrintQueueItem, archi
             await db.scalar(select(PrintBatchPlate.id).where(PrintBatchPlate.batch_id == item.batch_id).limit(1))
         )
     if item.project_id is not None:
-        production = production or bool(
-            await db.scalar(select(CustomerOrder.id).where(CustomerOrder.project_id == item.project_id).limit(1))
+        production = (
+            production
+            or await db.get(ProjectProductionOutput, item.project_id) is not None
+            or bool(await db.scalar(select(CustomerOrder.id).where(CustomerOrder.project_id == item.project_id).limit(1)))
         )
     # Production requires inspection even when a caller omitted the optional toggle.
     item.confirm_outcome = bool(item.confirm_outcome or production)

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Path, Query, Response, status
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.models.procurement import WarehouseShoppingListItem
 from backend.app.models.user import User
 from backend.app.schemas.procurement import (
     FilamentResource,
@@ -19,9 +21,12 @@ from backend.app.schemas.procurement import (
     SupplierListResponse,
     SupplierRead,
     SupplierUpdate,
+    WarehouseShoppingItemRead,
+    WarehouseShoppingResource,
 )
-from backend.app.services import procurement as service
+from backend.app.services import procurement as service, warehouse_shopping_list
 from backend.app.services.order_errors import ResourceInUseError
+from backend.app.services.warehouse_articles import WarehouseError
 
 router = APIRouter(tags=["procurement"])
 
@@ -213,5 +218,57 @@ async def delete_procurement_offer(
 ) -> Response:
     if not await service.deactivate_offer(db, offer_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Procurement offer not found")
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/warehouse-shopping-list", response_model=list[WarehouseShoppingItemRead])
+async def list_warehouse_shopping_items(
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+) -> list[WarehouseShoppingItemRead]:
+    items = await db.scalars(
+        select(WarehouseShoppingListItem)
+        .where(WarehouseShoppingListItem.small_part_id.is_not(None))
+        .order_by(WarehouseShoppingListItem.id)
+    )
+    return [warehouse_shopping_list.read_item(item) for item in items]
+
+
+@router.put("/warehouse-shopping-list/{kind}/{resource_id}", response_model=WarehouseShoppingItemRead)
+async def add_warehouse_shopping_item(
+    kind: WarehouseShoppingResource,
+    resource_id: int = Path(gt=0, le=2_147_483_647),
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+) -> WarehouseShoppingItemRead:
+    if kind == "warehouse":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "code": "warehouse_article_not_purchasable",
+                "message": "Only materials can be added to the shopping list.",
+            },
+        )
+    try:
+        item = await warehouse_shopping_list.add_item(db, resource_id)
+        result = warehouse_shopping_list.read_item(item)
+        await db.commit()
+    except WarehouseError as exc:
+        raise HTTPException(exc.status, detail={"code": exc.code, "message": str(exc)}) from exc
+    return result
+
+
+@router.delete("/warehouse-shopping-list/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def remove_warehouse_shopping_item(
+    item_id: int = Path(gt=0, le=2_147_483_647),
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+) -> Response:
+    await db.execute(
+        delete(WarehouseShoppingListItem).where(
+            WarehouseShoppingListItem.id == item_id, WarehouseShoppingListItem.small_part_id.is_not(None)
+        )
+    )
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -220,10 +220,28 @@ export default {
       calculation: 'Calculation',
       customers: 'Customers',
       invoice: 'Invoice',
+      "reorder": "Reorder",
     },
   },
 
   orders: {
+    documentDetails: {
+      invoicePositions: "Invoice lines",
+      positions: "Document lines",
+      orderPositions: "Order lines",
+      offerPositions: "Offer lines",
+      noPositions: "No document lines available.",
+      unitPriceNet: "Net unit price",
+      lineTotalNet: "Net line total",
+    },
+    rowActions: {
+      openOrder: "Open order",
+      openOffer: "Open offer",
+      openDocument: "Open document",
+      cancelOrder: "Cancel order",
+      showOffers: "Show offers",
+      showInvoices: "Show invoices",
+    },
     default: 'Default',
     businessProfile: {
       title: 'Business Profile',
@@ -590,7 +608,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -728,10 +751,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -744,42 +763,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -824,6 +824,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "Based on stock consumption recorded over the last {{days}} days.",
+        "forecastDailyUsage": "Avg. daily usage",
+        "forecastProjectedStock": "Stock in {{days}} days",
+        "forecastDaysToMinimum": "Days until minimum stock",
+        "forecastMinimumReached": "Minimum stock reached",
+        "forecastNoConsumption": "No usage in this period",
+        "forecastEmpty": "No active articles with stock tracking.",
+        "quickBookingSaved": "Stock movement saved.",
+        "articleCount": "{{count}} articles",
+        "articleCount_one": "{{count}} article",
+        "articleCount_other": "{{count}} articles",
         "title": "Warehouse goods",
         "subtitle": "Sales articles, physical stock and reservations managed in PrintOps.",
         "search": "Search articles",
@@ -1633,6 +1644,31 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "reproduce": "Produce more",
+        "prepareProduction": "Prepare production order",
+        "productionProjectName": "Replenishment · {{name}}",
+        "productionProjectDescription": "Article {{sku}}\nSuggested production quantity {{quantity}}",
+        "colProduce": "Quantity to produce",
+        "purchasingTitle": "Purchasing demand",
+        "productionTitle": "Production demand",
+        "shoppingList": "Shopping list",
+        "shoppingListEmpty": "The shopping list is empty.",
+        "addToShoppingList": "Add {{name}} to the shopping list",
+        "onShoppingList": "{{name}} is on the shopping list",
+        "addedToShoppingList": "{{name}} was added to the shopping list.",
+        "removeFromShoppingList": "Remove {{name}} from the shopping list",
+        "shoppingListLoadError": "Could not load the shopping list.",
+        "shoppingListSaveError": "Could not update the shopping list.",
+        "title": "Reorder needs",
+        "subtitle": "Replenish finished goods through production and purchase materials.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Finished goods to produce",
+        "summaryMaterial": "Materials to purchase",
+        "summaryTotal": "Total",
+        "colSuggested": "Suggested purchase quantity"
       }
     },
 
@@ -2375,6 +2411,12 @@ export default {
 
   // Common
   common: {
+    stockChecked: "Checked",
+    confirmStockCheck: "Confirm stocktake",
+    stockCheckDescription: "Confirm that the selected stock was counted or weighed.",
+    stockCheckFailed: "The stocktake could not be confirmed. Check that the selection is still active.",
+    unitShortPiece: "pc",
+    scrollTableHorizontally: 'Scroll {{table}} table horizontally',
     secretKept: 'The saved value will be kept.',
     secretReenter: 'Re-enter the credential for the changed destination.',
     plusNMore: '+{{count}} more',
@@ -4825,6 +4867,7 @@ export default {
     messageTemplatesDescription: 'Customize notification messages for each event.',
     // API Keys section
     apiKeys: 'API Keys',
+    apiMetricsNoAccess: "Your account does not have access to these integration settings.",
     apiKeysDescription: 'Create API keys for external integrations and webhooks.',
     createKey: 'Create Key',
     apiKeyCreated: 'API Key Created Successfully',
@@ -5379,7 +5422,7 @@ export default {
     prometheusMetrics: 'Prometheus Metrics',
     prometheusEndpointDescription: 'Expose printer metrics at <code>/api/v1/metrics</code> for Prometheus/Grafana monitoring.',
     bearerTokenOptional: 'Bearer Token (optional)',
-    bearerTokenHint: 'If set, requests must include <code>Authorization: Bearer <token></code>',
+    bearerTokenHint: 'If set, requests must include <code>Authorization: Bearer &lt;token&gt;</code>',
     metricsConnectionStatus: 'Connection status',
     metricsPrinterState: 'Printer state (idle/printing/etc)',
     metricsPrintProgress: 'Print progress 0-100%',
@@ -10568,6 +10611,11 @@ export default {
     fields: { name: 'Company', customerNumber: 'Customer number', active: 'Active supplier', contactName: 'Contact name', email: 'Email', phone: 'Phone', website: 'Website', addressLine1: 'Address line 1', addressLine2: 'Address line 2', postalCode: 'Postal code', city: 'City', countryCode: 'Country code', paymentTerms: 'Payment terms', defaultLeadTime: 'Default lead time', internalNotes: 'Internal notes' },
     filters: { active: 'Active', inactive: 'Inactive', all: 'All suppliers' }, actions: { create: 'Add supplier', save: 'Save supplier', edit: 'Edit {{name}}', delete: 'Delete supplier' }, validation: { nameRequired: 'Company is required.' },
     errors: { load: 'Suppliers could not be loaded.', save: 'Supplier could not be saved.', delete: 'Supplier could not be deleted.', noReadPermission: 'You do not have permission to view suppliers.' },
+    "pagination": "{{start}}–{{end}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next",
+    "emptyFiltered": "No suppliers match the current filters.",
+    "clearSearch": "Clear search",
   },
   storageSensors: {
     environment: "Environment",

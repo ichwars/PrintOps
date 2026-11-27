@@ -6,7 +6,7 @@ import { listenForOutsideScroll } from '../../utils/outsideScroll';
 interface ActionMenuProps {
   label: string;
   className?: string;
-  children: (close: () => void) => ReactNode;
+  children: (close: () => HTMLButtonElement | null) => ReactNode;
 }
 
 /** Anchored, flat action menu. Positioning/dismissal belong to FloatingLayer;
@@ -21,6 +21,7 @@ export function ActionMenu({ label, className = '', children }: ActionMenuProps)
   const close = () => {
     setOpen(false);
     anchorRef.current?.focus({ preventScroll: true });
+    return anchorRef.current;
   };
 
   useEffect(() => {

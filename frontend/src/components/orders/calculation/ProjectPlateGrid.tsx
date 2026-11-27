@@ -30,13 +30,13 @@ export function ProjectPlateGrid({ plates, selectedIds, focusedId, locale, onSel
         <article key={plate.id} className={`overflow-hidden rounded-lg border ${focusedId === plate.id ? 'border-bambu-green' : selectedIds.has(plate.id) ? 'border-bambu-green/50' : 'border-bambu-dark-tertiary'} bg-bambu-dark`}>
           <div className="flex items-center justify-between px-3 py-2">
             <Checkbox ariaLabel={t('orders.runtimeCalculation.select', { lng: language, name: plate.name })} checked={selectedIds.has(plate.id)} onCheckedChange={() => toggle(plate.id)} label={plate.name} className="text-sm font-medium text-white" />
-            <span className="text-xs text-bambu-gray">{plate.object_count} {t('projects.parts', { lng: language })}</span>
+            <span className="text-xs text-table-secondary">{plate.object_count} {t('projects.parts', { lng: language })}</span>
           </div>
           <button type="button" aria-label={t('orders.runtimeCalculation.openDetailsFor', { lng: language, name: plate.name })} onClick={() => onFocusChange(plate.id)} className="block w-full text-left">
             <div className="flex aspect-[4/3] items-center justify-center bg-bambu-dark-secondary">
-              {plate.thumbnail_url ? <img src={withMediaToken(plate.thumbnail_url)} alt="" className="h-full w-full object-contain" /> : <ImageIcon className="h-10 w-10 text-bambu-gray" />}
+              {plate.thumbnail_url ? <img src={withMediaToken(plate.thumbnail_url)} alt="" className="h-full w-full object-contain" /> : <ImageIcon className="h-10 w-10 text-table-secondary" />}
             </div>
-            <div className="flex justify-between px-3 py-2 text-xs text-bambu-gray">
+            <div className="flex justify-between px-3 py-2 text-xs text-table-secondary">
               <span>{formatGrams(plate.detected_grams ?? 0, locale)}</span>
               <span>{formatHours(plate.detected_hours ?? 0, locale)}</span>
             </div>

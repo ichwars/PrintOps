@@ -1,15 +1,25 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
+import { TableActionHeader, TableRowActions, type TableAction } from '../components/ui/TableRowActions';
+import { CommercialDocumentDialog } from '../components/orders/CommercialDocumentDialog';
+import { OrderFilterChip } from '../components/orders/OrderFilterChip';
+import { orderRecordId } from '../utils/orderLinks';
+import { OrderSortHeader } from '../components/orders/OrderSortHeader';
+import { nextOrderSort, orderValueComparator, type OrderSort } from '../utils/orderSorting';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Calculator, Check, ClipboardList, FileText, Receipt, X } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '../components/Card';
-import { LegacyDatePicker, Select, TextArea, TextField } from '../components/ui';
-import { tableHeaderCellClass, tableHeaderClass, tableHeaderRowClass } from '../components/ui/tableStyles';
+import { Calculator, Check, ClipboardList, Eye, FileText, Receipt } from 'lucide-react';
+import { OrderHeader, OrderStatus, OrderTable, OrderTableRow, orderPageClass } from '../components/orders/OrderLayout';
+import { WarehouseSegment, WarehouseSegments } from '../components/warehouse/WarehouseLayout';
+import { Button, LegacyDatePicker, Modal, Select, TextArea, TextField } from '../components/ui';
+import { tableBodyCellClass, tableHeaderCellClass, tableHeaderClass, tableHeaderRowClass, tableIdentifierClass } from '../components/ui/tableStyles';
 import { useAuth } from '../contexts/AuthContext';
 import {
   documentManagementApi,
   type CommercialDocument,
+  type DocumentFilters,
   type PaymentMethod,
   type RecordPaymentInput,
 } from '../api/documentManagement';
@@ -19,6 +29,8 @@ type OrderPageCopy = { "empty": string; "foundation": string; "page": { "overvie
 
 type OrderSectionId = 'overview' | 'calculation' | 'offers' | 'invoices';
 type InvoiceSortMode = 'priority' | 'due' | 'amount' | 'created';
+const invoiceColumns = ['number', 'customer', 'due'] as const;
+type InvoiceColumn = typeof invoiceColumns[number];
 type InvoiceFilterMode = 'all' | 'open' | 'overdue' | 'paid';
 
 const invoiceTypes = new Set(['advance_invoice', 'progress_invoice', 'final_invoice', 'invoice']);
@@ -58,11 +70,10 @@ function isOverdueInvoice(document: CommercialDocument) {
   return isOpenInvoice(document) && Boolean(document.due_date) && dateValue(document.due_date) < Date.now();
 }
 
-function statusClass(status: string) {
-  if (status === 'paid') return 'text-bambu-green';
-  if (status === 'partially_paid') return 'text-amber-300';
-  if (status === 'overpaid') return 'text-cyan-300';
-  return status === 'unpaid' ? 'text-bambu-gray' : 'text-red-300';
+function paymentTone(status: string) {
+  if (status === 'paid') return 'positive';
+  if (status === 'partially_paid' || status === 'overpaid') return 'warning';
+  return 'neutral';
 }
 
 function todayIso() {
@@ -110,8 +121,17 @@ export function OrdersPage() {
   const documentNumber = (document: CommercialDocument) => document.number ?? invoiceText('documentNumber', { id: document.id });
   const columns = copy.page[activeSection].columns;
   const canManagePayments = hasPermission('payments:manage');
+  const canReadDocuments = hasPermission('commercial_documents:read');
+  const canReadOrders = hasPermission('orders:read');
+  const [documentId, setDocumentId] = useState<number | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<CommercialDocument | null>(null);
   const initialInvoiceParams = new URLSearchParams(location.search);
+  const customerFilter = orderRecordId(initialInvoiceParams.get('customer'));
+  const profileFilter = orderRecordId(initialInvoiceParams.get('profile'));
+  const documentFilters: DocumentFilters | undefined = customerFilter === null ? undefined : {
+    customerId: customerFilter,
+    businessProfileId: profileFilter ?? undefined,
+  };
   const [paymentDraft, setPaymentDraft] = useState<RecordPaymentInput>({
     amount: '',
     paid_at: todayIso(),
@@ -124,6 +144,7 @@ export function OrdersPage() {
     const sortParam = initialInvoiceParams.get('sort');
     return isInvoiceSortMode(sortParam) ? sortParam : 'priority';
   });
+  const [columnSort, setColumnSort] = useState<OrderSort<InvoiceColumn> | null>(null);
   const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilterMode>(() => {
     const filterParam = initialInvoiceParams.get('filter');
     return isInvoiceFilterMode(filterParam) ? filterParam : 'all';
@@ -156,8 +177,8 @@ export function OrdersPage() {
   } satisfies Record<OrderSectionId, typeof ClipboardList>;
   const ActiveIcon = activeIcons[activeSection];
   const documentsQuery = useQuery({
-    queryKey: ['commercial-documents', 'invoices'],
-    queryFn: () => documentManagementApi.listDocuments(),
+    queryKey: ['commercial-documents', 'invoices', documentFilters],
+    queryFn: () => documentFilters ? documentManagementApi.listDocuments(documentFilters) : documentManagementApi.listDocuments(),
     enabled: activeSection === 'invoices',
   });
   const allInvoiceDocuments = useMemo(
@@ -171,6 +192,7 @@ export function OrdersPage() {
     overdue: allInvoiceDocuments.filter(isOverdueInvoice).length,
     paid: allInvoiceDocuments.filter((document) => !isOpenInvoice(document)).length,
   }), [allInvoiceDocuments]);
+  const activeColumnSort = columnSort ?? (invoiceSort === 'due' ? { key: 'due', direction: 'asc' } as const : null);
   const invoiceDocuments = useMemo(
     () => {
       const filtered = allInvoiceDocuments.filter((document) => {
@@ -181,12 +203,19 @@ export function OrdersPage() {
         return true;
       });
 
+      const sortValues = {
+        number: (document: CommercialDocument) => document.number ?? `#${document.id}`,
+        customer: (document: CommercialDocument) => document.customer_display_name,
+        due: (document: CommercialDocument) => dateValue(document.due_date),
+      };
+      const compareColumn = columnSort && orderValueComparator(sortValues[columnSort.key], columnSort.direction, locale);
       return [...filtered].sort((left, right) => {
-        if (paymentDocumentId !== null) {
+        if (paymentDocumentId !== null && columnSort?.key !== 'customer') {
           if (left.id === paymentDocumentId) return -1;
           if (right.id === paymentDocumentId) return 1;
         }
 
+        if (compareColumn) return compareColumn(left, right);
         if (invoiceSort === 'due') {
           return dateValue(left.due_date) - dateValue(right.due_date);
         }
@@ -202,7 +231,7 @@ export function OrdersPage() {
           || amountValue(right.open_amount) - amountValue(left.open_amount);
       });
     },
-    [allInvoiceDocuments, invoiceFilter, invoiceSort, paymentDocumentId],
+    [allInvoiceDocuments, columnSort, invoiceFilter, invoiceSort, locale, paymentDocumentId],
   );
   const invoiceSummary = useMemo(() => {
     const openDocuments = allInvoiceDocuments.filter(isOpenInvoice);
@@ -286,9 +315,29 @@ export function OrdersPage() {
   };
 
   const handleInvoiceSortChange = (sort: InvoiceSortMode) => {
+    setColumnSort(null);
     setInvoiceSort(sort);
     updateInvoiceParam('sort', sort);
   };
+
+  function clearCustomerFilter() {
+    const next = new URLSearchParams(location.search);
+    next.delete('customer');
+    next.delete('profile');
+    navigate({ pathname: location.pathname, search: next.toString() }, { replace: true });
+  }
+
+  function rowActions(document: CommercialDocument): TableAction[] {
+    return [
+      ...(canReadDocuments ? [{ icon: Eye, label: t('orders.rowActions.openDocument'), onSelect: () => setDocumentId(document.id) }] : []),
+      ...(canReadOrders && document.source_order_id ? [{
+        icon: ClipboardList, label: t('orders.rowActions.openOrder'), onSelect: () => navigate(`/orders/${document.source_order_id}`),
+      }] : []),
+      ...(canManagePayments && isOpenInvoice(document) ? [{
+        icon: Check, label: invoiceText('confirmPayment'), onSelect: () => openPaymentDialog(document),
+      }] : []),
+    ];
+  }
 
   const closePaymentDialog = () => {
     setPaymentTarget(null);
@@ -309,226 +358,127 @@ export function OrdersPage() {
     });
   };
 
+  const isInvoices = activeSection === 'invoices';
+  const title = copy.page[activeSection].title;
+
+  const pagination = useTablePagination(invoiceDocuments, JSON.stringify([activeSection, customerFilter, profileFilter, invoiceFilter, invoiceSort, columnSort]));
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-          <ActiveIcon className="w-7 h-7 text-bambu-green" />
-          {copy.page[activeSection].title}
-        </h1>
-        <p className="text-bambu-gray mt-1">{copy.page[activeSection].subtitle}</p>
-      </div>
+    <div className={orderPageClass}>
+      <OrderHeader icon={ActiveIcon} title={title} description={copy.page[activeSection].subtitle} />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <ActiveIcon className="w-5 h-5 text-bambu-green" />
-              <div>
-                <h2 className="text-lg font-semibold text-white">
-                  {copy.page[activeSection].title}
-                </h2>
-                <p className="text-sm text-bambu-gray">
-                  {copy.page[activeSection].subtitle}
-                </p>
-              </div>
-            </div>
-            {activeSection === 'invoices' ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <span className="rounded border border-bambu-dark-tertiary bg-bambu-dark px-2.5 py-1.5 text-xs font-medium text-bambu-gray">
-                  {invoiceText('openCount', { count: invoiceSummary.openCount })} · {formatMoney(invoiceSummary.openAmount, locale, invoiceSummary.currency)}
-                </span>
-                {invoiceSummary.overdueCount > 0 ? (
-                  <span className="rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-xs font-medium text-red-300">
-                    {invoiceText('overdueCount', { count: invoiceSummary.overdueCount })}
-                  </span>
-                ) : null}
-                <div className="flex overflow-hidden rounded border border-bambu-dark-tertiary">
-                  {invoiceFilterOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={invoiceFilter === option.value}
-                      className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${invoiceFilter === option.value ? 'bg-bambu-green text-bambu-dark' : 'bg-bambu-dark text-bambu-gray hover:text-white'}`}
-                      onClick={() => handleInvoiceFilterChange(option.value)}
-                    >
-                      {option.label} {invoiceFilterCounts[option.value]}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex overflow-hidden rounded border border-bambu-dark-tertiary">
-                  {invoiceSortOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={invoiceSort === option.value}
-                      className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${invoiceSort === option.value ? 'bg-bambu-green text-bambu-dark' : 'bg-bambu-dark text-bambu-gray hover:text-white'}`}
-                      onClick={() => handleInvoiceSortChange(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <span className="text-xs px-2 py-1 rounded-full bg-bambu-dark-tertiary text-bambu-gray">
-                {copy.foundation}
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-hidden rounded-lg border border-bambu-dark-tertiary">
-            <table className="w-full text-sm">
-              <thead className={tableHeaderClass}>
-                <tr className={tableHeaderRowClass}>
-                  {columns.map((column) => (
-                    <th key={column} className={tableHeaderCellClass}>
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activeSection === 'invoices' && invoiceDocuments.length > 0 ? (
-                  invoiceDocuments.map((document) => {
-                    const paid = document.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-                    const isPaymentTarget = document.id === paymentDocumentId;
-                    return (
-                      <tr
-                        key={document.id}
-                        className={`border-t border-bambu-dark-tertiary bg-bambu-dark-secondary ${isPaymentTarget ? 'ring-1 ring-inset ring-bambu-green/70' : ''}`}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-white">{documentNumber(document)}</div>
-                          <div className="mt-1 text-xs text-bambu-gray">{formatMoney(document.total_amount, locale, document.currency)}</div>
-                          {isPaymentTarget ? (
-                            <div className="mt-2 text-xs font-medium text-bambu-green">{invoiceText('fromDashboard')}</div>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3 text-bambu-gray">
-                          {document.customer_id ? `#${document.customer_id}` : invoiceText('noCustomer')}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-bambu-gray">{document.due_date ?? invoiceText('noDueDate')}</div>
-                          <div className={`mt-1 text-xs font-medium ${statusClass(document.payment_status)}`}>
-                            {paymentStatusLabels[document.payment_status] ?? document.payment_status}
-                            {invoiceText('openSeparator')}
-                            {formatMoney(document.open_amount, locale, document.currency)}
-                            {invoiceText('paidSeparator')}
-                            {formatMoney(paid, locale, document.currency)}
-                          </div>
-                          <button
-                            type="button"
-                            className="mt-3 inline-flex items-center gap-2 rounded bg-bambu-green px-3 py-2 text-xs font-semibold text-bambu-dark transition-colors hover:bg-bambu-green/90 disabled:cursor-not-allowed disabled:opacity-50"
-                            disabled={!canManagePayments || document.open_amount === '0.00' || document.payment_status === 'paid'}
-                            onClick={() => openPaymentDialog(document)}
-                            title={!canManagePayments ? invoiceText('paymentPermission') : undefined}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                            {invoiceText('confirmPayment')}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={columns.length} className="px-4 py-10 text-center text-bambu-gray">
-                      {documentsQuery.isLoading && activeSection === 'invoices'
-                        ? invoiceText('loading')
-                        : activeSection === 'invoices' && allInvoiceDocuments.length > 0
-                          ? invoiceText('emptyFilter')
-                          : copy.empty}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {paymentTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-white">{invoiceText('paymentHeading')}</h2>
-                <p className="mt-1 text-sm text-bambu-gray">
-                  {documentNumber(paymentTarget)}{invoiceText('openSeparator')}{formatMoney(paymentTarget.open_amount, locale, paymentTarget.currency)}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="rounded p-2 text-bambu-gray transition-colors hover:text-white"
-                onClick={closePaymentDialog}
-                aria-label={invoiceText('closeDialog')}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <TextField
-                label={invoiceText('amount')}
-                value={paymentDraft.amount}
-                inputMode="decimal"
-                onValueChange={(value) => setPaymentDraft((current) => ({ ...current, amount: value }))}
-              />
-              <LegacyDatePicker
-                label={invoiceText('paidAt')}
-                value={paymentDraft.paid_at}
-                onValueChange={(value) => setPaymentDraft((current) => ({ ...current, paid_at: value }))}
-              />
-              <Select
-                label={invoiceText('method')}
-                value={paymentDraft.method}
-                onValueChange={(value) => setPaymentDraft((current) => ({ ...current, method: value as PaymentMethod }))}
-                options={Object.entries(methodLabels).map(([value, label]) => ({
-                  value,
-                  label,
-                }))}
-              />
-              <TextField
-                label={invoiceText('reference')}
-                value={paymentDraft.reference ?? ''}
-                onValueChange={(value) => setPaymentDraft((current) => ({ ...current, reference: value }))}
-              />
-              <div className="sm:col-span-2">
-                <TextArea
-                  label={invoiceText('note')}
-                  value={paymentDraft.note ?? ''}
-                  onValueChange={(value) => setPaymentDraft((current) => ({ ...current, note: value }))}
-                />
-              </div>
-            </div>
-
-            {recordPayment.isError ? (
-              <p className="mt-4 text-sm text-red-300">{invoiceText('paymentFailed')}</p>
-            ) : null}
-
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                type="button"
-                className="rounded border border-bambu-dark-tertiary px-4 py-2 text-sm font-medium text-bambu-gray transition-colors hover:text-white"
-                onClick={closePaymentDialog}
-              >
-                {invoiceText('cancel')}
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded bg-bambu-green px-4 py-2 text-sm font-semibold text-bambu-dark transition-colors hover:bg-bambu-green/90 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!canManagePayments || !paymentDraft.amount || !paymentDraft.paid_at || recordPayment.isPending}
-                onClick={submitPayment}
-              >
-                <Check className="h-4 w-4" />
-                {invoiceText('save')}
-              </button>
-            </div>
-          </div>
+      {isInvoices && (
+        <div className="flex flex-wrap items-center gap-2">
+          <OrderStatus>{invoiceText('openCount', { count: invoiceSummary.openCount })} · {formatMoney(invoiceSummary.openAmount, locale, invoiceSummary.currency)}</OrderStatus>
+          {invoiceSummary.overdueCount > 0 && <OrderStatus tone="danger">{invoiceText('overdueCount', { count: invoiceSummary.overdueCount })}</OrderStatus>}
+          <WarehouseSegments>
+            {invoiceFilterOptions.map(option => (
+              <WarehouseSegment key={option.value} active={invoiceFilter === option.value} onClick={() => handleInvoiceFilterChange(option.value)}>
+                {option.label} {invoiceFilterCounts[option.value]}
+              </WarehouseSegment>
+            ))}
+          </WarehouseSegments>
+          <WarehouseSegments>
+            {invoiceSortOptions.map(option => (
+              <WarehouseSegment key={option.value} active={!columnSort && invoiceSort === option.value} onClick={() => handleInvoiceSortChange(option.value)}>
+                {option.label}
+              </WarehouseSegment>
+            ))}
+          </WarehouseSegments>
         </div>
-      ) : null}
+      )}
+
+      {isInvoices && customerFilter !== null && (
+        <OrderFilterChip label={`${t('orders.customers.customer')} #${customerFilter}`} onClear={clearCustomerFilter} />
+      )}
+      <OrderTable label={title} footer={<TablePagination {...pagination.footer} label={title} />}>
+        <table className="w-full min-w-[620px] text-sm">
+          <thead className={tableHeaderClass}>
+            <tr className={tableHeaderRowClass}>
+              {columns.map((column, index) => {
+                const key = isInvoices ? invoiceColumns[index] : undefined;
+                return key ? (
+                  <OrderSortHeader key={key} label={column} direction={activeColumnSort?.key === key ? activeColumnSort.direction : undefined}
+                    onSort={() => setColumnSort(nextOrderSort(activeColumnSort, key))} />
+                ) : <th key={column} scope="col" className={tableHeaderCellClass}>{column}</th>;
+              })}
+              {isInvoices && <TableActionHeader />}
+            </tr>
+          </thead>
+          <tbody>
+            {isInvoices && invoiceDocuments.length > 0 ? pagination.rows.map(document => {
+              const paid = document.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+              const isPaymentTarget = document.id === paymentDocumentId;
+              return (
+                <OrderTableRow key={document.id} onOpen={canReadDocuments ? () => setDocumentId(document.id) : undefined}
+                  className={isPaymentTarget ? 'ring-1 ring-inset ring-bambu-green/70' : ''}>
+                  <td className={tableBodyCellClass}>
+                    <div className={`${tableIdentifierClass} text-white`}>{documentNumber(document)}</div>
+                    <div className="mt-0.5 text-xs tabular-nums">{formatMoney(document.total_amount, locale, document.currency)}</div>
+                    {isPaymentTarget && <div className="mt-1 text-xs font-medium text-accent-foreground">{invoiceText('fromDashboard')}</div>}
+                  </td>
+                  <td className={tableBodyCellClass}>
+                    <span className="block max-w-64 wrap-break-word">{document.customer_display_name || invoiceText('noCustomer')}</span>
+                  </td>
+                  <td className={tableBodyCellClass}>
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="tabular-nums">{document.due_date ?? invoiceText('noDueDate')}</span>
+                      <OrderStatus tone={isOverdueInvoice(document) ? 'danger' : paymentTone(document.payment_status)}>
+                        <span className="tabular-nums">
+                          {paymentStatusLabels[document.payment_status] ?? document.payment_status}
+                          {invoiceText('openSeparator')}{formatMoney(document.open_amount, locale, document.currency)}
+                          {invoiceText('paidSeparator')}{formatMoney(paid, locale, document.currency)}
+                        </span>
+                      </OrderStatus>
+                    </div>
+                  </td>
+                  <TableRowActions subject={documentNumber(document)} actions={rowActions(document)} />
+                </OrderTableRow>
+              );
+            }) : (
+              <tr>
+                <td colSpan={columns.length + (isInvoices ? 1 : 0)} className="px-4 py-10 text-center text-table-secondary">
+                  {documentsQuery.isLoading && isInvoices
+                    ? invoiceText('loading')
+                    : isInvoices && allInvoiceDocuments.length > 0 ? invoiceText('emptyFilter') : copy.empty}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </OrderTable>
+
+      {documentId !== null && <CommercialDocumentDialog key={documentId} id={documentId} onClose={() => setDocumentId(null)} />}
+      {paymentTarget && (
+        <Modal open onClose={closePaymentDialog} title={invoiceText('paymentHeading')} closeLabel={invoiceText('closeDialog')}
+          description={`${documentNumber(paymentTarget)}${invoiceText('openSeparator')}${formatMoney(paymentTarget.open_amount, locale, paymentTarget.currency)}`}
+          className="max-w-lg"
+          footer={(
+            <>
+              <Button type="button" variant="secondary" onClick={closePaymentDialog}>{invoiceText('cancel')}</Button>
+              <Button type="button" className="text-black!" onClick={submitPayment}
+                disabled={!canManagePayments || !paymentDraft.amount || !paymentDraft.paid_at || recordPayment.isPending}>
+                <Check aria-hidden="true" className="h-4 w-4" />{invoiceText('save')}
+              </Button>
+            </>
+          )}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField label={invoiceText('amount')} value={paymentDraft.amount} inputMode="decimal"
+              onValueChange={value => setPaymentDraft(current => ({ ...current, amount: value }))} />
+            <LegacyDatePicker label={invoiceText('paidAt')} value={paymentDraft.paid_at}
+              onValueChange={value => setPaymentDraft(current => ({ ...current, paid_at: value }))} />
+            <Select label={invoiceText('method')} value={paymentDraft.method}
+              onValueChange={value => setPaymentDraft(current => ({ ...current, method: value as PaymentMethod }))}
+              options={Object.entries(methodLabels).map(([value, label]) => ({ value, label }))} />
+            <TextField label={invoiceText('reference')} value={paymentDraft.reference ?? ''}
+              onValueChange={value => setPaymentDraft(current => ({ ...current, reference: value }))} />
+            <div className="sm:col-span-2">
+              <TextArea label={invoiceText('note')} value={paymentDraft.note ?? ''}
+                onValueChange={value => setPaymentDraft(current => ({ ...current, note: value }))} />
+            </div>
+          </div>
+          {recordPayment.isError && <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">{invoiceText('paymentFailed')}</p>}
+        </Modal>
+      )}
     </div>
   );
 }

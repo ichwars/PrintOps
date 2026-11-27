@@ -18,6 +18,7 @@ export type ModalProps = {
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
+  footer?: ReactNode;
   closeOnBackdrop?: boolean;
   closeDisabled?: boolean;
   closeLabel?: string;
@@ -45,6 +46,7 @@ export function Modal({
   title,
   description,
   children,
+  footer,
   closeOnBackdrop = true,
   closeDisabled = false,
   closeLabel = 'Close',
@@ -82,6 +84,7 @@ export function Modal({
   if (!open) return null;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.target as Node)) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -123,7 +126,7 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className={`flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-2xl ${className}`}
+        className={`flex max-h-[min(90dvh,calc(100dvh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-2xl ${className}`}
         onKeyDown={handleKeyDown}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-bambu-dark-tertiary px-6 py-4">
@@ -149,6 +152,11 @@ export function Modal({
         <ScrollArea className="min-h-0 flex-1 p-6" scrollbar="thin">
           {children}
         </ScrollArea>
+        {footer && (
+          <div className="flex shrink-0 flex-wrap justify-end gap-3 border-t border-bambu-dark-tertiary px-4 py-3 sm:px-6">
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body,

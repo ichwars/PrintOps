@@ -47,7 +47,7 @@ export function BasicPolicySection({
         <FileCheck2 className="h-4 w-4 text-bambu-green" aria-hidden="true" />
         <h3 id="document-basic-policy-heading" className="font-semibold text-white">{t('settings.documents.basic.title', 'Document rules')}</h3>
       </div>
-      <p className="mt-1 text-sm text-gray-400">{t('settings.documents.basic.description', 'Dates, references, successors, rounding and technical content.')}</p>
+      <p className="mt-1 text-sm text-table-secondary">{t('settings.documents.basic.description', 'Dates, references, successors, rounding and technical content.')}</p>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <InheritanceField path="basic.subject" sourced={effectiveBasic.subject as SourcedValue<string> | undefined} onReset={reset}>
           <TextField label={t('settings.documents.basic.subject', 'Subject')} value={basic.subject} disabled={disabled} error={finding('basic.subject')} onValueChange={(value) => onChange('basic.subject', value)} />

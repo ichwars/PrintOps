@@ -123,6 +123,15 @@ export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canEdit,
       closeLabel={t('common.close')}
       title={editing ? (canEdit ? t('suppliers.editTitle') : t('suppliers.actions.delete')) : t('suppliers.createTitle')}
       className="max-w-3xl"
+      footer={<>
+        {editing && canDelete && onDelete && (
+          <Button type="button" variant="danger" className="sm:mr-auto" onClick={remove} disabled={submitting}>
+            <Trash2 aria-hidden="true" className="h-4 w-4" />{t('suppliers.actions.delete')}
+          </Button>
+        )}
+        <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>{t('common.cancel')}</Button>
+        {canEdit && <Button type="button" onClick={submit} loading={submitting}>{t('suppliers.actions.save')}</Button>}
+      </>}
     >
       <div className="space-y-8">
         {actionError ? <p role="alert" className="rounded-lg border border-red-500/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">{actionError}</p> : null}
@@ -164,15 +173,6 @@ export function SupplierEditor({ supplier, onClose, onSubmit, onDelete, canEdit,
           <TextArea label={t('suppliers.fields.internalNotes')} value={draft.internal_notes} onValueChange={(value) => update('internal_notes', value)} disabled={submitting || !canEdit} />
         </section>
 
-        <div className="flex flex-col-reverse gap-3 border-t border-bambu-dark-tertiary pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            {editing && canDelete && onDelete ? <Button type="button" variant="danger" onClick={remove} disabled={submitting}><Trash2 aria-hidden="true" className="h-4 w-4" />{t('suppliers.actions.delete')}</Button> : null}
-          </div>
-          <div className="flex flex-col-reverse gap-3 sm:flex-row">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>{t('common.cancel')}</Button>
-            {canEdit ? <Button type="button" onClick={submit} loading={submitting}>{t('suppliers.actions.save')}</Button> : null}
-          </div>
-        </div>
       </div>
     </Modal>
   );

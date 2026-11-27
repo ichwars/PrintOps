@@ -220,10 +220,28 @@ export default {
       calculation: 'Calcul',
       customers: 'Clients',
       invoice: 'Facture',
+      "reorder": "Réapprovisionnement",
     },
   },
 
   orders: {
+    documentDetails: {
+      invoicePositions: "Lignes de facture",
+      positions: "Lignes du document",
+      orderPositions: "Lignes de commande",
+      offerPositions: "Lignes du devis",
+      noPositions: "Aucune ligne de document disponible.",
+      unitPriceNet: "Prix unitaire HT",
+      lineTotalNet: "Total HT de la ligne",
+    },
+    rowActions: {
+      openOrder: "Ouvrir la commande",
+      openOffer: "Ouvrir le devis",
+      openDocument: "Ouvrir le document",
+      cancelOrder: "Annuler la commande",
+      showOffers: "Afficher les devis",
+      showInvoices: "Afficher les factures",
+    },
     default: 'Default',
     businessProfile: { title: 'Business Profile', loading: 'Loading business profiles...', error: 'Unable to load business profiles.', empty: 'No business profiles yet.', permissionDenied: 'You do not have permission to view business profiles.', add: 'Add business profile', includeInactive: 'Include inactive profiles', profile: 'Profile', country: 'Country', currency: 'Currency', timezone: 'Timezone', billingMode: 'Billing mode', status: 'Status', actions: 'Actions', active: 'Active', inactive: 'Inactive', edit: 'Edit {{name}}', setDefault: 'Set {{name}} as default', activate: 'Activate {{name}}', deactivate: 'Deactivate {{name}}', delete: 'Delete {{name}}', deleteConfirm: 'Delete {{name}}? This cannot be undone.', dismiss: 'Dismiss', createTitle: 'Add business profile', editTitle: 'Edit business profile', identity: 'Identity', address: 'Address', taxAndBank: 'Tax and bank', localeSection: 'Locale', profileName: 'Profile name', legalName: 'Legal name', tradingName: 'Trading name', profileCountry: 'Profile country', street: 'Street', city: 'City', postalCode: 'Postal code', addAddress: 'Add address', removeAddress: 'Remove address {{number}}', defaultAddress: 'Default address {{number}}', taxIdKind: 'Tax ID kind', taxIdValue: 'Tax ID value', addTaxId: 'Add tax ID', removeTaxId: 'Remove tax ID {{number}}', primaryTaxId: 'Primary tax ID {{number}}', bankAccountLabel: 'Bank account label', accountHolder: 'Account holder', bankName: 'Bank name', bankCountry: 'Bank country', bankCurrency: 'Bank currency', iban: 'IBAN', bic: 'BIC', accountNumber: 'Account number', routingNumber: 'Routing number', defaultBankAccount: 'Default bank account {{number}}', addBankAccount: 'Add bank account', removeBankAccount: 'Remove bank account {{number}}', locale: 'Locale', save: 'Save business profile' },
     customers: { title: 'Customers', subtitle: 'Customer master data for the selected business profile.', businessProfile: 'Business profile', loading: 'Loading customers...', error: 'Unable to load customers.', noBusinessProfile: 'No active business profile is available.', empty: 'No customers yet.', customer: 'Customer', discount: 'Discount', permissionDenied: 'You do not have permission to view customers.', configureProfiles: 'Configure business profiles', add: 'Add customer', search: 'Search customers', statusFilter: 'Customer status', kindFilter: 'Customer kind', emptyFiltered: 'No customers match the current filters.', number: 'Number', name: 'Name', primaryContact: 'Primary contact', billingAddress: 'Billing address', actions: 'Actions', view: 'View details', viewAria: 'View {{name}}', editCustomer: 'Edit customer', editAria: 'Edit {{name}}', deleteCustomer: 'Delete customer', deleteAria: 'Delete {{name}}', deleteTitle: 'Delete {{name}}?', deleteConfirm: 'This customer will be permanently deleted.', pagination: '{{start}}-{{end}} of {{total}}', previous: 'Previous page', next: 'Next page' ,
@@ -554,7 +572,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -692,10 +715,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -708,42 +727,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -788,6 +788,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "Prévision basée sur la consommation enregistrée ces {{days}} derniers jours.",
+        "forecastDailyUsage": "Consommation moyenne par jour",
+        "forecastProjectedStock": "Stock dans {{days}} jours",
+        "forecastDaysToMinimum": "Jours avant le stock minimum",
+        "forecastMinimumReached": "Stock minimum atteint",
+        "forecastNoConsumption": "Aucune consommation sur la période",
+        "forecastEmpty": "Aucun article actif avec suivi du stock.",
+        "quickBookingSaved": "Mouvement de stock enregistré.",
+        "articleCount": "Articles trouvés : {{count}}",
+        "articleCount_one": "{{count}} article trouvé",
+        "articleCount_other": "{{count}} articles trouvés",
         "title": "Warehouse goods",
         "subtitle": "Sales articles, physical stock and reservations managed in PrintOps.",
         "search": "Search articles",
@@ -1597,6 +1608,31 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "reproduce": "Relancer la production",
+        "prepareProduction": "Préparer un ordre de production",
+        "productionProjectName": "Réapprovisionnement · {{name}}",
+        "productionProjectDescription": "Article {{sku}}\nQuantité à produire suggérée {{quantity}}",
+        "colProduce": "Quantité à produire",
+        "purchasingTitle": "Besoins d’achat",
+        "productionTitle": "Besoins de production",
+        "shoppingList": "Liste d’achats",
+        "shoppingListEmpty": "La liste d’achats est vide.",
+        "addToShoppingList": "Ajouter {{name}} à la liste d’achats",
+        "onShoppingList": "{{name}} figure sur la liste d’achats",
+        "addedToShoppingList": "{{name}} a été ajouté à la liste d’achats.",
+        "removeFromShoppingList": "Retirer {{name}} de la liste d’achats",
+        "shoppingListLoadError": "Impossible de charger la liste d’achats.",
+        "shoppingListSaveError": "Impossible de modifier la liste d’achats.",
+        "title": "Reorder needs",
+        "subtitle": "Relancez la production des produits finis et achetez les matières nécessaires.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Produits finis à produire",
+        "summaryMaterial": "Matières à acheter",
+        "summaryTotal": "Total",
+        "colSuggested": "Quantité d’achat recommandée"
       }
     },
 
@@ -2338,6 +2374,12 @@ export default {
   },
   // Common
   common: {
+    stockChecked: "Vérifié",
+    confirmStockCheck: "Confirmer l’inventaire",
+    stockCheckDescription: "Confirmez que les stocks sélectionnés ont été comptés ou pesés.",
+    stockCheckFailed: "Impossible de confirmer l’inventaire. Vérifiez que la sélection est toujours active.",
+    unitShortPiece: "pce",
+    scrollTableHorizontally: 'Faire défiler horizontalement le tableau {{table}}',
     secretKept: 'La valeur enregistrée sera conservée.',
     secretReenter: 'Saisissez à nouveau le secret pour la nouvelle destination.',
     plusNMore: '+{{count}} autres',
@@ -4518,6 +4560,7 @@ export default {
     messageTemplatesDescription: 'Personnalisez les messages par événement.',
     // API Keys section
     apiKeys: 'Clés API',
+    apiMetricsNoAccess: "Votre compte n’a pas accès à ces paramètres d’intégration.",
     apiKeysDescription: 'Créez des clés pour webhooks et API.',
     createKey: 'Créer une clé',
     apiKeyCreated: 'Clé API créée avec succès',
@@ -5066,7 +5109,7 @@ export default {
     prometheusMetrics: 'Métriques Prometheus',
     prometheusEndpointDescription: 'Exposer les métriques imprimante sur <code>/api/v1/metrics</code> pour la surveillance Prometheus/Grafana.',
     bearerTokenOptional: 'Token Bearer (optionnel)',
-    bearerTokenHint: 'Si défini, les requêtes doivent inclure <code>Authorization: Bearer <token></code>',
+    bearerTokenHint: 'Si défini, les requêtes doivent inclure <code>Authorization: Bearer &lt;token&gt;</code>',
     metricsConnectionStatus: 'État de connexion',
     metricsPrinterState: 'État imprimante (idle/printing/etc)',
     metricsPrintProgress: 'Progression impression 0-100%',
@@ -10462,7 +10505,12 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     noReadAccess: 'Vous n\'avez pas la permission de consulter les prévisions de stock.',
     noWriteAccess: 'Vous n\'avez pas la permission de modifier les paramètres de prévision.',
   },
-  suppliers: { navTitle: 'Fournisseurs', title: 'Fournisseurs', subtitle: 'Gérez les contacts et les conditions d’achat.', createTitle: 'Ajouter un fournisseur', editTitle: 'Modifier le fournisseur', searchLabel: 'Rechercher des fournisseurs', searchPlaceholder: 'Entreprise, contact, e-mail, numéro client …', activeFilter: 'Statut', loading: 'Chargement des fournisseurs …', empty: 'Aucun fournisseur correspondant.', noContact: 'Aucune coordonnée', leadTime: '{{count}} jours de délai de livraison standard', sections: { masterData: 'Données de base', contactAddress: 'Contact et adresse', procurement: 'Approvisionnement', internalNotes: 'Note interne' }, fields: { name: 'Entreprise', customerNumber: 'Numéro client', active: 'Fournisseur actif', contactName: 'Personne de contact', email: 'Adresse e-mail', phone: 'Téléphone', website: 'Site web', addressLine1: 'Ligne d’adresse 1', addressLine2: 'Ligne d’adresse 2', postalCode: 'Code postal', city: 'Ville', countryCode: 'Code pays', paymentTerms: 'Conditions de paiement', defaultLeadTime: 'Délai de livraison standard', internalNotes: 'Notes internes' }, filters: { active: 'Actifs', inactive: 'Inactifs', all: 'Tous les fournisseurs' }, actions: { create: 'Ajouter un fournisseur', save: 'Enregistrer le fournisseur', edit: 'Modifier {{name}}', delete: 'Supprimer le fournisseur' }, validation: { nameRequired: 'Le nom de l’entreprise est obligatoire.' }, errors: { load: 'Impossible de charger les fournisseurs.', save: 'Impossible d’enregistrer le fournisseur.', delete: 'Impossible de supprimer le fournisseur.', noReadPermission: 'Vous n’avez pas l’autorisation d’afficher les fournisseurs.' } },
+  suppliers: { navTitle: 'Fournisseurs', title: 'Fournisseurs', subtitle: 'Gérez les contacts et les conditions d’achat.', createTitle: 'Ajouter un fournisseur', editTitle: 'Modifier le fournisseur', searchLabel: 'Rechercher des fournisseurs', searchPlaceholder: 'Entreprise, contact, e-mail, numéro client …', activeFilter: 'Statut', loading: 'Chargement des fournisseurs …', empty: 'Aucun fournisseur correspondant.', noContact: 'Aucune coordonnée', leadTime: '{{count}} jours de délai de livraison standard', sections: { masterData: 'Données de base', contactAddress: 'Contact et adresse', procurement: 'Approvisionnement', internalNotes: 'Note interne' }, fields: { name: 'Entreprise', customerNumber: 'Numéro client', active: 'Fournisseur actif', contactName: 'Personne de contact', email: 'Adresse e-mail', phone: 'Téléphone', website: 'Site web', addressLine1: 'Ligne d’adresse 1', addressLine2: 'Ligne d’adresse 2', postalCode: 'Code postal', city: 'Ville', countryCode: 'Code pays', paymentTerms: 'Conditions de paiement', defaultLeadTime: 'Délai de livraison standard', internalNotes: 'Notes internes' }, filters: { active: 'Actifs', inactive: 'Inactifs', all: 'Tous les fournisseurs' }, actions: { create: 'Ajouter un fournisseur', save: 'Enregistrer le fournisseur', edit: 'Modifier {{name}}', delete: 'Supprimer le fournisseur' }, validation: { nameRequired: 'Le nom de l’entreprise est obligatoire.' }, errors: { load: 'Impossible de charger les fournisseurs.', save: 'Impossible d’enregistrer le fournisseur.', delete: 'Impossible de supprimer le fournisseur.', noReadPermission: 'Vous n’avez pas l’autorisation d’afficher les fournisseurs.' },
+  "pagination": "{{start}}–{{end}} sur {{total}}",
+  "previous": "Précédent",
+  "next": "Suivant",
+  "emptyFiltered": "Aucun fournisseur ne correspond aux filtres actuels.",
+  "clearSearch": "Effacer la recherche" },
   storageSensors: {
     environment: "Environnement",
     manage: "Capteurs",

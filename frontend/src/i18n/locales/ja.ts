@@ -220,10 +220,28 @@ export default {
       calculation: '計算',
       customers: '顧客',
       invoice: '請求書',
+      "reorder": "再発注",
     },
   },
 
   orders: {
+    documentDetails: {
+      invoicePositions: "請求明細",
+      positions: "書類の明細",
+      orderPositions: "受注明細",
+      offerPositions: "見積明細",
+      noPositions: "表示できる明細はありません。",
+      unitPriceNet: "税抜単価",
+      lineTotalNet: "明細の税抜合計",
+    },
+    rowActions: {
+      openOrder: "受注を開く",
+      openOffer: "見積を開く",
+      openDocument: "書類を開く",
+      cancelOrder: "受注を取り消す",
+      showOffers: "見積を表示",
+      showInvoices: "請求書を表示",
+    },
     default: 'Default',
     businessProfile: { title: 'Business Profile', loading: 'Loading business profiles...', error: 'Unable to load business profiles.', empty: 'No business profiles yet.', permissionDenied: 'You do not have permission to view business profiles.', add: 'Add business profile', includeInactive: 'Include inactive profiles', profile: 'Profile', country: 'Country', currency: 'Currency', timezone: 'Timezone', billingMode: 'Billing mode', status: 'Status', actions: 'Actions', active: 'Active', inactive: 'Inactive', edit: 'Edit {{name}}', setDefault: 'Set {{name}} as default', activate: 'Activate {{name}}', deactivate: 'Deactivate {{name}}', delete: 'Delete {{name}}', deleteConfirm: 'Delete {{name}}? This cannot be undone.', dismiss: 'Dismiss', createTitle: 'Add business profile', editTitle: 'Edit business profile', identity: 'Identity', address: 'Address', taxAndBank: 'Tax and bank', localeSection: 'Locale', profileName: 'Profile name', legalName: 'Legal name', tradingName: 'Trading name', profileCountry: 'Profile country', street: 'Street', city: 'City', postalCode: 'Postal code', addAddress: 'Add address', removeAddress: 'Remove address {{number}}', defaultAddress: 'Default address {{number}}', taxIdKind: 'Tax ID kind', taxIdValue: 'Tax ID value', addTaxId: 'Add tax ID', removeTaxId: 'Remove tax ID {{number}}', primaryTaxId: 'Primary tax ID {{number}}', bankAccountLabel: 'Bank account label', accountHolder: 'Account holder', bankName: 'Bank name', bankCountry: 'Bank country', bankCurrency: 'Bank currency', iban: 'IBAN', bic: 'BIC', accountNumber: 'Account number', routingNumber: 'Routing number', defaultBankAccount: 'Default bank account {{number}}', addBankAccount: 'Add bank account', removeBankAccount: 'Remove bank account {{number}}', locale: 'Locale', save: 'Save business profile' },
     customers: { title: 'Customers', subtitle: 'Customer master data for the selected business profile.', businessProfile: 'Business profile', loading: 'Loading customers...', error: 'Unable to load customers.', noBusinessProfile: 'No active business profile is available.', empty: 'No customers yet.', customer: 'Customer', discount: 'Discount', permissionDenied: 'You do not have permission to view customers.', configureProfiles: 'Configure business profiles', add: 'Add customer', search: 'Search customers', statusFilter: 'Customer status', kindFilter: 'Customer kind', emptyFiltered: 'No customers match the current filters.', number: 'Number', name: 'Name', primaryContact: 'Primary contact', billingAddress: 'Billing address', actions: 'Actions', view: 'View details', viewAria: 'View {{name}}', editCustomer: 'Edit customer', editAria: 'Edit {{name}}', deleteCustomer: 'Delete customer', deleteAria: 'Delete {{name}}', deleteTitle: 'Delete {{name}}?', deleteConfirm: 'This customer will be permanently deleted.', pagination: '{{start}}-{{end}} of {{total}}', previous: 'Previous page', next: 'Next page' ,
@@ -554,7 +572,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -692,10 +715,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -708,42 +727,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -788,6 +788,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "直近{{days}}日間に記録された在庫消費に基づきます。",
+        "forecastDailyUsage": "1日あたりの平均消費量",
+        "forecastProjectedStock": "{{days}}日後の在庫",
+        "forecastDaysToMinimum": "最低在庫に達するまでの日数",
+        "forecastMinimumReached": "最低在庫に達しました",
+        "forecastNoConsumption": "この期間の消費なし",
+        "forecastEmpty": "在庫管理対象の有効な品目はありません。",
+        "quickBookingSaved": "在庫移動を保存しました。",
+        "articleCount": "{{count}} 件",
+        "articleCount_one": "{{count}} 件",
+        "articleCount_other": "{{count}} 件",
         "title": "Warehouse goods",
         "subtitle": "Sales articles, physical stock and reservations managed in PrintOps.",
         "search": "Search articles",
@@ -1597,6 +1608,31 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "reproduce": "追加生産する",
+        "prepareProduction": "製造指示を準備",
+        "productionProjectName": "追加生産 · {{name}}",
+        "productionProjectDescription": "品目 {{sku}}\n推奨生産数量 {{quantity}}",
+        "colProduce": "生産数量",
+        "purchasingTitle": "資材の購入需要",
+        "productionTitle": "追加生産の必要数",
+        "shoppingList": "購買リスト",
+        "shoppingListEmpty": "購買リストは空です。",
+        "addToShoppingList": "{{name}}を購買リストに追加",
+        "onShoppingList": "{{name}}は購買リストにあります",
+        "addedToShoppingList": "{{name}}を購買リストに追加しました。",
+        "removeFromShoppingList": "{{name}}を購買リストから削除",
+        "shoppingListLoadError": "購買リストを読み込めませんでした。",
+        "shoppingListSaveError": "購買リストを更新できませんでした。",
+        "title": "Reorder needs",
+        "subtitle": "完成品は追加生産し、資材は購入して補充します。",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "生産が必要な完成品",
+        "summaryMaterial": "購入が必要な資材",
+        "summaryTotal": "Total",
+        "colSuggested": "推奨購入数量"
       }
     },
 
@@ -2338,6 +2374,12 @@ export default {
   },
   // Common
   common: {
+    stockChecked: "確認済み",
+    confirmStockCheck: "棚卸を確定",
+    stockCheckDescription: "選択した在庫を数えた、または計量したことを確認します。",
+    stockCheckFailed: "棚卸を確定できませんでした。選択した在庫が有効か確認してください。",
+    unitShortPiece: "個",
+    scrollTableHorizontally: '{{table}}の表を横にスクロール',
     secretKept: '保存済みの値は維持されます。',
     secretReenter: '接続先を変更した場合は認証情報を再入力してください。',
     plusNMore: '他{{count}}件',
@@ -4763,6 +4805,7 @@ export default {
     messageTemplatesDescription: '各イベントの通知メッセージをカスタマイズ。',
     // API Keys section
     apiKeys: 'APIキー',
+    apiMetricsNoAccess: "このアカウントでは、これらの連携設定にアクセスできません。",
     apiKeysDescription: '外部連携やWebhook用のAPIキーを作成します。',
     createKey: 'キーを作成',
     apiKeyCreated: 'APIキーを作成しました',
@@ -5322,7 +5365,7 @@ export default {
     prometheusMetrics: 'Prometheusメトリクス',
     prometheusEndpointDescription: 'Prometheus/Grafanaモニタリング用に<code>/api/v1/metrics</code>でプリンターメトリクスを公開。',
     bearerTokenOptional: 'Bearerトークン（オプション）',
-    bearerTokenHint: '設定時、リクエストに<code>Authorization: Bearer <token></code>が必要',
+    bearerTokenHint: '設定時、リクエストに<code>Authorization: Bearer &lt;token&gt;</code>が必要',
     metricsConnectionStatus: '接続状態',
     metricsPrinterState: 'プリンター状態（idle/printing等）',
     metricsPrintProgress: '印刷進捗 0-100%',
@@ -10473,7 +10516,12 @@ useEmbedded: 'ファイル内蔵設定を使用',
     noReadAccess: '在庫予測を閲覧する権限がありません。',
     noWriteAccess: '予測設定を変更する権限がありません。',
   },
-  suppliers: { navTitle: '仕入先', title: '仕入先', subtitle: '調達先の連絡先と取引条件を管理します。', createTitle: '仕入先を追加', editTitle: '仕入先を編集', searchLabel: '仕入先を検索', searchPlaceholder: '会社名、担当者、メールアドレス、顧客番号 …', activeFilter: 'ステータス', loading: '仕入先を読み込み中 …', empty: '一致する仕入先がありません。', noContact: '連絡先情報なし', leadTime: '標準リードタイム：{{count}}日', sections: { masterData: '基本情報', contactAddress: '連絡先と住所', procurement: '調達条件', internalNotes: '社内メモ' }, fields: { name: '会社名', customerNumber: '顧客番号', active: '有効な仕入先', contactName: '担当者名', email: 'メールアドレス', phone: '電話番号', website: 'ウェブサイト', addressLine1: '住所1', addressLine2: '住所2', postalCode: '郵便番号', city: '市区町村', countryCode: '国コード', paymentTerms: '支払条件', defaultLeadTime: '標準リードタイム', internalNotes: '社内メモ' }, filters: { active: '有効', inactive: '無効', all: 'すべての仕入先' }, actions: { create: '仕入先を追加', save: '仕入先を保存', edit: '{{name}}を編集', delete: '仕入先を削除' }, validation: { nameRequired: '会社名は必須です。' }, errors: { load: '仕入先を読み込めませんでした。', save: '仕入先を保存できませんでした。', delete: '仕入先を削除できませんでした。', noReadPermission: '仕入先を表示する権限がありません。' } },
+  suppliers: { navTitle: '仕入先', title: '仕入先', subtitle: '調達先の連絡先と取引条件を管理します。', createTitle: '仕入先を追加', editTitle: '仕入先を編集', searchLabel: '仕入先を検索', searchPlaceholder: '会社名、担当者、メールアドレス、顧客番号 …', activeFilter: 'ステータス', loading: '仕入先を読み込み中 …', empty: '一致する仕入先がありません。', noContact: '連絡先情報なし', leadTime: '標準リードタイム：{{count}}日', sections: { masterData: '基本情報', contactAddress: '連絡先と住所', procurement: '調達条件', internalNotes: '社内メモ' }, fields: { name: '会社名', customerNumber: '顧客番号', active: '有効な仕入先', contactName: '担当者名', email: 'メールアドレス', phone: '電話番号', website: 'ウェブサイト', addressLine1: '住所1', addressLine2: '住所2', postalCode: '郵便番号', city: '市区町村', countryCode: '国コード', paymentTerms: '支払条件', defaultLeadTime: '標準リードタイム', internalNotes: '社内メモ' }, filters: { active: '有効', inactive: '無効', all: 'すべての仕入先' }, actions: { create: '仕入先を追加', save: '仕入先を保存', edit: '{{name}}を編集', delete: '仕入先を削除' }, validation: { nameRequired: '会社名は必須です。' }, errors: { load: '仕入先を読み込めませんでした。', save: '仕入先を保存できませんでした。', delete: '仕入先を削除できませんでした。', noReadPermission: '仕入先を表示する権限がありません。' },
+  "pagination": "{{total}} 件中 {{start}}–{{end}}",
+  "previous": "前へ",
+  "next": "次へ",
+  "emptyFiltered": "現在のフィルターに一致する仕入先はありません。",
+  "clearSearch": "検索をクリア" },
   storageSensors: {
     environment: "環境",
     manage: "センサー",

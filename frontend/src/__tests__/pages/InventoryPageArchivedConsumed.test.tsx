@@ -180,32 +180,27 @@ describe('InventoryPage — Total Consumed includes archived (#1390 follow-up)',
     });
   });
 
-  it('Reset-consumed-counter eraser is rendered for archived spools too', async () => {
-    // The per-card eraser is gated on weight_used > 0, NOT on archived_at,
-    // so the archived spool above (weight_used=500) must render an eraser
-    // button matching the localized tooltip. Multiple erasers exist on the
-    // page (one per spool + the bulk "reset all" affordance in the stat
-    // tile); the test asserts there are at least as many as there are
-    // spools with consumed weight, which catches a regression that hides
-    // the archived spool's eraser.
-    // The archive-filter chip defaults to "active only", so we need to
-    // surface archived spools first; the easiest assertion that doesn't
-    // depend on chip clicks is via the bulk-reset wiring: when archived
-    // are included in the resetable set, the total is non-zero — i.e.
-    // the "Reset all counters" button stays visible. The CHANGELOG entry
-    // walks through the per-card flow.
+  it('offers the counter reset in the archived spool’s action menu', async () => {
+    const user = userEvent.setup();
     render(<InventoryPageRouter />);
 
-    await waitFor(() => {
-      // Reset-all-consumed-counters button is gated on `totalConsumed > 0 &&
-      // resetableSpoolIds.length > 0`. resetableSpoolIds now includes
-      // archived spools — so even if every active spool had its baseline
-      // == weight_used (consumed = 0), the button must remain visible
-      // as long as ANY spool (archived included) still has unreset usage.
-      // The 800g assertion already proves totalConsumed > 0; here we
-      // just check the bulk-reset button rendered.
-      expect(screen.getByRole('button', { name: /reset all counters/i })).toBeInTheDocument();
-    });
+    await user.click(await screen.findByRole('button', { name: 'Archived' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions: #2' }));
+    expect(await screen.findByRole('menuitem', { name: 'Reset counter' })).toBeEnabled();
+  });
+
+  it('offers stocktake for native inventory when integration settings are forbidden', async () => {
+    server.use(
+      http.get('/api/v1/settings/spoolman', () => new HttpResponse(null, { status: 403 })),
+      http.get('/api/v1/inventory/spools', () => HttpResponse.json(
+        mockSpools.map(spool => ({ ...spool, stock_checked_at: null })),
+      )),
+    );
+    const user = userEvent.setup();
+    render(<InventoryPageRouter />);
+
+    await user.click(await screen.findByRole('button', { name: 'Actions: #1' }));
+    expect(await screen.findByRole('menuitem', { name: 'Confirm stocktake' })).toBeEnabled();
   });
 });
 

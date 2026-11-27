@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { setPageSelection, useTablePagination } from '../hooks/useTablePagination';
 import { Button, Checkbox, NumberField, TextField , FileInput} from './ui';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -51,6 +53,7 @@ export function SpoolCatalogSettings() {
     entry.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const pagination = useTablePagination(filteredCatalog, JSON.stringify([search]), 15);
   const handleAdd = async () => {
     if (!formName.trim() || !formWeight) {
       showToast(t('settings.catalog.nameWeightRequired'), 'error');
@@ -142,13 +145,10 @@ export function SpoolCatalogSettings() {
     });
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredCatalog.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredCatalog.map(e => e.id)));
-    }
-  };
+  const visibleIds = pagination.rows.map(entry => entry.id);
+  const visibleSelection = visibleIds.filter(id => selectedIds.has(id)).length;
+  const allVisibleSelected = visibleIds.length > 0 && visibleSelection === visibleIds.length;
+  const toggleSelectAll = () => setSelectedIds(previous => setPageSelection(previous, visibleIds, !allVisibleSelected));
 
   const handleBulkDelete = async () => {
     setShowBulkDeleteConfirm(false);
@@ -337,13 +337,15 @@ export function SpoolCatalogSettings() {
             {t('common.loading')}
           </div>
         ) : (
+          <>
           <div className="max-h-[600px] overflow-y-auto border border-bambu-dark-tertiary rounded-lg">
             <table className="w-full text-sm">
               <thead className="bg-bambu-dark sticky top-0">
                 <tr>
                   <th className="px-2 py-2 w-10">
                     <Checkbox
-                      checked={filteredCatalog.length > 0 && selectedIds.size === filteredCatalog.length}
+                      checked={allVisibleSelected}
+                      indeterminate={visibleSelection > 0 && !allVisibleSelected}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 accent-bambu-green cursor-pointer"
                     />
@@ -362,7 +364,7 @@ export function SpoolCatalogSettings() {
                     </td>
                   </tr>
                 ) : (
-                  filteredCatalog.map(entry => (
+                  pagination.rows.map(entry => (
                     <tr key={entry.id} className={`border-t border-bambu-dark-tertiary hover:bg-bambu-dark ${selectedIds.has(entry.id) ? 'bg-bambu-dark' : ''}`}>
                       {editingId === entry.id ? (
                         <>
@@ -452,6 +454,8 @@ export function SpoolCatalogSettings() {
               </tbody>
             </table>
           </div>
+          <TablePagination {...pagination.footer} />
+          </>
         )}
       </CardContent>
 

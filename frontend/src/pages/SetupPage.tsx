@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import printOpsLogo from '../assets/printops-logo.svg';
 import { api } from '../api/client';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -78,9 +79,9 @@ export function SetupPage() {
         <div className="text-center">
           <div className="flex items-center justify-center mb-6">
             <img
-              src="/img/printops_logo.svg"
+              src={printOpsLogo}
               alt="PrintOps"
-              className="h-16"
+              className="h-16 w-auto max-w-full object-contain sm:h-[4.75rem]"
             />
           </div>
           <h2 className="text-3xl font-bold text-white">

@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, Save, Loader2, RotateCcw, Plus, Eye } from 'lucide-react';
+import { Save, Loader2, RotateCcw, Plus, Eye } from 'lucide-react';
 import { api } from '../api/client';
 import type { NotificationTemplate, NotificationTemplateUpdate } from '../api/client';
 import { Button } from './Button';
+import { Modal, TextArea, TextField } from './ui';
 
 interface NotificationTemplateEditorProps {
   template: NotificationTemplate;
@@ -40,15 +41,6 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
     }),
     enabled: showPreview && titleTemplate.length > 0 && bodyTemplate.length > 0,
   });
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
 
   // Update mutation
   const updateMutation = useMutation({
@@ -118,32 +110,44 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
   const hasChanges = titleTemplate !== template.title_template || bodyTemplate !== template.body_template;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-bambu-dark-secondary rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary shrink-0">
-          <h2 className="text-lg font-semibold text-white">
-            {t('notifications.editTemplate', { name: template.name })}
-          </h2>
-          <Button variant="unstyled"
-            onClick={onClose}
-            className="p-1 hover:bg-bambu-dark-tertiary rounded transition-colors"
+    <Modal
+      open
+      title={t('notifications.editTemplate', { name: template.name })}
+      onClose={onClose}
+      closeLabel={t('common.close')}
+      closeOnBackdrop={false}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => resetMutation.mutate()}
+            disabled={resetMutation.isPending}
+            className="mr-auto text-orange-800 dark:text-orange-300"
           >
-            <X className="w-5 h-5 text-bambu-gray" />
+            {resetMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            {t('notifications.resetToDefault')}
           </Button>
-        </div>
-
-        {/* Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            {t('notifications.cancel')}
+          </Button>
+          <Button className="text-black!" onClick={handleSubmit} disabled={updateMutation.isPending || !hasChanges}>
+            {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {t('notifications.save')}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="min-w-0 space-y-4 text-sm text-table-secondary">
           {error && (
-            <div className="p-3 bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/50 rounded text-red-700 dark:text-red-400 text-sm">
+            <div className="p-3 bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/50 rounded text-red-700 dark:text-red-300 text-sm">
               {error}
             </div>
           )}
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-bambu-gray mb-1">
+            <label className="block text-sm font-medium text-table-secondary mb-1">
               {t('notifications.titleLabel')}
             </label>
             <TextField
@@ -157,7 +161,7 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
 
           {/* Body */}
           <div>
-            <label className="block text-sm font-medium text-bambu-gray mb-1">
+            <label className="block text-sm font-medium text-table-secondary mb-1">
               {t('notifications.bodyLabel')}
             </label>
             <TextArea
@@ -173,7 +177,7 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
           {/* Available Variables */}
           {eventVariables && (
             <div>
-              <label className="block text-sm font-medium text-bambu-gray mb-2">
+              <label className="block text-sm font-medium text-table-secondary mb-2">
                 {t('notifications.availableVariables')}
               </label>
               <div className="flex flex-wrap gap-2">
@@ -182,14 +186,14 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
                     key={variable}
                     type="button"
                     onClick={() => insertVariable(variable)}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-bambu-dark hover:bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-xs text-bambu-gray hover:text-white transition-colors"
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-bambu-dark hover:bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-xs text-table-secondary hover:text-white transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     {variable}
                   </Button>
                 ))}
               </div>
-              <p className="text-xs text-bambu-gray/60 mt-1">
+              <p className="text-xs text-table-secondary mt-1">
                 {t('notifications.clickToInsert')}
               </p>
             </div>
@@ -197,15 +201,15 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
 
           {/* Preview */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-bambu-gray flex items-center gap-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <label className="text-sm font-medium text-table-secondary flex items-center gap-2">
                 <Eye className="w-4 h-4" />
                 {t('notifications.livePreview')}
               </label>
               <Button variant="unstyled"
                 type="button"
                 onClick={() => setShowPreview(!showPreview)}
-                className="text-xs text-bambu-green hover:text-bambu-green-light"
+                className="text-xs text-accent-foreground hover:underline"
               >
                 {showPreview ? t('notifications.hide') : t('notifications.show')}
               </Button>
@@ -213,67 +217,30 @@ export function NotificationTemplateEditor({ template, onClose }: NotificationTe
             {showPreview && (
               <div className="bg-bambu-dark border border-bambu-dark-tertiary rounded p-3 space-y-2">
                 {previewLoading ? (
-                  <div className="flex items-center gap-2 text-bambu-gray text-sm">
+                  <div className="flex items-center gap-2 text-table-secondary text-sm">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     {t('notifications.loadingPreview')}
                   </div>
                 ) : preview ? (
                   <>
                     <div>
-                      <span className="text-xs text-bambu-gray">{t('notifications.titlePreview')}</span>
+                      <span className="text-xs text-table-secondary">{t('notifications.titlePreview')}</span>
                       <div className="text-white font-medium">{preview.title}</div>
                     </div>
                     <div>
-                      <span className="text-xs text-bambu-gray">{t('notifications.bodyPreview')}</span>
+                      <span className="text-xs text-table-secondary">{t('notifications.bodyPreview')}</span>
                       <div className="text-white whitespace-pre-wrap text-sm">{preview.body}</div>
                     </div>
                   </>
                 ) : (
-                  <div className="text-bambu-gray text-sm">
+                  <div className="text-table-secondary text-sm">
                     {t('notifications.enterTemplateContent')}
                   </div>
                 )}
               </div>
             )}
           </div>
-        </form>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-bambu-dark-tertiary shrink-0">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => resetMutation.mutate()}
-            disabled={resetMutation.isPending}
-            className="text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300"
-          >
-            {resetMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <RotateCcw className="w-4 h-4 mr-2" />
-            )}
-            {t('notifications.resetToDefault')}
-          </Button>
-
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>
-              {t('notifications.cancel')}
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={updateMutation.isPending || !hasChanges}
-            >
-              {updateMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Save className="w-4 h-4 mr-2" />
-              )}
-              {t('notifications.save')}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }
-import { TextArea, TextField } from './ui';

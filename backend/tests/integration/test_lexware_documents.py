@@ -229,6 +229,39 @@ async def test_incomplete_payment_is_never_paid(db_session, payment):
     assert not projected.included_in_totals
 
 
+async def test_document_sort_is_applied_before_pagination(document_client, db_session):
+    smaller = snapshot(open_amount="2.00", status="paid")
+    larger = snapshot(open_amount="100.00")
+    unknown = snapshot(open_amount="9.00", payment_state="unknown")
+    for voucher, number in ((smaller, "LEX-003"), (larger, "LEX-001"), (unknown, "LEX-002")):
+        voucher["summary"]["voucherNumber"] = number
+    connection, documents = await seed(db_session, [larger, unknown, smaller])
+    payment_reader = await headers(db_session, [READ, PAY])
+    reader = await headers(db_session, [READ])
+    with patch("backend.app.core.auth.is_auth_enabled", AsyncMock(return_value=True)):
+        for sort, direction, expected in (
+            ("number", "asc", ["LEX-001", "LEX-002", "LEX-003"]),
+            ("open", "asc", ["LEX-003", "LEX-001", "LEX-002"]),
+            ("open", "desc", ["LEX-001", "LEX-003", "LEX-002"]),
+        ):
+            for offset, number in enumerate(expected):
+                result = await document_client.get(
+                    f"{BASE}/documents",
+                    headers=payment_reader,
+                    params={"connection_id": connection.id, "sort": sort, "direction": direction,
+                            "limit": 1, "offset": offset},
+                )
+                assert result.status_code == 200, result.text
+                assert result.json()["total"] == 3
+                assert [item["voucher_number"] for item in result.json()["items"]] == [number]
+
+        # A read-only list uses the redacted status even to order results.
+        response = await document_client.get(f"{BASE}/documents", headers=reader, params={"sort": "status", "direction": "asc"})
+        assert response.status_code == 200, response.text
+        assert [row["id"] for row in response.json()["items"]] == [document.id for document in reversed(documents)]
+        assert all(row["voucher_status"] == "final" for row in response.json()["items"])
+
+
 async def test_read_permissions_filter_every_financial_surface(document_client, db_session):
     _, documents = await seed(db_session, [snapshot(status="paid", file_id=str(uuid4()))])
     read = await headers(db_session, [READ])
@@ -241,6 +274,7 @@ async def test_read_permissions_filter_every_financial_surface(document_client, 
             assert "finance" not in body and "files" not in body and "due_date" not in body
             assert "payload" not in body and "encrypted_api_key" not in body
             assert body["voucher_status"] == "final"
+        assert (await document_client.get(f"{BASE}/documents?sort=open", headers=read)).status_code == 403
         assert (await document_client.get(f"{BASE}/finance", headers=read)).status_code == 403
         assert (
             await document_client.get(f"{BASE}/documents/{documents[0].id}/files/{uuid4()}", headers=read)
@@ -337,6 +371,7 @@ async def test_api_key_document_scope_does_not_grant_payments(document_client, d
             assert "finance" not in detail.json() and "files" not in detail.json()
             listing = await document_client.get(f"{BASE}/documents", headers=auth_headers)
             assert "finance" not in listing.json()["items"][0]
+            assert (await document_client.get(f"{BASE}/documents?sort=open", headers=auth_headers)).status_code == 403
             assert (await document_client.get(f"{BASE}/finance", headers=auth_headers)).status_code == 403
             assert (
                 await document_client.get(f"{BASE}/documents/{documents[0].id}/files/{uuid4()}", headers=auth_headers)

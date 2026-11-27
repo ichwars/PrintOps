@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { setPageSelection, useTablePagination } from '../hooks/useTablePagination';
 import { Button, LegacySelect, TextField, Checkbox , ColorInput, FileInput} from './ui';
 import { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -68,6 +70,7 @@ export function ColorCatalogSettings() {
     return matchesSearch && matchesManufacturer;
   });
 
+  const pagination = useTablePagination(filteredCatalog, JSON.stringify([search, filterManufacturer]), 15);
   const resetForm = () => {
     setFormManufacturer('');
     setFormColorName('');
@@ -245,13 +248,10 @@ export function ColorCatalogSettings() {
     });
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredCatalog.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredCatalog.map(e => e.id)));
-    }
-  };
+  const visibleIds = pagination.rows.map(entry => entry.id);
+  const visibleSelection = visibleIds.filter(id => selectedIds.has(id)).length;
+  const allVisibleSelected = visibleIds.length > 0 && visibleSelection === visibleIds.length;
+  const toggleSelectAll = () => setSelectedIds(previous => setPageSelection(previous, visibleIds, !allVisibleSelected));
 
   const handleBulkDelete = async () => {
     setShowBulkDeleteConfirm(false);
@@ -499,6 +499,7 @@ export function ColorCatalogSettings() {
               />
               <LegacySelect
                 className="px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
+                aria-label={t('inventory.colorEffectLabel')}
                 value={formEffectType}
                 onChange={(e) => setFormEffectType(e.target.value)}
               >
@@ -526,13 +527,15 @@ export function ColorCatalogSettings() {
             {t('common.loading')}
           </div>
         ) : (
+          <>
           <div className="max-h-[600px] overflow-auto border border-bambu-dark-tertiary rounded-lg">
             <table className="w-full text-sm">
               <thead className="bg-bambu-dark sticky top-0">
                 <tr>
                   <th className="px-2 py-2 w-10">
                     <Checkbox
-                      checked={filteredCatalog.length > 0 && selectedIds.size === filteredCatalog.length}
+                      checked={allVisibleSelected}
+                      indeterminate={visibleSelection > 0 && !allVisibleSelected}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 accent-bambu-green cursor-pointer"
                     />
@@ -553,7 +556,7 @@ export function ColorCatalogSettings() {
                     </td>
                   </tr>
                 ) : (
-                  filteredCatalog.map(entry => (
+                  pagination.rows.map(entry => (
                     <Fragment key={entry.id}>
                     <tr className={`border-t border-bambu-dark-tertiary hover:bg-bambu-dark ${selectedIds.has(entry.id) ? 'bg-bambu-dark' : ''}`}>
                       {editingId === entry.id ? (
@@ -677,6 +680,7 @@ export function ColorCatalogSettings() {
                         <td className="px-3 py-2" colSpan={2}>
                           <LegacySelect
                             className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                            aria-label={t('inventory.colorEffectLabel')}
                             value={formEffectType}
                             onChange={(e) => setFormEffectType(e.target.value)}
                           >
@@ -696,6 +700,8 @@ export function ColorCatalogSettings() {
               </tbody>
             </table>
           </div>
+          <TablePagination {...pagination.footer} />
+          </>
         )}
       </CardContent>
 

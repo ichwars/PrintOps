@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.app.models.project import (
     DEFAULT_PROJECT_PRIORITY,
@@ -26,6 +26,13 @@ def _validate_project_url(value: str | None) -> str | None:
     return trimmed
 
 
+class ProjectProductionDestination(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    article_id: int = Field(gt=0, le=2_147_483_647)
+    location_id: int = Field(gt=0, le=2_147_483_647)
+
+
 class ProjectCreate(BaseModel):
     """Schema for creating a new project."""
 
@@ -34,6 +41,7 @@ class ProjectCreate(BaseModel):
     color: str | None = None
     target_count: int | None = None
     target_parts_count: int | None = None
+    production_output: ProjectProductionDestination | None = None
     notes: str | None = None
     tags: str | None = None
     due_date: datetime | None = None
@@ -59,6 +67,7 @@ class ProjectUpdate(IgnoresNullForRequiredColumns):
     status: str | None = None  # active, completed, archived
     target_count: int | None = None
     target_parts_count: int | None = None
+    production_output: ProjectProductionDestination | None = None
     notes: str | None = None
     tags: str | None = None
     due_date: datetime | None = None
@@ -129,6 +138,7 @@ class ProjectResponse(BaseModel):
     status: str
     target_count: int | None
     target_parts_count: int | None = None
+    production_output: ProjectProductionDestination | None = None
     notes: str | None = None
     attachments: list | None = None
     tags: str | None = None
@@ -175,6 +185,7 @@ class ProjectListResponse(BaseModel):
     status: str
     target_count: int | None
     target_parts_count: int | None = None
+    production_output: ProjectProductionDestination | None = None
     budget: float | None = None
     created_at: datetime
     # Quick stats

@@ -23,6 +23,7 @@ from backend.app.core.h3c_queue_migration import (
     H3C_QUEUE_TRAY_MIGRATION_KEY as H3C_QUEUE_TRAY_MIGRATION_KEY,
     _migrate_h3c_queue_tray_ids as _migrate_h3c_queue_tray_ids,
 )
+from backend.app.core.inventory_migrations import migrate_inventory_fields
 from backend.app.core.library_migrations import reclassify_sliced_3mf_library_files, repair_compound_3mf_library_types
 from backend.app.core.number_sequence_migrations import migrate_number_sequence_monthly_reset_policy
 from backend.app.core.postgres_migration_ddl import (
@@ -303,6 +304,7 @@ def load_all_models():
         procurement,
         project,
         project_bom,
+        project_production,
         settings,
         shopping_list,
         slicer_pipeline,
@@ -325,6 +327,7 @@ def load_all_models():
         user_otp_code,
         user_totp,
         virtual_printer,
+        warehouse_article,
         warehouse_number_sequence,
     )
 
@@ -765,11 +768,7 @@ async def run_migrations(conn):
     await migrate_number_sequence_monthly_reset_policy(conn, _safe_execute)
     await _migrate_document_payments(conn)
     await migrate_notification_options(conn, _safe_execute)
-    await _safe_execute(
-        conn,
-        "ALTER TABLE small_parts ADD COLUMN default_consumption_reason VARCHAR(120) NOT NULL DEFAULT 'Produktion'",
-    )
-    await _safe_execute(conn, "ALTER TABLE small_parts ADD COLUMN internal_notes TEXT")
+    await migrate_inventory_fields(conn, _safe_execute)
 
     await _safe_execute(conn, "ALTER TABLE spool_usage_history ADD COLUMN spoolman_spool_id INTEGER")
     await conn.exec_driver_sql(

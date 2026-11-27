@@ -306,6 +306,37 @@ async def test_small_part_api_tracks_receipt_search_and_correction(async_client)
     assert overdraw.status_code == 409
     assert overdraw.json()["detail"]["code"] == "insufficient_stock"
 
+    issue_payload = {
+        "entry_kind": "issue",
+        "quantity": "9",
+        "reason": "Werkstattverbrauch",
+        "idempotency_key": "issue-M3-workshop",
+    }
+    url = f"/api/v1/small-parts/{part_id}/ledger"
+    issued = await async_client.post(url, json=issue_payload)
+    assert issued.status_code == 201, issued.text
+    assert issued.json()["physical_delta"] == "-9.000000"
+    assert issued.json()["reserved_delta"] == "0.000000"
+    replay = await async_client.post(url, json=issue_payload)
+    assert replay.json()["id"] == issued.json()["id"]
+    detail = (await async_client.get(f"/api/v1/small-parts/{part_id}")).json()
+    assert detail["balance"]["available"] == "91.000000"
+    assert detail["consumed"] == "9.000000"
+    assert detail["last_used_at"] is not None
+
+    invalid = await async_client.post(url, json={**issue_payload, "quantity": "-1"})
+    assert invalid.status_code == 422
+    overdraw = await async_client.post(
+        url, json={**issue_payload, "quantity": "92", "idempotency_key": "issue-M3-overdraw"}
+    )
+    assert overdraw.status_code == 409
+    assert overdraw.json()["detail"]["code"] == "insufficient_stock"
+
+    assert (await async_client.patch(f"/api/v1/small-parts/{part_id}", json={"is_active": False})).status_code == 200
+    inactive = await async_client.post(url, json={**issue_payload, "idempotency_key": "issue-M3-inactive"})
+    assert inactive.status_code == 409
+    assert inactive.json()["detail"]["code"] == "inactive_material"
+
 
 @pytest.mark.asyncio
 async def test_inactive_small_parts_are_excluded_from_search_by_default(async_client):

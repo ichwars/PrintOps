@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Eye, EyeOff, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from './Button';
+import { dashboardStyles } from './dashboardStyles';
 
 export interface DashboardWidget {
   id: string;
@@ -94,12 +95,12 @@ function SortableWidget({
         ...style,
         gridColumn: `span ${columnSpan}`,
       }}
-      className={`bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary overflow-hidden ${
+      className={`${dashboardStyles.card} overflow-hidden ${
         isDragging ? 'ring-2 ring-bambu-green shadow-lg' : ''
       }`}
     >
       {/* Widget Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-bambu-dark-tertiary bg-bambu-dark/30">
+      <div className={`${dashboardStyles.cardHeader} flex items-center justify-between`}>
         <div className="flex items-center gap-2">
           <button
             {...attributes}
@@ -109,7 +110,7 @@ function SortableWidget({
           >
             <GripVertical className="w-6 h-6 md:w-4 md:h-4 text-bambu-gray" />
           </button>
-          <h3 className="text-sm font-medium text-white">{title}</h3>
+          <h3 className={dashboardStyles.cardTitle}>{title}</h3>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -133,7 +134,7 @@ function SortableWidget({
         </div>
       </div>
       {/* Widget Content */}
-      <div className="p-4">
+      <div className={dashboardStyles.cardBody}>
         {typeof component === 'function' ? component(size) : component}
       </div>
     </div>

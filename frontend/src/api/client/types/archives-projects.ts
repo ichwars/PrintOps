@@ -317,6 +317,11 @@ export interface ProjectChildPreview {
   total_cost: number;
 }
 
+export interface ProjectProductionDestination {
+  article_id: number;
+  location_id: number;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -325,6 +330,7 @@ export interface Project {
   status: string;  // active, completed, archived
   target_count: number | null;  // Target number of plates/print jobs
   target_parts_count: number | null;  // Target number of parts/objects
+  production_output?: ProjectProductionDestination | null;
   notes: string | null;
   attachments: ProjectAttachment[] | null;
   tags: string | null;
@@ -369,6 +375,7 @@ export interface ProjectListItem {
   status: string;
   target_count: number | null;  // Target number of plates/print jobs
   target_parts_count: number | null;  // Target number of parts/objects
+  production_output?: ProjectProductionDestination | null;
   budget: number | null;
   created_at: string;
   archive_count: number;  // Number of print jobs (plates)
@@ -390,6 +397,7 @@ export interface ProjectCreate {
   color?: string;
   target_count?: number;
   target_parts_count?: number;
+  production_output?: ProjectProductionDestination;
   notes?: string;
   tags?: string;
   due_date?: string;
@@ -406,6 +414,7 @@ export interface ProjectUpdate {
   status?: string;
   target_count?: number;
   target_parts_count?: number;
+  production_output?: ProjectProductionDestination;
   notes?: string;
   tags?: string;
   due_date?: string;

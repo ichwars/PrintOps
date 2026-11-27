@@ -31,7 +31,7 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
         <CreditCard className="h-4 w-4 text-bambu-green" aria-hidden="true" />
         <h3 id="document-payment-policy-heading" className="font-semibold text-white">{t('settings.documents.payment.title', 'Payment and dunning')}</h3>
       </div>
-      <p className="mt-1 text-sm text-gray-400">{t('settings.documents.payment.description', 'Due dates, discounts, installments, bank assignment and escalation stages.')}</p>
+      <p className="mt-1 text-sm text-table-secondary">{t('settings.documents.payment.description', 'Due dates, discounts, installments, bank assignment and escalation stages.')}</p>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <InheritanceField path="payment.payment_term_days" sourced={effectivePayment.payment_term_days as SourcedValue<number> | undefined} onReset={reset}>
           <NumberField label={t('settings.documents.payment.termDays', 'Payment term in days')} value={payment.payment_term_days} min={0} max={3650} disabled={disabled} error={finding('payment.payment_term_days')} onValueChange={(value) => onChange('payment.payment_term_days', Number(value))} />
@@ -72,7 +72,7 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
                 <Button type="button" variant="ghost" size="sm" aria-label={t('settings.documents.payment.removeInstallment', 'Remove installment')} disabled={disabled} onClick={() => onChange('payment.installments', payment.installments.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
-            {payment.installments.length > 0 && Math.abs(installmentsTotal - 100) > 0.001 ? <p role="alert" className="text-sm text-amber-300">{t('settings.documents.payment.installmentTotalError', 'Installments must add up to 100%.')}</p> : null}
+            {payment.installments.length > 0 && Math.abs(installmentsTotal - 100) > 0.001 ? <p role="alert" className="text-sm text-amber-800 dark:text-amber-300">{t('settings.documents.payment.installmentTotalError', 'Installments must add up to 100%.')}</p> : null}
             <Button type="button" variant="secondary" size="sm" disabled={disabled} onClick={() => onChange('payment.installments', [...payment.installments, { percent: '0', due_days: 0 }])}><Plus className="h-4 w-4" />{t('settings.documents.payment.addInstallment', 'Add installment')}</Button>
           </div>
         ) : null}

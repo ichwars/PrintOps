@@ -251,7 +251,9 @@ describe('Lexware explicit imports', () => {
     const close = vi.fn();
     const imported = vi.fn();
     mount(<LexwareImportReview connection={connection} kind="contacts" resources={[resource]} onClose={close} onImported={imported} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Import selected fields' }));
+    const confirmImport = await screen.findByRole('button', { name: 'Import selected fields' });
+    expect(confirmImport.closest('.overflow-y-auto')).toBeNull();
+    fireEvent.click(confirmImport);
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
     const dialog = screen.getByRole('dialog', { name: 'Import preview' });
     expect(within(dialog).getByRole('button', { name: 'Close preview' })).toBeDisabled();

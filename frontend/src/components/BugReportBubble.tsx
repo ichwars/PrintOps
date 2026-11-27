@@ -309,6 +309,7 @@ export function BugReportBubble() {
     <>
       <button
         onClick={handleOpen}
+        data-bug-report-trigger
         className="fixed bottom-4 right-4 z-40 w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 flex items-center justify-center"
         title={t('bugReport.title')}
       >

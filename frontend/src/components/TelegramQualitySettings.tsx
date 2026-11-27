@@ -13,7 +13,7 @@ export function TelegramQualitySettings({ providerId }: { providerId: number }) 
   const { t } = useTranslation();
   const allowed = authEnabled && user?.is_admin === true;
   const query = useQuery({ queryKey: ['telegram-quality', providerId], queryFn: () => getTelegramQuality(providerId), enabled: allowed, refetchInterval: 15000 });
-  if (!allowed) return <p className="text-xs text-bambu-gray">{t('telegramQuality.adminOnly')}</p>;
+  if (!allowed) return <p className="text-xs text-table-secondary">{t('telegramQuality.adminOnly')}</p>;
   if (query.isError) return <p role="alert">{t('telegramQuality.error')}</p>;
   if (!query.data) return <p>{t('common.loading')}</p>;
   return <QualityForm key={providerId} providerId={providerId} config={query.data} />;
@@ -46,17 +46,17 @@ function QualityForm({ providerId, config }: { providerId: number; config: Teleg
     mutation.mutate({ enabled, actors: bindings });
   }
   return <section className="space-y-3 border-t border-bambu-dark-tertiary pt-3">
-    <h3 className="font-medium">{t('telegramQuality.title')}</h3>
-    <p className="text-xs text-bambu-gray">{t('telegramQuality.instructions')}</p>
+    <h3 className="font-medium text-white">{t('telegramQuality.title')}</h3>
+    <p className="text-xs text-table-secondary">{t('telegramQuality.instructions')}</p>
     <Checkbox checked={enabled} onCheckedChange={value => setDraft({ enabled: value, actors })}
       disabled={mutation.isPending} label={t('telegramQuality.enable')} />
     <TextArea label={t('telegramQuality.actors')} aria-label={t('telegramQuality.actors')} rows={3}
       value={actors} onValueChange={value => setDraft({ enabled, actors: value })}
       disabled={mutation.isPending} placeholder="123456789=7" />
-    <p className="text-xs text-bambu-gray">{t('telegramQuality.format')}</p>
+    <p className="text-xs text-table-secondary">{t('telegramQuality.format')}</p>
     <p role="status" className="text-sm">{t(`telegramQuality.status.${config.status}`)}</p>
-    {invalid && <p role="alert" className="text-red-400">{t('telegramQuality.format')}</p>}
-    {mutation.isError && <p role="alert" className="text-red-400">{t('telegramQuality.error')}</p>}
-    <Button type="button" onClick={save} disabled={mutation.isPending}>{t('telegramQuality.save')}</Button>
+    {invalid && <p role="alert" className="text-red-700 dark:text-red-300">{t('telegramQuality.format')}</p>}
+    {mutation.isError && <p role="alert" className="text-red-700 dark:text-red-300">{t('telegramQuality.error')}</p>}
+    <Button type="button" className="text-black!" onClick={save} disabled={mutation.isPending}>{t('telegramQuality.save')}</Button>
   </section>;
 }

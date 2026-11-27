@@ -1,3 +1,5 @@
+import { TablePagination } from './ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useTranslation } from 'react-i18next';
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -75,6 +77,7 @@ export function CompareArchivesModal({ archiveIds, onClose }: CompareArchivesMod
 
 function ComparisonContent({ comparison }: { comparison: ArchiveComparison }) {
   const { t: translateInterface } = useTranslation();
+  const pagination = useTablePagination(comparison.comparison);
   return (
     <div className="space-y-6">
       {/* Archive Headers */}
@@ -104,7 +107,7 @@ function ComparisonContent({ comparison }: { comparison: ArchiveComparison }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-bambu-gray/20">
-            {comparison.comparison.map((field) => (
+            {pagination.rows.map((field) => (
               <tr
                 key={field.field}
                 className={field.has_difference ? 'bg-yellow-500/5' : ''}
@@ -132,6 +135,7 @@ function ComparisonContent({ comparison }: { comparison: ArchiveComparison }) {
           </tbody>
         </table>
       </div>
+      <TablePagination {...pagination.footer} />
 
       {/* Differences Summary */}
       {comparison.differences.length > 0 && (

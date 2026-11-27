@@ -22,6 +22,7 @@ from backend.app.models.customer import (
     CustomerContact,
     CustomerTag,
     CustomerTaxIdentifier,
+    customer_tag_links,
 )
 from backend.app.models.document_configuration import CustomerDocumentPreference
 from backend.app.models.lexware import LexwareResource
@@ -29,6 +30,8 @@ from backend.app.models.number_sequence import NumberSequence
 from backend.app.schemas.customer import (
     CustomerCreate,
     CustomerKind,
+    CustomerSortDirection,
+    CustomerSortKey,
     CustomerStatus,
     CustomerUpdate,
 )
@@ -315,6 +318,47 @@ async def create_customer(
     return customer
 
 
+def _customer_order(sort: CustomerSortKey, direction: CustomerSortDirection):
+    if sort == "contact":
+        name = func.nullif(
+            func.trim(func.coalesce(CustomerContact.first_name, "") + " " + func.coalesce(CustomerContact.last_name, "")),
+            "",
+        )
+        column = (
+            select(func.coalesce(func.lower(name), CustomerContact.email_key))
+            .where(CustomerContact.customer_id == Customer.id, CustomerContact.is_primary.is_(True))
+            .order_by(CustomerContact.id)
+            .limit(1)
+            .scalar_subquery()
+        )
+    elif sort == "billing":
+        column = (
+            select(func.lower(CustomerAddress.city + ", " + CustomerAddress.country_code))
+            .where(
+                CustomerAddress.customer_id == Customer.id,
+                CustomerAddress.kind == "billing",
+                CustomerAddress.is_default.is_(True),
+            )
+            .order_by(CustomerAddress.id)
+            .limit(1)
+            .scalar_subquery()
+        )
+    elif sort == "tags":
+        column = (
+            select(func.min(CustomerTag.name_key))
+            .join(customer_tag_links, customer_tag_links.c.tag_id == CustomerTag.id)
+            .where(customer_tag_links.c.customer_id == Customer.id)
+            .scalar_subquery()
+        )
+    else:
+        column = {
+            "number": CustomerAccount.number_key,
+            "name": Customer.display_name_key,
+            "status": Customer.status,
+        }[sort]
+    return (column.asc() if direction == "asc" else column.desc()).nulls_last()
+
+
 async def list_customers(
     session: AsyncSession,
     *,
@@ -324,6 +368,8 @@ async def list_customers(
     kind: CustomerKind | None = None,
     limit: int = 50,
     offset: int = 0,
+    sort: CustomerSortKey = "name",
+    direction: CustomerSortDirection = "asc",
 ) -> CustomerPage:
     filters = [CustomerAccount.business_profile_id == business_profile_id]
     if status is not None:
@@ -355,7 +401,7 @@ async def list_customers(
         .join(CustomerAccount, CustomerAccount.customer_id == Customer.id)
         .options(*_CUSTOMER_LOAD_OPTIONS)
         .where(*filters)
-        .order_by(Customer.display_name_key, Customer.id)
+        .order_by(_customer_order(sort, direction), Customer.id)
         .limit(limit)
         .offset(offset)
     )

@@ -1,3 +1,4 @@
+import { TablePagination } from '../components/ui/TablePagination';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,8 +33,6 @@ const STATUSES = [
   'cancelled',
 ] as const;
 
-const PAGE_LIMIT = 25;
-
 // Dashboard for Slicer Pipeline runs (#1425 PR C).
 // Renders the content of the Pipelines tab on the Print Queue page. Lists
 // every run across every pipeline with status + pipeline filters and
@@ -51,6 +50,7 @@ export function PipelineRunsView() {
   // Target filter — same encoded shape as SlicerPipelinesPanel: '' = all,
   // 'p:<printer_id>' = specific printer, 'c:<model_class>' = printer class.
   const [targetFilter, setTargetFilter] = useState<string>('');
+  const [pageSize, setPageSize] = useState(25);
   const [offset, setOffset] = useState(0);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -81,10 +81,10 @@ export function PipelineRunsView() {
     : undefined;
 
   const { data: runsList, isLoading } = useQuery({
-    queryKey: ['pipeline-runs-all', statusFilter, pipelineFilter, offset, targetFilter],
+    queryKey: ['pipeline-runs-all', statusFilter, pipelineFilter, offset, targetFilter, pageSize],
     queryFn: () =>
       api.listAllPipelineRuns({
-        limit: PAGE_LIMIT,
+        limit: pageSize,
         offset,
         pipelineId: pipelineFilter ?? undefined,
         status: statusFilter || undefined,
@@ -356,33 +356,9 @@ export function PipelineRunsView() {
         </div>
       )}
 
-      {!isLoading && total > PAGE_LIMIT && (
-        <div className="flex items-center justify-between mt-4 text-sm">
-          <button
-            type="button"
-            onClick={() => setOffset(Math.max(0, offset - PAGE_LIMIT))}
-            disabled={offset === 0}
-            className="px-3 py-1.5 rounded border border-bambu-dark-tertiary disabled:opacity-50 text-bambu-gray hover:text-white"
-          >
-            {t('common.previous', 'Previous')}
-          </button>
-          <span className="text-bambu-gray text-xs">
-            {t('pipelineRuns.pagination', '{{start}}–{{end}} of {{total}}', {
-              start: offset + 1,
-              end: Math.min(offset + PAGE_LIMIT, total),
-              total,
-            })}
-          </span>
-          <button
-            type="button"
-            onClick={() => setOffset(offset + PAGE_LIMIT)}
-            disabled={offset + PAGE_LIMIT >= total}
-            className="px-3 py-1.5 rounded border border-bambu-dark-tertiary disabled:opacity-50 text-bambu-gray hover:text-white"
-          >
-            {t('common.next', 'Next')}
-          </button>
-        </div>
-      )}
+      {!isLoading && total > 0 && <TablePagination total={total} offset={offset} pageSize={pageSize}
+        sizes={[15, 25, 30, 50, 100]} onOffsetChange={setOffset}
+        onPageSizeChange={value => { setPageSize(value); setOffset(0); }} />}
     </div>
   );
 }

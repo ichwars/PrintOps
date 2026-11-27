@@ -142,7 +142,7 @@ export function AssetControls({ businessProfileId, layoutId, assets, readOnly, o
         {state === 'idle' ? <Upload className="h-4 w-4" /> : <LoaderCircle className="h-4 w-4 animate-spin" />}
         {state === 'hashing' ? 'SHA-256...' : state === 'uploading' ? t('settings.documentLayout.assets.uploading', 'Uploading...') : t('settings.documentLayout.assets.drop', 'Drop file here or choose')}
       </Button>
-      {error ? <p role="alert" className="mt-2 text-xs text-red-400">{error}</p> : null}
+      {error ? <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-400">{error}</p> : null}
     </div>
     <div className="space-y-2">
       {assets.map((asset) => <article key={asset.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-3">
@@ -151,10 +151,10 @@ export function AssetControls({ businessProfileId, layoutId, assets, readOnly, o
           <p className="truncate text-sm font-medium text-white">{asset.original_name}</p>
           <p className="text-xs text-bambu-gray">{Math.ceil(asset.size_bytes / 1024)} KiB - {asset.asset_type}</p>
           <p className="truncate font-mono text-[10px] text-bambu-gray" title={asset.sha256}>{asset.sha256}</p>
-          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${asset.preflight_status === 'valid' ? 'bg-emerald-500/20 text-emerald-300' : asset.preflight_status === 'invalid' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'}`}>
+          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${asset.preflight_status === 'valid' ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300' : asset.preflight_status === 'invalid' ? 'bg-red-500/20 text-red-700 dark:text-red-300' : 'bg-amber-500/20 text-amber-800 dark:text-amber-300'}`}>
             {t(`settings.documentLayout.assets.preflight.${asset.preflight_status}`, asset.preflight_status)}
           </span>
-          {deleteError === asset.id ? <p className="mt-1 text-xs text-red-400">{t('settings.documentLayout.assets.deleteBlocked', 'This asset is still assigned and cannot be deleted.')}</p> : null}
+          {deleteError === asset.id ? <p className="mt-1 text-xs text-red-700 dark:text-red-400">{t('settings.documentLayout.assets.deleteBlocked', 'This asset is still assigned and cannot be deleted.')}</p> : null}
         </div>
         {!readOnly ? <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-bambu-gray hover:bg-red-500/10 hover:text-red-400" aria-label={t('settings.documentLayout.actions.delete', 'Delete')} onClick={() => void remove(asset.id)}><Trash2 className="h-4 w-4" /></button> : null}
       </article>)}

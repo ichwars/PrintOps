@@ -68,10 +68,16 @@ function enableAuth(permissions: string[]) {
   );
 }
 
+async function customerAction(name: string, menuLabel = 'Actions: Ada Example') {
+  const trigger = await screen.findByRole('button', { name: menuLabel });
+  if (trigger.getAttribute('aria-expanded') !== 'true') fireEvent.click(trigger);
+  return within(screen.getByRole('menu', { name: menuLabel })).getByRole('menuitem', { name });
+}
+
 async function openValidCreateEditor() {
   const user = userEvent.setup();
   render(<OrdersCustomersPage />);
-  await screen.findByRole('button', { name: 'View Ada Example' });
+  await screen.findByRole('button', { name: 'Actions: Ada Example' });
   await user.click(screen.getByRole('button', { name: 'Add customer' }));
   await user.type(screen.getByRole('textbox', { name: 'Display name' }), 'Validation customer');
   await user.type(screen.getByRole('textbox', { name: 'First name' }), 'Validation');
@@ -107,7 +113,7 @@ describe('OrdersCustomersPage', () => {
       return HttpResponse.json(listResponse());
     }));
     const view = render(<OrdersCustomersPage />);
-    expect(await screen.findByRole('button', { name: 'View Ada Example' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Actions: Ada Example' })).toBeInTheDocument();
     const profileSelect = screen.getByRole('combobox', { name: 'Business profile' });
     expect(profileSelect).toHaveTextContent('Berlin Print Works');
     fireEvent.click(profileSelect);
@@ -153,7 +159,7 @@ describe('OrdersCustomersPage', () => {
       return HttpResponse.json(listResponse([listCustomer], { total: 60, limit: 25, offset: Number(params.offset ?? 0) }));
     }));
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() => expect(requests.at(-1)?.offset).toBe('25'));
     await user.type(screen.getByRole('searchbox', { name: 'Search customers' }), 'Ada');
@@ -175,13 +181,19 @@ describe('OrdersCustomersPage', () => {
     const row = await screen.findByRole('row', { name: /C-0011 Ada Example/ });
     for (const value of ['C-0011', 'ada@example.test', 'Berlin, DE', 'Active', 'priority']) expect(within(row).getByText(value)).toBeInTheDocument();
     expect(within(row).getAllByText('Ada Example')).toHaveLength(2);
-    for (const [name, title] of [['View Ada Example', 'View details'], ['Edit Ada Example', 'Edit customer'], ['Delete Ada Example', 'Delete customer']]) {
-      expect(within(row).getByRole('button', { name })).toHaveAttribute('title', title);
+    const trigger = within(row).getByRole('button', { name: 'Actions: Ada Example' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    await user.click(trigger);
+    const menu = screen.getByRole('menu', { name: 'Actions: Ada Example' });
+    for (const name of ['View details', 'Edit customer', 'Show offers', 'Show invoices', 'Delete customer']) {
+      expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument();
     }
-    expect(screen.getByText('1-25 of 51')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(trigger).toHaveFocus();
+    expect(screen.getByText('Showing 1 to 25 of 51')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Next page' }));
-    await screen.findByText('26-50 of 51', {}, { timeout: 5_000 });
+    await screen.findByText('Showing 26 to 50 of 51', {}, { timeout: 5_000 });
   });
 
   it.each(['', '   '])('keeps a quick page change when the normalized search stays unchanged (%j)', async (searchInput) => {
@@ -189,14 +201,14 @@ describe('OrdersCustomersPage', () => {
     vi.useFakeTimers();
     try {
       render(<OrdersCustomersPage />);
-      await flushCustomerPage('1-25 of 51');
+      await flushCustomerPage('Showing 1 to 25 of 51');
 
       fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
-      await flushCustomerPage('26-50 of 51');
+      await flushCustomerPage('Showing 26 to 50 of 51');
 
       fireEvent.change(screen.getByRole('searchbox', { name: 'Search customers' }), { target: { value: searchInput } });
       await act(async () => { await vi.advanceTimersByTimeAsync(300); });
-      expect(screen.getByText('26-50 of 51')).toBeInTheDocument();
+      expect(screen.getByText('Showing 26 to 50 of 51')).toBeInTheDocument();
     } finally {
       cleanup();
       vi.useRealTimers();
@@ -213,27 +225,27 @@ describe('OrdersCustomersPage', () => {
     vi.useFakeTimers();
     try {
       render(<OrdersCustomersPage />);
-      await flushCustomerPage('1-25 of 51');
+      await flushCustomerPage('Showing 1 to 25 of 51');
       const searchbox = screen.getByRole('searchbox', { name: 'Search customers' });
       fireEvent.change(searchbox, { target: { value: 'Ada' } });
       await act(async () => { await vi.advanceTimersByTimeAsync(299); });
       expect(requests.at(-1)?.search).toBeUndefined();
       await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-      await flushCustomerPage('1-25 of 51');
+      await flushCustomerPage('Showing 1 to 25 of 51');
       expect(requests.at(-1)).toMatchObject({ search: 'Ada', offset: '0' });
 
       fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
-      await flushCustomerPage('26-50 of 51');
+      await flushCustomerPage('Showing 26 to 50 of 51');
       fireEvent.change(searchbox, { target: { value: ' Ada ' } });
       await act(async () => { await vi.advanceTimersByTimeAsync(300); });
-      expect(screen.getByText('26-50 of 51')).toBeInTheDocument();
+      expect(screen.getByText('Showing 26 to 50 of 51')).toBeInTheDocument();
 
       fireEvent.change(searchbox, { target: { value: '' } });
       await act(async () => { await vi.advanceTimersByTimeAsync(299); });
-      expect(screen.getByText('26-50 of 51')).toBeInTheDocument();
+      expect(screen.getByText('Showing 26 to 50 of 51')).toBeInTheDocument();
       expect(requests.at(-1)).toMatchObject({ search: 'Ada', offset: '25' });
       await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-      await flushCustomerPage('1-25 of 51');
+      await flushCustomerPage('Showing 1 to 25 of 51');
       expect(requests.at(-1)?.search).toBeUndefined();
       expect(requests.at(-1)?.offset).toBe('0');
     } finally {
@@ -246,11 +258,12 @@ describe('OrdersCustomersPage', () => {
     enableAuth(['customers:read']);
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'View Ada Example' }));
+    const viewItem = await customerAction('View details');
+    expect(screen.getAllByRole('menuitem')).toEqual([viewItem]);
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('cell', { name: 'C-0011' }));
     const dialog = await screen.findByRole('dialog', { name: 'Customer details' });
     expect(screen.queryByRole('button', { name: 'Add customer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit Ada Example' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete Ada Example' })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Edit customer' })).not.toBeInTheDocument();
     for (const value of ['Berlin Print Works', 'Hamburg Lab', 'Prefers email.', 'ada@example.test', 'Printstrasse 1', 'Werkweg 4', 'DE123456789', 'priority', 'Created Jun 1, 2026', 'Updated Jul 1, 2026']) {
       expect(within(dialog).getAllByText(value)[0]).toBeInTheDocument();
@@ -271,14 +284,14 @@ describe('OrdersCustomersPage', () => {
     server.use(http.get('/api/v1/customers/:id', () => HttpResponse.json(duplicatePrimary)));
 
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Ada Example anzeigen' }));
+    await user.click(await customerAction('Details anzeigen', 'Aktionen: Ada Example'));
     const details = await screen.findByRole('dialog', { name: 'Kundendetails' });
     const taxLine = within(details).getByText((_content, element) => element?.tagName === 'P' && element.textContent?.includes('DE123456789') === true);
     expect(taxLine).toHaveTextContent('Gültig');
     expect(taxLine).not.toHaveTextContent(/\bvalid\b/);
     await user.click(within(details).getByRole('button', { name: 'Schließen' }));
 
-    await user.click(screen.getByRole('button', { name: 'Ada Example bearbeiten' }));
+    await user.click(await customerAction('Kunde bearbeiten', 'Aktionen: Ada Example'));
     await user.click(screen.getByRole('button', { name: 'Kunde speichern' }));
     expect(await screen.findAllByText('Es ist nur ein Hauptkontakt zulässig.')).toHaveLength(2);
   });
@@ -291,7 +304,7 @@ describe('OrdersCustomersPage', () => {
     }));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
     const editor = screen.getByRole('dialog', { name: 'Add customer' });
     await user.click(within(editor).getByRole('button', { name: 'Company' }));
@@ -363,7 +376,7 @@ describe('OrdersCustomersPage', () => {
     server.use(http.post('/api/v1/customers/', () => HttpResponse.json({ detail: [{ loc: ['body', 'contacts', 0, 'email'], msg: 'Value error, Invalid email' }] }, { status: 422 })));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
     await user.type(screen.getByRole('textbox', { name: 'Display name' }), 'Nova');
     await user.type(screen.getByRole('textbox', { name: 'First name' }), 'Nova');
@@ -380,7 +393,7 @@ describe('OrdersCustomersPage', () => {
   it('uses a dedicated scroll viewport between the editor header and footer', async () => {
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Add customer' });
@@ -400,7 +413,7 @@ describe('OrdersCustomersPage', () => {
     server.use(http.post('/api/v1/customers/', () => { createRequests += 1; return HttpResponse.json(detailCustomer, { status: 201 }); }));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
     await user.type(screen.getByRole('textbox', { name: 'Display name' }), 'Incomplete person');
     await user.click(screen.getByRole('button', { name: 'Save customer' }));
@@ -417,7 +430,7 @@ describe('OrdersCustomersPage', () => {
     const mutationRequests = trackCustomerMutations();
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
     await user.type(screen.getByRole('textbox', { name: 'Display name' }), 'Invalid account');
     await user.type(screen.getByRole('textbox', { name: 'First name' }), 'Invalid');
@@ -550,7 +563,7 @@ describe('OrdersCustomersPage', () => {
     ] }, { status: 422 })));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
     await user.type(screen.getByRole('textbox', { name: 'Display name' }), 'Nested error');
     await user.type(screen.getByRole('textbox', { name: 'First name' }), 'Nested');
@@ -591,7 +604,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     selectComboboxOption(screen.getByRole('combobox', { name: 'Customer status' }), 'Active');
     await user.click(screen.getByRole('button', { name: 'Person' }));
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ status: 'active', kind: 'person' }));
@@ -600,7 +613,7 @@ describe('OrdersCustomersPage', () => {
     await waitFor(() => expect(requests.at(-1)).toMatchObject({ status: 'inactive', kind: 'company' }));
     selectComboboxOption(screen.getByRole('combobox', { name: 'Customer status' }), 'Active');
     await user.click(screen.getByRole('button', { name: 'Person' }));
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     const editor = await screen.findByRole('dialog', { name: 'Edit customer' });
     const name = await screen.findByRole('textbox', { name: 'Display name' });
     await user.clear(name);
@@ -649,7 +662,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     const name = await screen.findByRole('textbox', { name: 'Display name' });
     await user.clear(name);
     await user.type(name, 'My Unsaved Name');
@@ -679,7 +692,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     await screen.findByRole('textbox', { name: 'Display name' });
 
     focusManager.setFocused(false);
@@ -718,7 +731,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     const name = await screen.findByRole('textbox', { name: 'Display name' });
     await user.clear(name);
     await user.type(name, 'Unsaved');
@@ -746,7 +759,7 @@ describe('OrdersCustomersPage', () => {
     await waitFor(() => expect(setQueryData.mock.calls
       .filter(([queryKey]) => JSON.stringify(queryKey) === JSON.stringify(['customer', 11]))
       .map(([, customer]) => (customer as CustomerDetail).display_name)).toEqual(['Newest']));
-    await user.click(screen.getByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     expect(await screen.findByRole('dialog', { name: 'Loading customer editor' })).toBeInTheDocument();
   });
 
@@ -761,7 +774,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<StrictMode><OrdersCustomersPage /></StrictMode>);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     await user.click(await screen.findByRole('button', { name: 'Save customer' }));
     await user.click(await screen.findByRole('button', { name: 'Reload current data' }));
     expect(await screen.findByRole('textbox', { name: 'Display name' })).toHaveValue('Strict current');
@@ -782,7 +795,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     await user.click(screen.getByRole('button', { name: 'Save customer' }));
     await user.click(await screen.findByRole('button', { name: 'Reload current data' }));
     const reloadMessage = await screen.findByText('Reload unavailable.');
@@ -802,7 +815,7 @@ describe('OrdersCustomersPage', () => {
     }));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'View Ada Example' }));
+    await user.click(await customerAction('View details'));
     await screen.findByRole('dialog', { name: 'Customer details' });
     focusManager.setFocused(false);
     focusManager.setFocused(true);
@@ -828,7 +841,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     const name = await screen.findByRole('textbox', { name: 'Display name' });
     await user.clear(name);
     await user.type(name, 'Locally edited');
@@ -843,8 +856,8 @@ describe('OrdersCustomersPage', () => {
   it('uses one customer dialog owner and traps/restores focus across details to edit', async () => {
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    const trigger = await screen.findByRole('button', { name: 'View Ada Example' });
-    await user.click(trigger);
+    const trigger = await screen.findByRole('button', { name: 'Actions: Ada Example' });
+    await user.click(await customerAction('View details'));
     const edit = await screen.findByRole('button', { name: 'Edit customer' });
     await waitFor(() => expect(edit).toHaveFocus());
     await user.click(edit);
@@ -883,7 +896,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     const laterInput = await screen.findByRole('textbox', { name: 'Contact first name 3' });
     await user.click(screen.getByRole('button', { name: 'Remove contact 2' }));
     expect(screen.getByRole('textbox', { name: 'Contact first name 2' })).toBe(laterInput);
@@ -902,7 +915,7 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'View Ada Example' }));
+    await user.click(await customerAction('View details'));
     expect(await screen.findByRole('dialog', { name: 'Customer details' })).toBeInTheDocument();
     await user.click(within(screen.getByRole('dialog', { name: 'Customer details' })).getByRole('button', { name: 'Delete customer' }));
     expect(screen.getByText('Delete Ada Example?')).toBeInTheDocument();
@@ -926,13 +939,13 @@ describe('OrdersCustomersPage', () => {
     );
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Next page' }));
-    await screen.findByText('26-26 of 26');
-    await user.click(screen.getByRole('button', { name: 'Delete Ada Example' }));
+    await screen.findByText('Showing 26 to 26 of 26');
+    await user.click(await customerAction('Delete customer'));
     await user.click(screen.getByRole('button', { name: 'Delete customer' }));
     await waitFor(() => expect(offsets.at(-1)).toBe(0));
-    expect(await screen.findByText('1-25 of 25')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1 to 25 of 25')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
   });
 
@@ -944,19 +957,18 @@ describe('OrdersCustomersPage', () => {
     }));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    const viewTrigger = await screen.findByRole('button', { name: 'View Ada Example' });
-    await user.click(viewTrigger);
+    const trigger = await screen.findByRole('button', { name: 'Actions: Ada Example' });
+    await user.click(await customerAction('View details'));
     expect(await screen.findByText('Unable to load customer details.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('dialog', { name: 'Customer details' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Close' }));
-    const editTrigger = screen.getByRole('button', { name: 'Edit Ada Example' });
-    await user.click(editTrigger);
+    await user.click(await customerAction('Edit customer'));
     expect(await screen.findByText('Unable to load the customer editor.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('dialog', { name: 'Edit customer' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(editTrigger).toHaveFocus();
+    expect(trigger).toHaveFocus();
   });
 
   it('keeps a failed delete visible with retry and dismiss actions', async () => {
@@ -967,7 +979,7 @@ describe('OrdersCustomersPage', () => {
     }));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'View Ada Example' }));
+    await user.click(await customerAction('View details'));
     await user.click(within(screen.getByRole('dialog', { name: 'Customer details' })).getByRole('button', { name: 'Delete customer' }));
     await user.click(screen.getByRole('button', { name: 'Delete customer' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Customer is referenced.');
@@ -985,7 +997,7 @@ describe('OrdersCustomersPage', () => {
     const user = userEvent.setup();
 
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Ada Example löschen' }));
+    await user.click(await customerAction('Kunde löschen', 'Aktionen: Ada Example'));
     await user.click(screen.getByRole('button', { name: 'Kunde löschen' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Der Datensatz wurde nicht gefunden.');
@@ -996,7 +1008,7 @@ describe('OrdersCustomersPage', () => {
     server.use(http.post('/api/v1/customers/', async () => { await delay('infinite'); return HttpResponse.json(detailCustomer); }));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await screen.findByRole('button', { name: 'View Ada Example' });
+    await screen.findByRole('button', { name: 'Actions: Ada Example' });
     await user.click(screen.getByRole('button', { name: 'Add customer' }));
     await user.type(screen.getByRole('textbox', { name: 'Display name' }), 'Pending Customer');
     await user.type(screen.getByRole('textbox', { name: 'First name' }), 'Pending');
@@ -1033,7 +1045,7 @@ describe('OrdersCustomersPage', () => {
     const errorView = render(<OrdersCustomersPage />);
     expect(await screen.findByText('Unable to load customers.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByRole('button', { name: 'View Ada Example' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Actions: Ada Example' })).toBeInTheDocument();
     errorView.unmount();
 
     enableAuth([]);
@@ -1048,7 +1060,7 @@ describe('OrdersCustomersPage', () => {
     server.use(http.get('/api/v1/customers/11', () => new Promise(() => {})));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'Edit Ada Example' }));
+    await user.click(await customerAction('Edit customer'));
     const dialog = await screen.findByRole('dialog', { name: 'Loading customer editor' });
     expect(within(dialog).getByRole('status', { name: 'Loading customer editor' })).toBeInTheDocument();
     await waitFor(() => expect(dialog).toHaveFocus());
@@ -1058,7 +1070,7 @@ describe('OrdersCustomersPage', () => {
     expect(screen.getByRole('dialog', { name: 'Loading customer editor' })).toBeInTheDocument();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Ada Example' }));
+    fireEvent.click(await customerAction('Delete customer'));
     const deleteDialog = await screen.findByRole('dialog', { name: 'Delete Ada Example?' });
     expect(deleteDialog).toContainElement(document.activeElement as HTMLElement);
     expect(screen.queryByRole('dialog', { name: 'Loading customer editor' })).not.toBeInTheDocument();
@@ -1069,7 +1081,7 @@ describe('OrdersCustomersPage', () => {
     server.use(http.get('/api/v1/customers/11', () => new Promise(() => {})));
     const user = userEvent.setup();
     render(<OrdersCustomersPage />);
-    await user.click(await screen.findByRole('button', { name: 'View Ada Example' }));
+    await user.click(await customerAction('View details'));
     const dialog = await screen.findByRole('dialog', { name: 'Loading customer details' });
     expect(within(dialog).getByRole('status', { name: 'Loading customer details' })).toBeInTheDocument();
     await waitFor(() => expect(dialog).toHaveFocus());
@@ -1079,7 +1091,7 @@ describe('OrdersCustomersPage', () => {
     expect(screen.getByRole('dialog', { name: 'Loading customer details' })).toBeInTheDocument();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Ada Example' }));
+    fireEvent.click(await customerAction('Edit customer'));
     expect(await screen.findByRole('dialog', { name: 'Loading customer editor' })).toHaveFocus();
     expect(screen.queryByRole('dialog', { name: 'Loading customer details' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);

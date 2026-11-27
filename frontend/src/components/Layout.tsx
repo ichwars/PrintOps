@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router';
-import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, ChevronDown, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, ShieldAlert, Globe, Bell, Warehouse, ClipboardList, Package, Boxes, PackageCheck, FileText, Calculator, Users, Receipt, Database, Truck, CircleDollarSign, type LucideIcon } from 'lucide-react';
+import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, ShoppingCart, Sun, Moon, Monitor, ChevronLeft, ChevronRight, ChevronDown, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, ShieldAlert, Globe, Bell, Warehouse, ClipboardList, Package, Boxes, PackageCheck, FileText, Calculator, Users, Receipt, Database, Truck, CircleDollarSign, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import printOpsLogo from '../assets/printops-logo.svg';
 import { useTheme } from '../contexts/ThemeContext';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { CameraOverlayButton, CameraOverlayProvider } from './CameraOverlayLauncher';
@@ -63,6 +64,7 @@ export const defaultNavItems: NavItem[] = [
   { id: 'warehouse-filament', to: '/warehouse/filament', icon: Package, labelKey: 'nav.inventory', parentId: 'inventory' },
   { id: 'warehouse-parts', to: '/warehouse/parts', icon: Boxes, labelKey: 'printops.nav.parts', defaultLabel: 'Material', defaultLabelDe: 'Material', parentId: 'inventory' },
   { id: 'warehouse-stock', to: '/warehouse/stock', icon: PackageCheck, labelKey: 'printops.nav.stock', defaultLabel: 'Stock position', defaultLabelDe: 'Warenlager', parentId: 'inventory' },
+  { id: 'warehouse-reorder', to: '/warehouse/reorder', icon: ShoppingCart, labelKey: 'printops.nav.reorder', defaultLabel: 'Reorder', defaultLabelDe: 'Nachbestellung', parentId: 'inventory' },
   { id: 'warehouse-suppliers', to: '/warehouse/suppliers', icon: Truck, labelKey: 'suppliers.navTitle', defaultLabel: 'Suppliers', defaultLabelDe: 'Lieferanten', parentId: 'inventory' },
   { id: 'orders', to: '/orders', icon: ClipboardList, labelKey: 'printops.nav.orders', defaultLabel: 'Orders', defaultLabelDe: 'Aufträge' },
   { id: 'orders-offers', to: '/orders/offers', icon: FileText, labelKey: 'printops.nav.offers', defaultLabel: 'Offers', defaultLabelDe: 'Angebote', parentId: 'orders' },
@@ -430,6 +432,7 @@ export function Layout() {
       'warehouse-filament': 'inventory:read',
       'warehouse-parts': 'inventory:read',
       'warehouse-stock': 'inventory:read',
+      'warehouse-reorder': 'inventory:read',
       'warehouse-suppliers': 'inventory:read',
       files: ['library:read', 'library:read_own', 'library:read_all'],
       makerworld: 'makerworld:view',
@@ -716,9 +719,9 @@ export function Layout() {
             <Menu className="w-6 h-6 text-white" />
           </button>
           <img
-            src="/img/printops_logo.svg"
+            src={printOpsLogo}
             alt="PrintOps"
-            className="h-8 ml-3"
+            className="ml-3 h-9 w-auto max-w-full object-contain"
           />
           <CameraOverlayButton className="ml-auto" />
         </header>
@@ -743,9 +746,9 @@ export function Layout() {
         {/* Logo */}
         <div className={`border-b border-bambu-dark-tertiary flex items-center justify-center ${isSidebarCompact || sidebarExpanded ? 'p-4' : 'p-2'}`}>
           <img
-            src={isSidebarCompact || sidebarExpanded ? '/img/printops_logo.svg' : '/img/printops_icon.png'}
+            src={isSidebarCompact || sidebarExpanded ? printOpsLogo : '/img/printops_icon.png'}
             alt="PrintOps"
-            className={isSidebarCompact || sidebarExpanded ? 'h-16 w-auto' : 'h-10 w-10 object-contain'}
+            className={isSidebarCompact || sidebarExpanded ? 'h-16 w-auto max-w-full object-contain' : 'h-10 w-10 object-contain'}
           />
         </div>
 
@@ -1137,8 +1140,8 @@ export function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className={`flex-1 bg-bambu-dark overflow-auto transition-all duration-300 ${
+      {/* Sticky warehouse scrollbars follow the page viewport. */}
+      <main data-compact-layout={isSidebarCompact ? '' : undefined} className={`min-w-0 flex-1 bg-bambu-dark overflow-auto transition-all duration-300 has-[.warehouse-table-scrollbar]:overflow-clip ${
         isSidebarCompact ? 'mt-14' : sidebarExpanded ? 'ml-64' : 'ml-16'
       }`}>
         <EncryptionWarningBanner />

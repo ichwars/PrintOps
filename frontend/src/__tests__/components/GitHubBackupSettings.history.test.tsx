@@ -57,8 +57,8 @@ const log = (id: number, trigger: string) => ({
 });
 
 const historyRows = async () => {
-  const table = (await screen.findByText('History')).closest('div[id="card-backup-history"]');
-  return within(table as HTMLElement).getAllByRole('row').slice(1); // drop the header
+  const table = await screen.findByRole('region', { name: 'History' });
+  return within(table).getAllByRole('row').slice(1); // drop the header
 };
 
 describe('GitHubBackupSettings — backup history', () => {
@@ -69,7 +69,7 @@ describe('GitHubBackupSettings — backup history', () => {
   it('clears GitHub backup history only after confirmation', async () => {
     vi.mocked(api.getGitHubBackupLogs).mockResolvedValue([log(1, 'restore')]);
     render(<GitHubBackupSettings />);
-    const card = (await screen.findByText('History')).closest('div[id="card-backup-history"]') as HTMLElement;
+    const card = await screen.findByRole('region', { name: 'History' });
     fireEvent.click(within(card).getByRole('button', { name: 'Clear' }));
     expect(api.clearGitHubBackupLogs).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog', { name: 'History' });

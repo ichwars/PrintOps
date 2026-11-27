@@ -878,6 +878,26 @@ async def test_list_filters_searches_projects_profile_fields_and_paginates_disti
     assert alpha_item["billing_country_code"] == "DE"
     assert alpha_item["tags"] == ["B2B", "Priority"]
 
+    for sort, expected in (
+        ("name", [bravo["id"], alpha["id"]]),
+        ("number", [bravo["id"], alpha["id"]]),
+        ("status", [bravo["id"], alpha["id"]]),
+        ("contact", [alpha["id"], bravo["id"]]),
+        ("billing", [alpha["id"], bravo["id"]]),
+        ("tags", [alpha["id"], bravo["id"]]),
+    ):
+        for offset, customer_id in enumerate(expected):
+            sorted_page = await async_client.get(
+                BASE_URL + "/",
+                params={
+                    "business_profile_id": selected_profile["id"],
+                    "sort": sort, "direction": "desc", "limit": 1, "offset": offset,
+                },
+            )
+            assert sorted_page.status_code == 200, sorted_page.text
+            assert sorted_page.json()["total"] == 2
+            assert [item["id"] for item in sorted_page.json()["items"]] == [customer_id]
+
     for search in ("ALPHA STUDIO", "alpha-900", "MATCH@EXAMPLE.TEST"):
         response = await async_client.get(
             BASE_URL + "/",

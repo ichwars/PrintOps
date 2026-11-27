@@ -1,6 +1,7 @@
 import i18n from '../../i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SmallPartsPage } from '../../pages/SmallPartsPage';
 import { cryptoRandomUuid } from '../../utils/random';
 import { server } from '../mocks/server';
+
+const permissions = vi.hoisted(() => new Set(['inventory:read', 'inventory:create', 'inventory:update']));
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ hasPermission: (value: string) => permissions.has(value) }) }));
 
 const part = {
   id: 7,
@@ -56,16 +60,20 @@ const part = {
   updated_at: '2026-07-18T10:00:00Z',
 };
 
-function renderPage() {
+function renderPage(path = '/warehouse/parts') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return { queryClient, ...render(
     <QueryClientProvider client={queryClient}>
-      <SmallPartsPage />
+      <MemoryRouter initialEntries={[path]}><SmallPartsPage /></MemoryRouter>
     </QueryClientProvider>,
   ) };
 }
 
-beforeEach(async () => { await i18n.changeLanguage('de'); });
+beforeEach(async () => {
+  await i18n.changeLanguage('de');
+  permissions.clear();
+  ['inventory:read', 'inventory:create', 'inventory:update'].forEach(permission => permissions.add(permission));
+});
 
 describe('SmallPartsPage', () => {
   afterEach(() => {
@@ -98,7 +106,7 @@ describe('SmallPartsPage', () => {
 
     expect(screen.getByRole('button', { name: /Aktiv/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Alle/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Niedrig Bestand/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Niedriger Bestand' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'CSV importieren' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'CSV exportieren' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Lagerorte' })).toBeInTheDocument();
@@ -146,6 +154,58 @@ describe('SmallPartsPage', () => {
 
     await user.click(screen.getByRole('button', { name: /Karten/ }));
     expect(screen.getByText('42 Stück verfügbar')).toBeInTheDocument();
+  });
+
+  it('replaces a saved status column with one remaining-quantity column', async () => {
+    vi.mocked(localStorage.getItem).mockImplementation(key => {
+      if (key === 'printops-material-columns') return JSON.stringify([
+        { id: 'sku', label: 'Artikelnummer', visible: true },
+        { id: 'remaining', label: 'Verbleibend', visible: false },
+        { id: 'name', label: 'Bezeichnung', visible: true },
+        { id: 'status', label: 'Status', visible: true },
+      ]);
+      return key === 'printops-material-sort' ? JSON.stringify({ column: 'status', direction: 'asc' }) : null;
+    });
+    try {
+      server.use(http.get('/api/v1/small-parts', () => HttpResponse.json({
+        items: [{ ...part, consumed: '10' }], total: 1, limit: 50, offset: 0,
+      })));
+      renderPage();
+      const remaining = await screen.findByRole<HTMLTableCellElement>('columnheader', { name: 'Verbleibend' });
+      expect(remaining.previousElementSibling).toHaveTextContent('Bezeichnung');
+      expect(remaining).toHaveAttribute('aria-sort', 'ascending');
+      expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull();
+      const row = screen.getByRole('row', { name: /M3-INSERT/ });
+      const amount = row.querySelectorAll('td')[remaining.cellIndex];
+      expect(amount).toHaveTextContent('50 Stk.');
+      expect(Number.parseFloat(amount.querySelector<HTMLElement>('[aria-hidden] > span')!.style.width)).toBeCloseTo(83.33);
+    } finally {
+      vi.mocked(localStorage.getItem).mockReset();
+    }
+  });
+
+  it('combines material usage and category filters and resets the result', async () => {
+    server.use(http.get('/api/v1/small-parts', () => HttpResponse.json({
+      items: [
+        { ...part, consumed: '3', category: { id: 11, name: 'Befestigung', is_active: true } },
+        { ...part, id: 8, sku: 'LABEL-8', name: 'Etikett', category: { id: 12, name: 'Verpackung', is_active: true } },
+      ],
+      total: 2, limit: 50, offset: 0,
+    })));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole('cell', { name: 'M3-INSERT' });
+    await user.click(screen.getByRole('combobox', { name: 'Kategorie' }));
+    await user.click(screen.getByRole('option', { name: 'Befestigung' }));
+    expect(screen.queryByRole('cell', { name: 'LABEL-8' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Neu', exact: true }));
+    expect(screen.queryByRole('cell', { name: 'M3-INSERT' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /Filter.*(löschen|zurücksetzen)/i }));
+    expect(screen.getByRole('cell', { name: 'LABEL-8' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Gruppieren' }));
+    expect(screen.getByRole('rowheader', { name: 'Befestigung' })).toBeInTheDocument();
   });
 
   it('preserves a material column draft during a background catalog refresh and language change', async () => {
@@ -260,6 +320,123 @@ describe('SmallPartsPage', () => {
     expect(screen.queryByText('Noch kein passendes Material vorhanden.')).not.toBeInTheDocument();
   });
 
+  it('duplicates material as new master data with zero opening stock', async () => {
+    const create = vi.fn();
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 })),
+      http.post('/api/v1/small-parts', async ({ request }) => {
+        create(await request.json());
+        return HttpResponse.json({ ...part, id: 8, sku: 'MAT-00008' }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Aktionen: M3-INSERT' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Duplizieren' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Duplizieren' });
+    expect(within(dialog).getByLabelText('Artikelnummer')).toHaveValue('');
+    expect(within(dialog).getByLabelText(/^Bezeichnung/)).toHaveValue(part.name);
+    expect(create).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Material speichern' }));
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      name: part.name, sku: '', opening_quantity: '0', is_active: true, supplier_reference: null,
+    })));
+  });
+
+  it('changes material status after confirmation and hides write actions from readers', async () => {
+    let item = part;
+    const change = vi.fn();
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [item], total: 1, limit: 50, offset: 0 })),
+      http.patch('/api/v1/small-parts/7', async ({ request }) => {
+        const data = await request.json() as { is_active: boolean };
+        change(data);
+        item = { ...item, ...data };
+        return HttpResponse.json(item);
+      }),
+    );
+    const user = userEvent.setup();
+    const view = renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Aktionen: M3-INSERT' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Deaktivieren' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Deaktivieren' });
+    expect(change).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Deaktivieren' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(change).toHaveBeenCalledWith({ is_active: false });
+    await user.click(screen.getByRole('button', { name: 'Inaktiv', exact: true }));
+    await user.click(await screen.findByRole('button', { name: 'Aktionen: M3-INSERT' }));
+    expect(await screen.findByRole('menuitem', { name: 'Aktivieren' })).toBeEnabled();
+
+    view.unmount();
+    permissions.delete('inventory:update');
+    permissions.delete('inventory:create');
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Inaktiv', exact: true }));
+    await user.click(await screen.findByRole('button', { name: 'Aktionen: M3-INSERT' }));
+    expect(await screen.findByRole('menuitem', { name: /Etiketten drucken/ })).toBeEnabled();
+    expect(screen.queryByRole('menuitem', { name: 'Aktivieren' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Duplizieren' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Freier Warenausgang' })).not.toBeInTheDocument();
+  });
+
+  it('focuses the exact target row in the material table', async () => {
+    server.use(http.get('/api/v1/small-parts', () => HttpResponse.json({
+      items: [part, { ...part, id: 8, sku: 'M3-OTHER' }], total: 2, limit: 200, offset: 0,
+    })));
+    const user = userEvent.setup();
+    renderPage('/warehouse/parts?focus=7');
+    const row = await screen.findByRole('row', { name: /M3-INSERT/ });
+    expect(row).toHaveAttribute('aria-current', 'true');
+    expect(row).toHaveFocus();
+    expect(screen.queryByText('M3-OTHER')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Filter löschen' }));
+    expect(await screen.findByText('M3-OTHER')).toBeVisible();
+    expect(row).not.toHaveAttribute('aria-current');
+  });
+
+  it('opens a quick receipt and posts a free issue from the material row menu', async () => {
+    const posted = vi.fn();
+    server.use(
+      http.get('/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 50, offset: 0 })),
+      http.post('/api/v1/small-parts/7/ledger', async ({ request }) => {
+        posted(await request.json());
+        if (posted.mock.calls.length === 1) return HttpResponse.json({ detail: 'Antwort verloren' }, { status: 500 });
+        return HttpResponse.json({ id: 1 }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    const actions = await screen.findByRole('button', { name: 'Aktionen: M3-INSERT' });
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Wareneingang' }));
+    const receipt = screen.getByRole('dialog', { name: 'Wareneingang · M3-INSERT' });
+    expect(within(receipt).getByRole('spinbutton', { name: 'Menge' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(actions).toHaveFocus();
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Freier Warenausgang' }));
+    const issue = screen.getByRole('dialog', { name: 'Freier Warenausgang · M3-INSERT' });
+    await user.type(within(issue).getByRole('spinbutton', { name: 'Menge' }), '2');
+    await user.click(within(issue).getByRole('button', { name: 'Buchung speichern' }));
+    expect(await within(issue).findByText(/noch nicht bestätigt/)).toBeVisible();
+    expect(within(issue).getByRole('spinbutton', { name: 'Menge' })).toBeDisabled();
+    expect(within(issue).getByRole('button', { name: 'Buchung speichern' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Freier Warenausgang' }));
+    const retry = screen.getByRole('dialog', { name: 'Freier Warenausgang · M3-INSERT' });
+    await user.click(within(retry).getByRole('button', { name: 'Buchung speichern' }));
+    expect(await within(retry).findByText('Bestandsbuchung gespeichert.')).toBeVisible();
+    expect(within(retry).getByRole('spinbutton', { name: 'Menge' })).toHaveFocus();
+    expect(posted).toHaveBeenCalledTimes(2);
+    expect(posted.mock.calls[1][0]).toEqual(posted.mock.calls[0][0]);
+    expect(posted).toHaveBeenCalledWith(expect.objectContaining({
+      entry_kind: 'issue', quantity: '2', idempotency_key: expect.stringMatching(/^issue-7-/),
+    }));
+  });
+
   it('prefills a stock receipt with the material default consumption reason', async () => {
     vi.spyOn(globalThis.crypto, 'randomUUID')
       .mockReturnValue('00000000-0000-4000-8000-000000000001');
@@ -287,7 +464,8 @@ describe('SmallPartsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: 'Bestand' }));
+    await user.click(await screen.findByRole('button', { name: 'Aktionen: M3-INSERT' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Bestand' }));
     expect(screen.getByLabelText('Grund')).toHaveValue('Produktion');
     await user.type(screen.getByLabelText('Menge'), '10');
     await user.click(screen.getByRole('button', { name: 'Buchung speichern' }));
@@ -309,7 +487,8 @@ it('renders Dutch material columns after a saved German configuration and update
   renderPage();
   expect(await screen.findByRole('columnheader', { name: 'Naam' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Materiaal' })).toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Materiaal bewerken' }));
+  await user.click(screen.getByRole('button', { name: 'Acties: M3-INSERT' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Materiaal bewerken' }));
   expect(await screen.findByRole('dialog', { name: 'Materiaal bewerken' })).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Sluiten' }));
   await act(async () => { await i18n.changeLanguage('en'); });

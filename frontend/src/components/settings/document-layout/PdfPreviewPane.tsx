@@ -439,9 +439,9 @@ export function PdfPreviewPane({
           aria-label={t('orders.runtimeDomain.documentLayoutExtras.pdfaStatus')}
           className={`rounded-full px-2 py-1 text-xs ${
             pdfaLabel(preview?.report) === 'Valid'
-              ? 'bg-green-500/15 text-green-300'
+              ? 'bg-green-500/15 text-green-800 dark:text-green-300'
               : pdfaLabel(preview?.report) === 'Invalid'
-                ? 'bg-red-500/15 text-red-300'
+                ? 'bg-red-500/15 text-red-700 dark:text-red-300'
                 : 'bg-bambu-dark-tertiary text-bambu-gray'
           }`}
         >
@@ -512,7 +512,7 @@ export function PdfPreviewPane({
 
         {visibleError ? (
           <div className="flex h-full min-h-[560px] flex-col items-center justify-center gap-3 p-8 text-center">
-            <p className="text-sm text-red-300">
+            <p className="text-sm text-red-700 dark:text-red-300">
               {t('settings.documentLayout.preview.failed', 'The PDF preview could not be generated.')}
             </p>
             <div className="flex flex-wrap justify-center gap-2">

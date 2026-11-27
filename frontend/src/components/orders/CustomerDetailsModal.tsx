@@ -31,20 +31,20 @@ export function CustomerDetailsModal({ customer, profiles, selectedProfileId, ca
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="presentation">
-      <section ref={dialogRef} onKeyDown={onKeyDown} role="dialog" aria-modal="true" aria-labelledby="customer-details-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
+      <section ref={dialogRef} onKeyDown={onKeyDown} role="dialog" aria-modal="true" aria-labelledby="customer-details-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
         <header className="flex items-start justify-between gap-4 border-b border-bambu-dark-tertiary px-5 py-4">
           <div>
             <h2 id="customer-details-title" className="text-lg font-semibold text-white">{t('orders.customerDetails.title')}</h2>
-            <p className="text-sm text-bambu-gray">{customer.display_name}</p>
+            <p className="text-sm text-table-secondary">{customer.display_name}</p>
           </div>
           <div className="flex items-center gap-2">
             {canManage && <Button size="sm" onClick={onEdit}><Pencil className="mr-2 h-4 w-4" />{t('orders.customers.editCustomer')}</Button>}
             {canManage && <Button size="sm" variant="danger" onClick={onDelete}><Trash2 className="mr-2 h-4 w-4" />{t('orders.customers.deleteCustomer')}</Button>}
-            <button type="button" onClick={onClose} title={t('common.close')} aria-label={t('common.close')} className="rounded p-2 text-bambu-gray hover:bg-bambu-dark hover:text-white"><X className="h-5 w-5" /></button>
+            <button type="button" onClick={onClose} title={t('common.close')} aria-label={t('common.close')} className="rounded p-2 text-table-secondary hover:bg-bambu-dark hover:text-white"><X className="h-5 w-5" /></button>
           </div>
         </header>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4 text-sm">
-          {loadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadErrorMessage}</span>{onRetryLoad && <Button size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
+          {loadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadErrorMessage}</span>{onRetryLoad && <Button size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Info label={t('orders.customerEditor.kind')} text={t(`orders.customerEditor.${customer.kind}`)} />
             <Info label={t('common.status')} text={t(`orders.status.${customer.status}`)} />
@@ -58,21 +58,21 @@ export function CustomerDetailsModal({ customer, profiles, selectedProfileId, ca
           <Aggregate title={t('orders.customerEditor.accounts')} empty={accounts.length === 0}>
             {accounts.map((account) => <div key={account.id} className="border-t border-bambu-dark-tertiary py-3 first:border-0">
               <strong className="text-white">{profileName(account.business_profile_id)}</strong>
-              <p className="mt-1 text-bambu-gray">{value(account.number)} · {account.preferred_currency} · {t('orders.customerDetails.paymentDays', { count: account.payment_term_days })} · {value(account.delivery_terms)} · {account.discount_percent}% · {account.is_active ? t('orders.status.active') : t('orders.status.inactive')}</p>
+              <p className="mt-1 text-table-secondary">{value(account.number)} · {account.preferred_currency} · {t('orders.customerDetails.paymentDays', { count: account.payment_term_days })} · {value(account.delivery_terms)} · {account.discount_percent}% · {account.is_active ? t('orders.status.active') : t('orders.status.inactive')}</p>
             </div>)}
           </Aggregate>
 
           <Aggregate title={t('orders.customerEditor.contacts')} empty={customer.contacts.length === 0}>
             {customer.contacts.map((contact) => <div key={contact.id} className="border-t border-bambu-dark-tertiary py-3 first:border-0">
               <strong className="text-white">{[contact.salutation, contact.first_name, contact.last_name].filter(Boolean).join(' ') || '-'}</strong>
-              <p className="text-bambu-gray"><span>{value(contact.role)}</span> · <span>{value(contact.email)}</span> · <span>{value(contact.phone)}</span></p>
-              <p className="text-xs text-bambu-gray">{contact.is_primary ? t('orders.customerEditor.primaryContact') : ''}{contact.is_primary && contact.include_on_documents ? ' · ' : ''}{contact.include_on_documents ? t('orders.customerEditor.includeDocuments') : ''}</p>
+              <p className="text-table-secondary"><span>{value(contact.role)}</span> · <span>{value(contact.email)}</span> · <span>{value(contact.phone)}</span></p>
+              <p className="text-xs text-table-secondary">{contact.is_primary ? t('orders.customerEditor.primaryContact') : ''}{contact.is_primary && contact.include_on_documents ? ' · ' : ''}{contact.include_on_documents ? t('orders.customerEditor.includeDocuments') : ''}</p>
             </div>)}
           </Aggregate>
 
           <Aggregate title={t('orders.customerEditor.addresses')} empty={customer.addresses.length === 0}>
             <div className="grid gap-4 sm:grid-cols-2">
-              {customer.addresses.map((address) => <address key={address.id} className="not-italic text-bambu-gray">
+              {customer.addresses.map((address) => <address key={address.id} className="not-italic text-table-secondary">
                 <strong className="text-white">{t(`orders.customerEditor.addressKind.${address.kind}`)}{address.label ? ` · ${address.label}` : ''}</strong>
                 {address.additional && <span className="block">{address.additional}</span>}
                 <span className="block">{address.street}</span>{address.street_2 && <span className="block">{address.street_2}</span>}
@@ -83,15 +83,15 @@ export function CustomerDetailsModal({ customer, profiles, selectedProfileId, ca
           </Aggregate>
 
           <Aggregate title={t('orders.customerEditor.taxIdentifiers')} empty={customer.tax_identifiers.length === 0}>
-            {customer.tax_identifiers.map((tax) => <p key={tax.id} className="border-t border-bambu-dark-tertiary py-3 text-bambu-gray first:border-0"><strong className="text-white">{tax.kind}</strong> · <span>{tax.value}</span> · {value(tax.country_code)} · {t(`orderMessages.taxValidationStatus.${tax.validation_status}`)}</p>)}
+            {customer.tax_identifiers.map((tax) => <p key={tax.id} className="border-t border-bambu-dark-tertiary py-3 text-table-secondary first:border-0"><strong className="text-white">{tax.kind}</strong> · <span>{tax.value}</span> · {value(tax.country_code)} · {t(`orderMessages.taxValidationStatus.${tax.validation_status}`)}</p>)}
           </Aggregate>
 
           <Aggregate title={t('orders.customerEditor.tags')} empty={customer.tags.length === 0}>
-            <div className="flex flex-wrap gap-2">{customer.tags.map((tag) => <span key={tag} className="rounded bg-bambu-dark px-2 py-1 text-xs text-bambu-gray-light">{tag}</span>)}</div>
+            <div className="flex flex-wrap gap-2">{customer.tags.map((tag) => <span key={tag} className="rounded bg-bambu-dark px-2 py-1 text-xs text-table-secondary">{tag}</span>)}</div>
           </Aggregate>
 
-          {customer.notes && <Aggregate title={t('orders.customerEditor.notes')}><p className="whitespace-pre-wrap text-bambu-gray-light">{customer.notes}</p></Aggregate>}
-          <footer className="flex flex-wrap gap-4 border-t border-bambu-dark-tertiary pt-4 text-xs text-bambu-gray">
+          {customer.notes && <Aggregate title={t('orders.customerEditor.notes')}><p className="whitespace-pre-wrap text-table-secondary">{customer.notes}</p></Aggregate>}
+          <footer className="flex flex-wrap gap-4 border-t border-bambu-dark-tertiary pt-4 text-xs text-table-secondary">
             <span>{t('orders.customerDetails.created', { date: date(customer.created_at) })}</span>
             <span>{t('orders.customerDetails.updated', { date: date(customer.updated_at) })}</span>
           </footer>
@@ -102,9 +102,9 @@ export function CustomerDetailsModal({ customer, profiles, selectedProfileId, ca
 }
 
 function Info({ label, text }: { label: string; text: string }) {
-  return <div><span className="block text-xs text-bambu-gray">{label}</span><span className="text-white">{text}</span></div>;
+  return <div><span className="block text-xs text-table-secondary">{label}</span><span className="text-white">{text}</span></div>;
 }
 
 function Aggregate({ title, empty = false, children }: { title: string; empty?: boolean; children?: React.ReactNode }) {
-  return <section><h3 className="mb-2 font-medium text-white">{title}</h3>{empty ? <p className="text-bambu-gray">-</p> : children}</section>;
+  return <section><h3 className="mb-2 font-medium text-white">{title}</h3>{empty ? <p className="text-table-secondary">-</p> : children}</section>;
 }

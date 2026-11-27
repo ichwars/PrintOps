@@ -1,27 +1,32 @@
 """Article master data. Callers own the transaction and commit."""
 
-from decimal import Decimal
+from datetime import datetime, timedelta, timezone
+from decimal import ROUND_CEILING, Decimal
 
-from sqlalchemy import select, update
+from sqlalchemy import Select, case, func, select, type_coerce, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from backend.app.models.calculation import CalculationRevision
 from backend.app.models.location import Location
 from backend.app.models.project import Project
 from backend.app.models.small_part import SmallPart, SmallPartLedgerEntry, SmallPartUnit
-from backend.app.models.warehouse_article import WarehouseArticle, WarehouseArticleLedgerEntry
+from backend.app.models.warehouse_article import WarehouseArticle, WarehouseArticleLedgerEntry, WarehouseDecimal
 from backend.app.schemas.warehouse_article import (
     WarehouseArticleCreate,
     WarehouseArticleRead,
     WarehouseArticleUpdate,
     WarehouseBalance,
+    WarehouseForecastPage,
+    WarehouseForecastRow,
     WarehouseLocationBalance,
 )
 from backend.app.services import warehouse_number_sequence as numbers
-from backend.app.services.small_parts import get_balance as material_balance
+from backend.app.services.small_parts import StockUsage, get_balance as material_balance, usage_for_parts
 
 ZERO = Decimal("0")
 MAX_QUANTITY = Decimal("999999999999.999999")
+FORECAST_WINDOW_DAYS = 30
 
 
 class WarehouseError(ValueError):
@@ -218,22 +223,230 @@ async def location_balances(session: AsyncSession, article: WarehouseArticle) ->
     ]
 
 
-async def read_article(session: AsyncSession, article: WarehouseArticle) -> WarehouseArticleRead:
+def _article_balance(source: str, minimum_stock: Decimal, physical: Decimal, reserved: Decimal) -> WarehouseBalance:
+    available = physical - reserved
+    return WarehouseBalance(
+        physical=physical,
+        reserved=reserved,
+        available=available,
+        is_low_stock=source != "none" and available < minimum_stock,
+    )
+
+
+def _article_stock_query(statement: Select[tuple[WarehouseArticle]]):
+    candidates = statement.with_only_columns(
+        WarehouseArticle.id,
+        WarehouseArticle.name,
+        WarehouseArticle.sku,
+        WarehouseArticle.unit_code,
+        WarehouseArticle.stock_source,
+        WarehouseArticle.small_part_id,
+        WarehouseArticle.minimum_stock,
+    ).cte("candidates")
+    own_entry = WarehouseArticleLedgerEntry
+    # A transfer moves physical stock between locations without changing the article total.
+    own = (
+        select(
+            own_entry.article_id,
+            type_coerce(
+                func.sum(case((own_entry.target_location_id.is_(None), own_entry.physical_delta), else_=0)),
+                WarehouseDecimal(),
+            ).label("physical"),
+            func.sum(own_entry.reserved_delta).label("reserved"),
+        )
+        .join(candidates, candidates.c.id == own_entry.article_id)
+        .group_by(own_entry.article_id)
+        .subquery()
+    )
+    material_entry = SmallPartLedgerEntry
+    material = (
+        select(
+            material_entry.small_part_id,
+            func.sum(material_entry.physical_delta).label("physical"),
+            func.sum(material_entry.reserved_delta).label("reserved"),
+        )
+        .join(candidates, candidates.c.small_part_id == material_entry.small_part_id)
+        .group_by(material_entry.small_part_id)
+        .subquery()
+    )
+    return candidates, (
+        select(
+            candidates.c.id,
+            candidates.c.stock_source,
+            candidates.c.minimum_stock,
+            own.c.physical.label("own_physical"),
+            own.c.reserved.label("own_reserved"),
+            material.c.physical.label("material_physical"),
+            material.c.reserved.label("material_reserved"),
+        )
+        .outerjoin(own, candidates.c.id == own.c.article_id)
+        .outerjoin(material, candidates.c.small_part_id == material.c.small_part_id)
+    )
+
+
+async def balances_for_listing(
+    session: AsyncSession, statement: Select[tuple[WarehouseArticle]]
+) -> list[tuple[int, WarehouseBalance | None]]:
+    """Read exact article totals in one query, without loading the individual journals."""
+    candidates, stock = _article_stock_query(statement)
+    rows = await session.execute(stock.order_by(candidates.c.name, candidates.c.id))
+    return [
+        (
+            article_id,
+            None
+            if source == "none"
+            else _article_balance(
+                source,
+                minimum,
+                (material_physical if source == "material" else own_physical) or ZERO,
+                (material_reserved if source == "material" else own_reserved) or ZERO,
+            ),
+        )
+        for article_id, source, minimum, own_physical, own_reserved, material_physical, material_reserved in rows
+    ]
+
+
+def active_article_issue():
+    entry = WarehouseArticleLedgerEntry
+    counter = aliased(entry)
+    return entry.entry_kind.in_(("issue", "reserved_issue")) & (
+        ~select(counter.id).where(counter.reverses_id == entry.id).exists()
+    )
+
+
+async def forecast_articles(session: AsyncSession, *, limit: int, offset: int) -> WarehouseForecastPage:
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=FORECAST_WINDOW_DAYS)
+    candidates, stock = _article_stock_query(
+        select(WarehouseArticle).where(
+            WarehouseArticle.is_active.is_(True), WarehouseArticle.stock_source.in_(("own", "material"))
+        )
+    )
+    own = WarehouseArticleLedgerEntry
+    own_usage = (
+        select(own.article_id, func.sum(own.quantity).label("consumed"))
+        .join(candidates, candidates.c.id == own.article_id)
+        .where(active_article_issue(), own.created_at.between(start, now))
+        .group_by(own.article_id)
+        .subquery()
+    )
+    material = SmallPartLedgerEntry
+    material_usage = (
+        select(material.small_part_id, func.sum(material.physical_delta).label("physical_delta"))
+        .join(candidates, candidates.c.small_part_id == material.small_part_id)
+        .where(material.entry_kind == "issue", material.created_at.between(start, now))
+        .group_by(material.small_part_id)
+        .subquery()
+    )
+    # Read both balances and consumption in the same snapshot as stock can change concurrently.
+    rows = await session.execute(
+        stock.add_columns(
+            candidates.c.name,
+            candidates.c.sku,
+            candidates.c.unit_code,
+            own_usage.c.consumed,
+            material_usage.c.physical_delta,
+        )
+        .outerjoin(own_usage, candidates.c.id == own_usage.c.article_id)
+        .outerjoin(material_usage, candidates.c.small_part_id == material_usage.c.small_part_id)
+    )
+    items = []
+    for row in rows:
+        if row.stock_source == "material":
+            available = (row.material_physical or ZERO) - (row.material_reserved or ZERO)
+            consumed = -(row.physical_delta or ZERO)
+        else:
+            available = (row.own_physical or ZERO) - (row.own_reserved or ZERO)
+            consumed = row.consumed or ZERO
+
+        days_until_minimum = None
+        if available <= row.minimum_stock:
+            days_until_minimum = 0
+        elif available - consumed <= row.minimum_stock:
+            days = (available - row.minimum_stock) * FORECAST_WINDOW_DAYS / consumed
+            days_until_minimum = int(days.to_integral_value(rounding=ROUND_CEILING))
+
+        # The observation window and projection horizon are equal, so the projected
+        # balance uses the exact window total before the daily rate is rounded for display.
+        items.append(
+            WarehouseForecastRow(
+                id=row.id,
+                name=row.name,
+                sku=row.sku,
+                unit_code=row.unit_code,
+                available=available,
+                minimum_stock=row.minimum_stock,
+                daily_usage=(consumed / FORECAST_WINDOW_DAYS).quantize(Decimal("0.00000001"))
+                if consumed > ZERO
+                else None,
+                projected_available=max(ZERO, available - consumed) if consumed > ZERO else None,
+                days_until_minimum=days_until_minimum,
+            )
+        )
+    items.sort(
+        key=lambda row: (
+            row.days_until_minimum if row.days_until_minimum is not None else FORECAST_WINDOW_DAYS + 1,
+            row.daily_usage is None,
+            row.name.casefold(),
+            row.id,
+        )
+    )
+    return WarehouseForecastPage(
+        items=items[offset : offset + limit],
+        window_days=FORECAST_WINDOW_DAYS,
+        total=len(items),
+        limit=limit,
+        offset=offset,
+    )
+
+
+async def usage_for_articles(session: AsyncSession, articles: list[WarehouseArticle]) -> dict[int, StockUsage]:
+    result: dict[int, StockUsage] = {}
+    material_ids = [article.small_part_id for article in articles if article.small_part_id is not None]
+    material_usage = await usage_for_parts(session, material_ids)
+    for article in articles:
+        if article.small_part_id in material_usage:
+            result[article.id] = material_usage[article.small_part_id]
+
+    own_ids = [article.id for article in articles if article.stock_source == "own"]
+    if own_ids:
+        entry = WarehouseArticleLedgerEntry
+        rows = await session.execute(
+            select(entry.article_id, func.max(entry.created_at), func.sum(entry.quantity))
+            .where(
+                entry.article_id.in_(own_ids),
+                active_article_issue(),
+            )
+            .group_by(entry.article_id)
+        )
+        result.update({identifier: StockUsage(last_used, quantity) for identifier, last_used, quantity in rows})
+    return result
+
+
+async def read_articles(session: AsyncSession, articles: list[WarehouseArticle]) -> list[WarehouseArticleRead]:
+    usage = await usage_for_articles(session, articles)
+    return [await read_article(session, article, usage.get(article.id, StockUsage())) for article in articles]
+
+
+async def read_article(
+    session: AsyncSession, article: WarehouseArticle, usage: StockUsage | None = None
+) -> WarehouseArticleRead:
     locations = await location_balances(session, article)
     physical = sum((row.physical for row in locations), ZERO)
     reserved = sum((row.reserved for row in locations), ZERO)
+    if usage is None:
+        usage = (await usage_for_articles(session, [article])).get(article.id, StockUsage())
+    material = await session.get(SmallPart, article.small_part_id) if article.small_part_id is not None else None
     return WarehouseArticleRead(
         **{key: getattr(article, key) for key in WarehouseArticleCreate.model_fields},
         id=article.id,
         version=article.version,
         created_at=article.created_at,
         updated_at=article.updated_at,
+        stock_checked_at=material.stock_checked_at if material is not None else article.stock_checked_at,
+        last_used_at=usage.last_used_at,
+        consumed=usage.consumed,
         has_history=await has_history(session, article),
         locations=locations,
-        balance=WarehouseBalance(
-            physical=physical,
-            reserved=reserved,
-            available=physical - reserved,
-            is_low_stock=article.stock_source != "none" and physical - reserved < article.minimum_stock,
-        ),
+        balance=_article_balance(article.stock_source, article.minimum_stock, physical, reserved),
     )

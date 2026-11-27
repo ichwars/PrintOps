@@ -38,7 +38,7 @@ export function TaxPolicySection({ tax, ruleVersion, canOverride, disabled, find
   return (
     <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4" aria-labelledby="document-tax-policy-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h3 id="document-tax-policy-heading" className="font-semibold text-white">{t('settings.documents.tax.title', 'Tax determination')}</h3><p className="mt-1 text-sm text-gray-400">{t('settings.documents.tax.description', 'Permitted tax outcomes and governed manual deviations.')}</p></div>
+        <div><h3 id="document-tax-policy-heading" className="font-semibold text-white">{t('settings.documents.tax.title', 'Tax determination')}</h3><p className="mt-1 text-sm text-table-secondary">{t('settings.documents.tax.description', 'Permitted tax outcomes and governed manual deviations.')}</p></div>
         <span className="inline-flex items-center gap-1 rounded-full border border-bambu-green/30 bg-bambu-green/10 px-2 py-1 text-xs text-bambu-green"><ShieldCheck className="h-3.5 w-3.5" />{t('settings.documents.tax.ruleVersion', { version: ruleVersion, defaultValue: `Tax rules ${ruleVersion}` })}</span>
       </div>
       <fieldset className="mt-4"><legend className="text-sm font-medium text-white">{t('settings.documents.tax.allowedCases', 'Permitted tax cases')}</legend><div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -46,7 +46,7 @@ export function TaxPolicySection({ tax, ruleVersion, canOverride, disabled, find
       </div></fieldset>
       <div className="mt-4"><Switch checked={tax.allow_override} disabled={disabled} label={t('settings.documents.tax.allowOverride', 'Permit reasoned tax overrides on documents')} onCheckedChange={(checked) => onChange('tax.allow_override', checked)} /></div>
 
-      {recorded ? <div className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100"><p className="font-medium">{t('settings.documents.tax.recordedOverride', 'Recorded manual override')}</p><dl className="mt-2 grid grid-cols-2 gap-2"><div><dt className="text-xs text-amber-200/70">{t('settings.documents.tax.treatment', 'Treatment')}</dt><dd>{String(recorded.treatment ?? '—')}</dd></div><div><dt className="text-xs text-amber-200/70">{t('settings.documents.tax.overrideReason', 'Reason')}</dt><dd>{String(recorded.reason ?? '—')}</dd></div></dl></div> : null}
+      {recorded ? <div className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-950 dark:text-amber-100"><p className="font-medium">{t('settings.documents.tax.recordedOverride', 'Recorded manual override')}</p><dl className="mt-2 grid grid-cols-2 gap-2"><div><dt className="text-xs text-amber-900 dark:text-amber-200">{t('settings.documents.tax.treatment', 'Treatment')}</dt><dd>{String(recorded.treatment ?? '—')}</dd></div><div><dt className="text-xs text-amber-900 dark:text-amber-200">{t('settings.documents.tax.overrideReason', 'Reason')}</dt><dd>{String(recorded.reason ?? '—')}</dd></div></dl></div> : null}
 
       {canOverride ? <div className="mt-4 border-t border-bambu-dark-tertiary pt-4">
         <Checkbox checked={overrideOpen} disabled={disabled || !tax.allow_override} label={t('settings.documents.tax.manualOverride', 'Set a manual tax deviation')} onCheckedChange={setOverrideOpen} />
@@ -65,7 +65,7 @@ export function TaxPolicySection({ tax, ruleVersion, canOverride, disabled, find
           <div className="md:col-span-2 flex justify-end"><Button disabled={override.reason.trim().length < 10} onClick={() => onChange('tax.decision_rules.manual_override', { ...override, rate: override.rate, rule_version: ruleVersion })}>{t('settings.documents.tax.applyOverride', 'Apply deviation')}</Button></div>
         </div> : null}
       </div> : null}
-      {findings.filter((item) => item.field_path.startsWith('tax.')).map((item) => <p key={`${item.field_path}-${item.code}`} className="mt-2 text-sm text-red-300">{t(item.message_key, item.message_key)}</p>)}
+      {findings.filter((item) => item.field_path.startsWith('tax.')).map((item) => <p key={`${item.field_path}-${item.code}`} className="mt-2 text-sm text-red-700 dark:text-red-300">{t(item.message_key, item.message_key)}</p>)}
     </section>
   );
 }

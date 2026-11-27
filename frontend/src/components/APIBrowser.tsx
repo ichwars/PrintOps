@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { LegacySelect, TextArea, TextField } from './ui';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Play, Copy, Loader2, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
-import { Card, CardContent } from './Card';
+import { dashboardStyles } from './dashboardStyles';
 import { Button } from './Button';
 
 interface OpenAPISchema {
@@ -312,26 +312,27 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
     <div className="border border-bambu-dark-tertiary rounded-lg overflow-hidden">
       <Button variant="unstyled"
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 p-3 hover:bg-bambu-dark-tertiary/50 transition-colors text-left"
+        aria-expanded={expanded}
+        className="flex w-full items-start gap-2 p-3 text-left transition-colors hover:bg-secondary-action-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-foreground"
       >
         {expanded ? (
-          <ChevronDown className="w-4 h-4 text-bambu-gray flex-shrink-0" />
+          <ChevronDown className="w-4 h-4 text-table-secondary flex-shrink-0" />
         ) : (
-          <ChevronRight className="w-4 h-4 text-bambu-gray flex-shrink-0" />
+          <ChevronRight className="w-4 h-4 text-table-secondary flex-shrink-0" />
         )}
         <span className={`px-2 py-0.5 text-xs font-mono font-semibold uppercase rounded border ${METHOD_COLORS[method] || 'bg-gray-500/20 text-gray-400'}`}>
           {method}
         </span>
-        <code className="text-sm text-white font-mono flex-1 truncate">{path}</code>
-        {spec.summary && (
-          <span className="text-sm text-bambu-gray truncate max-w-[40%]">{spec.summary}</span>
-        )}
+        <span className="min-w-0">
+          <code className="block wrap-anywhere text-xs text-white">{path}</code>
+          {spec.summary && <span className="block wrap-break-word text-xs text-table-secondary">{spec.summary}</span>}
+        </span>
       </Button>
 
       {expanded && (
         <div className="border-t border-bambu-dark-tertiary p-4 space-y-4 bg-bambu-dark/50">
           {spec.description && (
-            <p className="text-sm text-bambu-gray">{spec.description}</p>
+            <p className="text-sm text-table-secondary">{spec.description}</p>
           )}
 
           {/* Path Parameters */}
@@ -340,8 +341,8 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
               <h4 className="text-sm font-medium text-white">{translateInterface("orders.runtimeInterface.pathParameters")}</h4>
               <div className="space-y-2">
                 {pathParams.map(param => (
-                  <div key={param.name} className="flex items-center gap-2">
-                    <label className="text-sm text-bambu-gray w-32 flex-shrink-0">
+                  <div key={param.name} className="grid items-center gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    <label className="min-w-0 wrap-break-word text-sm text-table-secondary">
                       {param.name}
                       {param.required && <span className="text-red-700 dark:text-red-400 ml-1">*</span>}
                     </label>
@@ -350,7 +351,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                       value={params[param.name] || ''}
                       onChange={(e) => setParams(p => ({ ...p, [param.name]: e.target.value }))}
                       placeholder={param.description || param.schema?.type || 'value'}
-                      className="flex-1 px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm font-mono focus:border-bambu-green focus:outline-none"
+                      className="min-w-0 font-mono text-sm"
                     />
                   </div>
                 ))}
@@ -364,8 +365,8 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
               <h4 className="text-sm font-medium text-white">{translateInterface("orders.runtimeInterface.queryParameters")}</h4>
               <div className="space-y-2">
                 {queryParamsSpec.map(param => (
-                  <div key={param.name} className="flex items-center gap-2">
-                    <label className="text-sm text-bambu-gray w-32 flex-shrink-0">
+                  <div key={param.name} className="grid items-center gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    <label className="min-w-0 wrap-break-word text-sm text-table-secondary">
                       {param.name}
                       {param.required && <span className="text-red-700 dark:text-red-400 ml-1">*</span>}
                     </label>
@@ -373,7 +374,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                       <LegacySelect
                         value={params[param.name] || ''}
                         onChange={(e) => setParams(p => ({ ...p, [param.name]: e.target.value }))}
-                        className="flex-1 px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                        className="min-w-0 text-sm"
                       >
                         <option value="">{translateInterface("orders.runtimeInterface.select")}</option>
                         {param.schema.enum.map(opt => (
@@ -386,7 +387,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                         value={params[param.name] || ''}
                         onChange={(e) => setParams(p => ({ ...p, [param.name]: e.target.value }))}
                         placeholder={param.description || param.schema?.type || 'value'}
-                        className="flex-1 px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm font-mono focus:border-bambu-green focus:outline-none"
+                        className="min-w-0 font-mono text-sm"
                       />
                     )}
                   </div>
@@ -410,7 +411,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
           )}
 
           {/* Execute Button */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button onClick={executeRequest} disabled={loading}>
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -442,7 +443,7 @@ function EndpointItem({ path, method, spec, schema, apiKey }: EndpointItemProps)
                   }`}>
                     {response.status} {response.statusText}
                   </span>
-                  <span className="text-xs text-bambu-gray">{response.duration}ms</span>
+                  <span className="text-xs text-table-secondary">{response.duration}ms</span>
                 </h4>
                 <Button variant="secondary" size="sm" onClick={copyResponse}>
                   {copied ? (
@@ -503,15 +504,11 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
 
   if (error || !schema) {
     return (
-      <Card>
-        <CardContent className="py-8">
-          <div className="text-center text-red-700 dark:text-red-400">
-            <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>{translateInterface("orders.runtimeInterface.failedToLoadAPISchema")}</p>
-            <p className="text-sm text-bambu-gray mt-1">{error}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div role="alert" className="rounded-lg border border-bambu-dark-tertiary px-4 py-6 text-center">
+        <AlertCircle className="mx-auto mb-2 h-6 w-6 text-red-700 dark:text-red-400" aria-hidden="true" />
+        <p className={dashboardStyles.cardTitle}>{translateInterface("orders.runtimeInterface.failedToLoadAPISchema")}</p>
+        <p className="mt-1 text-sm text-table-secondary">{error}</p>
+      </div>
     );
   }
 
@@ -574,18 +571,18 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 basis-full 2xl:flex-1">
           <TextField
-            type="text"
+            type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label={translateInterface("apiBrowser.placeholders.searchEndpoints")}
             placeholder={translateInterface("apiBrowser.placeholders.searchEndpoints")}
-            className="w-full max-w-md px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+            className="text-sm"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={expandAll}>
             {translateInterface("orders.runtimeInterface.expandAll")}
           </Button>
@@ -596,7 +593,7 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
             href="/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-sm text-bambu-green hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-accent-foreground hover:underline"
           >
             <ExternalLink className="w-4 h-4" />
             Swagger UI
@@ -605,33 +602,34 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
       </div>
 
       {/* Endpoint count */}
-      <p className="text-sm text-bambu-gray">
+      <p className="text-xs text-table-secondary">
         {filteredTags.reduce((acc, t) => acc + t.endpoints.length, 0)} {translateInterface("orders.runtimeInterface.endpointsIn")} {filteredTags.length} {translateInterface("orders.runtimeInterface.categories")}
       </p>
 
       {/* Endpoints by Tag */}
       <div className="space-y-3">
         {filteredTags.map(({ tag, endpoints }) => (
-          <Card key={tag}>
-            <Button variant="unstyled"
-              onClick={() => toggleTag(tag)}
-              className="w-full flex items-center justify-between p-4 hover:bg-bambu-dark-tertiary/30 transition-colors text-left"
-            >
-              <div className="flex items-center gap-2">
+          <div key={tag} className="rounded-lg border border-bambu-dark-tertiary">
+            <h3>
+              <Button variant="unstyled"
+                onClick={() => toggleTag(tag)}
+                aria-expanded={expandedTags.has(tag)}
+                className={`${dashboardStyles.cardTitle} flex w-full items-center gap-2 rounded-lg bg-bambu-dark/30 px-3 py-2.5 text-left transition-colors hover:bg-secondary-action-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-foreground`}
+              >
                 {expandedTags.has(tag) ? (
-                  <ChevronDown className="w-5 h-5 text-bambu-gray" />
+                  <ChevronDown className="h-4 w-4 shrink-0 text-table-secondary" aria-hidden="true" />
                 ) : (
-                  <ChevronRight className="w-5 h-5 text-bambu-gray" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-table-secondary" aria-hidden="true" />
                 )}
-                <h3 className="text-base font-semibold text-white capitalize">{tag.replace(/-/g, ' ')}</h3>
-                <span className="text-xs bg-bambu-dark-tertiary px-2 py-0.5 rounded-full text-bambu-gray">
+                <span className="min-w-0 wrap-break-word capitalize">{tag.replace(/-/g, ' ')}</span>
+                <span className="ml-auto shrink-0 rounded-md bg-bambu-dark-tertiary px-1.5 py-0.5 text-xs tabular-nums text-table-secondary">
                   {endpoints.length}
                 </span>
-              </div>
-            </Button>
+              </Button>
+            </h3>
 
             {expandedTags.has(tag) && (
-              <CardContent className="pt-0 space-y-2">
+              <div className="space-y-2 border-t border-bambu-dark-tertiary p-2">
                 {endpoints.map(({ path, method, spec }) => (
                   <EndpointItem
                     key={`${method}-${path}`}
@@ -642,9 +640,9 @@ export function APIBrowser({ apiKey = '' }: APIBrowserProps) {
                     apiKey={apiKey}
                   />
                 ))}
-              </CardContent>
+              </div>
             )}
-          </Card>
+          </div>
         ))}
       </div>
     </div>

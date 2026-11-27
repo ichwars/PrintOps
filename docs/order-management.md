@@ -6,6 +6,55 @@ Kundennummern. Die inzwischen verfügbare, versionierte Dokumentverwaltung mit
 E-Rechnung ist in der separaten Anleitung
 [`Dokumentverwaltung und E-Rechnung`](document-management.md) beschrieben.
 
+## Tabellen sortieren
+
+In Auftragsübersicht, Kalkulation, Angeboten, Kunden, Rechnungen und
+Lexware-Belegen sortieren Sie über die Spaltenüberschrift. Ein weiterer
+Klick auf dieselbe Überschrift kehrt die Richtung um. Der Pfeil zeigt
+die aktive Sortierung. Bei Angeboten und Rechnungen sortiert **Kunde**
+alphabetisch nach dem angezeigten Namen. Einträge ohne Kundennamen stehen am Ende.
+
+Bei Kunden, Angeboten und Lexware-Belegen werden alle Treffer der gewählten
+Filter sortiert. Bei einem Wechsel der Sortierung öffnet sich die erste Seite.
+In Angeboten sucht das Suchfeld nach Angebotsnummer, Kalkulation oder
+Kundennamen. Unter der Tabelle lässt sich die Seitengröße wählen.
+In der Rechnungsliste sortiert die Spalte **Fälligkeit** nach Datum.
+Die voreingestellten Sortierungen nach Priorität, Fälligkeit, offenem
+Betrag und Erstellungsdatum sind oberhalb der Tabelle verfügbar.
+In Lexware-Belegen erfordert die Sortierung nach offenem Betrag das
+Recht **Zahlungen lesen**.
+
+## Zeilenaktionen
+
+Ein Klick auf eine Datenzeile öffnet direkt die zugehörigen Details. Mit
+der Tastatur können Sie die Zeile fokussieren und mit Enter oder der
+Leertaste öffnen. Links in der Zeile führen zu ihrem jeweiligen Ziel.
+
+Das Drei-Punkte-Menü steht rechts in der Tabelle. Es enthält die Aktionen,
+die für den jeweiligen Datensatz und Ihre Rechte verfügbar sind. Mit den
+Pfeiltasten wechseln Sie zwischen Aktionen. Escape schließt das Menü.
+
+- **Aufträge** öffnen den Auftrag, das Projekt oder das zugrunde liegende Angebot.
+  Die Auftragsdetails zeigen den Kundennamen, Positionen mit Menge, Einheit
+  und Nettopreisen sowie Netto, Steuer und Brutto aus der Auftragsbestätigung.
+  Bei älteren Aufträgen ohne Bestätigung ist der in der Kalkulationsrevision
+  gespeicherte Nettopreis verfügbar. Aktive Aufträge lassen sich nach
+  Bestätigung stornieren.
+- **Angebote** öffnen Details, die Kalkulation, den Beleg und den verknüpften
+  Auftrag, soweit vorhanden. Der Dialog zeigt den Kundennamen, die gespeicherten
+  Belegpositionen mit Menge und Nettopreisen sowie Netto, Steuer und Brutto.
+  Bei älteren Angeboten ohne Beleg steht der gespeicherte Nettopreis im Dialog.
+  Der Status bestimmt die nächsten Schritte.
+- **Kalkulationen** öffnen den Revisionsverlauf und zeigen die zugehörigen Angebote.
+- **Kunden** öffnen gefilterte Angebote und Rechnungen für das gewählte
+  Unternehmensprofil. Der Filter lässt sich über das X entfernen.
+- **Rechnungen** zeigen den Kundennamen, die Rechnungspositionen mit Menge,
+  Einheit und Nettopreisen sowie die Summen für Netto, Steuer und Brutto.
+  Verfügbare Dateien und der Zahlungsverlauf stehen darunter.
+- **Lexware-Belege** öffnen Details und den verknüpften PrintOps-Beleg. Ein
+  einzelnes verfügbares Original lässt sich direkt herunterladen. Bei mehreren
+  Originalen wählen Sie die Datei in den Details.
+
 ## Erstes Unternehmensprofil einrichten
 
 Oeffnen Sie `Einstellungen > Auftragsverwaltung > Unternehmensprofil` und
@@ -176,7 +225,9 @@ Unter `Lager > Lieferanten` werden Bezugsquellen zentral gepflegt. Neben Firma,
 Kontakt- und Adressdaten koennen Kundennummer, Zahlungsbedingungen,
 Standardlieferzeit und interne Notizen hinterlegt werden. Nicht verwendete
 Lieferanten koennen geloescht werden. Lieferanten mit Beschaffungsangeboten sind
-vor dem Loeschen geschuetzt und koennen stattdessen deaktiviert werden.
+vor dem Loeschen geschuetzt und koennen stattdessen deaktiviert werden. Die Liste lässt sich
+nach Namen suchen, nach Status filtern und seitenweise durchsuchen. Suche,
+Status und Seite bleiben beim Teilen der Adresse erhalten.
 
 Material und Filament verwenden dieselben Beschaffungsangebote. Je Artikel ist
 eine bevorzugte Bezugsquelle moeglich; weitere Angebote dienen als Alternativen.

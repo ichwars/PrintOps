@@ -78,6 +78,41 @@ und verknüpfte Kunden werden deaktiviert beziehungsweise archiviert statt gelö
 ## Warenlager
 
 **Lager → Warenlager** verwaltet Fertigprodukte, Handelswaren und Dienstleistungen.
+Wie im Filamentbestand und unter **Material** steht die Suche über den Filtern.
+Mit **Aktiv**, **Archiviert** und **Alle** wechselst du den Artikelstatus.
+Artikelart, Bestandsquelle und **Unter Mindestbestand** grenzen die Liste weiter ein.
+Material und Warenlager bieten dieselbe Anordnung für Suche, Spaltenauswahl,
+Gruppierung, Sortierung nach Restmenge sowie Tabelle und Karten. Material gruppiert
+nach Kategorie, das Warenlager nach Artikelart innerhalb der geladenen Seite.
+Die Filter für Verwendung und Mindestbestand lassen sich mit Kategorie,
+bevorzugtem Lieferanten, Lagerort und Einheit im Materiallager kombinieren.
+Im Warenlager stehen dafür Artikelart, Bestandsquelle, Lagerort und Einheit zur
+Verfügung. Lagerorte für eigene Waren folgen dem aktuellen physischen Bestand.
+Bei verknüpften Artikeln gilt der Lagerort des Materials. Die Trefferzahl und
+das Rücksetzen stehen am Ende der Filterleiste.
+Die Spaltenköpfe sortieren die gesamte gefilterte Liste. Wiederholtes Anklicken
+wechselt zwischen aufsteigend, absteigend und der Standardreihenfolge.
+Material und Warenlager zeigen die interne Nummer, das Erfassungsdatum, die
+letzte gebuchte Entnahme und die bisher verbrauchte Menge. Die Spalte **Verbleibend**
+zeigt den physischen Bestand im Verhältnis zu physischem Bestand plus gebuchtem
+Verbrauch. Jede Menge trägt die Einheit des Artikels. Gegenbuchungen heben
+die ursprüngliche Entnahme für die Verbrauchsanzeige auf.
+Ein Klick auf die Zeile öffnet bei Bearbeitungsrechten den Editor. Mit den
+Auswahlkästchen und **Inventur bestätigen** protokollierst du einen gezählten oder
+gewogenen Bestand. Der dabei gespeicherte Zeitpunkt erscheint unter **Geprüft**.
+Bei verknüpften Handelsartikeln gehört die Prüfung zum zugrunde liegenden
+Material. Der Filamentbestand unterstützt dieselbe Bestätigung für lokale Spulen.
+In den drei Lagertabellen bleibt das Drei-Punkte-Menü der Zeile rechts sichtbar.
+Das Warenlager bietet mit den jeweiligen Berechtigungen Artikeldetails, Bearbeitung,
+Archivieren und Reaktivieren. **Wareneingang** und **Freier Warenausgang** öffnen
+bei aktiven, buchbaren Beständen direkt den passenden Dialog. Für Dienstleistungen
+ohne Bestand gibt es keine Buchungsaktion. Unter **Material** sind auch
+Einzel-Etikettendruck und Statuswechsel direkt über das Zeilenmenü erreichbar.
+**Duplizieren** öffnet in beiden Lagern einen neuen Stammdatensatz zum Prüfen und
+Speichern. Die Artikelnummer ist leer, Bestand und Historie beginnen bei null.
+Lieferantenangebote, verknüpfte Materialbestände und Projektbezüge werden bei der
+jeweiligen Kopie nicht übernommen.
+
 Die Artikelverwaltung ist auch ohne Lexware nutzbar. Es gibt drei Bestandsquellen:
 
 | Quelle | Verhalten |
@@ -104,9 +139,41 @@ zweite Buchung mit geänderten Angaben.
 
 Das Journal ist unveränderlich. Fehler werden durch Gegenbuchungen berichtigt.
 Einheiten und Bestandsquellen sind nach Beginn der Historie geschützt. Artikel mit
-Restbestand oder Reservierungen können nicht archiviert werden. Fertigprodukte
-können auf ein Projekt oder eine Kalkulationsrevision verweisen; ein Druckende
-erzeugt keinen automatischen Warenzugang.
+Restbestand oder Reservierungen können nicht archiviert werden.
+
+### Bestand planen und nachproduzieren
+
+Die **Bestandsprognose** im Warenlager berechnet aus den wirksamen Entnahmen
+der letzten 30 Tage den voraussichtlichen Bestand und die Tage bis zum
+Mindestbestand. Wenn keine Entnahmen vorliegen, zeigt sie das entsprechend an.
+
+Unter **Lager → Nachbestellbedarf** stehen fertige Waren und Materialfehlmengen
+in getrennten Tabellen. Ein Zeilenklick springt zum Eintrag im jeweiligen Lager.
+Über das Drei-Punkte-Menü kannst du Material auf die gespeicherte **Einkaufsliste**
+setzen. Bei Fertigprodukten öffnet **Nachproduzieren** einen neuen Projektentwurf
+mit dem ausgewählten Artikel und der vorgeschlagenen Fehlmenge als Teileziel.
+Vor dem Speichern wählst du den Ziellagerort.
+
+Für Projekte mit einem solchen Lagerziel bestätigst du zuerst die Gutteile der
+fertigen Druckläufe. Beim Projektabschluss bucht PrintOps diese Stückzahl am
+gewählten Lagerort. Ein Drucklauf wird dabei einmal berücksichtigt. Ohne
+Lagerziel bleibt der übliche Projektabschluss ohne automatische Lagerbuchung.
+Zum Festlegen des Ziels und zur automatischen Buchung beim Abschluss ist
+`inventory:update` zusätzlich zu den Projektrechten erforderlich.
+
+### API für Bestand und Beschaffung
+
+- `GET /api/v1/warehouse-articles` akzeptiert `sort_by`, `sort_dir`, `limit`
+  und `offset`. `GET /api/v1/warehouse-articles/forecast` liefert die
+  paginierte Warenprognose. Beide verwenden `inventory:read`.
+- `POST /api/v1/inventory/spools/stock-check`,
+  `POST /api/v1/small-parts/stock-check` und
+  `POST /api/v1/warehouse-articles/stock-check` speichern den Inventurzeitpunkt
+  für die übergebenen Artikel-IDs. Sie verwenden `inventory:update`.
+- `GET /api/v1/warehouse-shopping-list` liest die Material-Einkaufsliste.
+  Ein Material lässt sich mit `PUT /api/v1/warehouse-shopping-list/material/{resource_id}`
+  hinzufügen und mit `DELETE /api/v1/warehouse-shopping-list/{item_id}`
+  entfernen. Änderungen verwenden `inventory:update`.
 
 ## Belege und Finanzen
 

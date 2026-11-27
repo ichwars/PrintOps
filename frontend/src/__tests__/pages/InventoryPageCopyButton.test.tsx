@@ -165,7 +165,7 @@ describe('InventoryPage — copy button', () => {
     setupHandlers();
   });
 
-  it('opens SpoolFormModal in "Copy Spool" mode when the copy button in the table row is clicked', async () => {
+  it('opens SpoolFormModal in "Copy Spool" mode when Copy Spool is selected from the row menu', async () => {
     render(<InventoryPageRouter />);
 
     // Wait for the spool list to render
@@ -173,12 +173,8 @@ describe('InventoryPage — copy button', () => {
       expect(screen.getAllByText('PETG').length).toBeGreaterThan(0);
     });
 
-    // Find the "Copy Spool" button (title attribute) in the table row
-    const copyButtons = await screen.findAllByTitle('Copy Spool');
-    expect(copyButtons.length).toBeGreaterThan(0);
-
-    // Click the first copy button (table view is default)
-    fireEvent.click(copyButtons[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /^Actions: #/ }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy Spool' }));
 
     // The modal should open with the "Copy Spool" heading
     await waitFor(() => {

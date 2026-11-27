@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, In
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base
+from backend.app.models.warehouse_article import WarehouseDecimal
 
 
 class Supplier(Base):
@@ -76,3 +77,23 @@ class ProcurementOffer(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class WarehouseShoppingListItem(Base):
+    __tablename__ = "warehouse_shopping_list_items"
+    __table_args__ = (
+        CheckConstraint(
+            "(article_id IS NOT NULL AND small_part_id IS NULL) OR (article_id IS NULL AND small_part_id IS NOT NULL)",
+            name="ck_warehouse_shopping_list_owner",
+        ),
+        CheckConstraint("quantity > 0", name="ck_warehouse_shopping_list_quantity"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("warehouse_articles.id", ondelete="CASCADE"), unique=True)
+    small_part_id: Mapped[int | None] = mapped_column(ForeignKey("small_parts.id", ondelete="CASCADE"), unique=True)
+    sku: Mapped[str] = mapped_column(String(120))
+    name: Mapped[str] = mapped_column(String(255))
+    quantity: Mapped[Decimal] = mapped_column(WarehouseDecimal)
+    unit_code: Mapped[str] = mapped_column(String(16))
+    unit_label: Mapped[str] = mapped_column(String(80))

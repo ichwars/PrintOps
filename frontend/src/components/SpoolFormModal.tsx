@@ -1222,33 +1222,37 @@ export function SpoolFormModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 p-4 border-t border-bambu-dark-tertiary flex-shrink-0">
+        <div className="flex shrink-0 flex-col gap-3 border-t border-bambu-dark-tertiary p-4">
           {isEditing && (
-            <div className="flex gap-2 mr-auto">
+            <div className="flex min-w-0 flex-wrap gap-2">
               <Button
+                size="sm"
+                className="h-auto! min-h-[34px] max-w-full text-left"
                 variant="secondary"
                 onClick={() => deleteTagMutation.mutate()}
                 disabled={isPending || !(spool?.tag_uid || spool?.tray_uuid)}
               >
-                <Tag className="w-4 h-4" />
+                <Tag className="h-4 w-4 shrink-0" />
                 {t('inventory.clearRfid', 'Clear RFID Tag')}
               </Button>
-              <Button variant="secondary" onClick={() => clearTrayUuidMutation.mutate()}
+              <Button size="sm" className="h-auto! min-h-[34px] max-w-full text-left" variant="secondary" onClick={() => clearTrayUuidMutation.mutate()}
                 disabled={isPending || !spool?.tray_uuid}>
-                <Tag className="w-4 h-4" />
+                <Tag className="h-4 w-4 shrink-0" />
                 {t('inventory.clearTrayUuid', 'Clear Tray UUID')}
               </Button>
               <Button
+                size="sm"
+                className="h-auto! min-h-[34px] max-w-full text-left"
                 variant="secondary"
                 onClick={() => unassignMutation.mutate()}
                 disabled={isPending || !spoolAssignment}
               >
-                <Unlink className="w-4 h-4" />
+                <Unlink className="h-4 w-4 shrink-0" />
                 {t('inventory.unassignSpool', 'Unassign')}
               </Button>
             </div>
           )}
-          <div className="flex gap-2 ml-auto">
+          <div className="flex min-w-0 flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
             {t('common.cancel')}
           </Button>

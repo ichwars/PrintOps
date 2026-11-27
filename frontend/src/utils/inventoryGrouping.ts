@@ -10,15 +10,18 @@ export function aggregateGroupSpool(spools: InventorySpool[]): InventorySpool {
   let labelWeight = 0;
   let weightUsed = 0;
   let coreWeight = 0;
+  let checkedAt = base.stock_checked_at ?? null;
   for (const s of spools) {
     labelWeight += s.label_weight;
     weightUsed += s.weight_used;
     coreWeight += s.core_weight;
+    if (!s.stock_checked_at || (checkedAt && s.stock_checked_at < checkedAt)) checkedAt = s.stock_checked_at ?? null;
   }
   return {
     ...base,
     label_weight: labelWeight,
     weight_used: weightUsed,
     core_weight: coreWeight,
+    stock_checked_at: checkedAt,
   };
 }

@@ -1,3 +1,5 @@
+import { TablePagination } from './ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Film, Images, Loader2 } from 'lucide-react';
@@ -37,6 +39,9 @@ export function PrintLogTable({ archiveId }: PrintLogTableProps) {
     queryFn: () => api.getArchiveRuns(archiveId),
   });
 
+  const runs = data?.items ?? [];
+  const pagination = useTablePagination(runs, String(archiveId));
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-4">
@@ -45,7 +50,6 @@ export function PrintLogTable({ archiveId }: PrintLogTableProps) {
     );
   }
 
-  const runs = data?.items || [];
   if (runs.length === 0) {
     return (
       <p className="text-sm text-bambu-gray italic py-2">
@@ -55,6 +59,7 @@ export function PrintLogTable({ archiveId }: PrintLogTableProps) {
   }
 
   return (
+    <div className="min-w-0">
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
@@ -69,7 +74,7 @@ export function PrintLogTable({ archiveId }: PrintLogTableProps) {
           </tr>
         </thead>
         <tbody>
-          {runs.map((run) => {
+          {pagination.rows.map((run) => {
             const statusClass =
               run.status === 'completed'
                 ? 'text-bambu-green'
@@ -137,6 +142,8 @@ export function PrintLogTable({ archiveId }: PrintLogTableProps) {
           })}
         </tbody>
       </table>
+    </div>
+    <TablePagination {...pagination.footer} />
       {media?.kind === 'photos' && <PhotoGalleryModal
         archiveName={media.run.print_name ?? ''}
         photos={media.run.photos ?? []}

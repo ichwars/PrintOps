@@ -1,3 +1,5 @@
+import { TablePagination } from '../../ui/TablePagination';
+import { useTablePagination } from '../../../hooks/useTablePagination';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { ArrowRight, Archive, ExternalLink, Link2, Search, ShieldCheck } from 'lucide-react';
@@ -51,7 +53,6 @@ function ResourceList({ connection, kind, resources }: { connection: LexwareConn
   const { text, locale } = useLexwareMessages();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
-  const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<number[]>([]);
   const [review, setReview] = useState<LexwareResource[] | null>(null);
   const canCreateCustomers = kind === 'contacts' && hasPermission('customers:manage');
@@ -63,8 +64,8 @@ function ResourceList({ connection, kind, resources }: { connection: LexwareConn
     (row.name + ' ' + (row.number ?? '') + ' ' + row.external_id).toLocaleLowerCase(locale).includes(search.toLocaleLowerCase(locale))
     && (filter === 'all' || filter === 'archived' && row.archived || filter === 'linked' && isLinked(row) || filter === 'new' && selectable(row))
   ));
-  const pageOffset = Math.min(offset, Math.max(0, Math.ceil(filtered.length / 25) - 1) * 25);
-  const page = filtered.slice(pageOffset, pageOffset + 25);
+  const pagination = useTablePagination(filtered, JSON.stringify([kind, search, filter]), 25);
+  const page = pagination.rows;
   const pageSelectable = page.filter(selectable).map((row) => row.id);
   const pageSelected = pageSelectable.filter((id) => selected.includes(id));
 
@@ -73,11 +74,11 @@ function ResourceList({ connection, kind, resources }: { connection: LexwareConn
       <div className="flex flex-wrap items-end gap-3">
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute bottom-3 left-3 h-4 w-4 text-bambu-gray" aria-hidden />
-          <TextField type="search" label={text.search} value={search} className="pl-9" onValueChange={(value) => { setSearch(value); setOffset(0); }} />
+          <TextField type="search" label={text.search} value={search} className="pl-9" onValueChange={(value) => setSearch(value)} />
         </div>
         <div className="w-full sm:w-56"><Select label={text.filter} value={filter} options={[
           { value: 'all', label: text.all }, { value: 'new', label: text.new }, { value: 'linked', label: text.linked }, { value: 'archived', label: text.archived },
-        ]} onValueChange={(value) => { setFilter(value); setOffset(0); }} /></div>
+        ]} onValueChange={(value) => setFilter(value)} /></div>
       </div>
       {resources.isPending && <p role="status" className="py-8 text-center text-sm text-bambu-gray">{text.loading}</p>}
       {resources.isError && <div role="alert" className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm"><p>{lexwareError(resources.error, text)}</p><p className="text-bambu-gray">{text.stale}</p>
@@ -110,17 +111,14 @@ function ResourceList({ connection, kind, resources }: { connection: LexwareConn
           </tr>)}</tbody>
         </table>
       </div>}
+      {filtered.length > 0 && <TablePagination {...pagination.footer} sizes={[15, 25, 30, 50, 100]} />}
       {canCreateCustomers && rows.length > 0 && <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-bambu-dark-tertiary px-4 py-3">
         <div className="flex items-center gap-3 text-sm"><span className="tabular-nums">{selection.length} {text.selected}</span>
           {selection.length > 0 && <Button size="sm" variant="ghost" onClick={() => setSelected([])}>{text.clearSelection}</Button>}</div>
         <p className="flex items-center gap-2 text-xs text-bambu-gray" title={text.batchHelp}><ShieldCheck className="h-4 w-4" aria-hidden />{text.approvalNote}</p>
         <Button disabled={!selection.length} aria-haspopup="dialog" onClick={() => setReview(selection)}>{text.reviewSelected} ({selection.length})<ArrowRight className="h-4 w-4" aria-hidden /></Button>
       </div>}
-      {filtered.length > 25 && <div className="flex items-center justify-end gap-3 text-sm text-bambu-gray">
-        <span className="tabular-nums">{pageOffset + 1}–{Math.min(pageOffset + 25, filtered.length)} / {filtered.length}</span>
-        <Button variant="secondary" size="sm" disabled={!pageOffset} onClick={() => setOffset(Math.max(0, pageOffset - 25))}>{text.previous}</Button>
-        <Button variant="secondary" size="sm" disabled={pageOffset + 25 >= filtered.length} onClick={() => setOffset(pageOffset + 25)}>{text.next}</Button>
-      </div>}
+
     </section>
     {review && <LexwareImportReview connection={connection} kind={kind} resources={review}
       onClose={() => setReview(null)} onImported={() => { setReview(null); setSelected([]); }} />}

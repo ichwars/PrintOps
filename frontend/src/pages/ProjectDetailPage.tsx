@@ -51,10 +51,7 @@ import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { isSlicedLibraryFile } from '../utils/libraryFiles';
 
 function formatFilament(grams: number): string {
-  if (grams >= 1000) {
-    return `${(grams / 1000).toFixed(2)}kg`;
-  }
-  return `${Math.round(grams)}g`;
+  return grams >= 1000 ? `${(grams / 1000).toFixed(2)}kg` : `${Math.round(grams)}g`;
 }
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
@@ -269,9 +266,12 @@ export function ProjectDetailPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: ProjectUpdate) => api.updateProject(projectId, data),
-    onSuccess: () => {
+    onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      if (project.production_output && project.status === 'completed') {
+        queryClient.invalidateQueries({ queryKey: ['warehouse-articles'] });
+      }
       setShowEditModal(false);
       setEditingNotes(false);
       showToast(t('projectDetail.toast.projectUpdated'), 'success');

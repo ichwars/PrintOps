@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CalculationsPage } from '../../pages/CalculationsPage';
 import { calculationsApi } from '../../api/calculations';
-import { selectComboboxOption } from '../utils';
+import { render, selectComboboxOption } from '../utils';
 
 vi.mock('../../api/calculations', () => ({
   calculationsApi: {

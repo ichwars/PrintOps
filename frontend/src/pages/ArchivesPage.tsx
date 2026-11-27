@@ -1,3 +1,4 @@
+import { TablePagination } from '../components/ui/TablePagination';
 import { splitFilamentTypes } from '../utils/filamentTypes';
 import { ColumnConfigModal, type ColumnConfig } from '../components/ColumnConfigModal';
 import { ArchiveMergeButton } from '../components/ArchiveMergeButton';
@@ -2668,7 +2669,8 @@ export function ArchivesPage() {
   const [pageSize, setPageSize] = useState<number>(() => {
     try {
       const stored = localStorage.getItem('archivePageSize');
-      return stored ? Number(stored) : 50;
+      const size = Number(stored);
+      return [15, 25, 30, 50, 100, 200, -1].includes(size) ? size : 50;
     } catch { return 50; }
   });
 
@@ -2707,8 +2709,10 @@ export function ArchivesPage() {
   const [editingLogFailureReason, setEditingLogFailureReason] = useState('');
   const [editingLogStatus, setEditingLogStatus] = useState('');
   const [logPageSize, setLogPageSize] = useState(() => {
-    const saved = localStorage.getItem('logPageSize');
-    return saved ? Number(saved) : 25;
+    try {
+      const size = Number(localStorage.getItem('logPageSize'));
+      return [10, 15, 25, 30, 50, 100].includes(size) ? size : 25;
+    } catch { return 25; }
   });
 
   const updateArchiveUrlParams = useCallback((updates: { q?: string; view?: ViewMode; energy?: ArchiveEnergyFocus | null }) => {
@@ -3172,10 +3176,10 @@ export function ArchivesPage() {
   const totalFiltered = filteredArchives?.length || 0;
   const showAll = pageSize === -1;
   const effectivePageSize = showAll ? totalFiltered || 1 : pageSize;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / effectivePageSize));
+  const visiblePageIndex = Math.min(pageIndex, Math.max(0, Math.ceil(totalFiltered / effectivePageSize) - 1));
   const paginatedArchives = showAll
     ? filteredArchives
-    : filteredArchives?.slice(pageIndex * effectivePageSize, (pageIndex + 1) * effectivePageSize);
+    : filteredArchives?.slice(visiblePageIndex * effectivePageSize, (visiblePageIndex + 1) * effectivePageSize);
 
   // Jump to the page containing the highlighted archive
   useEffect(() => {
@@ -3849,10 +3853,9 @@ export function ArchivesPage() {
             ))}
           </div>
           <ArchivePaginationBar
-            pageIndex={pageIndex}
+            pageIndex={visiblePageIndex}
             pageSize={pageSize}
             totalRows={totalFiltered}
-            totalPages={totalPages}
             onPageChange={setPageIndex}
             onPageSizeChange={(size) => { setPageSize(size); setPageIndex(0); }}
             t={t}
@@ -3860,7 +3863,7 @@ export function ArchivesPage() {
         </>
       ) : viewMode === 'list' ? (
         <>
-          <Card>
+          <Card data-table-list>
             <div className="divide-y divide-bambu-dark-tertiary">
               {/* List Header */}
               <div className="grid grid-cols-12 gap-4 px-4 py-3 text-xs text-bambu-gray font-medium">
@@ -3891,10 +3894,9 @@ export function ArchivesPage() {
             </div>
           </Card>
           <ArchivePaginationBar
-            pageIndex={pageIndex}
+            pageIndex={visiblePageIndex}
             pageSize={pageSize}
             totalRows={totalFiltered}
-            totalPages={totalPages}
             onPageChange={setPageIndex}
             onPageSizeChange={(size) => { setPageSize(size); setPageIndex(0); }}
             t={t}
@@ -4105,38 +4107,9 @@ export function ArchivesPage() {
                     </tbody>
                   </table>
                 </div>
-                {/* Pagination */}
-                <div className="flex items-center justify-between px-4 py-3 border-t border-bambu-dark-tertiary flex-wrap gap-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-bambu-gray">
-                      {t('archives.log.showing', { count: Math.min(logOffset + logPageSize, printLogData.total), total: printLogData.total })}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <label className="text-xs text-bambu-gray">{t('archives.log.rowsPerPage')}</label>
-                      <LegacySelect
-                        className="px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-xs focus:border-bambu-green focus:outline-none"
-                        value={logPageSize}
-                        onChange={(e) => { setLogPageSize(Number(e.target.value)); setLogOffset(0); }}
-                      >
-                        <option value={10}>10</option>
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                      </LegacySelect>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-bambu-gray">
-                      {t('archives.log.page')} {Math.floor(logOffset / logPageSize) + 1} / {Math.max(1, Math.ceil(printLogData.total / logPageSize))}
-                    </span>
-                    <Button variant="secondary" size="sm" onClick={() => setLogOffset(Math.max(0, logOffset - logPageSize))} disabled={logOffset === 0}>
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => setLogOffset(logOffset + logPageSize)} disabled={logOffset + logPageSize >= printLogData.total}>
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+                <TablePagination total={printLogData.total} offset={logOffset} pageSize={logPageSize}
+                  sizes={[10, 15, 25, 30, 50, 100]}
+                  onOffsetChange={setLogOffset} onPageSizeChange={value => { setLogPageSize(value); setLogOffset(0); }} />
               </>
             )}
           </Card>

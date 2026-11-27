@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { CalculationList } from '../../components/orders/CalculationList';
 import type { CalculationDetail } from '../../api/calculations';
 import i18n from '../../i18n';
+import { MemoryRouter } from 'react-router';
 
 const base: CalculationDetail = {
   id: 12, business_profile_id: 2, customer_id: 3, customer_display_name: 'Example GmbH', business_profile_name: 'Main profile',
@@ -15,14 +16,20 @@ const base: CalculationDetail = {
 function renderList(items: CalculationDetail[], locale = 'en-US') {
   const actions = {
     onOpen: vi.fn(),
+    onHistory: vi.fn(),
     onDuplicate: vi.fn(),
     onCreateOffer: vi.fn(),
     onRevise: vi.fn(),
     onArchive: vi.fn(),
     onDelete: vi.fn(),
   };
-  render(<CalculationList items={items} locale={locale} {...actions} />);
+  render(<MemoryRouter><CalculationList items={items} locale={locale} {...actions} /></MemoryRouter>);
   return actions;
+}
+
+function openActions(number: string) {
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(number + '$') }));
+  return within(screen.getByRole('menu', { name: new RegExp(number + '$') }));
 }
 
 describe('CalculationList', () => {
@@ -39,8 +46,10 @@ describe('CalculationList', () => {
     expect(screen.getByText('No customer assigned')).toBeInTheDocument();
     expect(screen.getAllByText('Archived')).toHaveLength(2);
     expect(screen.getAllByText('Waiting')).toHaveLength(2);
-    fireEvent.click(screen.getAllByLabelText('Edit calculation')[0]);
+    fireEvent.click(openActions('K-000012').getByRole('menuitem', { name: 'Edit calculation' }));
     expect(actions.onOpen).toHaveBeenCalledWith(base);
+    fireEvent.click(screen.getByText('K-000012'));
+    expect(actions.onHistory).toHaveBeenCalledWith(base);
   });
 
   it('sorts by clickable headers and exposes row actions', () => {
@@ -53,11 +62,14 @@ describe('CalculationList', () => {
     fireEvent.click(screen.getByText(/Calculation/));
     expect(screen.getAllByText(/^K-/)[0]).toHaveTextContent('K-000012');
 
-    fireEvent.click(screen.getAllByLabelText('Duplicate calculation')[0]);
-    expect(actions.onDuplicate).toHaveBeenCalled();
-    fireEvent.click(screen.getAllByLabelText('Create offer draft')[0]);
+    fireEvent.click(openActions('K-000012').getByRole('menuitem', { name: 'Duplicate calculation' }));
+    expect(actions.onDuplicate).toHaveBeenCalledWith(base);
+    const menu = openActions('K-000012');
+    expect(menu.queryByRole('menuitem', { name: 'Delete calculation' })).not.toBeInTheDocument();
+    fireEvent.click(menu.getByRole('menuitem', { name: 'Create offer draft' }));
     expect(actions.onCreateOffer).toHaveBeenCalledWith(base);
-    expect(screen.getAllByLabelText('Delete calculation')[0]).toBeDisabled();
+    fireEvent.click(openActions('K-000012').getByRole('menuitem', { name: 'Revision history' }));
+    expect(actions.onHistory).toHaveBeenCalledWith(base);
   });
 
   it('renders Dutch regional labels and accessible actions while preserving commercial guards', () => {
@@ -74,17 +86,17 @@ describe('CalculationList', () => {
     expect(screen.getAllByText('geen productie')).toHaveLength(2);
     expect(screen.getAllByText(/20,00/)).toHaveLength(2);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Calculatie bewerken' })[0]);
+    fireEvent.click(openActions('K-000012').getByRole('menuitem', { name: 'Calculatie bewerken' }));
     expect(actions.onOpen).toHaveBeenCalledWith(base);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Calculatie dupliceren' })[0]);
+    fireEvent.click(openActions('K-000012').getByRole('menuitem', { name: 'Calculatie dupliceren' }));
     expect(actions.onDuplicate).toHaveBeenCalledWith(base);
-    const offers = screen.getAllByRole('button', { name: 'Conceptofferte maken' });
-    expect(offers[0]).toBeEnabled();
-    expect(offers[1]).toBeDisabled();
-    fireEvent.click(offers[0]);
+    const approved = openActions('K-000012');
+    expect(approved.queryByRole('menuitem', { name: 'Calculatie verwijderen' })).not.toBeInTheDocument();
+    fireEvent.click(approved.getByRole('menuitem', { name: 'Conceptofferte maken' }));
     expect(actions.onCreateOffer).toHaveBeenCalledWith(base);
-    expect(screen.getAllByRole('button', { name: 'Calculatie verwijderen' })[0]).toBeDisabled();
-    expect(screen.getAllByRole('button', { name: 'Calculatie verwijderen' })[1]).toBeEnabled();
+    const draftMenu = openActions('K-000013');
+    expect(draftMenu.queryByRole('menuitem', { name: 'Conceptofferte maken' })).not.toBeInTheDocument();
+    expect(draftMenu.getByRole('menuitem', { name: 'Calculatie verwijderen' })).toBeEnabled();
     expect(screen.queryByText('Waiting')).not.toBeInTheDocument();
   });
 

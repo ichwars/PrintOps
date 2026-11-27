@@ -219,6 +219,7 @@ class SpoolResponse(SpoolBase):
     # A single bad row must not 500 the entire inventory list endpoint (#1055).
     rgba: str | None = None
     added_full: bool | None = None
+    stock_checked_at: datetime | None = None
     last_used: datetime | None = None
     last_dried_at: datetime | None = None
     last_dried_temp: int | None = None

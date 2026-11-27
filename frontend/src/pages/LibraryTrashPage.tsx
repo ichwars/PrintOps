@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { setPageSelection, useTablePagination } from '../hooks/useTablePagination';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -140,10 +142,13 @@ export function LibraryTrashPage() {
   });
 
   const items = useMemo(() => trashQuery.data?.items ?? [], [trashQuery.data?.items]);
+  const pagination = useTablePagination(items, '', 15);
   const retentionDays = trashQuery.data?.retention_days ?? 30;
   const totalBytes = useMemo(() => items.reduce((sum, i) => sum + i.file_size, 0), [items]);
-  const allSelected = items.length > 0 && items.every((i) => selected.has(i.id));
-  const someSelected = selected.size > 0 && !allSelected;
+  const visibleIds = pagination.rows.map(item => item.id);
+  const visibleSelection = visibleIds.filter(id => selected.has(id)).length;
+  const allSelected = visibleIds.length > 0 && visibleSelection === visibleIds.length;
+  const someSelected = visibleSelection > 0 && !allSelected;
 
   const toggleOne = (id: number) => {
     setSelected((prev) => {
@@ -155,7 +160,7 @@ export function LibraryTrashPage() {
   };
 
   const toggleAll = () => {
-    setSelected((prev) => (prev.size === items.length ? new Set() : new Set(items.map((i) => i.id))));
+    setSelected(previous => setPageSelection(previous, visibleIds, !allSelected));
   };
 
   const handleConfirm = () => {
@@ -299,7 +304,7 @@ export function LibraryTrashPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {items.map((item) => (
+                {pagination.rows.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-3 py-2">
                       <Checkbox
@@ -354,6 +359,7 @@ export function LibraryTrashPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination {...pagination.footer} />
         </>
       )}
 

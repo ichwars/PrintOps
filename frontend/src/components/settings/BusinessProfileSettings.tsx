@@ -1,10 +1,14 @@
+import { TablePagination } from '../../components/ui/TablePagination';
+import { useTablePagination } from '../../hooks/useTablePagination';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Building2, Check, ImageOff, Loader2, Pencil, Plus, Power, RefreshCw, Star, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ApiError, api, type BusinessProfile, type BusinessProfileCreate, type BusinessProfileUpdate } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import { dashboardStyles } from '../dashboardStyles';
 import { Checkbox, IconButton, ScrollArea } from '../ui';
+import { tableBodyRowClass, tableHeaderActionCellClass, tableHeaderCellCompactClass, tableHeaderClass, tableHeaderRowClass } from '../ui/tableStyles';
 import { BusinessProfileEditorModal } from './BusinessProfileEditorModal';
 import { NumberSequenceSettings } from './NumberSequenceSettings';
 
@@ -152,17 +156,18 @@ export function BusinessProfileSettings() {
     }
   };
 
+  const pagination = useTablePagination(profilesQuery.data ?? [], String(includeInactive), 15);
   if (!canRead) {
-    return <section id="card-business-profile" className="w-full text-sm text-red-300">{t('orders.businessProfile.permissionDenied')}</section>;
+    return <section id="card-business-profile" className="w-full text-sm text-red-800 dark:text-red-200">{t('orders.businessProfile.permissionDenied')}</section>;
   }
 
   return (
     <div className="w-full space-y-3">
-    <section id="card-business-profile" className="w-full overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary card-shadow" aria-labelledby="business-profile-heading">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
+    <section id="card-business-profile" className={`${dashboardStyles.card} w-full min-w-0 overflow-hidden`} aria-labelledby="business-profile-heading">
+      <div className={`${dashboardStyles.cardHeader} flex flex-wrap items-center justify-between gap-3`}>
         <div className="flex min-w-0 items-center gap-2">
-          <Building2 className="h-5 w-5 shrink-0 text-bambu-green" aria-hidden="true" />
-          <h2 id="business-profile-heading" className="text-lg font-semibold text-white">{t('orders.businessProfile.title')}</h2>
+          <Building2 className="h-4 w-4 shrink-0 text-bambu-green" aria-hidden="true" />
+          <h2 id="business-profile-heading" className={dashboardStyles.cardTitle}>{t('orders.businessProfile.title')}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Checkbox
@@ -177,31 +182,37 @@ export function BusinessProfileSettings() {
       </div>
 
       {serverError && (
-        <div role="alert" className="mx-4 mb-3 flex items-start justify-between gap-3 border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+        <div role="alert" className="m-4 flex items-start justify-between gap-3 border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-200">
           <span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{serverError.message}</span>
           <IconButton label={t('orders.businessProfile.dismiss')} icon={X} onClick={() => setServerError(null)} size="sm" />
         </div>
       )}
 
-      {profilesQuery.isPending && !listError && <div className="flex items-center gap-2 px-4 pb-4 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.businessProfile.loading')}</div>}
+      {profilesQuery.isPending && !listError && <div className="flex items-center gap-2 p-4 text-sm text-table-secondary"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.businessProfile.loading')}</div>}
       {listError && (
-        <div className="mx-4 mb-3 flex flex-wrap items-center gap-3 text-sm text-red-300">
+        <div className="m-4 flex flex-wrap items-center gap-3 text-sm text-red-800 dark:text-red-200">
           <AlertTriangle className="h-4 w-4" />
           <span>{listError}</span>
           <IconButton label={t('common.retry')} icon={RefreshCw} onClick={() => profilesQuery.refetch()} size="sm" />
           <IconButton label={t('orders.businessProfile.dismiss')} icon={X} onClick={() => setListError(null)} size="sm" />
         </div>
       )}
-      {profilesQuery.isSuccess && profilesQuery.data.length === 0 && <p className="px-4 pb-4 text-sm text-bambu-gray">{t('orders.businessProfile.empty')}</p>}
+      {profilesQuery.isSuccess && profilesQuery.data.length === 0 && <p className="p-4 text-sm text-table-secondary">{t('orders.businessProfile.empty')}</p>}
       {profilesQuery.isSuccess && profilesQuery.data.length > 0 && (
-        <ScrollArea direction="horizontal" scrollbar="thin" className="border-t border-bambu-dark-tertiary px-4 pb-4">
+        <>
+        <ScrollArea direction="horizontal" scrollbar="thin">
           <table className="w-full min-w-[820px] table-fixed text-left text-sm">
-            <thead className="border-b border-bambu-dark-tertiary text-xs uppercase text-bambu-gray">
-              <tr><th className="px-2 py-2">{t('orders.businessProfile.profile')}</th><th className="px-2 py-2">{t('orders.businessProfile.country')}</th><th className="px-2 py-2">{t('orders.businessProfile.currency')}</th><th className="px-2 py-2">{t('orders.businessProfile.timezone')}</th><th className="px-2 py-2">{t('orders.businessProfile.billingMode')}</th><th className="px-2 py-2">{t('orders.businessProfile.status')}</th><th className="px-2 py-2 text-right">{t('orders.businessProfile.actions')}</th></tr>
+            <thead className={tableHeaderClass}>
+              <tr className={tableHeaderRowClass}>
+                {(['profile', 'country', 'currency', 'timezone', 'billingMode', 'status'] as const).map(key => (
+                  <th key={key} scope="col" className={tableHeaderCellCompactClass}>{t(`orders.businessProfile.${key}`)}</th>
+                ))}
+                <th scope="col" className={tableHeaderActionCellClass}>{t('orders.businessProfile.actions')}</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-bambu-dark-tertiary">
-              {profilesQuery.data.map((profile) => (
-                <tr key={profile.id} className="text-bambu-gray-light">
+              {pagination.rows.map((profile) => (
+                <tr key={profile.id} className={`${tableBodyRowClass} text-table-secondary [&>td]:px-3`}>
                   <td className="w-[28%] px-2 py-3"><div className="flex items-center gap-3"><ProfileLogo profile={profile} /><div className="min-w-0"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></div></div></td>
                   <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{t(`orderUi.billingModes.${profile.billing_mode}`)}</td>
                   <td className="px-2 py-3 align-middle"><div className="flex items-center gap-2"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</div></td>
@@ -216,6 +227,8 @@ export function BusinessProfileSettings() {
             </tbody>
           </table>
         </ScrollArea>
+        <TablePagination {...pagination.footer} />
+        </>
       )}
 
       {editorProfile !== undefined && <BusinessProfileEditorModal profile={editorProfile} isSubmitting={isMutating} onClose={() => setEditorProfile(undefined)} onSubmit={submitEditor} />}

@@ -40,6 +40,7 @@ class Spool(Base):
     weight_used_baseline: Mapped[float] = mapped_column(Float, default=0, server_default="0")
     weight_locked: Mapped[bool] = mapped_column(Boolean, default=False)  # Lock weight from AMS auto-sync
     last_scale_weight: Mapped[int | None] = mapped_column(Integer)  # Last gross weight from scale (g)
+    stock_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_weighed_at: Mapped[datetime | None] = mapped_column(DateTime)  # When last weighed
     slicer_filament: Mapped[str | None] = mapped_column(String(50))  # Preset ID (e.g. "GFL99")
     slicer_filament_name: Mapped[str | None] = mapped_column(String(100))  # Preset name for slicer

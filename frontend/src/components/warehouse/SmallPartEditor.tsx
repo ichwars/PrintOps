@@ -1,6 +1,7 @@
-import { smallPartsText as text, useSmallPartsText } from './smallPartsCopy';
+import { smallPartsText as text } from './smallPartsCopy';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 import { api } from '../../api/client';
 import {
@@ -19,6 +20,8 @@ import { ProcurementOffersEditor } from './ProcurementOffersEditor';
 
 interface SmallPartEditorProps {
   part: SmallPart | null;
+  copyFrom?: SmallPart;
+  canEditOffers?: boolean;
   onClose: () => void;
 }
 
@@ -77,8 +80,9 @@ const initialForm = (part: SmallPart | null): SmallPartInput => ({
   is_active: part?.is_active ?? true,
 });
 
-export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
-  useSmallPartsText();
+export function SmallPartEditor({ part, copyFrom, canEditOffers = true, onClose }: SmallPartEditorProps) {
+  const { t } = useTranslation();
+  const formId = useId();
   const queryClient = useQueryClient();
   const categories = useQuery({ queryKey: ['small-parts', 'categories'], queryFn: smallPartsApi.categories.list });
   const units = useQuery({ queryKey: ['small-parts', 'units'], queryFn: smallPartsApi.units.list });
@@ -93,7 +97,17 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
     queryFn: () => procurementOffersApi.list({ kind: 'material', small_part_id: part!.id }),
     enabled: part !== null,
   });
-  const [form, setForm] = useState<SmallPartInput>(() => initialForm(part));
+  const [form, setForm] = useState<SmallPartInput>(() => {
+    if (!copyFrom) return initialForm(part);
+    return {
+      ...initialForm(copyFrom),
+      sku: '',
+      is_active: true,
+      category_id: copyFrom.category?.is_active === false ? null : copyFrom.category_id,
+      unit_code: copyFrom.unit.is_active ? copyFrom.unit_code : '',
+      supplier_reference: null,
+    };
+  });
   const [openingQuantity, setOpeningQuantity] = useState('0');
   const [offers, setOffers] = useState<ProcurementOfferDraft[]>([]);
   const [minimumStockTouched, setMinimumStockTouched] = useState(false);
@@ -105,12 +119,12 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
   const quantityStep = quantityDecimals > 0 ? String(1 / (10 ** quantityDecimals)) : '1';
 
   useEffect(() => {
-    if (part || minimumStockTouched || settings.data?.small_parts_default_minimum_stock == null) return;
+    if (part || copyFrom || minimumStockTouched || settings.data?.small_parts_default_minimum_stock == null) return;
     setForm((current) => ({
       ...current,
       minimum_stock: formatQuantity(settings.data?.small_parts_default_minimum_stock, quantityDecimals),
     }));
-  }, [minimumStockTouched, part, quantityDecimals, settings.data?.small_parts_default_minimum_stock]);
+  }, [copyFrom, minimumStockTouched, part, quantityDecimals, settings.data?.small_parts_default_minimum_stock]);
 
   useEffect(() => {
     if (!part || !offersQuery.data || loadedOffersFor.current === part.id) return;
@@ -131,7 +145,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
         await smallPartsApi.update(materialId, form);
       }
       const offersReady = !part || offersQuery.isSuccess;
-      if (suppliers.isSuccess && offersReady) {
+      if (canEditOffers && suppliers.isSuccess && offersReady && (!copyFrom || offers.length > 0)) {
         await procurementOffersApi.replace({ kind: 'material', small_part_id: materialId }, offers);
       }
     },
@@ -160,12 +174,19 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
     <Modal
       open
       onClose={onClose}
-      title={part ? text('editMaterial') : text('addMaterial')}
+      title={copyFrom ? t('common.duplicate') : part ? text('editMaterial') : text('addMaterial')}
       closeLabel={text('close')}
       closeDisabled={mutation.isPending}
       className="max-w-3xl"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={mutation.isPending}>{text('cancel')}</Button>
+          <Button type="submit" form={formId} loading={mutation.isPending}>{text('saveMaterial')}</Button>
+        </>
+      }
     >
       <form
+        id={formId}
         className="space-y-6"
         onSubmit={(event) => {
           event.preventDefault();
@@ -229,7 +250,7 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
               suppliers={suppliers.data ?? []}
               offers={offers}
               onChange={setOffers}
-              readOnly={!suppliers.isSuccess}
+              readOnly={!canEditOffers || !suppliers.isSuccess}
             />
           ) : null}
           {suppliers.isError ? (
@@ -256,10 +277,6 @@ export function SmallPartEditor({ part, onClose }: SmallPartEditorProps) {
         </FormSection>
 
         {error ? <p role="alert" className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</p> : null}
-        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary pt-4">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={mutation.isPending}>{text('cancel')}</Button>
-          <Button type="submit" loading={mutation.isPending}>{text('saveMaterial')}</Button>
-        </div>
       </form>
     </Modal>
   );

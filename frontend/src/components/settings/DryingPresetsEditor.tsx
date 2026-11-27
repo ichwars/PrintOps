@@ -1,8 +1,35 @@
+import { TablePagination } from '../ui/TablePagination';
+import { useTablePagination } from '../../hooks/useTablePagination';
 import { useTranslation } from 'react-i18next';
 import { NumberField } from '../ui';
 
 export function DryingPresetsEditor({ value, onChange }: { value: string | null | undefined; onChange: (value: string) => void }) {
   const { t } = useTranslation();
+  const defaults: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }> = {
+    PLA: { n3f: 45, n3s: 45, n3f_hours: 12, n3s_hours: 12 },
+    PETG: { n3f: 65, n3s: 65, n3f_hours: 12, n3s_hours: 12 },
+    TPU: { n3f: 65, n3s: 75, n3f_hours: 12, n3s_hours: 18 },
+    ABS: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
+    ASA: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
+    PA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 12 },
+    PC: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
+    PVA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 18 },
+  };
+  let presets = { ...defaults };
+  try {
+    if (value) {
+      const parsed = JSON.parse(value);
+      if (typeof parsed === 'object' && parsed !== null) {
+        presets = { ...defaults, ...parsed };
+      }
+    }
+  } catch { /* use defaults */ }
+
+  const updatePreset = (fil: string, key: string, value: number) => {
+    const updated = { ...presets, [fil]: { ...presets[fil], [key]: value } };
+    onChange(JSON.stringify(updated));
+  };
+  const pagination = useTablePagination(Object.entries(presets));
   return (
         <div className="space-y-2">
           <p className="text-sm text-white font-medium">{t('settings.dryingPresets')}</p>
@@ -17,33 +44,7 @@ export function DryingPresetsEditor({ value, onChange }: { value: string | null 
                 </tr>
               </thead>
               <tbody>
-                {(() => {
-                  const defaults: Record<string, { n3f: number; n3s: number; n3f_hours: number; n3s_hours: number }> = {
-                    PLA: { n3f: 45, n3s: 45, n3f_hours: 12, n3s_hours: 12 },
-                    PETG: { n3f: 65, n3s: 65, n3f_hours: 12, n3s_hours: 12 },
-                    TPU: { n3f: 65, n3s: 75, n3f_hours: 12, n3s_hours: 18 },
-                    ABS: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                    ASA: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                    PA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 12 },
-                    PC: { n3f: 65, n3s: 80, n3f_hours: 12, n3s_hours: 8 },
-                    PVA: { n3f: 65, n3s: 85, n3f_hours: 12, n3s_hours: 18 },
-                  };
-                  let presets = { ...defaults };
-                  try {
-                    if (value) {
-                      const parsed = JSON.parse(value);
-                      if (typeof parsed === 'object' && parsed !== null) {
-                        presets = { ...defaults, ...parsed };
-                      }
-                    }
-                  } catch { /* use defaults */ }
-
-                  const updatePreset = (fil: string, key: string, value: number) => {
-                    const updated = { ...presets, [fil]: { ...presets[fil], [key]: value } };
-                    onChange(JSON.stringify(updated));
-                  };
-
-                  return Object.entries(presets).map(([fil, preset]) => (
+                {pagination.rows.map(([fil, preset]) => (
                     <tr key={fil} className="border-b border-bambu-dark-tertiary/50">
                       <td className="py-1.5 pr-2 text-white font-medium">{fil}</td>
                       <td className="py-1 px-1">
@@ -83,11 +84,11 @@ export function DryingPresetsEditor({ value, onChange }: { value: string | null 
                         </div>
                       </td>
                     </tr>
-                  ));
-                })()}
+                  ))}
               </tbody>
             </table>
           </div>
+          <TablePagination {...pagination.footer} />
         </div>
   );
 }

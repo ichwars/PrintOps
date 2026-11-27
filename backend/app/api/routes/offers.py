@@ -1,21 +1,32 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import DB_SESSION
 from backend.app.core.permissions import Permission
+from backend.app.models.commerce import Offer
+from backend.app.models.commercial_document import CommercialDocument
 from backend.app.models.user import User
 from backend.app.schemas.commerce import (
     AcceptanceRead,
     OfferAccept,
     OfferCreate,
+    OfferDetailRead,
+    OfferListItemRead,
+    OfferPageQuery,
+    OfferPageRead,
+    OfferQuotationRead,
     OfferRead,
     OrderRead,
     VersionedTransition,
 )
 from backend.app.services import offers as offer_service
+from backend.app.services.document_recipients import document_recipient, resolve_recipient_names
+from backend.app.services.offer_listing import list_offer_page
 from backend.app.services.order_errors import OrderDomainError, ResourceNotFoundError, VersionConflictError
 from backend.app.services.stock_availability import InsufficientStock
 
@@ -48,13 +59,18 @@ def _http_error(error: Exception) -> HTTPException:
     return HTTPException(status.HTTP_409_CONFLICT, detail={"code": "invalid_offer_state", "message": str(error)})
 
 
-@router.get("", response_model=list[OfferRead])
+@router.get("", response_model=list[OfferListItemRead])
 async def list_offers(
     offer_status: str | None = Query(default=None, alias="status"),
     db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
-) -> list[OfferRead]:
-    return [OfferRead.model_validate(item) for item in await offer_service.list_offers(db, offer_status)]
+) -> list[OfferListItemRead]:
+    offers = await offer_service.list_offers(db, offer_status)
+    names = await _offer_recipient_names(db, offers)
+    return [
+        OfferListItemRead.model_validate(offer).model_copy(update={"customer_display_name": names[offer.id]})
+        for offer in offers
+    ]
 
 
 @router.post("", response_model=OfferRead, status_code=status.HTTP_201_CREATED)
@@ -72,16 +88,50 @@ async def create_offer(
     return OfferRead.model_validate(offer)
 
 
-@router.get("/{offer_id}", response_model=OfferRead)
+def _offer_quotation(offer: Offer) -> CommercialDocument | None:
+    document = offer.commercial_document
+    return document if document is not None and document.document_type == "quotation" else None
+
+
+def _offer_recipient(offer: Offer) -> str | int | None:
+    quotation = _offer_quotation(offer)
+    return document_recipient(quotation) if quotation is not None else offer.customer_id
+
+
+@router.get("/page", response_model=OfferPageRead)
+async def get_offer_page(
+    query: Annotated[OfferPageQuery, Query()],
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
+) -> OfferPageRead:
+    return await list_offer_page(db, query)
+
+
+async def _offer_recipient_names(db: AsyncSession, offers: list[Offer]) -> dict[int, str | None]:
+    return await resolve_recipient_names(
+        db,
+        {offer.id: _offer_recipient(offer) for offer in offers},
+        known_names={offer.customer.id: offer.customer.display_name for offer in offers if offer.customer is not None},
+    )
+
+
+@router.get("/{offer_id}", response_model=OfferDetailRead)
 async def get_offer(
     offer_id: int,
     db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
-) -> OfferRead:
+) -> OfferDetailRead:
     try:
-        return OfferRead.model_validate(await offer_service.get_offer(db, offer_id))
+        offer = await offer_service.get_offer(db, offer_id)
     except OrderDomainError as exc:
         raise _http_error(exc)
+    quotation = _offer_quotation(offer)
+    names = await _offer_recipient_names(db, [offer])
+    return OfferDetailRead(
+        **OfferRead.model_validate(offer).model_dump(),
+        customer_display_name=names[offer.id],
+        quotation=OfferQuotationRead.model_validate(quotation) if quotation is not None else None,
+    )
 
 
 async def _transition(db: AsyncSession, offer_id: int, data: VersionedTransition, target: str) -> OfferRead:

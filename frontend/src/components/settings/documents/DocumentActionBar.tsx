@@ -92,7 +92,7 @@ export function DocumentActionBar({
         </div>
       </div>
       {!canManage ? (
-        <p className="mt-3 text-xs text-amber-200">{t('settings.documents.readOnlyHint', 'You have read-only access. Editing actions are disabled.')}</p>
+        <p className="mt-3 text-xs text-amber-900 dark:text-amber-200">{t('settings.documents.readOnlyHint', 'You have read-only access. Editing actions are disabled.')}</p>
       ) : null}
     </div>
   );

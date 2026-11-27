@@ -54,6 +54,7 @@ from backend.app.services.commercial_documents import (
     validate_draft,
 )
 from backend.app.services.document_audit import append_audit
+from backend.app.services.document_recipients import document_recipient, resolve_recipient_names
 from backend.app.services.document_snapshot import IssuedPdfError
 from backend.app.services.order_errors import (
     OrderDomainError,
@@ -86,12 +87,18 @@ def _can_read_payments(user: User | None) -> bool:
     return user is None or user.has_all_permissions(Permission.PAYMENTS_READ.value)
 
 
-def _read(document: CommercialDocument, *, include_payments: bool = True) -> CommercialDocumentRead:
+def _read(
+    document: CommercialDocument,
+    *,
+    include_payments: bool = True,
+    customer_display_name: str | None = None,
+) -> CommercialDocumentRead:
     return CommercialDocumentRead(
         id=document.id,
         document_type=document.document_type,
         business_profile_id=document.business_profile_id,
         customer_id=document.customer_id,
+        customer_display_name=customer_display_name,
         source_offer_id=document.source_offer_id,
         source_order_id=document.source_order_id,
         number=document.number,
@@ -299,7 +306,8 @@ async def list_documents(
         statement = statement.where(CommercialDocument.technical_status == technical_status)
     rows = (await db.scalars(statement.order_by(CommercialDocument.created_at.desc()))).all()
     include_payments = _can_read_payments(current_user)
-    return [_read(row, include_payments=include_payments) for row in rows]
+    names = await resolve_recipient_names(db, {row.id: document_recipient(row) for row in rows})
+    return [_read(row, include_payments=include_payments, customer_display_name=names[row.id]) for row in rows]
 
 
 @router.post("", response_model=CommercialDocumentRead, status_code=status.HTTP_201_CREATED)
@@ -338,7 +346,13 @@ async def get_document(
     current_user: User | None = RequirePermissionIfAuthEnabled(Permission.COMMERCIAL_DOCUMENTS_READ),
 ) -> CommercialDocumentRead:
     try:
-        return _read(await _load(db, document_id), include_payments=_can_read_payments(current_user))
+        document = await _load(db, document_id)
+        names = await resolve_recipient_names(db, {document.id: document_recipient(document)})
+        return _read(
+            document,
+            include_payments=_can_read_payments(current_user),
+            customer_display_name=names[document.id],
+        )
     except Exception as error:
         await _raise_domain_error(request, error)
 

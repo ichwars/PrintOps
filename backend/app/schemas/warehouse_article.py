@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator, model_validator
 
 from backend.app.schemas.utc_timestamp import UtcTimestamp
 
@@ -85,6 +85,9 @@ class WarehouseArticleRead(WarehouseArticleCreate):
     version: int
     created_at: UtcTimestamp
     updated_at: UtcTimestamp
+    stock_checked_at: UtcTimestamp | None = None
+    last_used_at: UtcTimestamp | None = None
+    consumed: Decimal = Decimal("0")
     has_history: bool
     balance: WarehouseBalance
     locations: list[WarehouseLocationBalance]
@@ -92,6 +95,26 @@ class WarehouseArticleRead(WarehouseArticleCreate):
 
 class WarehouseArticlePage(WarehouseSchema):
     items: list[WarehouseArticleRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class WarehouseForecastRow(WarehouseSchema):
+    id: int
+    sku: str
+    name: str
+    unit_code: str
+    available: Decimal
+    minimum_stock: Decimal
+    daily_usage: Annotated[Decimal, PlainSerializer(lambda value: format(value, "f"), when_used="json")] | None
+    projected_available: Decimal | None
+    days_until_minimum: int | None
+
+
+class WarehouseForecastPage(WarehouseSchema):
+    items: list[WarehouseForecastRow]
+    window_days: int
     total: int
     limit: int
     offset: int

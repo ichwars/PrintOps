@@ -267,7 +267,11 @@ export interface CustomerListItem {
   version: number;
 }
 
+export type CustomerSortKey = 'number' | 'name' | 'contact' | 'billing' | 'status' | 'tags';
+
 export interface CustomerListParams {
+  sort?: CustomerSortKey;
+  direction?: 'asc' | 'desc';
   businessProfileId: number;
   search?: string;
   status?: CustomerStatus;

@@ -1,6 +1,6 @@
 import { smallPartsApi } from '../../api/smallParts';
 import { MaterialCsvImportModal } from '../../components/MaterialCsvImportModal';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -11,6 +11,10 @@ import { LexwarePreviewValue } from '../../components/settings/lexware/LexwarePr
 import i18n from '../../i18n';
 import { OrdersOverviewPage } from '../../pages/OrdersOverviewPage';
 import { OrderDetailPage } from '../../pages/OrderDetailPage';
+
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));
 
 const order: CustomerOrder = {
   id: 9, business_profile_id: 1, customer_id: null, offer_id: 7, project_id: 5,
@@ -56,7 +60,16 @@ describe('Dutch commerce runtime', () => {
 
   it('renders the Dutch order overview and reservations and submits the original issue command', async () => {
     vi.spyOn(ordersApi, 'list').mockResolvedValue([order]);
-    vi.spyOn(ordersApi, 'get').mockResolvedValue(order);
+    const detail = {
+      ...order,
+      customer_display_name: 'Customer BV',
+      confirmation: {
+        currency: 'EUR', subtotal_amount: '25.00', tax_amount: '1.75', total_amount: '26.75',
+        lines: [{ id: 1, position: 1, description: 'Mounting set', quantity: '2', unit_code: 'C62',
+          unit_price: '12.50', net_amount: '25.00', tax_category_code: 'S', tax_rate: '7', product_identifier: null }],
+      },
+    };
+    vi.spyOn(ordersApi, 'get').mockResolvedValue(detail);
     const production = vi.spyOn(ordersApi, 'getProduction').mockResolvedValue({ good_quantity: 4, reject_quantity: 1, unconfirmed_runs: 1 });
     const issue = vi.spyOn(ordersApi, 'issueSmallPart').mockResolvedValue(order);
     const user = userEvent.setup();
@@ -67,8 +80,13 @@ describe('Dutch commerce runtime', () => {
     </Routes></MemoryRouter></QueryClientProvider>);
     expect(await screen.findByText('ORD-9')).toBeInTheDocument();
     expect(screen.getByText('Geaccepteerde offertes, projecten en gereserveerde voorraad.')).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: 'Openen' }));
+    await user.click(screen.getByText('ORD-9'));
     expect(await screen.findByRole('heading', { name: 'Reserveringen' })).toBeInTheDocument();
+    expect(screen.getByText('Customer BV')).toBeInTheDocument();
+    const positions = screen.getByRole('region', { name: 'Orderregels' });
+    expect(within(positions).getByText('Mounting set')).toBeInTheDocument();
+    expect(within(positions).getByText(/^€\s*12,50$/)).toBeInTheDocument();
+    expect(screen.getByText(/^€\s*26,75$/)).toBeInTheDocument();
     await waitFor(() => expect(production).toHaveBeenCalledWith(9));
     expect(await screen.findByText(i18n.t('productionQuality.partCounts', { good: 4, reject: 1 }), { exact: false })).toBeInTheDocument();
     expect(screen.getByText('Materiaal #4')).toBeInTheDocument();
@@ -76,6 +94,25 @@ describe('Dutch commerce runtime', () => {
     await user.type(screen.getByRole('spinbutton', { name: 'Hoeveelheid' }), '3');
     await user.click(screen.getByRole('button', { name: 'Uitgeven' }));
     await waitFor(() => expect(issue).toHaveBeenCalledWith(9, 11, '3', expect.stringMatching(/^issue-9-11-/)));
+    await waitFor(() => expect(screen.getByRole('spinbutton', { name: 'Hoeveelheid' })).toHaveDisplayValue(''));
+    expect(screen.getByText('Customer BV')).toBeInTheDocument();
+    expect(screen.getByText(/^€\s*26,75$/)).toBeInTheDocument();
+  });
+
+  it('shows the accepted net price when the order has no confirmation', async () => {
+    vi.spyOn(ordersApi, 'get').mockResolvedValue({
+      ...order, confirmation: null, customer_display_name: null,
+      accepted_snapshot: { revision: { currency: 'EUR', selling_price: '19.20' } },
+    });
+    vi.spyOn(ordersApi, 'getProduction').mockResolvedValue({ good_quantity: 0, reject_quantity: 0, unconfirmed_runs: 0 });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/orders/9']}><Routes>
+      <Route path="/orders/:id" element={<OrderDetailPage />} />
+    </Routes></MemoryRouter></QueryClientProvider>);
+    const positions = await screen.findByRole('region', { name: 'Orderregels' });
+    expect(within(positions).queryAllByRole('listitem')).toHaveLength(0);
+    expect(screen.getByText(/^€\s*19,20$/)).toBeInTheDocument();
+    expect(screen.queryByText('Bruto')).not.toBeInTheDocument();
   });
 });
 

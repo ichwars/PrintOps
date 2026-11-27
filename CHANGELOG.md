@@ -6,6 +6,14 @@ All notable changes to PrintOps will be documented in this file.
 
 - Improve light and dark theme contrast for warehouse tables, row actions and checkboxes. Archived filament rows use a distinct background, and native browser controls follow the active theme.
 
+- Align the business dashboard, order workflows and settings with the dashboard's typography, colors and cards. Update the app logo in the sidebar, sign-in and setup.
+- Keep pagination, table headers and row actions accessible in the three warehouse tables. Use the shared pagination and dialog layout throughout the app.
+- Add stock check timestamps, usage history and remaining amounts to the warehouse workflow. Sort and filter warehouse goods and suppliers on the server. Open receipt and unallocated issue actions from each eligible article's row menu.
+- Show inventory metrics, a goods forecast based on the latest 30 days of issues, and separate production and purchasing shortages. Prepare a project for finished goods or save a material shortage to the shopping list. Completing a linked production project receives confirmed good parts once.
+- Add sortable order lists, row menus and direct access to details. Search and sort offers by customer name as well as their other fields. Show recipients, line items and prices in offer, invoice and order details.
+
+See [warehouse operations](docs/lexware-integration.md#warenlager) and [order management](docs/order-management.md#tabellen-sortieren).
+
 ## [1.2.8.4] - 2026-11-20
 
 - Improve resumed print attribution, zero-gram accounting and multi-file queue submission. Equally eligible printers are ranked by operating hours.

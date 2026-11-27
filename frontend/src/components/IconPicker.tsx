@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import {
   Globe,
   Link,
@@ -80,52 +80,53 @@ interface IconPickerProps {
 
 export function IconPicker({ value, onChange }: IconPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
-
+  const gridId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const SelectedIcon = getIconByName(value);
 
   return (
-    <div className="relative">
+    <div
+      className="space-y-2"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setIsOpen(false);
+      }}
+    >
       <button
+        ref={triggerRef}
         type="button"
+        aria-expanded={isOpen}
+        aria-controls={gridId}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white hover:border-bambu-gray focus:border-bambu-green focus:outline-none w-full"
+        className="flex min-h-[38px] w-full items-center gap-2 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 py-2 text-table-secondary hover:bg-bambu-dark-tertiary focus-visible:ring-2 focus-visible:ring-bambu-green max-[768px]:min-h-11"
       >
-        <SelectedIcon className="w-5 h-5" />
-        <span className="text-sm text-bambu-gray flex-1 text-left">{value}</span>
+        <SelectedIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
+        <span className="flex-1 text-left text-sm">{value}</span>
       </button>
 
       {isOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* Dropdown */}
-          <div className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg">
-            <div className="grid grid-cols-5 gap-1 p-2">
-              {AVAILABLE_ICONS.map(({ name, icon: Icon }) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => {
-                    onChange(name);
-                    setIsOpen(false);
-                  }}
-                  className={`p-2 rounded-lg transition-colors flex items-center justify-center ${
-                    value === name
-                      ? 'bg-bambu-green text-white'
-                      : 'hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white'
-                  }`}
-                  title={name}
-                >
-                  <Icon className="w-5 h-5" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+        <div id={gridId} className="grid grid-cols-4 gap-1 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-2 min-[350px]:grid-cols-5">
+          {AVAILABLE_ICONS.map(({ name, icon: Icon }) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => {
+                onChange(name);
+                setIsOpen(false);
+                triggerRef.current?.focus();
+              }}
+              className={`flex min-h-[36px] items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-bambu-green max-[768px]:min-h-11 ${
+                value === name
+                  ? 'bg-bambu-green/15 text-accent-foreground'
+                  : 'text-table-secondary hover:bg-bambu-dark-tertiary hover:text-white'
+              }`}
+              title={name}
+              aria-label={name}
+              aria-pressed={value === name}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

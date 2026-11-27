@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -114,6 +116,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
     saveMutation.mutate();
   };
 
+  const pagination = useTablePagination(locations, '', 15);
   if (!open) return null;
 
   const modalTitleId = 'locations-modal-title';
@@ -177,7 +180,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
                 </tr>
               </thead>
               <tbody>
-                {locations.map((loc) => (
+                {pagination.rows.map((loc) => (
                   <tr
                     key={loc.id}
                     className="border-b border-bambu-dark-tertiary/60 hover:bg-bambu-dark-tertiary/30 cursor-pointer"
@@ -220,6 +223,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
             </table>
           )}
         </div>
+        <TablePagination {...pagination.footer} />
       </div>
 
       {editorOpen && (
