@@ -15,7 +15,7 @@ export function PrinterFilamentHeader({ backupState, onBackupClick, canToggleExt
   const label = t(externalDisplay.hidden ? 'printers.externalSpoolDisplay.show' : 'printers.externalSpoolDisplay.hide');
   return (
     <div className="flex items-center gap-2 mb-2">
-      <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.filaments')}</span>
+      <span className="text-[10px] text-bambu-gray font-medium">{t('printers.filaments')}</span>
       <AmsBackupBadge state={backupState} onClick={onBackupClick} />
       <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
       {canToggleExternal && (

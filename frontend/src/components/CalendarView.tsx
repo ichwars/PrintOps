@@ -19,15 +19,14 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay();
 }
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
+function getMonthName(language: string, year: number, month: number): string {
+  return new Intl.DateTimeFormat(language, { month: 'long' }).format(new Date(year, month, 1));
+}
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }: CalendarViewProps) {
-  const { t: translateInterface } = useTranslation();
+  const { t: translateInterface, i18n } = useTranslation();
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -106,7 +105,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
           </button>
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-white">
-              {MONTH_NAMES[currentMonth]} {currentYear}
+              {getMonthName(i18n.language, currentYear, currentMonth)} {currentYear}
             </h2>
             <button
               onClick={goToToday}
@@ -239,9 +238,8 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                       onArchiveClick?.(archive);
                     }}
                     className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left ${
-                      !isHighlighted ? 'hover:bg-bambu-dark-tertiary' : ''
+                      isHighlighted ? 'outline-4 outline-status-warning outline-offset-2' : 'hover:bg-bambu-dark-tertiary'
                     }`}
-                    style={isHighlighted ? { outline: '4px solid #facc15', outlineOffset: '2px' } : undefined}
                   >
                     {archive.thumbnail_path ? (
                       <img

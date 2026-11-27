@@ -320,21 +320,9 @@ export function OrdersPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <ActiveIcon className="w-5 h-5 text-bambu-green" />
-              <div>
-                <h2 className="text-lg font-semibold text-white">
-                  {copy.page[activeSection].title}
-                </h2>
-                <p className="text-sm text-bambu-gray">
-                  {copy.page[activeSection].subtitle}
-                </p>
-              </div>
-            </div>
-            {activeSection === 'invoices' && (
-              <div className="flex flex-wrap items-center justify-end gap-2">
+        {activeSection === 'invoices' && (
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-end gap-2">
                 <span className="rounded border border-bambu-dark-tertiary bg-bambu-dark px-2.5 py-1.5 text-xs font-medium text-bambu-gray">
                   {invoiceText('openCount', { count: invoiceSummary.openCount })} · {formatMoney(invoiceSummary.openAmount, locale, invoiceSummary.currency)}
                 </span>
@@ -369,10 +357,9 @@ export function OrdersPage() {
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
-        </CardHeader>
+            </div>
+          </CardHeader>
+        )}
         <CardContent>
           <div className="overflow-hidden rounded-lg border border-bambu-dark-tertiary">
             <table className="w-full text-sm">

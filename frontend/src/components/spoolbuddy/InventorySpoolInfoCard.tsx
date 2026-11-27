@@ -288,7 +288,7 @@ export function InventorySpoolInfoCard({
                 : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed'
           }`}
         >
-          {syncing ? '...' : synced ? t('spoolbuddy.dashboard.weightSynced', 'Synced!') : t('spoolbuddy.dashboard.syncWeight', 'Sync Weight')}
+          {syncing ? '...' : synced ? t('spoolbuddy.dashboard.weightSynced', 'Synced') : t('spoolbuddy.dashboard.syncWeight', 'Sync Weight')}
         </button>
         {onClose && (
           <button

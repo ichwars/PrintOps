@@ -116,7 +116,7 @@ export function DiagnosticModal({ type, deviceId, onClose }: DiagnosticModalProp
               </div>
               {error && (
                 <div className="text-red-400 mt-2">
-                  ❌ {error}
+                  {error}
                 </div>
               )}
             </>

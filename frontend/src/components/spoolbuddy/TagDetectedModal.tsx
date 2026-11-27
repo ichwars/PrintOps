@@ -279,7 +279,7 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
           {syncing
             ? t('spoolbuddy.modal.syncing', 'Syncing...')
             : synced
-              ? t('spoolbuddy.modal.weightSynced', 'Synced!')
+              ? t('spoolbuddy.modal.weightSynced', 'Synced')
               : t('spoolbuddy.dashboard.syncWeight', 'Sync Weight')}
         </button>
         <button

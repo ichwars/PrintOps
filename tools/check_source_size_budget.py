@@ -99,7 +99,7 @@ FILE_ALLOWLIST = {
     "frontend/src/components/ForecastPanel.tsx": 1981,
     "frontend/src/components/KProfilesView.tsx": 1720,
     "frontend/src/lib/orderMasterDataValidation.ts": 1733,
-    "frontend/src/pages/ArchivesPage.tsx": 4337,
+    "frontend/src/pages/ArchivesPage.tsx": 4335,
     "frontend/src/pages/BusinessDashboardPage.tsx": 2946,
     "frontend/src/pages/FileManagerPage.tsx": 2475,
     "frontend/src/pages/InventoryPage.tsx": 2778,

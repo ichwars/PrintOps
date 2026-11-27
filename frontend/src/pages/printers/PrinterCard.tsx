@@ -432,7 +432,7 @@ return (
               </div>
               {showControlMatrix && (
                 <div className="mt-2 overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary/70">
-                  <div className="grid grid-cols-[1.4fr_0.7fr_0.9fr_1fr] gap-2 border-b border-bambu-dark-tertiary px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-bambu-gray">
+                  <div className="grid grid-cols-[1.4fr_0.7fr_0.9fr_1fr] gap-2 border-b border-bambu-dark-tertiary px-3 py-2 text-[10px] font-medium text-bambu-gray">
                     <span>{t('printers.controlMatrix.action', 'Aktion')}</span>
                     <span>{t('printers.controlMatrix.local', 'LAN')}</span>
                     <span>{t('printers.controlMatrix.cloud', 'Cloud')}</span>
@@ -561,7 +561,7 @@ return (
             ) : (
               <>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+                  <span className="text-[10px] text-bambu-gray font-medium">
                     {t('printers.status.title', 'Status')}
                   </span>
                   <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
@@ -628,7 +628,7 @@ return (
               /* Expanded: Full status section */
               <>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+                  <span className="text-[10px] text-bambu-gray font-medium">
                     {t('printers.status.title', 'Status')}
                   </span>
                   <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
@@ -1114,7 +1114,7 @@ return (
                 <div className="mt-3">
                   {/* Section Header */}
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+                    <span className="text-[10px] text-bambu-gray font-medium">
                       {t('printers.controls')}
                     </span>
                     <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
@@ -1322,7 +1322,7 @@ return (
                                   </div>
                                   <div className="h-px bg-bambu-dark-tertiary" />
                                   <div className="px-3 pt-2.5 pb-3">
-                                    <div className="mb-1 text-[9px] uppercase tracking-wider text-bambu-gray/70">
+                                    <div className="mb-1 text-[9px] text-bambu-gray/70">
                                       {t('printers.bedJog.step')}
                                     </div>
                                     <div className="flex gap-1">
@@ -2662,7 +2662,7 @@ return (
         {smartPlug && (
           <div className="pt-3">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+              <span className="text-[10px] text-bambu-gray font-medium">
                 {t('printers.power', 'Power')}
               </span>
               <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
