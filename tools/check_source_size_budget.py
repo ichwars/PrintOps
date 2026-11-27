@@ -93,7 +93,7 @@ FILE_ALLOWLIST = {
     "backend/tests/unit/services/test_bambu_mqtt.py": 6568,
     "backend/tests/unit/test_github_restore.py": 3470,
     "backend/tests/unit/services/test_virtual_printer.py": 3975,
-    "frontend/src/__tests__/pages/SettingsPage.test.tsx": 2136,
+    "frontend/src/__tests__/pages/SettingsPage.test.tsx": 2135,
     "frontend/src/components/AddSmartPlugModal.tsx": 1745,
     "frontend/src/components/ConfigureAmsSlotModal.tsx": 1641,
     "frontend/src/components/ForecastPanel.tsx": 1981,
