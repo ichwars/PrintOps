@@ -1,4 +1,7 @@
+import { TablePagination } from '../../ui/TablePagination';
+import { useTablePagination } from '../../../hooks/useTablePagination';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
 import { ApiError } from '../../../api/client/core';
@@ -36,6 +39,7 @@ export function LexwareImportReview({ connection, kind, resources, onClose, onIm
   const [targetId, setTargetId] = useState<number | null>(linkedId);
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [footer, setFooter] = useState<HTMLDivElement | null>(null);
   const close = () => { if (!busy) onClose(); };
   const previews = useQuery({
     // Reviewed versions are intentionally separate from refreshable snapshot queries.
@@ -51,26 +55,30 @@ export function LexwareImportReview({ connection, kind, resources, onClose, onIm
     retry: false, staleTime: Infinity, gcTime: 0, refetchOnWindowFocus: false, refetchOnMount: false,
   });
 
+  const refresh = () => setRevision(revision + 1);
   return (
     <Modal open onClose={close} closeDisabled={busy} closeOnBackdrop={!busy} closeLabel={text.close} title={text.preview}
-      description={resources.length === 1 ? resources[0].name : text.previewHelp} className="max-w-5xl">
-    <section aria-label={text.preview} className="space-y-5 text-sm">
-      <p className="text-bambu-gray">{text.previewHelp}</p>
-      {resources.length === 1 && (linkedId ? <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bambu-dark-tertiary px-4 py-3"><span>{text.linkedTarget}: #{linkedId}</span><span className="inline-flex items-center gap-2 text-xs text-bambu-gray"><ShieldCheck className="h-4 w-4" aria-hidden />{text.readonly}</span></p>
-        : <LexwareTargetPicker kind={kind} profileId={connection.business_profile_id} value={targetId} onChange={setTargetId} disabled={busy} />)}
-      {previews.isPending && <p role="status">{text.loading}</p>}
-      {previews.isError && <div role="alert"><p>{lexwareError(previews.error, text, true)}</p>
-        <Button variant="secondary" onClick={() => setRevision(revision + 1)}>{text.refreshPreview}</Button></div>}
-      {previews.isSuccess && <PreviewForm key={`${targetId}-${revision}-${previews.data.map((item) => `${item.version_hash}:${item.local_version}`).join(',')}`}
-        connection={connection} kind={kind} resources={resources} previews={previews.data} onImported={onImported}
-        onBusy={setBusy} onClose={close} onRefresh={() => setRevision(revision + 1)} />}
-      {!previews.isSuccess && <Button variant="secondary" onClick={close}>{text.cancel}</Button>}
-    </section>
+      description={resources.length === 1 ? resources[0].name : text.previewHelp} className="max-w-5xl"
+      footer={previews.isSuccess ? <div ref={setFooter} className="contents" /> : <>
+        <Button variant="secondary" onClick={close}>{text.cancel}</Button>
+        {previews.isError && <Button variant="secondary" onClick={refresh}>{text.refreshPreview}</Button>}
+      </>}>
+      <section aria-label={text.preview} className="space-y-5 text-sm">
+        <p className="text-bambu-gray">{text.previewHelp}</p>
+        {resources.length === 1 && (linkedId ? <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bambu-dark-tertiary px-4 py-3"><span>{text.linkedTarget}: #{linkedId}</span><span className="inline-flex items-center gap-2 text-xs text-bambu-gray"><ShieldCheck className="h-4 w-4" aria-hidden />{text.readonly}</span></p>
+          : <LexwareTargetPicker kind={kind} profileId={connection.business_profile_id} value={targetId} onChange={setTargetId} disabled={busy} />)}
+        {previews.isPending && <p role="status">{text.loading}</p>}
+        {previews.isError && <p role="alert">{lexwareError(previews.error, text, true)}</p>}
+        {previews.isSuccess && <PreviewForm key={`${targetId}-${revision}-${previews.data.map((item) => `${item.version_hash}:${item.local_version}`).join(',')}`}
+          footer={footer} connection={connection} kind={kind} resources={resources} previews={previews.data}
+          onImported={onImported} onBusy={setBusy} onRefresh={refresh} onClose={close} />}
+      </section>
     </Modal>
   );
 }
 
-function PreviewForm({ connection, kind, resources, previews, onImported, onBusy, onRefresh, onClose }: {
+function PreviewForm({ footer, connection, kind, resources, previews, onImported, onBusy, onRefresh, onClose }: {
+  footer: HTMLDivElement | null;
   connection: LexwareConnection;
   kind: LexwareResourceKind;
   resources: LexwareResource[];
@@ -98,6 +106,7 @@ function PreviewForm({ connection, kind, resources, previews, onImported, onBusy
   const currentUnit = typeof previews[0].current.unit_code === 'string' && previews[0].current.unit_code.trim() ? previews[0].current.unit_code : null;
   const unitConfirmationMissing = existingArticle && (!currentUnit || !unitConfirmed);
   const options = articleSetupOptions(articleDraft);
+  const pagination = useTablePagination(allowedFields[kind], kind);
   const canImport = kind === 'contacts' ? hasPermission('customers:manage') : hasPermission(newArticle ? 'inventory:create' : 'inventory:update');
   const pending = previews.filter((preview) => {
     const resource = resources.find((row) => row.id === preview.resource_id)!;
@@ -168,7 +177,7 @@ function PreviewForm({ connection, kind, resources, previews, onImported, onBusy
           <div className="overflow-x-auto rounded-lg border border-bambu-dark-tertiary">
             <table className="w-full min-w-[560px] table-fixed text-left text-sm">
               <thead className={tableHeaderClass}><tr className={tableHeaderRowClass}><th scope="col" className={tableHeaderCellClass + ' w-1/4'}>{text.field}</th><th scope="col" className={tableHeaderCellClass}>{text.original}</th><th scope="col" className={tableHeaderCellClass}>{text.local}</th></tr></thead>
-              <tbody>{allowedFields[kind].map((field) => {
+              <tbody>{pagination.rows.map((field) => {
                 const change = changed.find((item) => item.field === field);
                 const checked = fields[preview.resource_id]?.includes(field) ?? false;
                 return <tr key={field} className={'border-t border-bambu-dark-tertiary align-top ' + (checked ? 'bg-bambu-green/10' : '')}>
@@ -180,6 +189,7 @@ function PreviewForm({ connection, kind, resources, previews, onImported, onBusy
               })}</tbody>
             </table>
           </div>
+          <TablePagination {...pagination.footer} label={resource.name} />
           {changed.length === 0 && <p>{text.noChanges}</p>}
         </article>;
       })}
@@ -194,15 +204,13 @@ function PreviewForm({ connection, kind, resources, previews, onImported, onBusy
         {completed.length > 0 && <p>{text.partial}</p>}<p>{lexwareError(submit.error, text, true)}</p>
       </div>}
       {!pending.length && <p className="text-sm text-bambu-gray">{text.chooseFields}</p>}
-      <div className="flex justify-end"><Button variant="ghost" size="sm" disabled={submit.isPending} onClick={onRefresh}><RefreshCw className="h-4 w-4" aria-hidden />{text.refreshPreview}</Button></div>
-      <div className="sticky -bottom-6 space-y-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary pb-2 pt-4">
-        <details className="text-xs leading-relaxed text-bambu-gray"><summary tabIndex={0} className="w-fit cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green">{text.selectedFieldsOnly}</summary><p className="mt-2 max-w-3xl">{kind === 'contacts' ? text.preserve : text.articleHelp}</p></details>
-        <div className="flex flex-wrap justify-between gap-3">
+      <details className="text-xs leading-relaxed text-bambu-gray"><summary tabIndex={0} className="w-fit cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green">{text.selectedFieldsOnly}</summary><p className="mt-2 max-w-3xl">{kind === 'contacts' ? text.preserve : text.articleHelp}</p></details>
+      {footer && createPortal(<>
+        <Button variant="ghost" size="sm" disabled={submit.isPending} onClick={onRefresh}><RefreshCw className="h-4 w-4" aria-hidden />{text.refreshPreview}</Button>
         <Button variant="secondary" disabled={submit.isPending} onClick={onClose}>{text.cancel}</Button>
         <Button disabled={submit.isPending || stale || batchLinked || archived || requiredMissing || unitConfirmationMissing || !supportedArticle || !connection.connected || !canImport || !pending.length || (newArticle && !options)}
           loading={submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? text.importing : linkOnly ? text.link : text.import}</Button>
-        </div>
-      </div>
+      </>, footer)}
     </div>
   );
 }

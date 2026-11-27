@@ -151,6 +151,8 @@ export const businessProjectsMethods = {
     if (params.search?.trim()) search.set('search', params.search.trim());
     if (params.status) search.set('status', params.status);
     if (params.kind) search.set('kind', params.kind);
+    if (params.sort) search.set('sort', params.sort);
+    if (params.direction) search.set('direction', params.direction);
     if (params.limit !== undefined) search.set('limit', String(params.limit));
     if (params.offset !== undefined) search.set('offset', String(params.offset));
     return request<CustomerListResponse>(`/customers/?${search.toString()}`);

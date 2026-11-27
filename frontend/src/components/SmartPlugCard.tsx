@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Plug, Power, PowerOff, Loader2, Trash2, Settings2, Thermometer, Clock, Wifi, WifiOff, Edit2, Bell, Calendar, LayoutGrid, ExternalLink, Home, Radio, Eye, Globe, Wind } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { SmartPlug, SmartPlugUpdate } from '../api/client';
-import { Card, CardContent } from './Card';
+import { dashboardStyles } from './dashboardStyles';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
+import { NumberField, Switch } from './ui';
 
 interface SmartPlugCardProps {
   plug: SmartPlug;
@@ -17,6 +18,7 @@ interface SmartPlugCardProps {
 export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const titleId = useId();
   const { showToast } = useToast();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPowerOnConfirm, setShowPowerOnConfirm] = useState(false);
@@ -109,6 +111,10 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
   const hasMqttData = plug.plug_type === 'mqtt' && (status?.energy?.power !== null && status?.energy?.power !== undefined);
   const isReachable = (status?.reachable ?? false) || hasMqttData;
   const isPending = controlMutation.isPending;
+  const PlugIcon = { mqtt: Radio, homeassistant: Home, rest: Globe, tasmota: Plug }[plug.plug_type];
+  const onlineColor = 'text-green-800 dark:text-green-300';
+  const offlineColor = 'text-red-700 dark:text-red-300';
+  const stateColor = !isReachable ? offlineColor : isOn ? onlineColor : 'text-table-secondary';
 
   // Generate admin URL with auto-login credentials (Tasmota only)
   const getAdminUrl = () => {
@@ -132,68 +138,49 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
   return (
     <>
-      <Card className="relative">
-        <CardContent className="p-4">
-          {/* Header Row */}
-          <div className="flex items-start justify-between gap-2 mb-3">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className={`p-2 rounded-lg flex-shrink-0 ${
-                plug.plug_type === 'mqtt'
-                  ? (isReachable ? 'bg-teal-100 dark:bg-teal-500/20' : 'bg-red-100 dark:bg-red-500/20')
-                  : (isReachable ? (isOn ? 'bg-bambu-green/20' : 'bg-bambu-dark') : 'bg-red-100 dark:bg-red-500/20')
-              }`}>
-                {plug.plug_type === 'mqtt' ? (
-                  <Radio className={`w-5 h-5 ${isReachable ? 'text-teal-600 dark:text-teal-400' : 'text-red-600 dark:text-red-400'}`} />
-                ) : plug.plug_type === 'homeassistant' ? (
-                  <Home className={`w-5 h-5 ${isReachable ? (isOn ? 'text-bambu-green' : 'text-bambu-gray') : 'text-red-600 dark:text-red-400'}`} />
-                ) : plug.plug_type === 'rest' ? (
-                  <Globe className={`w-5 h-5 ${isReachable ? (isOn ? 'text-bambu-green' : 'text-bambu-gray') : 'text-red-600 dark:text-red-400'}`} />
-                ) : (
-                  <Plug className={`w-5 h-5 ${isReachable ? (isOn ? 'text-bambu-green' : 'text-bambu-gray') : 'text-red-600 dark:text-red-400'}`} />
-                )}
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-medium text-white truncate">{plug.name}</h3>
-                <p
-                  className="text-sm text-bambu-gray truncate"
-                  title={connectionLabel ?? undefined}
-                >
+      <article aria-labelledby={titleId} className={`${dashboardStyles.card} min-w-0`}>
+        <div className={`${dashboardStyles.cardHeader} flex flex-wrap items-start justify-between gap-2 rounded-t-xl`}>
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <PlugIcon className={`h-4 w-4 shrink-0 ${stateColor}`} aria-hidden="true" />
+            <div className="min-w-0">
+              <h3 id={titleId} className={`${dashboardStyles.cardTitle} wrap-break-word`}>{plug.name}</h3>
+              {connectionLabel && (
+                <p className="mt-1 wrap-anywhere font-mono text-xs text-table-secondary" title={connectionLabel}>
                   {connectionLabel}
                 </p>
-              </div>
+              )}
             </div>
-
-            {/* Status indicator */}
-            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          </div>
+          <div className="flex max-w-full shrink-0 flex-wrap items-center gap-1.5">
               {statusLoading ? (
-                <Loader2 className="w-4 h-4 text-bambu-gray animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin text-table-secondary" />
               ) : plug.plug_type === 'mqtt' ? (
                 /* MQTT plugs - show badge and checkmark when receiving data */
                 <div className="flex items-center gap-1.5 text-sm whitespace-nowrap">
-                  <span className="px-1.5 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400 text-[10px] font-medium rounded flex-shrink-0">MQTT</span>
-                  {isReachable && <span className="text-status-ok">✓</span>}
+                  <span className="px-1.5 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 text-xs font-medium rounded flex-shrink-0">MQTT</span>
+                  {isReachable && <span className={onlineColor}>✓</span>}
                 </div>
               ) : plug.plug_type === 'homeassistant' ? (
                 <div className="flex items-center gap-1 text-sm">
-                  <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] font-medium rounded">HA</span>
-                  <span className={isReachable ? (isOn ? 'text-status-ok' : 'text-bambu-gray') : 'text-status-error'}>
+                  <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 text-xs font-medium rounded">HA</span>
+                  <span className={stateColor}>
                     {isReachable ? (status?.state || '?') : t('smartPlugs.offline')}
                   </span>
                 </div>
               ) : plug.plug_type === 'rest' ? (
                 <div className="flex items-center gap-1 text-sm">
-                  <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 text-[10px] font-medium rounded">REST</span>
-                  <span className={isReachable ? (isOn ? 'text-status-ok' : 'text-bambu-gray') : 'text-status-error'}>
+                  <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 text-xs font-medium rounded">REST</span>
+                  <span className={stateColor}>
                     {isReachable ? (status?.state || '?') : t('smartPlugs.offline')}
                   </span>
                 </div>
               ) : isReachable ? (
                 <div className="flex items-center gap-1 text-sm">
-                  <Wifi className="w-4 h-4 text-status-ok" />
-                  <span className={isOn ? 'text-status-ok' : 'text-bambu-gray'}>{status?.state || t('smartPlugs.unknown')}</span>
+                  <Wifi className={`h-4 w-4 ${onlineColor}`} aria-hidden="true" />
+                  <span className={stateColor}>{status?.state || t('smartPlugs.unknown')}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 text-sm text-status-error">
+                <div className={`flex items-center gap-1 text-sm ${offlineColor}`}>
                   <WifiOff className="w-4 h-4" />
                   <span>{t('smartPlugs.offline')}</span>
                 </div>
@@ -204,7 +191,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   href={adminUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-2 py-0.5 bg-bambu-dark hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white text-xs rounded-full transition-colors"
+                  className="inline-flex items-center gap-1 rounded-md bg-bambu-dark px-2 py-1 text-xs text-table-secondary transition-colors hover:bg-secondary-action-hover hover:text-white"
                   title={t('smartPlugs.openPlugAdminPage')}
                 >
                   <ExternalLink className="w-3 h-3" />
@@ -212,19 +199,19 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                 </a>
               )}
             </div>
-          </div>
-
+        </div>
+        <div className={`${dashboardStyles.cardBody} space-y-3 text-sm text-table-secondary`}>
           {/* Linked target */}
           {(linkedPrinter || linkedDryer) && (
-            <div className="mb-3 px-2 py-1.5 bg-bambu-dark rounded-lg flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-lg bg-bambu-dark px-2 py-1.5">
               {linkedDryer ? (
                 <Wind className="w-3.5 h-3.5 text-bambu-green" />
               ) : (
                 <Plug className="w-3.5 h-3.5 text-bambu-green" />
               )}
               <div className="min-w-0">
-                <span className="text-xs text-bambu-gray">{t('smartPlugs.linkedTo')} </span>
-                <span className="text-sm text-white">{linkedDryer?.name || linkedPrinter?.name}</span>
+                <span className="text-xs text-table-secondary">{t('smartPlugs.linkedTo')} </span>
+                <span className="wrap-break-word text-sm text-white">{linkedDryer?.name || linkedPrinter?.name}</span>
               </div>
             </div>
           )}
@@ -232,21 +219,21 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
           {/* Feature Badges */}
           {(plug.power_alert_enabled || plug.schedule_enabled || plug.plug_type === 'mqtt') && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
+            <div className="flex flex-wrap gap-1.5">
               {plug.plug_type === 'mqtt' && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400 text-xs rounded-full">
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 text-xs rounded-full">
                   <Eye className="w-3 h-3" />
                   {t('smartPlugs.monitorOnly')}
                 </span>
               )}
               {plug.power_alert_enabled && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs rounded-full">
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-800 dark:text-yellow-300 text-xs rounded-full">
                   <Bell className="w-3 h-3" />
                   {t('smartPlugs.alerts')}
                 </span>
               )}
               {plug.schedule_enabled && (
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs rounded-full">
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 text-xs rounded-full">
                   <Calendar className="w-3 h-3" />
                   {plug.schedule_on_time && plug.schedule_off_time
                     ? `${plug.schedule_on_time} - ${plug.schedule_off_time}`
@@ -260,13 +247,13 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
           {/* Quick Controls - hidden for MQTT plugs (monitor-only) */}
           {plug.plug_type !== 'mqtt' && (
-            <div className="flex gap-2 mb-3">
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant={isOn ? 'primary' : 'secondary'}
                 disabled={!isReachable || isPending}
                 onClick={() => setShowPowerOnConfirm(true)}
-                className="flex-1"
+                className={`flex-1 ${isOn ? 'text-black!' : ''}`}
               >
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
                 {t('smartPlugs.on')}
@@ -276,7 +263,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                 variant={!isOn ? 'primary' : 'secondary'}
                 disabled={!isReachable || isPending}
                 onClick={() => setShowPowerOffConfirm(true)}
-                className="flex-1"
+                className={`flex-1 ${!isOn ? 'text-black!' : ''}`}
               >
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <PowerOff className="w-4 h-4" />}
                 {t('smartPlugs.off')}
@@ -286,17 +273,17 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
           {/* Energy display for MQTT plugs */}
           {plug.plug_type === 'mqtt' && status?.energy && (
-            <div className="flex gap-2 mb-3 px-3 py-2 bg-bambu-dark rounded-lg">
+            <div className="flex flex-wrap gap-2 px-3 py-2 bg-bambu-dark rounded-lg">
               {status.energy.power !== null && status.energy.power !== undefined && (
                 <div className="flex-1 text-center">
-                  <p className="text-lg font-semibold text-white">{Math.round(status.energy.power)}W</p>
-                  <p className="text-xs text-bambu-gray">{t('smartPlugs.power')}</p>
+                  <p className="text-lg font-semibold tabular-nums text-white">{Math.round(status.energy.power)} W</p>
+                  <p className="text-xs text-table-secondary">{t('smartPlugs.power')}</p>
                 </div>
               )}
               {status.energy.today !== null && status.energy.today !== undefined && (
                 <div className="flex-1 text-center border-l border-bambu-dark-tertiary">
-                  <p className="text-lg font-semibold text-white">{status.energy.today.toFixed(3)}</p>
-                  <p className="text-xs text-bambu-gray">{t('smartPlugs.kwhToday')}</p>
+                  <p className="text-lg font-semibold tabular-nums text-white">{status.energy.today.toFixed(3)}</p>
+                  <p className="text-xs text-table-secondary">{t('smartPlugs.kwhToday')}</p>
                 </div>
               )}
             </div>
@@ -304,26 +291,27 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
           {/* Toggle Settings Panel */}
           <Button variant="unstyled"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full flex items-center justify-between py-2 text-sm text-bambu-gray hover:text-white transition-colors"
+            onClick={() => setIsExpanded(expanded => !expanded)}
+            aria-expanded={isExpanded}
+            className="flex min-h-[34px] w-full items-center justify-between gap-2 rounded-lg border border-bambu-dark-tertiary px-2.5 py-1.5 text-left text-sm text-table-secondary transition-colors hover:bg-secondary-action-hover hover:text-white max-md:min-h-11"
           >
             <span className="flex items-center gap-2">
               <Settings2 className="w-4 h-4" />
               {plug.plug_type === 'mqtt' ? t('smartPlugs.settings') : t('smartPlugs.automationSettings')}
             </span>
-            <span>{isExpanded ? '-' : '+'}</span>
+            <span aria-hidden="true">{isExpanded ? '−' : '+'}</span>
           </Button>
 
           {/* Expanded Settings */}
           {isExpanded && (
             <div className="pt-3 border-t border-bambu-dark-tertiary space-y-4">
               {/* Show in Switchbar Toggle */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <LayoutGrid className="w-4 h-4 text-bambu-green" />
                   <div>
                     <p className="text-sm text-white">{t('smartPlugs.showInSwitchbar')}</p>
-                    <p className="text-xs text-bambu-gray">{t('smartPlugs.quickAccessSidebar')}</p>
+                    <p className="text-xs text-table-secondary">{t('smartPlugs.quickAccessSidebar')}</p>
                   </div>
                 </div>
                 <Switch
@@ -334,12 +322,12 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
               </div>
 
               {plug.printer_id != null && (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Power className="w-4 h-4 text-bambu-green" />
                     <div>
                       <p className="text-sm text-white">{t('smartPlugs.controlsPrinterPower')}</p>
-                      <p className="text-xs text-bambu-gray">{t('smartPlugs.controlsPrinterPowerDescription')}</p>
+                      <p className="text-xs text-table-secondary">{t('smartPlugs.controlsPrinterPowerDescription')}</p>
                     </div>
                   </div>
                   <Switch
@@ -354,10 +342,10 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
               {plug.plug_type !== 'mqtt' && (
                 <>
                   {/* Enabled Toggle */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm text-white">{t('smartPlugs.enabled')}</p>
-                      <p className="text-xs text-bambu-gray">{t('smartPlugs.enableAutomation')}</p>
+                      <p className="text-xs text-table-secondary">{t('smartPlugs.enableAutomation')}</p>
                     </div>
                     <Switch
                     ariaLabel={t('smartPlugs.enabled')}
@@ -367,10 +355,10 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   </div>
 
                   {/* Auto On */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm text-white">{t('smartPlugs.autoOn')}</p>
-                      <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOnDescription')}</p>
+                      <p className="text-xs text-table-secondary">{t('smartPlugs.autoOnDescription')}</p>
                     </div>
                     <Switch
                     ariaLabel={t('smartPlugs.autoOn')}
@@ -380,10 +368,10 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   </div>
 
                   {/* Auto Off */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm text-white">{t('smartPlugs.autoOff')}</p>
-                      <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOffDescription')}</p>
+                      <p className="text-xs text-table-secondary">{t('smartPlugs.autoOffDescription')}</p>
                 </div>
                 <Switch
                     ariaLabel={t('smartPlugs.autoOff')}
@@ -394,10 +382,10 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
               {/* Auto Off Persistent */}
               {plug.auto_off && (
-                <div className="flex items-center justify-between pl-4 border-l-2 border-bambu-dark-tertiary">
+                <div className="flex items-center justify-between gap-3 pl-4 border-l-2 border-bambu-dark-tertiary">
                   <div>
                     <p className="text-sm text-white">{t('smartPlugs.autoOffPersistent')}</p>
-                    <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOffPersistentDescription')}</p>
+                    <p className="text-xs text-table-secondary">{t('smartPlugs.autoOffPersistentDescription')}</p>
                   </div>
                   <Switch
                     ariaLabel={t('smartPlugs.autoOffPersistent')}
@@ -417,8 +405,8 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                         onClick={() => updateMutation.mutate({ off_delay_mode: 'time' })}
                         className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                           plug.off_delay_mode === 'time'
-                            ? 'bg-bambu-green text-white'
-                            : 'bg-bambu-dark text-bambu-gray hover:text-white'
+                            ? 'bg-bambu-green text-black'
+                            : 'bg-bambu-dark text-table-secondary hover:bg-secondary-action-hover hover:text-white'
                         }`}
                       >
                         <Clock className="w-4 h-4" />
@@ -428,8 +416,8 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                         onClick={() => updateMutation.mutate({ off_delay_mode: 'temperature' })}
                         className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                           plug.off_delay_mode === 'temperature'
-                            ? 'bg-bambu-green text-white'
-                            : 'bg-bambu-dark text-bambu-gray hover:text-white'
+                            ? 'bg-bambu-green text-black'
+                            : 'bg-bambu-dark text-table-secondary hover:bg-secondary-action-hover hover:text-white'
                         }`}
                       >
                         <Thermometer className="w-4 h-4" />
@@ -440,7 +428,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
                   {plug.off_delay_mode === 'time' ? (
                     <div>
-                      <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.delayMinutes')}</label>
+                      <label className="block text-xs text-table-secondary mb-1">{t('smartPlugs.delayMinutes')}</label>
                     <NumberField
                         min="1"
                         max="60"
@@ -451,7 +439,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.tempThreshold')}</label>
+                      <label className="block text-xs text-table-secondary mb-1">{t('smartPlugs.tempThreshold')}</label>
                     <NumberField
                         min="30"
                         max="100"
@@ -459,7 +447,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                         onChange={(e) => updateMutation.mutate({ off_temp_threshold: parseInt(e.target.value) || 70 })}
                         className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:border-bambu-green focus:outline-none"
                       />
-                      <p className="text-xs text-bambu-gray mt-1">{t('smartPlugs.tempThresholdDescription')}</p>
+                      <p className="text-xs text-table-secondary mt-1">{t('smartPlugs.tempThresholdDescription')}</p>
                     </div>
                   )}
                 </div>
@@ -471,10 +459,10 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
                   more cooldown than the print-finish default. Fires when
                   any AMS attached to the linked printer finishes a dry
                   cycle. */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm text-white">{t('smartPlugs.autoOffAfterDrying')}</p>
-                  <p className="text-xs text-bambu-gray">{t('smartPlugs.autoOffAfterDryingDescription')}</p>
+                  <p className="text-xs text-table-secondary">{t('smartPlugs.autoOffAfterDryingDescription')}</p>
                 </div>
                 <Switch
                     ariaLabel={t('smartPlugs.autoOffAfterDrying')}
@@ -485,7 +473,7 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
 
               {plug.auto_off_after_drying && (
                 <div className="pl-4 border-l-2 border-bambu-dark-tertiary">
-                  <label className="block text-xs text-bambu-gray mb-1">{t('smartPlugs.delayAfterDryingMinutes')}</label>
+                  <label className="block text-xs text-table-secondary mb-1">{t('smartPlugs.delayAfterDryingMinutes')}</label>
                 <NumberField
                     min="0"
                     max="120"
@@ -520,8 +508,8 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </article>
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
@@ -570,4 +558,3 @@ export function SmartPlugCard({ plug, onEdit }: SmartPlugCardProps) {
     </>
   );
 }
-import { NumberField, Switch } from './ui';

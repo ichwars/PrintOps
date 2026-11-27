@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useId, useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, Save, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Save, Loader2, Send, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../api/client';
 import type { NotificationProvider, NotificationProviderCreate, NotificationProviderUpdate, ProviderType } from '../api/client';
 import { Button } from './Button';
-import { Checkbox, LegacySelect, NumberField, TextField , TimeField} from './ui';
+import { Checkbox, LegacySelect, Modal, NumberField, TextField, TimeField } from './ui';
 import { Toggle } from './Toggle';
 import { SECRET_PLACEHOLDER, selectPlaceholderOnFocus } from '../utils/secrets';
 
@@ -20,6 +20,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const isEditing = !!provider;
+  const formId = useId();
 
   const [name, setName] = useState(provider?.name || '');
   const [providerType, setProviderType] = useState<ProviderType>(provider?.provider_type || 'email');
@@ -89,15 +90,6 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
     queryKey: ['printers'],
     queryFn: api.getPrinters,
   });
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
 
   // Test configuration mutation
   const testMutation = useMutation({
@@ -319,38 +311,33 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
   const configFields = getConfigFields(providerType);
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto"
-      onClick={onClose}
-    >
-      <div
-        className="bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary w-full max-w-lg my-8 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-bambu-dark-tertiary">
-          <h2 className="text-lg font-semibold text-white">
-            {isEditing ? t('notifications.editTitle') : t('notifications.addTitle')}
-          </h2>
-          <Button variant="unstyled"
-            onClick={onClose}
-            className="text-bambu-gray hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
+    <Modal
+      open
+      onClose={onClose}
+      title={isEditing ? t('notifications.editTitle') : t('notifications.addTitle')}
+      closeLabel={t('common.close')}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            {t('notifications.cancel')}
           </Button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <Button type="submit" form={formId} className="text-black!" disabled={isPending}>
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {isEditing ? t('notifications.save') : t('notifications.add')}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="min-w-0 space-y-4 text-sm text-table-secondary">
           {error && (
-            <div className="p-3 bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/50 rounded-lg text-sm text-red-700 dark:text-red-400">
+            <div className="p-3 bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/50 rounded-lg text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
 
           {/* Name */}
           <div>
-            <label className="block text-sm text-bambu-gray mb-1">{t('notifications.nameLabel')}</label>
+            <label className="block text-sm text-table-secondary mb-1">{t('notifications.nameLabel')}</label>
             <TextField
               type="text"
               value={name}
@@ -362,7 +349,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
           {/* Provider Type */}
           <div>
-            <label className="block text-sm text-bambu-gray mb-1">{t('notifications.providerTypeLabel')}</label>
+            <label className="block text-sm text-table-secondary mb-1">{t('notifications.providerTypeLabel')}</label>
             <LegacySelect
               value={providerType}
               onChange={(e) => {
@@ -379,19 +366,19 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 </option>
               ))}
             </LegacySelect>
-            <p className="text-xs text-bambu-gray mt-1">
+            <p className="text-xs text-table-secondary mt-1">
               {t(`notifications.providerDescriptions.${providerType}`, '')}
             </p>
           </div>
 
           {/* Provider-specific configuration */}
           <div className="space-y-3">
-            <p className="text-sm text-bambu-gray">{t('notifications.configuration')}</p>
+            <p className="text-sm text-table-secondary">{t('notifications.configuration')}</p>
             {configFields
               .filter((field) => !('showIf' in field) || (field as { showIf?: (cfg: Record<string, string>) => boolean }).showIf?.(config) !== false)
               .map((field) => (
               <div key={field.key}>
-                <label className="block text-sm text-bambu-gray mb-1">
+                <label className="block text-sm text-table-secondary mb-1">
                   {field.label} {field.required && '*'}
                 </label>
                 {field.type === 'select' && 'options' in field && field.options ? (
@@ -433,7 +420,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                   />
                 )}
                 {config[field.key] === SECRET_PLACEHOLDER && (
-                  <p className="text-xs text-bambu-gray mt-1">{t('common.secretKept')}</p>
+                  <p className="text-xs text-table-secondary mt-1">{t('common.secretKept')}</p>
                 )}
               </div>
             ))}
@@ -464,8 +451,8 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
           {testResult && (
             <div className={`p-3 rounded-lg flex items-center gap-2 ${
               testResult.success
-                ? 'bg-bambu-green/20 border border-bambu-green/50 text-bambu-green'
-                : 'bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/50 text-red-700 dark:text-red-400'
+                ? 'bg-bambu-green/20 border border-bambu-green/50 text-accent-foreground'
+                : 'bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/50 text-red-700 dark:text-red-300'
             }`}>
               {testResult.success ? (
                 <>
@@ -483,7 +470,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
           {/* Link to Printer */}
           <div>
-            <label className="block text-sm text-bambu-gray mb-1">{t('notifications.printerFilter')}</label>
+            <label className="block text-sm text-table-secondary mb-1">{t('notifications.printerFilter')}</label>
             <LegacySelect
               value={printerId ?? ''}
               onChange={(e) => setPrinterId(e.target.value ? Number(e.target.value) : null)}
@@ -496,7 +483,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 </option>
               ))}
             </LegacySelect>
-            <p className="text-xs text-bambu-gray mt-1">
+            <p className="text-xs text-table-secondary mt-1">
               {t('notifications.onlyFromPrinter')}
             </p>
           </div>
@@ -513,7 +500,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             {quietHoursEnabled && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-bambu-gray mb-1">{t('notifications.quietStart')}</label>
+                  <label className="block text-xs text-table-secondary mb-1">{t('notifications.quietStart')}</label>
                   <TimeField
                     value={quietHoursStart}
                     onChange={(e) => setQuietHoursStart(e.target.value)}
@@ -521,7 +508,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-bambu-gray mb-1">{t('notifications.quietEnd')}</label>
+                  <label className="block text-xs text-table-secondary mb-1">{t('notifications.quietEnd')}</label>
                   <TimeField
                     value={quietHoursEnd}
                     onChange={(e) => setQuietHoursEnd(e.target.value)}
@@ -538,7 +525,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-white">{t('notifications.attachPhoto')}</p>
-                <p className="text-xs text-bambu-gray">{t('notifications.attachPhotoHint')}</p>
+                <p className="text-xs text-table-secondary">{t('notifications.attachPhotoHint')}</p>
               </div>
               <Toggle ariaLabel={t('notifications.attachPhoto')} checked={attachPhoto} onChange={setAttachPhoto} />
             </div>
@@ -549,7 +536,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm text-white">{t('notifications.dailyDigestLabel')}</label>
-                <p className="text-xs text-bambu-gray">{t('notifications.batchNotifications')}</p>
+                <p className="text-xs text-table-secondary">{t('notifications.batchNotifications')}</p>
               </div>
               <Toggle
                 checked={dailyDigestEnabled}
@@ -558,13 +545,13 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             </div>
             {dailyDigestEnabled && (
               <div>
-                <label className="block text-xs text-bambu-gray mb-1">{t('notifications.sendDigestAt')}</label>
+                <label className="block text-xs text-table-secondary mb-1">{t('notifications.sendDigestAt')}</label>
                 <TimeField
                   value={dailyDigestTime}
                   onChange={(e) => setDailyDigestTime(e.target.value)}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 />
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t('notifications.digestCollected')}
                 </p>
               </div>
@@ -573,11 +560,11 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
           {/* Event Toggles */}
           <div className="space-y-3">
-            <p className="text-sm text-bambu-gray">{t('notifications.notificationEvents')}</p>
+            <p className="text-sm text-table-secondary">{t('notifications.notificationEvents')}</p>
 
             {/* Print Events */}
             <div className="space-y-2 p-3 bg-bambu-dark rounded-lg">
-              <p className="text-xs text-bambu-gray uppercase tracking-wide mb-2">{t('notifications.printEvents')}</p>
+              <p className="text-xs text-table-secondary uppercase tracking-wide mb-2">{t('notifications.printEvents')}</p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-white">{t('notifications.start')}</span>
@@ -598,7 +585,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 <div className="flex items-center justify-between col-span-2">
                   <div>
                     <span className="text-sm text-white">{t('notifications.progress')}</span>
-                    <span className="text-xs text-bambu-gray ml-1">{t('notifications.progressPercent')}</span>
+                    <span className="text-xs text-table-secondary ml-1">{t('notifications.progressPercent')}</span>
                   </div>
                   <Toggle checked={onPrintProgress} onChange={setOnPrintProgress} />
                 </div>
@@ -609,14 +596,14 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 <div className="flex items-center justify-between col-span-2">
                   <div>
                     <span className="text-sm text-white">{t('notifications.bedCooled')}</span>
-                    <span className="text-xs text-bambu-gray ml-1">{t('notifications.bedCooledAfterPrint')}</span>
+                    <span className="text-xs text-table-secondary ml-1">{t('notifications.bedCooledAfterPrint')}</span>
                   </div>
                   <Toggle checked={onBedCooled} onChange={setOnBedCooled} />
                 </div>
                 <div className="flex items-center justify-between col-span-2">
                   <div>
                     <span className="text-sm text-white">{t('notifications.firstLayerCompleteLabel')}</span>
-                    <span className="text-xs text-bambu-gray ml-1">{t('notifications.firstLayerCompleteDescription')}</span>
+                    <span className="text-xs text-table-secondary ml-1">{t('notifications.firstLayerCompleteDescription')}</span>
                   </div>
                   <Toggle checked={onFirstLayerComplete} onChange={setOnFirstLayerComplete} />
                 </div>
@@ -625,7 +612,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
             {/* Printer Status Events */}
             <div className="space-y-2 p-3 bg-bambu-dark rounded-lg">
-              <p className="text-xs text-bambu-gray uppercase tracking-wide mb-2">{t('notifications.printerStatus')}</p>
+              <p className="text-xs text-table-secondary uppercase tracking-wide mb-2">{t('notifications.printerStatus')}</p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-white">{t('notifications.offline')}</span>
@@ -634,7 +621,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 <div className="flex items-center justify-between col-span-2">
                   <div>
                     <span className="text-sm text-white">{t('notifications.haSensorAlert')}</span>
-                    <span className="text-xs text-bambu-gray ml-1">{t('notifications.haSensorAlertDescription')}</span>
+                    <span className="text-xs text-table-secondary ml-1">{t('notifications.haSensorAlertDescription')}</span>
                   </div>
                   <Toggle checked={onHaSensorAlert} onChange={setOnHaSensorAlert} />
                 </div>
@@ -659,7 +646,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
             {/* Inventory Stock Alerts */}
             <div className="space-y-2 p-3 bg-bambu-dark rounded-lg">
-              <p className="text-xs text-bambu-gray uppercase tracking-wide mb-2">{t('notifications.inventoryAlerts')}</p>
+              <p className="text-xs text-table-secondary uppercase tracking-wide mb-2">{t('notifications.inventoryAlerts')}</p>
               <div className="grid grid-cols-1 gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-white">{t('storageSensors.notifications')}</span>
@@ -668,14 +655,14 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm text-white">{t('notifications.stockReorderAlert')}</span>
-                    <span className="text-xs text-bambu-gray ml-1">{t('notifications.stockReorderAlertDescription')}</span>
+                    <span className="text-xs text-table-secondary ml-1">{t('notifications.stockReorderAlertDescription')}</span>
                   </div>
                   <Toggle ariaLabel={t('notifications.stockReorderAlert')} checked={onStockReorderAlert} onChange={setOnStockReorderAlert} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm text-white">{t('notifications.stockBreakAlert')}</span>
-                    <span className="text-xs text-bambu-gray ml-1">{t('notifications.stockBreakAlertDescription')}</span>
+                    <span className="text-xs text-table-secondary ml-1">{t('notifications.stockBreakAlertDescription')}</span>
                   </div>
                   <Toggle ariaLabel={t('notifications.stockBreakAlert')} checked={onStockBreakAlert} onChange={setOnStockBreakAlert} />
                 </div>
@@ -683,7 +670,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <div><span className="text-sm text-white">{t('appNotifications.label')}</span><p className="text-xs text-bambu-gray">{t('appNotifications.channelDescription')}</p></div>
+              <div><span className="text-sm text-white">{t('appNotifications.label')}</span><p className="text-xs text-table-secondary">{t('appNotifications.channelDescription')}</p></div>
               <Toggle ariaLabel={t('appNotifications.label')} checked={onAppMessage} onChange={setOnAppMessage} />
             </div>
 
@@ -714,10 +701,10 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
 
               return (
                 <div className="space-y-2 p-3 bg-bambu-dark rounded-lg">
-                  <p className="text-xs text-bambu-gray uppercase tracking-wide mb-1">
+                  <p className="text-xs text-table-secondary uppercase tracking-wide mb-1">
                     {t('notifications.eventPriority.sectionTitle')}
                   </p>
-                  <p className="text-xs text-bambu-gray mb-2">{t('notifications.eventPriority.helpNtfy')}</p>
+                  <p className="text-xs text-table-secondary mb-2">{t('notifications.eventPriority.helpNtfy')}</p>
                   <div className="space-y-2">
                     {enabledEvents.map((ev) => (
                       <div key={ev.key} className="flex items-center justify-between gap-3">
@@ -745,30 +732,7 @@ export function AddNotificationModal({ provider, onClose }: AddNotificationModal
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onClose}
-              className="flex-1"
-            >
-              {t('notifications.cancel')}
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="flex-1"
-            >
-              {isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              {isEditing ? t('notifications.save') : t('notifications.add')}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

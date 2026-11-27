@@ -1,11 +1,13 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import './settings/inlineSettingsSearch';
 import { FilamentProfileDefaults } from '../components/FilamentProfileDefaults';
 import { SensorHistoryRetentionFields } from '../components/SensorHistoryRetentionFields';
 import { AppNotificationKeyToggle } from '../components/AppNotificationKeyToggle';
 import { APIKeyScopeControl } from '../components/APIKeyScopeControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Cog, QrCode, Workflow, Info, UploadCloud } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Wifi, Home, Video, Users, Lock, Unlock, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Cog, QrCode, Workflow, Info, UploadCloud } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { api } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,6 +20,8 @@ import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, SmartPlug
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
 import { SlicerBundlesPanel } from '../components/SlicerBundlesPanel';
 import { SlicerPipelinesPanel } from '../components/SlicerPipelinesPanel';
+import { dashboardStyles } from '../components/dashboardStyles';
+import { SettingsDashboardCard } from '../components/settings/SettingsDashboardCard';
 import { ConnectedAppsSettings } from '../components/ConnectedAppsSettings';
 import { CameraTokensSection } from './CameraTokensPage';
 import { CameraLightingSettings } from '../components/settings/CameraLightingSettings';
@@ -25,6 +29,7 @@ import { Collapsible } from '../components/Collapsible';
 import {
   Button,
   Checkbox,
+  Modal,
   NumberField,
   Select,
   Switch,
@@ -177,6 +182,7 @@ export function SettingsPage() {
   const initialTab = resolveSettingsTab(tabParam);
   const legacyDefaultAnchor = legacySettingsTabDefaultAnchor(tabParam);
   const legacySubTabs = legacySettingsTabDefaultSubTab(tabParam);
+  const humidityPagination = useTablePagination(['default', 'PLA', 'PETG', 'TPU', 'ABS', 'ASA', 'PA', 'PC', 'PVA']);
   const [activeTab, setActiveTab] = useState<CanonicalSettingsTab>(initialTab);
   const [usersSubTab, setUsersSubTab] = useState<UsersSubTab>(legacySubTabs.usersSubTab ?? 'users');
   const shownUsersSubTab = !isAdmin && ['email', 'ldap', 'oidc', 'security'].includes(usersSubTab) ? 'users' : usersSubTab;
@@ -424,6 +430,7 @@ export function SettingsPage() {
   // Confirm modal states
   const [showClearLogsConfirm, setShowClearLogsConfirm] = useState(false);
   const [showClearStorageConfirm, setShowClearStorageConfirm] = useState(false);
+  const cancelUiResetRef = useRef<HTMLButtonElement>(null);
   const [showBulkPlugConfirm, setShowBulkPlugConfirm] = useState<'on' | 'off' | null>(null);
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const [showDisableAuthConfirm, setShowDisableAuthConfirm] = useState(false);
@@ -465,6 +472,11 @@ export function SettingsPage() {
   // Home Assistant test connection state
   const [haTestResult, setHaTestResult] = useState<{ success: boolean; message: string | null; error: string | null } | null>(null);
   const [haTestLoading, setHaTestLoading] = useState(false);
+  const haTestButton = useRef<HTMLButtonElement>(null);
+  const closeHaTest = () => {
+    setHaTestResult(null);
+    requestAnimationFrame(() => haTestButton.current?.focus());
+  };
 
   // External camera test state
   const [extCameraTestResults, setExtCameraTestResults] = useState<Record<number, ExternalCameraTestResult | null>>({});
@@ -1964,196 +1976,151 @@ export function SettingsPage() {
   ) : null;
 
   const uiPreferencesCard = (
-    <Card id="card-ui-preferences">
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-white">{t('settings.resetUiPreferences')}</h2>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-white">{t('settings.resetUiPreferences')}</p>
-            <p className="text-sm text-bambu-gray">
-              {t('settings.resetUiPreferencesDescription')}
-            </p>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowClearStorageConfirm(true)}
-          >
-            <Trash2 className="w-4 h-4" />
-            {t('settings.reset')}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <SettingsDashboardCard id="card-ui-preferences" title={t('settings.resetUiPreferences')} icon={RotateCcw}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p>{t('settings.resetUiPreferencesDescription')}</p>
+        <Button variant="secondary" size="sm" onClick={() => setShowClearStorageConfirm(true)}>
+          <RotateCcw className="h-4 w-4 shrink-0" />
+          {t('settings.reset')}
+        </Button>
+      </div>
+    </SettingsDashboardCard>
   );
 
   const noticePreferencesCard = localSettings ? (
-    <Card id="card-notice-preferences">
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-white">{t('settings.noticePreferences')}</h2>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-white">{t('settings.showDeveloperLanWarning')}</p>
-            <p className="text-sm text-bambu-gray">
-              {t('settings.showDeveloperLanWarningDesc')}
-            </p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.show_developer_lan_warning ?? true}
-              onChange={(e) => updateSetting('show_developer_lan_warning', e.target.checked)}
-            />
-          </label>
+    <SettingsDashboardCard id="card-notice-preferences" title={t('settings.noticePreferences')} icon={Bell}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-medium text-white">{t('settings.showDeveloperLanWarning')}</p>
+          <p>{t('settings.showDeveloperLanWarningDesc')}</p>
         </div>
-        <div className="flex items-center justify-between gap-4 border-t border-bambu-dark-tertiary pt-3">
-          <div>
-            <p className="text-white">{t('settings.showSponsorPrompts')}</p>
-            <p className="text-sm text-bambu-gray">
-              {t('settings.showSponsorPromptsDesc')}
-            </p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.show_sponsor_prompts ?? true}
-              onChange={(e) => updateSetting('show_sponsor_prompts', e.target.checked)}
-            />
-          </label>
+        <Switch
+          ariaLabel={t('settings.showDeveloperLanWarning')}
+          checked={localSettings.show_developer_lan_warning ?? true}
+          onChange={(e) => updateSetting('show_developer_lan_warning', e.target.checked)}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 border-t border-bambu-dark-tertiary pt-4">
+        <div>
+          <p className="font-medium text-white">{t('settings.showSponsorPrompts')}</p>
+          <p>{t('settings.showSponsorPromptsDesc')}</p>
         </div>
-      </CardContent>
-    </Card>
+        <Switch
+          ariaLabel={t('settings.showSponsorPrompts')}
+          checked={localSettings.show_sponsor_prompts ?? true}
+          onChange={(e) => updateSetting('show_sponsor_prompts', e.target.checked)}
+        />
+      </div>
+    </SettingsDashboardCard>
   ) : null;
 
   const dataManagementCard = localSettings ? (
-    <Card id="card-data">
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-white">{t('settings.dataManagement')}</h2>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center justify-between">
+    <div className="grid items-start gap-6 lg:grid-cols-2">
+      <SettingsDashboardCard id="card-data" title={t('settings.dataManagement')} icon={Database}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-white">{t('settings.clearNotificationLogs')}</p>
-            <p className="text-sm text-bambu-gray">
-              {t('settings.clearNotificationLogsDescription')}
+            <p className="text-white">{t('settings.storageUsage', 'Storage Usage')}</p>
+            <p className="text-sm text-table-secondary">
+              {t('settings.storageUsageDescription', 'Breakdown of data usage by category')}
             </p>
           </div>
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setShowClearLogsConfirm(true)}
+            onClick={handleStorageUsageRefresh}
+            disabled={storageUsageFetching || storageUsageRefreshing}
           >
-            <Trash2 className="w-4 h-4" />
-            {t('common.clear')}
+            <RefreshCw
+              className={`w-4 h-4 ${storageUsageFetching || storageUsageRefreshing ? 'animate-spin' : ''}`}
+            />
+            {t('common.refresh', 'Refresh')}
           </Button>
         </div>
-        <div className="pt-4 border-t border-bambu-dark-tertiary">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-white">{t('settings.storageUsage', 'Storage Usage')}</p>
-              <p className="text-sm text-bambu-gray">
-                {t('settings.storageUsageDescription', 'Breakdown of data usage by category')}
-              </p>
+        <div className="mt-3">
+          {storageUsageLoading ? (
+            <div className="flex items-center gap-2 text-sm text-table-secondary">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {t('common.loading', 'Loading')}
             </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleStorageUsageRefresh}
-              disabled={storageUsageFetching || storageUsageRefreshing}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${storageUsageFetching || storageUsageRefreshing ? 'animate-spin' : ''}`}
-              />
-              {t('common.refresh', 'Refresh')}
-            </Button>
-          </div>
-          <div className="mt-3">
-            {storageUsageLoading ? (
-              <div className="flex items-center gap-2 text-sm text-bambu-gray">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t('common.loading', 'Loading')}
+          ) : storageUsage ? (
+            <>
+              <div className="w-full h-3 bg-bambu-dark rounded-full overflow-hidden flex">
+                {storageUsage.categories
+                  .filter((category) => category.bytes > 0)
+                  .map((category, index) => (
+                    <div
+                      key={category.key}
+                      className={`${getStorageColor(category.key, index)} h-full`}
+                      style={{ width: `${category.percent_of_total}%` }}
+                      title={`${category.label}: ${category.formatted}`}
+                    />
+                  ))}
               </div>
-            ) : storageUsage ? (
-              <>
-                <div className="w-full h-3 bg-bambu-dark rounded-full overflow-hidden flex">
-                  {storageUsage.categories
-                    .filter((category) => category.bytes > 0)
-                    .map((category, index) => (
-                      <div
-                        key={category.key}
-                        className={`${getStorageColor(category.key, index)} h-full`}
-                        style={{ width: `${category.percent_of_total}%` }}
-                        title={`${category.label}: ${category.formatted}`}
+              <div className="mt-3 flex flex-wrap gap-3">
+                {storageUsage.categories
+                  .filter((category) => category.bytes > 0)
+                  .map((category, index) => (
+                    <div key={category.key} className="flex items-center gap-2 text-xs">
+                      <span
+                        className={`w-3 h-3 rounded-full ${getStorageColor(category.key, index)}`}
                       />
-                    ))}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  {storageUsage.categories
-                    .filter((category) => category.bytes > 0)
-                    .map((category, index) => (
-                      <div key={category.key} className="flex items-center gap-2 text-xs">
-                        <span
-                          className={`w-3 h-3 rounded-full ${getStorageColor(category.key, index)}`}
-                        />
-                        <span className="text-bambu-gray">{category.label}</span>
-                        <span className="text-white">{category.formatted}</span>
-                        <span className="text-bambu-gray">({category.percent_of_total.toFixed(1)}%)</span>
+                      <span className="text-table-secondary">{category.label}</span>
+                      <span className="text-white">{category.formatted}</span>
+                      <span className="text-table-secondary">({category.percent_of_total.toFixed(1)}%)</span>
+                    </div>
+                  ))}
+              </div>
+              <div className="mt-2 text-xs text-table-secondary">
+                {t('settings.storageUsageTotal', 'Total')}: <span className="text-white">{storageUsage.total_formatted}</span>
+                {storageUsage.scan_errors > 0 && (
+                  <span className="ml-2 text-amber-800 dark:text-amber-300">
+                    {t('settings.storageUsageErrors', 'Scan errors')}: {storageUsage.scan_errors}
+                  </span>
+                )}
+              </div>
+              {storageUsage.other_breakdown?.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs text-table-secondary mb-2">
+                    {t('settings.storageUsageOtherBreakdown', 'Other breakdown')}
+                  </p>
+                  <div className="space-y-2">
+                    {storageUsage.other_breakdown.map((item) => (
+                      <div key={`${item.bucket}-${item.kind}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-white">{item.label}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full border ${
+                              item.kind === 'system'
+                                ? 'border-bambu-dark-tertiary text-table-secondary'
+                                : 'border-green-600 text-green-800 dark:border-green-500 dark:text-green-300'
+                            }`}
+                          >
+                            {item.kind === 'system'
+                              ? t('settings.storageUsageSystem', 'System')
+                              : t('settings.storageUsageData', 'Data')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-table-secondary">
+                          <span className="text-white">{item.formatted}</span>
+                          <span>({item.percent_of_total.toFixed(1)}%)</span>
+                        </div>
                       </div>
                     ))}
-                </div>
-                <div className="mt-2 text-xs text-bambu-gray">
-                  {t('settings.storageUsageTotal', 'Total')}: <span className="text-white">{storageUsage.total_formatted}</span>
-                  {storageUsage.scan_errors > 0 && (
-                    <span className="ml-2 text-amber-700 dark:text-amber-400">
-                      {t('settings.storageUsageErrors', 'Scan errors')}: {storageUsage.scan_errors}
-                    </span>
-                  )}
-                </div>
-                {storageUsage.other_breakdown?.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-xs text-bambu-gray mb-2">
-                      {t('settings.storageUsageOtherBreakdown', 'Other breakdown')}
-                    </p>
-                    <div className="space-y-2">
-                      {storageUsage.other_breakdown.map((item) => (
-                        <div key={`${item.bucket}-${item.kind}`} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="text-white">{item.label}</span>
-                            <span
-                              className={`px-2 py-0.5 rounded-full border ${
-                                item.kind === 'system'
-                                  ? 'border-slate-500 text-slate-300'
-                                  : 'border-bambu-green text-bambu-green'
-                              }`}
-                            >
-                              {item.kind === 'system'
-                                ? t('settings.storageUsageSystem', 'System')
-                                : t('settings.storageUsageData', 'Data')}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-bambu-gray">
-                            <span className="text-white">{item.formatted}</span>
-                            <span>({item.percent_of_total.toFixed(1)}%)</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-bambu-gray">
-                {t('settings.storageUsageUnavailable', 'Storage usage data is unavailable')}
-              </p>
-            )}
-          </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-table-secondary">
+              {t('settings.storageUsageUnavailable', 'Storage usage data is unavailable')}
+            </p>
+          )}
         </div>
-        <div className="flex items-center justify-between pt-4 border-t border-bambu-dark-tertiary">
+      </SettingsDashboardCard>
+      <SettingsDashboardCard id="card-data-maintenance" title={t('settings.backupRestore')} icon={Shield}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-white">{t('settings.backupRestore')}</p>
-            <p className="text-sm text-bambu-gray">
+            <p className="text-sm text-table-secondary">
               {t('settings.backupRestoreDescription')}
             </p>
           </div>
@@ -2166,76 +2133,69 @@ export function SettingsPage() {
             {t('settings.goToBackup')}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-bambu-dark-tertiary pt-4">
+          <div>
+            <p className="text-white">{t('settings.clearNotificationLogs')}</p>
+            <p className="text-sm text-table-secondary">
+              {t('settings.clearNotificationLogsDescription')}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowClearLogsConfirm(true)}
+          >
+            <Trash2 className="w-4 h-4" />
+            {t('common.clear')}
+          </Button>
+        </div>
+      </SettingsDashboardCard>
+    </div>
   ) : null;
 
   const updatesCard = localSettings ? (
-    <Card id="card-updates">
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-white">{t('settings.updates')}</h2>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider">{t('settings.printerFirmware')}</p>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-white">{t('settings.checkPrinterFirmware')}</p>
-            <p className="text-sm text-bambu-gray">
-              {t('settings.checkFirmwareDescription')}
-            </p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.check_printer_firmware ?? true}
-              onChange={(e) => updateSetting('check_printer_firmware', e.target.checked)}
-            />
-          </label>
-        </div>
-        <div className="border-t border-bambu-dark-tertiary pt-4">
-          <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-4">{t('settings.printopsSoftware')}</p>
-        </div>
-        <div className="flex items-center justify-between">
+    <div className="grid items-start gap-6 lg:grid-cols-2">
+      <SettingsDashboardCard id="card-updates" title={t('settings.updates')} icon={RefreshCw}>
+        <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-white">{t('settings.checkForUpdatesLabel')}</p>
-            <p className="text-sm text-bambu-gray">
+            <p className="text-sm text-table-secondary">
               {t('settings.autoCheckDescription')}
             </p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.check_updates}
-              onChange={(e) => updateSetting('check_updates', e.target.checked)}
-            />
-          </label>
+          <Switch
+            ariaLabel={t('settings.checkForUpdatesLabel')}
+            checked={localSettings.check_updates}
+            onChange={(e) => updateSetting('check_updates', e.target.checked)}
+          />
         </div>
-        <div className={`flex items-center justify-between ${!localSettings.check_updates ? 'opacity-50' : ''}`}>
+        <div className="flex items-center justify-between gap-3 border-t border-bambu-dark-tertiary pt-4">
           <div>
             <p className="text-white">{t('settings.includeBetaUpdates')}</p>
-            <p className="text-sm text-bambu-gray">
+            <p className="text-sm text-table-secondary">
               {t('settings.includeBetaUpdatesDesc')}
             </p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.include_beta_updates ?? false}
-              onChange={(e) => updateSetting('include_beta_updates', e.target.checked)}
-              disabled={!localSettings.check_updates}
-            />
-          </label>
+          <Switch
+            ariaLabel={t('settings.includeBetaUpdates')}
+            checked={localSettings.include_beta_updates ?? false}
+            onChange={(e) => updateSetting('include_beta_updates', e.target.checked)}
+            disabled={!localSettings.check_updates}
+          />
         </div>
         {localSettings.check_updates && (
           <div className="border-t border-bambu-dark-tertiary pt-4 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-white">
                   {t('settings.currentVersion')}: <span className="font-mono text-sm">{appVersion}</span>
                 </p>
                 {updateCheck?.latest_version && updateCheck.latest_version !== appVersion ? (
-                  <p className="text-sm text-green-600 dark:text-green-400">
+                  <p className="text-sm text-green-800 dark:text-green-300">
                     {t('settings.newVersionAvailable')}: {updateCheck.latest_version}
                   </p>
                 ) : (
-                  <p className="text-sm text-bambu-gray">{t('settings.upToDate')}</p>
+                  <p className="text-sm text-table-secondary">{t('settings.upToDate')}</p>
                 )}
               </div>
               <Button
@@ -2257,17 +2217,17 @@ export function SettingsPage() {
               <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
                 <div className="flex items-start gap-2">
                   <Info className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-green-600 dark:text-green-400 font-medium">
+                  <div className="min-w-0 flex-1 wrap-anywhere">
+                    <p className="text-green-800 dark:text-green-300 font-medium">
                       {updateCheck.release_name || `Version ${updateCheck.latest_version}`}
                     </p>
                     {updateCheck.published_at && (
-                      <p className="text-xs text-bambu-gray mt-0.5">
+                      <p className="text-xs text-table-secondary mt-0.5">
                         {t('settings.released')}: {new Date(updateCheck.published_at).toLocaleDateString()}
                       </p>
                     )}
                     {updateCheck.release_notes && (
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -2280,12 +2240,10 @@ export function SettingsPage() {
                             href={updateCheck.release_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex"
+                            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg bg-bambu-dark-tertiary px-3 py-1.5 font-medium text-white hover:bg-secondary-action-hover max-[768px]:min-h-11"
                           >
-                            <Button variant="secondary" size="sm">
-                              <ExternalLink className="w-4 h-4" />
-                              GitHub
-                            </Button>
+                            <ExternalLink className="h-4 w-4 shrink-0" />
+                            GitHub
                           </a>
                         )}
                       </div>
@@ -2311,18 +2269,18 @@ export function SettingsPage() {
                   ) : (
                     <Loader2 className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5 animate-spin" />
                   )}
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1 wrap-anywhere">
                     <p className={`font-medium ${
                       updateStatus.status === 'complete'
-                        ? 'text-green-600 dark:text-green-400'
+                        ? 'text-green-800 dark:text-green-300'
                         : updateStatus.status === 'error'
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-blue-600 dark:text-blue-400'
+                          ? 'text-red-800 dark:text-red-300'
+                          : 'text-blue-800 dark:text-blue-300'
                     }`}>
                       {t(`settings.updateStatus.${updateStatus.status}`, UPDATE_STATUS_FALLBACK_LABELS[updateStatus.status])}
                     </p>
                     {updateStatus.message && (
-                      <p className="text-sm text-bambu-gray mt-1">{updateStatus.message}</p>
+                      <p className="text-sm text-table-secondary mt-1">{updateStatus.message}</p>
                     )}
                     {updateStatus.progress !== undefined && updateStatus.progress > 0 && updateStatus.progress < 100 && (
                       <div className="mt-2">
@@ -2332,7 +2290,7 @@ export function SettingsPage() {
                             style={{ width: `${updateStatus.progress}%` }}
                           />
                         </div>
-                        <p className="text-xs text-bambu-gray mt-1">{updateStatus.progress}%</p>
+                        <p className="text-xs text-table-secondary mt-1">{updateStatus.progress}%</p>
                       </div>
                     )}
                   </div>
@@ -2344,29 +2302,29 @@ export function SettingsPage() {
               <div className="space-y-3">
                 {updateCheck.is_ha_addon ? (
                   <div className="p-3 bg-bambu-dark-tertiary rounded-lg">
-                    <p className="text-sm text-bambu-gray">
+                    <p className="text-sm text-table-secondary">
                       {t('settings.updateViaHomeAssistant')}
                     </p>
                   </div>
                 ) : updateCheck.is_docker ? (
                   <div className="p-3 bg-bambu-dark-tertiary rounded-lg">
-                    <p className="text-sm text-bambu-gray mb-2">
+                    <p className="text-sm text-table-secondary mb-2">
                       {t('settings.updateViaDocker')}
                     </p>
-                    <code className="block text-xs bg-bambu-dark p-2 rounded text-bambu-green font-mono">
+                    <code className="block wrap-anywhere text-xs bg-bambu-dark p-2 rounded text-green-800 dark:text-green-300 font-mono">
                       docker compose pull && docker compose up -d
                     </code>
                   </div>
                 ) : updateCheck.update_method === 'windows_installer' ? (
                   <div className="p-3 bg-bambu-dark-tertiary rounded-lg">
-                    <p className="text-sm text-bambu-gray mb-3">
+                    <p className="text-sm text-table-secondary mb-3">
                       {t('settings.updateViaWindowsInstaller')}
                     </p>
                     <a
                       href={updateCheck.installer_download_url || updateCheck.release_url || `https://github.com/ichwars/PrintOps/releases/tag/v${updateCheck.latest_version}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bambu-dark disabled:opacity-50 bg-bambu-green hover:bg-bambu-green-light text-white focus:ring-bambu-green px-4 py-2 text-sm gap-2 min-h-[44px] md:min-h-0"
+                      className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bambu-dark disabled:opacity-50 bg-bambu-green hover:bg-bambu-green-light text-black focus:ring-bambu-green px-4 py-2 text-sm gap-2 min-h-[44px] md:min-h-0"
                     >
                       <Download className="w-4 h-4" />
                       {t('settings.downloadWindowsInstaller', { version: updateCheck.latest_version })}
@@ -2381,7 +2339,7 @@ export function SettingsPage() {
                         updateStatus?.status === 'downloading' ||
                         updateStatus?.status === 'installing'
                       }
-                      className="flex-1"
+                      className="flex-1 text-black!"
                     >
                       {(applyUpdateMutation.isPending ||
                         updateStatus?.status === 'downloading' ||
@@ -2403,8 +2361,23 @@ export function SettingsPage() {
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </SettingsDashboardCard>
+      <SettingsDashboardCard id="card-printer-firmware" title={t('settings.printerFirmware')} icon={Printer}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-white">{t('settings.checkPrinterFirmware')}</p>
+            <p className="text-sm text-table-secondary">
+              {t('settings.checkFirmwareDescription')}
+            </p>
+          </div>
+          <Switch
+            ariaLabel={t('settings.checkPrinterFirmware')}
+            checked={localSettings.check_printer_firmware ?? true}
+            onChange={(e) => updateSetting('check_printer_firmware', e.target.checked)}
+          />
+        </div>
+      </SettingsDashboardCard>
+    </div>
   ) : null;
 
   const queueDryingCard = localSettings ? (
@@ -2491,7 +2464,6 @@ export function SettingsPage() {
               <tbody>
                 {(() => {
                   const defaultFair = localSettings.ams_humidity_fair ?? 60;
-                  const filamentTypes = ['PLA', 'PETG', 'TPU', 'ABS', 'ASA', 'PA', 'PC', 'PVA'];
                   let thresholds: Record<string, number> = {};
                   try {
                     if (localSettings.ams_humidity_thresholds) {
@@ -2502,20 +2474,12 @@ export function SettingsPage() {
                     }
                   } catch { /* invalid → empty */ }
 
-                  const rows: Array<{ key: string; label: string; value: number; isDefault: boolean }> = [
-                    {
-                      key: 'default',
-                      label: t('settings.humidityThresholdDefault'),
-                      value: Number(thresholds.default ?? defaultFair),
-                      isDefault: true,
-                    },
-                    ...filamentTypes.map((fil) => ({
-                      key: fil,
-                      label: fil,
-                      value: Number(thresholds[fil] ?? thresholds.default ?? defaultFair),
-                      isDefault: false,
-                    })),
-                  ];
+                  const rows = humidityPagination.rows.map(key => ({
+                    key,
+                    label: key === 'default' ? t('settings.humidityThresholdDefault') : key,
+                    value: Number(thresholds[key] ?? thresholds.default ?? defaultFair),
+                    isDefault: key === 'default',
+                  }));
 
                   const commitThreshold = (key: string, raw: string) => {
                     // Empty / blank → drop the override, falling back to
@@ -2576,6 +2540,7 @@ export function SettingsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination {...humidityPagination.footer} />
         </div>
       </CardContent>
     </Card>
@@ -2675,101 +2640,69 @@ export function SettingsPage() {
     </Card>
   ) : null;
 
+  const canReadApiKeys = hasPermission('api_keys:read');
   const prometheusCard = localSettings && isAdmin ? (
-    <Card id="card-prometheus">
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-          {t('settings.prometheusMetrics')}
-        </h2>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-bambu-gray">
-          {t('settings.prometheusEndpointDescription')}
-        </p>
+    <SettingsDashboardCard id="card-prometheus" title={t('settings.prometheusMetrics')} icon={TrendingUp}>
+        <p><Trans i18nKey="settings.prometheusEndpointDescription" components={{ code: <code className="wrap-anywhere text-accent-foreground" /> }} /></p>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-bambu-dark-tertiary px-3 py-2">
           <div>
-            <p className="text-white">{t('settings.enableMetricsEndpoint')}</p>
-            <p className="text-xs text-bambu-gray">{t('settings.prometheusDescription')}</p>
+            <p className="font-medium text-white">{t('settings.enableMetricsEndpoint')}</p>
+            <p className="text-xs">{t('settings.prometheusDescription')}</p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Switch
-              checked={localSettings.prometheus_enabled ?? false}
-              onChange={(e) => updateSetting('prometheus_enabled', e.target.checked)}
-            />
-          </label>
+          <Switch
+            ariaLabel={t('settings.enableMetricsEndpoint')}
+            checked={localSettings.prometheus_enabled ?? false}
+            onCheckedChange={(checked) => updateSetting('prometheus_enabled', checked)}
+          />
         </div>
 
         {localSettings.prometheus_enabled && (
           <div className="space-y-3 pt-2 border-t border-bambu-dark-tertiary">
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
-                {t('settings.bearerTokenOptional')}
-              </label>
               <TextField
                 type="password"
+                label={t('settings.bearerTokenOptional')}
+                helperText={<Trans i18nKey="settings.bearerTokenHint" shouldUnescape components={{ code: <code className="wrap-anywhere" /> }} />}
                 value={localSettings.prometheus_token ?? ''}
                 onFocus={selectPlaceholderOnFocus}
                 onChange={(e) => updateSetting('prometheus_token', e.target.value)}
                 placeholder={t('settings.leaveEmptyForNoAuth')}
-                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                className="font-mono text-sm"
               />
-              <p className="text-xs text-bambu-gray mt-1">
-                {t('settings.bearerTokenHint')}
-              </p>
             </div>
 
             <div className="pt-2 border-t border-bambu-dark-tertiary">
-              <p className="text-sm text-white mb-2">{t('settings.availableMetrics')}</p>
-              <div className="text-xs text-bambu-gray space-y-1">
+              <p className="mb-2 font-medium text-white">{t('settings.availableMetrics')}</p>
+              <div className="space-y-1 wrap-break-word text-xs">
                 <p><code className="text-orange-700 dark:text-orange-400">printops_printer_connected</code> - {t('settings.metricsConnectionStatus')}</p>
                 <p><code className="text-orange-700 dark:text-orange-400">printops_printer_state</code> - {t('settings.metricsPrinterState')}</p>
                 <p><code className="text-orange-700 dark:text-orange-400">printops_print_progress</code> - {t('settings.metricsPrintProgress')}</p>
                 <p><code className="text-orange-700 dark:text-orange-400">printops_bed_temp_celsius</code> - {t('settings.metricsBedTemp')}</p>
                 <p><code className="text-orange-700 dark:text-orange-400">printops_nozzle_temp_celsius</code> - {t('settings.metricsNozzleTemp')}</p>
                 <p><code className="text-orange-700 dark:text-orange-400">printops_prints_total</code> - {t('settings.metricsPrintsTotal')}</p>
-                <p className="text-bambu-gray/70 italic">{t('settings.metricsMore')}</p>
+                <p>{t('settings.metricsMore')}</p>
               </div>
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </SettingsDashboardCard>
   ) : null;
 
-  const webhookDocumentationCard = hasPermission('api_keys:read') ? <WebhookEndpoints /> : null;
-
-  const apiBrowserCard = hasPermission('api_keys:read') ? (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2" id="card-apibrowser">
-          <Globe className="w-5 h-5 text-bambu-green" />
-          {t('settings.apiBrowser')}
-        </h2>
-        <p className="text-sm text-bambu-gray mt-1">
-          {t('settings.apiBrowserDescription')}
-        </p>
-      </div>
-
-      <Card className="mb-4">
-        <CardContent className="py-3">
-          <label className="block text-sm text-bambu-gray mb-2">{t('settings.apiKeyForTesting')}</label>
-          <TextField
-            type="text"
-            value={testApiKey}
-            onChange={(e) => setTestApiKey(e.target.value)}
-            placeholder={t('settings.apiKeyPlaceholder')}
-            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white font-mono text-sm focus:border-bambu-green focus:outline-none"
-          />
-          <p className="text-xs text-bambu-gray mt-2">
-            {t('settings.apiKeyHint')}
-          </p>
-        </CardContent>
-      </Card>
-
+  const apiBrowserCard = canReadApiKeys ? (
+    <SettingsDashboardCard id="card-apibrowser" title={t('settings.apiBrowser')} icon={Globe}>
+      <p>{t('settings.apiBrowserDescription')}</p>
+      <TextField
+        type="text"
+        label={t('settings.apiKeyForTesting')}
+        helperText={t('settings.apiKeyHint')}
+        value={testApiKey}
+        onChange={(e) => setTestApiKey(e.target.value)}
+        placeholder={t('settings.apiKeyPlaceholder')}
+        className="font-mono text-sm"
+      />
       <APIBrowser apiKey={testApiKey} />
-    </div>
+    </SettingsDashboardCard>
   ) : null;
 
   const localizedHeaderLabel = (item: SettingsHeaderMeta) => {
@@ -2974,16 +2907,33 @@ export function SettingsPage() {
           ? `${t('common.error', 'Error')} · ${t('common.retry', 'Retry')}`
           : null;
 
+  const closeCreateSettingsUser = () => {
+    setShowCreateUserModal(false);
+    setCreateUserTab('local');
+    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
+  };
+
+  const closeEditSettingsUser = () => {
+    setShowEditUserModal(false);
+    setEditingUserId(null);
+    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
+  };
+
+  const closeSettingsPassword = () => {
+    setShowChangePasswordModal(false);
+    setChangePasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  };
+
   return (
-    <CardDensityProvider density="dense">
-    <div className="p-4 md:p-8">
+    <CardDensityProvider density="dense" dashboard={activeTab !== 'general' && activeTab !== 'integrations' && activeTab !== 'operations'}>
+    <div className={dashboardStyles.page}>
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <HeaderIcon className="w-7 h-7 text-bambu-green" />
+          <h1 className={dashboardStyles.title}>
+            <HeaderIcon className={dashboardStyles.titleIcon} aria-hidden="true" />
             {settingsPageTitle}
           </h1>
-          <p className="text-bambu-gray mt-1">{settingsPageDescription}</p>
+          <p className={`${dashboardStyles.subtitle} text-bambu-gray`}>{settingsPageDescription}</p>
           {settingsAutosaveLabel ? (
             <div
               role="status"
@@ -3052,131 +3002,90 @@ export function SettingsPage() {
 
       <div className="min-w-0">
       {activeTab === 'general' && (
-      <>
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-        {/* Left Column - General Settings */}
-        <div className="space-y-3 flex-1 lg:max-w-xl">
-          <Card id="card-general">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white">{t('settings.general')}</h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  <Globe className="w-4 h-4 inline mr-1" />
-                  {t('settings.language')}
-                </label>
-                <div className="relative">
-                  <Select
-                    ariaLabel={t('settings.language')}
-                    value={i18n.language}
-                    onValueChange={(newLang) => {
-                      // Block server persist if the user lacks settings:update —
-                      // without this guard the fire-and-forget api.updateSettings
-                      // call below would 403 silently while a success toast flashed.
-                      if (authEnabled && !hasPermission('settings:update')) {
-                        showToast(t('settings.toast.noPermissionUpdate'), 'error');
-                        return;
-                      }
-                      i18n.changeLanguage(newLang);
-                      immediateSettingsMutation.mutate({ language: newLang });
-                    }}
-                    options={availableLanguages.map((lang) => ({
-                      value: lang.code,
-                      label: `${lang.nativeName} (${lang.name})`,
-                    }))}
-                  />
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                </div>
-                <p className="text-xs text-bambu-gray mt-1">
-                  {t('settings.languageDescription')}
-                </p>
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <div className="@container min-w-0 space-y-6">
+            <SettingsDashboardCard id="card-general" title={t('settings.general')} icon={Cog}>
+              <Select
+                label={t('settings.language')}
+                ariaLabel={t('settings.language')}
+                helperText={<span className="text-table-secondary">{t('settings.languageDescription')}</span>}
+                value={i18n.language}
+                onValueChange={(newLang) => {
+                  // Persist the language only when the account can update settings.
+                  if (authEnabled && !hasPermission('settings:update')) {
+                    showToast(t('settings.toast.noPermissionUpdate'), 'error');
+                    return;
+                  }
+                  i18n.changeLanguage(newLang);
+                  immediateSettingsMutation.mutate({ language: newLang });
+                }}
+                options={availableLanguages.map((lang) => ({
+                  value: lang.code,
+                  label: `${lang.nativeName} (${lang.name})`,
+                }))}
+              />
+              <Select
+                label={t('settings.defaultView')}
+                ariaLabel={t('settings.defaultView')}
+                helperText={<span className="text-table-secondary">{t('settings.defaultViewDescription')}</span>}
+                value={defaultView}
+                onValueChange={handleDefaultViewChange}
+                options={defaultNavItems.map((item) => ({
+                  value: item.to,
+                  label: t(item.labelKey, {
+                    defaultValue: i18n.resolvedLanguage?.startsWith('de')
+                      ? item.defaultLabelDe ?? item.defaultLabel
+                      : item.defaultLabel,
+                  }),
+                }))}
+              />
+              <div className="grid gap-3 @xs:grid-cols-2">
+                <Select
+                  label={t('settings.dateFormat')}
+                  ariaLabel={t('settings.dateFormat')}
+                  value={localSettings.date_format || 'system'}
+                  onValueChange={(value) => updateSetting('date_format', value as 'system' | 'us' | 'eu' | 'iso')}
+                  options={[
+                    { value: 'system', label: t('settings.systemDefault') },
+                    { value: 'us', label: t('settings.dateFormatUs') },
+                    { value: 'eu', label: t('settings.dateFormatEu') },
+                    { value: 'iso', label: t('settings.dateFormatIso') },
+                  ]}
+                />
+                <Select
+                  label={t('settings.timeFormat')}
+                  ariaLabel={t('settings.timeFormat')}
+                  value={localSettings.time_format || 'system'}
+                  onValueChange={(value) => updateSetting('time_format', value as 'system' | '12h' | '24h')}
+                  options={[
+                    { value: 'system', label: t('settings.systemDefault') },
+                    { value: '12h', label: t('settings.timeFormat12') },
+                    { value: '24h', label: t('settings.timeFormat24') },
+                  ]}
+                />
               </div>
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.defaultView')}
-                </label>
-                <div className="relative">
-                  <Select
-                    ariaLabel={t('settings.defaultView')}
-                    value={defaultView}
-                    onValueChange={handleDefaultViewChange}
-                    options={defaultNavItems.map((item) => ({
-                      value: item.to,
-                      label: t(item.labelKey, {
-                          defaultValue: i18n.resolvedLanguage?.startsWith('de')
-                            ? item.defaultLabelDe ?? item.defaultLabel
-                            : item.defaultLabel,
-                        }),
-                    }))}
-                  />
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                </div>
-                <p className="text-xs text-bambu-gray mt-1">
-                  {t('settings.defaultViewDescription')}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-bambu-gray mb-1">
-                    {t('settings.dateFormat')}
-                  </label>
-                  <div className="relative">
-                    <Select
-                      ariaLabel={t('settings.dateFormat')}
-                      value={localSettings.date_format || 'system'}
-                      onValueChange={(value) => updateSetting('date_format', value as 'system' | 'us' | 'eu' | 'iso')}
-                      options={[
-                        { value: 'system', label: t('settings.systemDefault') },
-                        { value: 'us', label: t('settings.dateFormatUs') },
-                        { value: 'eu', label: t('settings.dateFormatEu') },
-                        { value: 'iso', label: t('settings.dateFormatIso') },
-                      ]}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm text-bambu-gray mb-1">
-                    {t('settings.timeFormat')}
-                  </label>
-                  <div className="relative">
-                    <Select
-                      ariaLabel={t('settings.timeFormat')}
-                      value={localSettings.time_format || 'system'}
-                      onValueChange={(value) => updateSetting('time_format', value as 'system' | '12h' | '24h')}
-                      options={[
-                        { value: 'system', label: t('settings.systemDefault') },
-                        { value: '12h', label: t('settings.timeFormat12') },
-                        { value: '24h', label: t('settings.timeFormat24') },
-                      ]}
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </SettingsDashboardCard>
 
-          <Card id="card-appearance">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Palette className="w-5 h-5" />
-                {t('settings.appearance')}
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
+            <SettingsDashboardCard id="card-appearance" title={t('settings.appearance')} icon={Palette}>
               {/* Theme Mode Selector */}
-              <div className="flex items-center gap-2 mb-2">
-                <label className="text-sm text-bambu-gray">{t('settings.theme')}:</label>
-                <div className="flex gap-1">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="font-medium text-white">{t('settings.theme')}</span>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('settings.theme')}>
                   {([
                     { id: 'dark', label: t('settings.themeDark') },
                     { id: 'light', label: t('settings.themeLight') },
                     { id: 'system', label: t('settings.themeSystem') },
                   ] as const).map(({ id, label }) => (
-                    <Button variant="unstyled"
+                    <Button
+                      variant="unstyled"
+                      aria-pressed={mode === id}
                       key={id}
                       onClick={() => { setMode(id); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      className={`px-3 py-1 text-xs rounded-lg border transition-colors ${mode === id ? 'border-bambu-green bg-bambu-green/10 text-bambu-green' : 'border-gray-300 dark:border-bambu-dark-tertiary text-gray-500 dark:text-bambu-gray hover:text-gray-900 dark:hover:text-white cursor-pointer'}`}
+                      className={`min-h-[34px] rounded-lg border px-3 py-1.5 font-medium transition-colors max-[768px]:min-h-11 ${
+                        mode === id
+                          ? 'border-bambu-green bg-bambu-green/10 text-accent-foreground hover:bg-bambu-green/15'
+                          : 'border-bambu-dark-tertiary text-table-secondary hover:bg-secondary-action-hover hover:text-white'
+                      }`}
                     >
                       {label}
                     </Button>
@@ -3185,119 +3094,107 @@ export function SettingsPage() {
               </div>
 
               {/* Dark Mode Settings */}
-              <div className={`space-y-3 p-4 rounded-lg border ${resolvedMode === 'dark' ? 'border-bambu-green bg-bambu-green/5' : 'border-bambu-dark-tertiary'}`}>
-                <h3 className="text-sm font-medium text-white flex items-center gap-2">
+              <div className={`space-y-3 rounded-lg border p-3 ${resolvedMode === 'dark' ? 'border-bambu-green/60 bg-bambu-green/5' : 'border-bambu-dark-tertiary bg-bambu-dark/30'}`}>
+                <h3 className="flex flex-wrap items-center gap-2 font-medium text-white">
                   {t('settings.darkMode')}
-                  {resolvedMode === 'dark' && <span className="text-xs text-bambu-green">{t('settings.active')}</span>}
+                  {resolvedMode === 'dark' && <span className="rounded bg-bambu-green/10 px-2 py-0.5 text-xs text-accent-foreground">{t('settings.active')}</span>}
                 </h3>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs text-bambu-gray mb-1">{t('settings.background')}</label>
-                    <Select
-                      ariaLabel={`${t('settings.darkMode')} ${t('settings.background')}`}
-                      value={darkBackground}
-                      onValueChange={(value) => { setDarkBackground(value as DarkBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      options={[
-                        { value: 'neutral', label: t('settings.bgNeutral') },
-                        { value: 'warm', label: t('settings.bgWarm') },
-                        { value: 'cool', label: t('settings.bgCool') },
-                        { value: 'oled', label: t('settings.bgOled') },
-                        { value: 'slate', label: t('settings.bgSlate') },
-                        { value: 'forest', label: t('settings.bgForest') },
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-bambu-gray mb-1">{t('settings.accent')}</label>
-                    <Select
-                      ariaLabel={`${t('settings.darkMode')} ${t('settings.accent')}`}
-                      value={darkAccent}
-                      onValueChange={(value) => { setDarkAccent(value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      options={[
-                        { value: 'green', label: t('settings.accentGreen') },
-                        { value: 'teal', label: t('settings.accentTeal') },
-                        { value: 'blue', label: t('settings.accentBlue') },
-                        { value: 'orange', label: t('settings.accentOrange') },
-                        { value: 'purple', label: t('settings.accentPurple') },
-                        { value: 'red', label: t('settings.accentRed') },
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-bambu-gray mb-1">{t('settings.style')}</label>
-                    <Select
-                      ariaLabel={`${t('settings.darkMode')} ${t('settings.style')}`}
-                      value={darkStyle}
-                      onValueChange={(value) => { setDarkStyle(value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      options={[
-                        { value: 'classic', label: t('settings.styleClassic') },
-                        { value: 'glow', label: t('settings.styleGlow') },
-                        { value: 'vibrant', label: t('settings.styleVibrant') },
-                      ]}
-                    />
-                  </div>
+                <div className="grid gap-3 @xs:grid-cols-2 @lg:grid-cols-3">
+                  <Select
+                    label={t('settings.background')}
+                    ariaLabel={`${t('settings.darkMode')} ${t('settings.background')}`}
+                    value={darkBackground}
+                    onValueChange={(value) => { setDarkBackground(value as DarkBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                    options={[
+                      { value: 'neutral', label: t('settings.bgNeutral') },
+                      { value: 'warm', label: t('settings.bgWarm') },
+                      { value: 'cool', label: t('settings.bgCool') },
+                      { value: 'oled', label: t('settings.bgOled') },
+                      { value: 'slate', label: t('settings.bgSlate') },
+                      { value: 'forest', label: t('settings.bgForest') },
+                    ]}
+                  />
+                  <Select
+                    label={t('settings.accent')}
+                    ariaLabel={`${t('settings.darkMode')} ${t('settings.accent')}`}
+                    value={darkAccent}
+                    onValueChange={(value) => { setDarkAccent(value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                    options={[
+                      { value: 'green', label: t('settings.accentGreen') },
+                      { value: 'teal', label: t('settings.accentTeal') },
+                      { value: 'blue', label: t('settings.accentBlue') },
+                      { value: 'orange', label: t('settings.accentOrange') },
+                      { value: 'purple', label: t('settings.accentPurple') },
+                      { value: 'red', label: t('settings.accentRed') },
+                    ]}
+                  />
+                  <Select
+                    label={t('settings.style')}
+                    ariaLabel={`${t('settings.darkMode')} ${t('settings.style')}`}
+                    value={darkStyle}
+                    onValueChange={(value) => { setDarkStyle(value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                    options={[
+                      { value: 'classic', label: t('settings.styleClassic') },
+                      { value: 'glow', label: t('settings.styleGlow') },
+                      { value: 'vibrant', label: t('settings.styleVibrant') },
+                    ]}
+                  />
                 </div>
               </div>
 
               {/* Light Mode Settings */}
-              <div className={`space-y-3 p-4 rounded-lg border ${resolvedMode === 'light' ? 'border-bambu-green bg-bambu-green/5' : 'border-bambu-dark-tertiary'}`}>
-                <h3 className="text-sm font-medium text-white flex items-center gap-2">
+              <div className={`space-y-3 rounded-lg border p-3 ${resolvedMode === 'light' ? 'border-bambu-green/60 bg-bambu-green/5' : 'border-bambu-dark-tertiary bg-bambu-dark/30'}`}>
+                <h3 className="flex flex-wrap items-center gap-2 font-medium text-white">
                   {t('settings.lightMode')}
-                  {resolvedMode === 'light' && <span className="text-xs text-bambu-green">{t('settings.active')}</span>}
+                  {resolvedMode === 'light' && <span className="rounded bg-bambu-green/10 px-2 py-0.5 text-xs text-accent-foreground">{t('settings.active')}</span>}
                 </h3>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs text-bambu-gray mb-1">{t('settings.background')}</label>
-                    <Select
-                      ariaLabel={`${t('settings.lightMode')} ${t('settings.background')}`}
-                      value={lightBackground}
-                      onValueChange={(value) => { setLightBackground(value as LightBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      options={[
-                        { value: 'neutral', label: t('settings.bgNeutral') },
-                        { value: 'warm', label: t('settings.bgWarm') },
-                        { value: 'cool', label: t('settings.bgCool') },
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-bambu-gray mb-1">{t('settings.accent')}</label>
-                    <Select
-                      ariaLabel={`${t('settings.lightMode')} ${t('settings.accent')}`}
-                      value={lightAccent}
-                      onValueChange={(value) => { setLightAccent(value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      options={[
-                        { value: 'green', label: t('settings.accentGreen') },
-                        { value: 'teal', label: t('settings.accentTeal') },
-                        { value: 'blue', label: t('settings.accentBlue') },
-                        { value: 'orange', label: t('settings.accentOrange') },
-                        { value: 'purple', label: t('settings.accentPurple') },
-                        { value: 'red', label: t('settings.accentRed') },
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-bambu-gray mb-1">{t('settings.style')}</label>
-                    <Select
-                      ariaLabel={`${t('settings.lightMode')} ${t('settings.style')}`}
-                      value={lightStyle}
-                      onValueChange={(value) => { setLightStyle(value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
-                      options={[
-                        { value: 'classic', label: t('settings.styleClassic') },
-                        { value: 'glow', label: t('settings.styleGlow') },
-                        { value: 'vibrant', label: t('settings.styleVibrant') },
-                      ]}
-                    />
-                  </div>
+                <div className="grid gap-3 @xs:grid-cols-2 @lg:grid-cols-3">
+                  <Select
+                    label={t('settings.background')}
+                    ariaLabel={`${t('settings.lightMode')} ${t('settings.background')}`}
+                    value={lightBackground}
+                    onValueChange={(value) => { setLightBackground(value as LightBackground); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                    options={[
+                      { value: 'neutral', label: t('settings.bgNeutral') },
+                      { value: 'warm', label: t('settings.bgWarm') },
+                      { value: 'cool', label: t('settings.bgCool') },
+                    ]}
+                  />
+                  <Select
+                    label={t('settings.accent')}
+                    ariaLabel={`${t('settings.lightMode')} ${t('settings.accent')}`}
+                    value={lightAccent}
+                    onValueChange={(value) => { setLightAccent(value as ThemeAccent); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                    options={[
+                      { value: 'green', label: t('settings.accentGreen') },
+                      { value: 'teal', label: t('settings.accentTeal') },
+                      { value: 'blue', label: t('settings.accentBlue') },
+                      { value: 'orange', label: t('settings.accentOrange') },
+                      { value: 'purple', label: t('settings.accentPurple') },
+                      { value: 'red', label: t('settings.accentRed') },
+                    ]}
+                  />
+                  <Select
+                    label={t('settings.style')}
+                    ariaLabel={`${t('settings.lightMode')} ${t('settings.style')}`}
+                    value={lightStyle}
+                    onValueChange={(value) => { setLightStyle(value as ThemeStyle); showToast(t('settings.toast.settingsSaved'), 'success'); }}
+                    options={[
+                      { value: 'classic', label: t('settings.styleClassic') },
+                      { value: 'glow', label: t('settings.styleGlow') },
+                      { value: 'vibrant', label: t('settings.styleVibrant') },
+                    ]}
+                  />
                 </div>
               </div>
 
-              <p className="text-xs text-bambu-gray">
+              <p className="text-xs text-table-secondary">
                 {t('settings.themeToggleHint')}
               </p>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-bambu-dark-tertiary p-3">
                 <div>
                   <p className="text-sm font-medium text-white">{t('settings.progressInTitle')}</p>
-                  <p className="text-xs text-bambu-gray">{t('settings.progressInTitleHint')}</p>
+                  <p className="text-xs text-table-secondary">{t('settings.progressInTitleHint')}</p>
                 </div>
                 <Switch
                   ariaLabel={t('settings.progressInTitle')}
@@ -3308,30 +3205,25 @@ export function SettingsPage() {
                   }}
                 />
               </div>
-              {progressInTitle && <Select ariaLabel={t('settings.tabDisplay')} value={tabPrintDisplay}
-                onValueChange={(value) => setTabPrintDisplay(value === 'time' ? 'time' : 'percentage')}
-                options={[
-                  { value: 'percentage', label: t('settings.tabDisplayPercentage') },
-                  { value: 'time', label: t('settings.tabDisplayTime') },
-                ]} />}
-            </CardContent>
-          </Card>
+              {progressInTitle && (
+                <Select
+                  label={t('settings.tabDisplay')}
+                  value={tabPrintDisplay}
+                  onValueChange={(value) => setTabPrintDisplay(value === 'time' ? 'time' : 'percentage')}
+                  options={[
+                    { value: 'percentage', label: t('settings.tabDisplayPercentage') },
+                    { value: 'time', label: t('settings.tabDisplayTime') },
+                  ]}
+                />
+              )}
+            </SettingsDashboardCard>
 
-        </div>
+            {noticePreferencesCard}
+            {uiPreferencesCard}
+          </div>
 
-        {/* Second Column - Camera, Cost, AMS & Spoolman */}
-        <div className="space-y-3 flex-1 lg:max-w-md">
-          {uiPreferencesCard}
-          {noticePreferencesCard}
-        </div>
-
-        {/* Third Column - Sidebar Links */}
-        <div className="space-y-3 flex-1 lg:max-w-sm">
-          {/* Sidebar Links */}
           <ExternalLinksSettings />
         </div>
-      </div>
-      </>
       )}
 
       {activeTab === 'projects-files' && projectManagementSubTab === 'files' && localSettings && (
@@ -3353,514 +3245,311 @@ export function SettingsPage() {
       )}
 
       {/* Smart Home integration settings */}
-      {activeTab === 'integrations' && integrationSubTab === 'smart-home' && hasPermission('printers:update') && <WLEDSettings />}
-      {activeTab === 'integrations' && integrationSubTab === 'smart-home' && localSettings && (
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left Column - External URL & FTP Retry */}
-        <div className="flex-1 lg:max-w-xl space-y-3">
-          {/* External URL */}
-          <Card id="card-externalurl">
-            <CardHeader>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                {t('settings.externalUrl')}
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-bambu-gray">
-                {t('settings.externalUrlDescription')}
-              </p>
-              <div>
-                <label className="block text-sm text-bambu-gray mb-1">
-                  {t('settings.printopsUrl')}
-                </label>
+      {activeTab === 'integrations' && integrationSubTab === 'smart-home' && (
+        <div className="space-y-6">
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            <div className="min-w-0 space-y-6">
+              <SettingsDashboardCard id="card-externalurl" title={t('settings.externalUrl')} icon={Globe}>
+                <p>{t('settings.externalUrlDescription')}</p>
                 <TextField
-                  type="text"
+                  label={t('settings.printopsUrl')}
+                  helperText={<span className="text-table-secondary">{t('settings.externalUrlHint')}</span>}
                   value={localSettings.external_url ?? ''}
                   onChange={(e) => updateSetting('external_url', e.target.value)}
                   disabled={!isAdmin}
                   placeholder="http://192.168.1.100:8000"
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                 />
-                <p className="text-xs text-bambu-gray mt-1">
-                  {t('settings.externalUrlHint')}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+              </SettingsDashboardCard>
 
-        </div>
-
-        {/* Right Column - Home Assistant & MQTT Publishing */}
-        <div className="flex-1 lg:max-w-xl space-y-3">
-          {/* Home Assistant Integration */}
-          <Card id="card-ha">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Home className="w-5 h-5 text-bambu-green" />
-                  {t('settings.homeAssistant')}
-                </h2>
-                {localSettings.ha_enabled && haTestResult && (
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${haTestResult.success ? 'bg-green-400' : 'bg-red-400'}`} />
-                    <span className={`text-sm ${haTestResult.success ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                      {haTestResult.success ? t('settings.connected') : t('settings.disconnected')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-bambu-gray">
-                {t('settings.homeAssistantFullDescription')}
-              </p>
-
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-white">{t('settings.enableHomeAssistant')}</p>
-                  <p className="text-xs text-bambu-gray">{t('settings.homeAssistantDescription')}</p>
-                  {localSettings.ha_env_managed && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Lock className="w-3 h-3 text-bambu-green" />
-                      <span className="text-xs text-bambu-green">
+              <SettingsDashboardCard id="card-ha" title={t('settings.homeAssistant')} icon={Home}>
+                <p>{t('settings.homeAssistantFullDescription')}</p>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-bambu-dark-tertiary px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-white">{t('settings.enableHomeAssistant')}</p>
+                    <p className="text-xs">{t('settings.homeAssistantDescription')}</p>
+                    {localSettings.ha_env_managed && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-accent-foreground">
+                        <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
                         {t('settings.autoEnabledViaEnv')}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
+                      </p>
+                    )}
+                  </div>
                   <Switch
+                    ariaLabel={t('settings.enableHomeAssistant')}
                     checked={localSettings.ha_enabled ?? false}
-                    onChange={(e) => updateSetting('ha_enabled', e.target.checked)}
+                    onCheckedChange={(checked) => updateSetting('ha_enabled', checked)}
                     disabled={localSettings.ha_env_managed}
                   />
-                </label>
-              </div>
+                </div>
 
-              {localSettings.ha_enabled && (
-                <>
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.homeAssistantUrl')}
-                      {localSettings.ha_url_from_env && (
-                        <span className="ml-2 text-xs text-bambu-green">
-                          {t('settings.environmentManagedLabel')}
-                        </span>
-                      )}
-                    </label>
-                    <div className="relative">
-                      <TextField
-                        type="text"
-                        value={localSettings.ha_url ?? ''}
-                        onChange={(e) => updateSetting('ha_url', e.target.value)}
-                        placeholder="http://192.168.1.100:8123"
-                        disabled={localSettings.ha_url_from_env || localSettings.ha_token_from_env}
-                        className={`w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none ${
-                          localSettings.ha_url_from_env || localSettings.ha_token_from_env ? 'opacity-60 cursor-not-allowed' : ''
-                        }`}
-                      />
-                      {localSettings.ha_url_from_env && (
-                        <Lock className="absolute right-3 top-2.5 w-4 h-4 text-bambu-gray" />
-                      )}
-                    </div>
-                    {(localSettings.ha_url_from_env || localSettings.ha_token_from_env) && (
-                      <p className="text-xs text-bambu-gray mt-1">
-                        {t(localSettings.ha_url_from_env ? 'settings.urlFromEnvReadOnly' : 'settings.haUrlEnvRequired')}
-                      </p>
+                {localSettings.ha_enabled && (
+                  <div className="space-y-4">
+                    <TextField
+                      label={<>
+                        {t('settings.homeAssistantUrl')}
+                        {localSettings.ha_url_from_env && <span className="ml-2 text-xs text-accent-foreground">{t('settings.environmentManagedLabel')}</span>}
+                      </>}
+                      helperText={(localSettings.ha_url_from_env || localSettings.ha_token_from_env)
+                        ? <span className="text-table-secondary">
+                            {t(localSettings.ha_url_from_env ? 'settings.urlFromEnvReadOnly' : 'settings.haUrlEnvRequired')}
+                          </span>
+                        : undefined}
+                      value={localSettings.ha_url ?? ''}
+                      onChange={(e) => updateSetting('ha_url', e.target.value)}
+                      placeholder="http://192.168.1.100:8123"
+                      disabled={localSettings.ha_url_from_env || localSettings.ha_token_from_env}
+                    />
+
+                    <TextField
+                      type="password"
+                      label={<>
+                        {t('settings.longLivedAccessToken')}
+                        {localSettings.ha_token_from_env && <span className="ml-2 text-xs text-accent-foreground">{t('settings.environmentManagedLabel')}</span>}
+                      </>}
+                      helperText={<span className="text-table-secondary">
+                        {t(localSettings.ha_token_from_env ? 'settings.tokenFromEnvReadOnly'
+                          : secretsPendingReentry.includes('ha_token') ? 'common.secretReenter' : 'settings.haTokenHint')}
+                      </span>}
+                      value={localSettings.ha_token ?? ''}
+                      onFocus={selectPlaceholderOnFocus}
+                      onChange={(e) => updateSetting('ha_token', e.target.value)}
+                      placeholder="eyJ0eXAiOiJKV1QiLC..."
+                      disabled={localSettings.ha_token_from_env}
+                    />
+
+                    {localSettings.ha_url && localSettings.ha_token && (
+                      <div className="border-t border-bambu-dark-tertiary pt-3">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          ref={haTestButton}
+                          disabled={haTestLoading}
+                          onClick={async () => {
+                            setHaTestLoading(true);
+                            setHaTestResult(null);
+                            try {
+                              const result = await api.testHAConnection(localSettings.ha_url!, localSettings.ha_token!);
+                              setHaTestResult(result);
+                            } catch (e) {
+                              setHaTestResult({ success: false, message: null, error: e instanceof Error ? e.message : t('common.unknownError') });
+                            } finally {
+                              setHaTestLoading(false);
+                            }
+                          }}
+                        >
+                          {haTestLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wifi className="h-4 w-4" aria-hidden="true" />}
+                          {t('settings.testConnection')}
+                        </Button>
+                      </div>
                     )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.longLivedAccessToken')}
-                      {localSettings.ha_token_from_env && (
-                        <span className="ml-2 text-xs text-bambu-green">
-                          {t('settings.environmentManagedLabel')}
-                        </span>
-                      )}
-                    </label>
-                    <div className="relative">
-                      <TextField
-                        type="password"
-                        value={localSettings.ha_token ?? ''}
-                        onFocus={selectPlaceholderOnFocus}
-                        onChange={(e) => updateSetting('ha_token', e.target.value)}
-                        placeholder="eyJ0eXAiOiJKV1QiLC..."
-                        disabled={localSettings.ha_token_from_env}
-                        className={`w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none ${
-                          localSettings.ha_token_from_env ? 'opacity-60 cursor-not-allowed' : ''
-                        }`}
-                      />
-                      {localSettings.ha_token_from_env && (
-                        <Lock className="absolute right-3 top-2.5 w-4 h-4 text-bambu-gray" />
-                      )}
-                    </div>
-                    {localSettings.ha_token_from_env ? (
-                      <p className="text-xs text-bambu-gray mt-1">
-                        {t('settings.tokenFromEnvReadOnly')}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-bambu-gray mt-1">
-                        {t(secretsPendingReentry.includes('ha_token') ? 'common.secretReenter' : 'settings.haTokenHint')}
-                      </p>
-                    )}
-                  </div>
-
-                  {localSettings.ha_url && localSettings.ha_token && (
-                    <div className="pt-2 border-t border-bambu-dark-tertiary">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={haTestLoading}
-                        onClick={async () => {
-                          setHaTestLoading(true);
-                          setHaTestResult(null);
-                          try {
-                            const result = await api.testHAConnection(localSettings.ha_url!, localSettings.ha_token!);
-                            setHaTestResult(result);
-                          } catch (e) {
-                            setHaTestResult({ success: false, message: null, error: e instanceof Error ? e.message : t('common.unknownError') });
-                          } finally {
-                            setHaTestLoading(false);
-                          }
-                        }}
-                      >
-                        {haTestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
-                        {t('settings.testConnection')}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* MQTT Publishing */}
-          <Card id="card-mqtt">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Wifi className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  {t('settings.mqttPublishing')}
-                </h2>
-                {mqttStatus?.enabled && (
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${mqttStatus.connected ? 'bg-green-400' : 'bg-red-400'}`} />
-                    <span className={`text-sm ${mqttStatus.connected ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                      {mqttStatus.connected ? t('settings.connected') : t('settings.disconnected')}
-                    </span>
                   </div>
                 )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-bambu-gray">
-                {t('settings.mqttDescription')}
-              </p>
+              </SettingsDashboardCard>
+            </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">{t('settings.enableMqtt')}</p>
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.mqttEnableDescription')}
-                  </p>
+            <SettingsDashboardCard id="card-mqtt" title={t('settings.mqttPublishing')} icon={Wifi}>
+              <p>{t('settings.mqttDescription')}</p>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-bambu-dark-tertiary px-3 py-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-white">{t('settings.enableMqtt')}</p>
+                  <p className="text-xs">{t('settings.mqttEnableDescription')}</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <Switch
-                    checked={localSettings.mqtt_enabled ?? false}
-                    onChange={(e) => updateSetting('mqtt_enabled', e.target.checked)}
-                  />
-                </label>
+                <Switch
+                  ariaLabel={t('settings.enableMqtt')}
+                  checked={localSettings.mqtt_enabled ?? false}
+                  onCheckedChange={(checked) => updateSetting('mqtt_enabled', checked)}
+                />
               </div>
 
               {localSettings.mqtt_enabled && (
-                <div className="space-y-3 pt-2 border-t border-bambu-dark-tertiary">
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.brokerHostname')}
-                    </label>
-                    <TextField
-                      type="text"
-                      value={localSettings.mqtt_broker ?? ''}
-                      onChange={(e) => updateSetting('mqtt_broker', e.target.value)}
-                      placeholder="mqtt.example.com or 192.168.1.100"
-                      className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    />
-                  </div>
+                <div className="space-y-4">
+                  <TextField
+                    label={t('settings.brokerHostname')}
+                    value={localSettings.mqtt_broker ?? ''}
+                    onChange={(e) => updateSetting('mqtt_broker', e.target.value)}
+                    placeholder="mqtt.example.com or 192.168.1.100"
+                  />
 
-                  <div className="flex items-end gap-4">
-                    <div className="flex-1">
-                      <label className="block text-sm text-bambu-gray mb-1">
-                        {t('settings.port')}
-                      </label>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="w-28">
                       <NumberField
+                        label={t('settings.port')}
                         min="1"
                         max="65535"
                         value={localSettings.mqtt_port ?? 1883}
                         onChange={(e) => updateSetting('mqtt_port', Math.min(65535, Math.max(1, parseInt(e.target.value) || 1883)))}
-                        className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                       />
                     </div>
-                    <div className="flex items-center gap-3 pb-2">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <Switch
-                          checked={localSettings.mqtt_use_tls ?? false}
-                          onChange={(e) => {
-                            const useTls = e.target.checked;
-                            updateSetting('mqtt_use_tls', useTls);
-                            // Auto-populate port based on TLS selection
-                            const currentPort = localSettings.mqtt_port ?? 1883;
-                            if (useTls && currentPort === 1883) {
-                              updateSetting('mqtt_port', 8883);
-                            } else if (!useTls && currentPort === 8883) {
-                              updateSetting('mqtt_port', 1883);
-                            }
-                          }}
-                        />
-                      </label>
-                      <span className="text-white text-sm">{t('settings.useTls')}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.usernameOptional')}
-                    </label>
-                    <TextField
-                      type="text"
-                      value={localSettings.mqtt_username ?? ''}
-                      onChange={(e) => updateSetting('mqtt_username', e.target.value)}
-                      placeholder={t('settings.leaveEmptyForAnonymous')}
-                      className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+                    <Switch
+                      label={t('settings.useTls')}
+                      checked={localSettings.mqtt_use_tls ?? false}
+                      onCheckedChange={(useTls) => {
+                        updateSetting('mqtt_use_tls', useTls);
+                        const currentPort = localSettings.mqtt_port ?? 1883;
+                        if (useTls && currentPort === 1883) {
+                          updateSetting('mqtt_port', 8883);
+                        } else if (!useTls && currentPort === 8883) {
+                          updateSetting('mqtt_port', 1883);
+                        }
+                      }}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t(secretsPendingReentry.includes('mqtt_password') ? 'common.secretReenter' : 'settings.passwordOptional')}
-                    </label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <TextField
+                      label={t('settings.usernameOptional')}
+                      value={localSettings.mqtt_username ?? ''}
+                      onChange={(e) => updateSetting('mqtt_username', e.target.value)}
+                      placeholder={t('settings.leaveEmptyForAnonymous')}
+                    />
                     <TextField
                       type="password"
+                      label={t(secretsPendingReentry.includes('mqtt_password') ? 'common.secretReenter' : 'settings.passwordOptional')}
                       value={localSettings.mqtt_password ?? ''}
                       onFocus={selectPlaceholderOnFocus}
                       onChange={(e) => updateSetting('mqtt_password', e.target.value)}
                       placeholder={t('settings.leaveEmptyForAnonymous')}
-                      className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">
-                      {t('settings.topicPrefix')}
-                    </label>
-                    <TextField
-                      type="text"
-                      value={localSettings.mqtt_topic_prefix ?? 'printops'}
-                      onChange={(e) => updateSetting('mqtt_topic_prefix', e.target.value)}
-                      placeholder="printops"
-                      className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    />
-                    <p className="text-xs text-bambu-gray mt-1">
+                  <TextField
+                    label={t('settings.topicPrefix')}
+                    helperText={<span className="wrap-anywhere text-table-secondary">
                       {t('settings.topicPrefixHint', { prefix: localSettings.mqtt_topic_prefix || 'printops' })}
-                    </p>
-                  </div>
+                    </span>}
+                    value={localSettings.mqtt_topic_prefix ?? 'printops'}
+                    onChange={(e) => updateSetting('mqtt_topic_prefix', e.target.value)}
+                    placeholder="printops"
+                  />
+                </div>
+              )}
 
-                  {/* Connection Info */}
-                  {mqttStatus && (
-                    <div className="pt-3 mt-3 border-t border-bambu-dark-tertiary">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className={`w-2 h-2 rounded-full ${mqttStatus.connected ? 'bg-green-400' : 'bg-red-400'}`} />
-                        <span className="text-bambu-gray">
-                          {mqttStatus.connected ? (
-                            <>{t('settings.mqttConnectedTo')} <span className="text-white">{mqttStatus.broker}:{mqttStatus.port}</span></>
-                          ) : (
-                            t('settings.spoolmanDisconnected')
-                          )}
-                        </span>
-                      </div>
-                    </div>
+              {mqttStatus && (mqttStatus.enabled || localSettings.mqtt_enabled) && (
+                <div className="flex flex-wrap items-center gap-2 border-t border-bambu-dark-tertiary pt-3">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${mqttStatus.connected ? 'bg-green-500' : 'bg-red-500'}`} aria-hidden="true" />
+                  <span className={mqttStatus.connected ? 'text-green-800 dark:text-green-300' : 'text-red-700 dark:text-red-300'}>
+                    {mqttStatus.connected ? t('settings.connected') : t('settings.disconnected')}
+                  </span>
+                  {mqttStatus.connected && localSettings.mqtt_enabled && (
+                    <span className="min-w-0 wrap-anywhere font-mono text-xs text-table-secondary">{mqttStatus.broker}:{mqttStatus.port}</span>
                   )}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </SettingsDashboardCard>
+          </div>
+          {hasPermission('printers:update') && <WLEDSettings />}
         </div>
-
-      </div>
       )}
 
-      {/* Home Assistant Test Connection Modal */}
       {haTestResult && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-bambu-dark-secondary rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              {haTestResult.success ? (
-                <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
-              ) : (
-                <XCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
-              )}
-              <h3 className="text-lg font-medium text-white">
-                {haTestResult.success ? t('settings.connectionSuccessful') : t('settings.connectionFailed')}
-              </h3>
-            </div>
-            <p className="text-bambu-gray mb-6">
+        <Modal
+          open
+          title={haTestResult.success ? t('settings.connectionSuccessful') : t('settings.connectionFailed')}
+          onClose={closeHaTest}
+          closeLabel={t('common.close')}
+          footer={<Button className="text-black!" onClick={closeHaTest}>{t('settings.ok')}</Button>}
+        >
+          <div className="flex items-start gap-3 text-sm text-table-secondary">
+            {haTestResult.success
+              ? <CheckCircle className="h-5 w-5 shrink-0 text-green-800 dark:text-green-300" aria-hidden="true" />
+              : <XCircle className="h-5 w-5 shrink-0 text-red-700 dark:text-red-300" aria-hidden="true" />}
+            <p className="min-w-0 wrap-anywhere">
               {haTestResult.success
                 ? haTestResult.message || t('settings.haConnectionSuccess')
                 : haTestResult.error || t('settings.haConnectionFailed')}
             </p>
-            <div className="flex justify-end">
-              <Button
-                variant="primary"
-                onClick={() => setHaTestResult(null)}
-              >
-                {t('settings.ok')}
-              </Button>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Smart Plugs Tab */}
       {activeTab === 'integrations' && integrationSubTab === 'smart-plugs' && (
-        <div id="card-plugs">
-          <div className="mb-6 flex justify-end">
-            <div className="flex items-center gap-2 shrink-0">
-              {smartPlugs && smartPlugs.filter(p => p.enabled).length > 1 && (
-                <>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="whitespace-nowrap"
-                    onClick={() => setShowBulkPlugConfirm('on')}
-                    disabled={bulkPlugActionMutation.isPending}
-                    title={t('settings.turnAllPlugsOn')}
-                  >
-                    {bulkPlugActionMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Power className="w-4 h-4 text-bambu-green" />
-                    )}
-                    {t('settings.allOn')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="whitespace-nowrap"
-                    onClick={() => setShowBulkPlugConfirm('off')}
-                    disabled={bulkPlugActionMutation.isPending}
-                    title={t('settings.turnAllPlugsOff')}
-                  >
-                    {bulkPlugActionMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <PowerOff className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    )}
-                    {t('settings.allOff')}
-                  </Button>
-                </>
-              )}
-              <Button
-                className="whitespace-nowrap"
-                onClick={() => {
-                  setEditingPlug(null);
-                  setShowPlugModal(true);
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                {t('settings.addSmartPlug')}
-              </Button>
-            </div>
+        <div id="card-plugs" className="min-w-0 space-y-6">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {smartPlugs && smartPlugs.filter(p => p.enabled).length > 1 && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="whitespace-nowrap"
+                  onClick={() => setShowBulkPlugConfirm('on')}
+                  disabled={bulkPlugActionMutation.isPending}
+                  title={t('settings.turnAllPlugsOn')}
+                >
+                  {bulkPlugActionMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Power className="w-4 h-4 text-bambu-green" />
+                  )}
+                  {t('settings.allOn')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="whitespace-nowrap"
+                  onClick={() => setShowBulkPlugConfirm('off')}
+                  disabled={bulkPlugActionMutation.isPending}
+                  title={t('settings.turnAllPlugsOff')}
+                >
+                  {bulkPlugActionMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <PowerOff className="w-4 h-4 text-red-600 dark:text-red-400" />
+                  )}
+                  {t('settings.allOff')}
+                </Button>
+              </>
+            )}
+            <Button
+              className="whitespace-nowrap text-black!"
+              onClick={() => {
+                setEditingPlug(null);
+                setShowPlugModal(true);
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              {t('settings.addSmartPlug')}
+            </Button>
           </div>
 
           {/* Energy Summary Card */}
           {smartPlugs && smartPlugs.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-                  {t('settings.energySummary')}
-                  {energyLoading && (
-                    <Loader2 className="w-4 h-4 animate-spin text-bambu-gray ml-2" />
-                  )}
-                </h3>
-              </CardHeader>
-              <CardContent>
-                {plugEnergySummary ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {/* Current Power */}
-                    <div className="bg-bambu-dark rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-bambu-gray text-xs mb-1">
-                        <Zap className="w-3 h-3" />
-                        {t('settings.currentPower')}
-                      </div>
-                      <div className="text-xl font-bold text-white">
-                        {plugEnergySummary.totalPower.toFixed(1)}
-                        <span className="text-sm font-normal text-bambu-gray ml-1">W</span>
-                      </div>
-                      <div className="text-xs text-bambu-gray mt-1">
-                        {t('settings.plugsOnline', { reachable: plugEnergySummary.reachableCount, total: plugEnergySummary.totalPlugs })}
-                      </div>
-                    </div>
-
-                    {/* Today */}
-                    <div className="bg-bambu-dark rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-bambu-gray text-xs mb-1">
-                        <Calendar className="w-3 h-3" />
-                        {t('settings.today')}
-                      </div>
-                      <div className="text-xl font-bold text-white">
-                        {plugEnergySummary.totalToday.toFixed(3)}
-                        <span className="text-sm font-normal text-bambu-gray ml-1">kWh</span>
-                      </div>
-                      {(localSettings?.energy_cost_per_kwh ?? 0) > 0 && (
-                        <div className="text-xs text-bambu-gray mt-1">
-                          ~{(plugEnergySummary.totalToday * (localSettings?.energy_cost_per_kwh ?? 0)).toFixed(2)} {displayCurrencySymbol}
+            <SettingsDashboardCard id="card-plug-energy" title={t('settings.energySummary')} icon={Zap}>
+              {plugEnergySummary ? (
+                <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+                  {[
+                    { label: t('settings.currentPower'), icon: Zap, value: plugEnergySummary.totalPower, unit: 'W', digits: 1,
+                      detail: t('settings.plugsOnline', { reachable: plugEnergySummary.reachableCount, total: plugEnergySummary.totalPlugs }) },
+                    { label: t('settings.today'), icon: Calendar, value: plugEnergySummary.totalToday, unit: 'kWh', digits: 3 },
+                    { label: t('settings.yesterday'), icon: TrendingUp, value: plugEnergySummary.totalYesterday, unit: 'kWh', digits: 3 },
+                    { label: t('settings.total'), icon: DollarSign, value: plugEnergySummary.totalLifetime, unit: 'kWh', digits: 1 },
+                  ].map(({ label, icon: Icon, value, unit, digits, detail }) => {
+                    const price = localSettings.energy_cost_per_kwh ?? 0;
+                    return (
+                      <div key={label} className="flex min-w-0 items-start gap-2.5">
+                        <div className="shrink-0 rounded-lg bg-bambu-dark p-2">
+                          <Icon className="h-4 w-4 text-accent-foreground" aria-hidden="true" />
                         </div>
-                      )}
-                    </div>
-
-                    {/* Yesterday */}
-                    <div className="bg-bambu-dark rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-bambu-gray text-xs mb-1">
-                        <TrendingUp className="w-3 h-3" />
-                        {t('settings.yesterday')}
-                      </div>
-                      <div className="text-xl font-bold text-white">
-                        {plugEnergySummary.totalYesterday.toFixed(3)}
-                        <span className="text-sm font-normal text-bambu-gray ml-1">kWh</span>
-                      </div>
-                      {(localSettings?.energy_cost_per_kwh ?? 0) > 0 && (
-                        <div className="text-xs text-bambu-gray mt-1">
-                          ~{(plugEnergySummary.totalYesterday * (localSettings?.energy_cost_per_kwh ?? 0)).toFixed(2)} {displayCurrencySymbol}
+                        <div className="min-w-0">
+                          <p className="wrap-break-word text-xs">{label}</p>
+                          <p className={`${dashboardStyles.metricValue} wrap-break-word tabular-nums`}>
+                            {value.toFixed(digits)} <span className="text-xs font-normal text-table-secondary">{unit}</span>
+                          </p>
+                          {detail && <p className="text-xs">{detail}</p>}
+                          {unit === 'kWh' && price > 0 && <p className="text-xs">~{(value * price).toFixed(2)} {displayCurrencySymbol}</p>}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Total Lifetime */}
-                    <div className="bg-bambu-dark rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-bambu-gray text-xs mb-1">
-                        <DollarSign className="w-3 h-3" />
-                        {t('settings.total')}
                       </div>
-                      <div className="text-xl font-bold text-white">
-                        {plugEnergySummary.totalLifetime.toFixed(1)}
-                        <span className="text-sm font-normal text-bambu-gray ml-1">kWh</span>
-                      </div>
-                      {(localSettings?.energy_cost_per_kwh ?? 0) > 0 && (
-                        <div className="text-xs text-bambu-gray mt-1">
-                          ~{(plugEnergySummary.totalLifetime * (localSettings?.energy_cost_per_kwh ?? 0)).toFixed(2)} {displayCurrencySymbol}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : !energyLoading ? (
-                  <p className="text-sm text-bambu-gray">
-                    {t('settings.enablePlugsForSummary')}
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
+                    );
+                  })}
+                </div>
+              ) : energyLoading ? (
+                <div role="status" aria-label={t('common.loading')}>
+                  <Loader2 className="h-5 w-5 animate-spin text-bambu-green" aria-hidden="true" />
+                </div>
+              ) : (
+                <p>{t('settings.enablePlugsForSummary')}</p>
+              )}
+            </SettingsDashboardCard>
           )}
 
           {plugsLoading ? (
@@ -3868,7 +3557,7 @@ export function SettingsPage() {
               <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />
             </div>
           ) : smartPlugs && smartPlugs.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 2xl:grid-cols-3">
               {smartPlugs.map((plug) => (
                 <SmartPlugCard
                   key={plug.id}
@@ -3881,37 +3570,18 @@ export function SettingsPage() {
               ))}
             </div>
           ) : (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center text-bambu-gray">
-                  <Plug className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                  <p className="text-lg font-medium text-white mb-2">{t('settings.noSmartPlugsTitle')}</p>
-                  <p className="text-sm mb-4">{t('settings.noSmartPlugsDescription')}</p>
-                  <Button
-                    onClick={() => {
-                      setEditingPlug(null);
-                      setShowPlugModal(true);
-                    }}
-                  >
-                    <Plus className="w-4 h-4" />
-                    {t('settings.addFirstSmartPlug')}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <SettingsDashboardCard id="card-plug-empty" title={t('settings.noSmartPlugsTitle')} icon={Plug}>
+              <p>{t('settings.noSmartPlugsDescription')}</p>
+            </SettingsDashboardCard>
           )}
 
           {/* Home Assistant sensors (#1148, #448). Sits under the plugs on the
               same tab: same integration, same credentials, but read-only —
               these are contacts and thermometers, not switches. */}
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Gauge className="w-5 h-5 text-bambu-green" />
-                {t('haSensors.sectionTitle')}
-              </h2>
+          <SettingsDashboardCard id="card-plug-sensors" title={t('haSensors.sectionTitle')} icon={Gauge}>
+            <div className="flex justify-end">
               <Button
-                className="whitespace-nowrap"
+                className="whitespace-nowrap text-black!"
                 disabled={!printers?.length}
                 onClick={() => {
                   setEditingHASensor(null);
@@ -3924,17 +3594,16 @@ export function SettingsPage() {
             </div>
 
             {haSensors && haSensors.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {haSensors.map((sensor) => {
                   const printer = printers?.find((p) => p.id === sensor.printer_id);
                   return (
-                    <Card key={sensor.id}>
-                      <CardContent className="py-4">
-                        <div className="flex items-start justify-between gap-2">
+                    <div key={sensor.id} className="min-w-0 rounded-lg border border-bambu-dark-tertiary p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="text-white font-medium truncate">{sensor.name}</div>
-                            <div className="text-xs text-bambu-gray truncate">{sensor.entity_id}</div>
-                            <div className="text-xs text-bambu-gray mt-1">
+                            <div className="wrap-break-word font-medium text-white">{sensor.name}</div>
+                            <div className="wrap-anywhere font-mono text-xs">{sensor.entity_id}</div>
+                            <div className="mt-1 text-xs">
                               {printer?.name ?? t('haSensors.unknownPrinter')}
                             </div>
                           </div>
@@ -3952,14 +3621,14 @@ export function SettingsPage() {
                         <div className="flex flex-wrap gap-1 mt-3">
                           {sensor.block_print && (
                             <>
-                              <span className="px-2 py-0.5 text-xs rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                              <span className="px-2 py-0.5 text-xs rounded bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">
                                 {t('haSensors.badgeBlocks')}
                               </span>
-                              <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-bambu-gray">
+                              <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-table-secondary">
                                 {t(`haSensors.failure.${sensor.failure_strategy}`)}
                               </span>
                               {sensor.kind === 'binary' && sensor.alert_state ? (
-                                <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-bambu-gray">
+                                <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-table-secondary">
                                   {t('haSensors.safeState', {
                                     state: t(`haSensors.states.${sensor.alert_state === 'on' ? 'off' : 'on'}`),
                                   })}
@@ -3968,55 +3637,38 @@ export function SettingsPage() {
                             </>
                           )}
                           {sensor.notify_on_alert && (
-                            <span className="px-2 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
+                            <span className="px-2 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300">
                               {t('haSensors.badgeNotifies')}
                             </span>
                           )}
                           {!sensor.show_on_printer_card && (
-                            <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-bambu-gray">
+                            <span className="px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-table-secondary">
                               {t('haSensors.badgeHidden')}
                             </span>
                           )}
                         </div>
-                      </CardContent>
-                    </Card>
+                    </div>
                   );
                 })}
               </div>
             ) : (
-              <Card>
-                <CardContent className="py-8">
-                  <div className="text-center text-bambu-gray">
-                    <Gauge className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">{t('haSensors.empty')}</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <p>{t('haSensors.empty')}</p>
             )}
-          </div>
+          </SettingsDashboardCard>
         </div>
       )}
 
       {/* Notifications Tab */}
-      {activeTab === 'integrations' && integrationSubTab === 'notifications' && localSettings && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Left Column: Providers */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2" id="card-providers">
-                <Bell className="w-5 h-5 text-bambu-green" />
-                {t('settings.providers')}
-              </h2>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setShowLogViewer(true)}
-                >
-                  <History className="w-4 h-4" />
+      {activeTab === 'integrations' && integrationSubTab === 'notifications' && (
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <div className="min-w-0 space-y-6">
+            <SettingsDashboardCard id="card-providers" title={t('settings.providers')} icon={Bell}>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setShowLogViewer(true)}>
+                  <History className="h-4 w-4" aria-hidden="true" />
                   {t('settings.log')}
                 </Button>
-                {notificationProviders && notificationProviders.length > 0 && (
+                {!!notificationProviders?.length && (
                   <Button
                     size="sm"
                     variant="secondary"
@@ -4026,600 +3678,514 @@ export function SettingsPage() {
                     }}
                     disabled={testAllMutation.isPending}
                   >
-                    {testAllMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
+                    {testAllMutation.isPending
+                      ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      : <Send className="h-4 w-4" aria-hidden="true" />}
                     {t('settings.testAll')}
                   </Button>
                 )}
                 <Button
                   size="sm"
+                  className="text-black!"
                   onClick={() => {
                     setEditingProvider(null);
                     setShowNotificationModal(true);
                   }}
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="h-4 w-4" aria-hidden="true" />
                   {t('settings.addNotificationProvider')}
                 </Button>
               </div>
-            </div>
 
-            <PrintNotificationSettings
-              pauseWarningMinutes={localSettings.pause_warning_minutes ?? 5}
-              onPauseWarningMinutesChange={(value) => updateSetting('pause_warning_minutes', value)}
-            />
+              <PrintNotificationSettings
+                pauseWarningMinutes={localSettings.pause_warning_minutes ?? 5}
+                onPauseWarningMinutesChange={(value) => updateSetting('pause_warning_minutes', value)}
+              />
 
-            {/* User Notifications Toggle */}
-            <Card className="mb-4">
-              <CardContent className="py-3">
-                <div className={`flex items-center justify-between ${!advancedAuthStatus?.advanced_auth_enabled ? 'opacity-50' : ''}`}>
-                  <div>
-                    <p className="text-white text-sm font-medium">{t('settings.userNotificationsEnabled')}</p>
-                    <p className="text-xs text-bambu-gray">
-                      {!advancedAuthStatus?.advanced_auth_enabled
-                        ? t('settings.userNotificationsDisabledHint')
-                        : t('settings.userNotificationsEnabledDescription')}
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <Switch
-                      checked={localSettings.user_notifications_enabled ?? true}
-                      disabled={!advancedAuthStatus?.advanced_auth_enabled}
-                      onChange={(e) => updateSetting('user_notifications_enabled', e.target.checked)}
-                    />
-                  </label>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Test All Results */}
-            {testAllResult && (
-              <Card className="mb-4">
-                <CardContent className="py-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-white">{t('settings.testResults')}</span>
-                    <Button variant="unstyled"
-                      onClick={() => setTestAllResult(null)}
-                      className="text-bambu-gray hover:text-white text-xs"
-                    >
+              {testAllResult && (
+                <div className="space-y-2 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/30 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-white">{t('settings.testResults')}</p>
+                    <Button size="sm" variant="ghost" onClick={() => setTestAllResult(null)}>
                       {t('common.dismiss')}
                     </Button>
                   </div>
-                  <div className="flex items-center gap-4 text-sm mb-2">
-                    <span className="flex items-center gap-1 text-bambu-green">
-                      <CheckCircle className="w-4 h-4" />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex items-center gap-1 text-green-800 dark:text-green-300">
+                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
                       {t('settings.testPassedCount', { count: testAllResult.success })}
                     </span>
                     {testAllResult.failed > 0 && (
-                      <span className="flex items-center gap-1 text-red-700 dark:text-red-400">
-                        <XCircle className="w-4 h-4" />
+                      <span className="flex items-center gap-1 text-red-700 dark:text-red-300">
+                        <XCircle className="h-4 w-4" aria-hidden="true" />
                         {t('settings.testFailedCount', { count: testAllResult.failed })}
                       </span>
                     )}
                   </div>
-                  {testAllResult.results.filter(r => !r.success).length > 0 && (
-                    <div className="space-y-1 mt-2 pt-2 border-t border-bambu-dark-tertiary">
-                      {testAllResult.results.filter(r => !r.success).map((result) => (
-                        <div key={result.provider_id} className="text-xs text-red-700 dark:text-red-400">
+                  {testAllResult.failed > 0 && (
+                    <ul className="space-y-1 border-t border-bambu-dark-tertiary pt-2">
+                      {testAllResult.results.filter(result => !result.success).map(result => (
+                        <li key={result.provider_id} className="wrap-anywhere text-xs text-red-700 dark:text-red-300">
                           <span className="font-medium">{result.provider_name}:</span> {result.message}
-                        </div>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   )}
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              )}
 
-            {providersLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
-              </div>
-            ) : notificationProviders && notificationProviders.length > 0 ? (
-              <div className="space-y-3">
-                {notificationProviders.map((provider) => (
-                  <NotificationProviderCard
-                    key={provider.id}
-                    provider={provider}
-                    onEdit={(p) => {
-                      setEditingProvider(p);
-                      setShowNotificationModal(true);
-                    }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-8">
-                  <div className="text-center text-bambu-gray">
-                    <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm font-medium text-white mb-2">{t('settings.noProvidersTitle')}</p>
-                    <p className="text-xs mb-3">{t('settings.noProvidersDescription')}</p>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setEditingProvider(null);
+              {providersLoading ? (
+                <div role="status" aria-label={t('common.loading')} className="flex justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-bambu-green" aria-hidden="true" />
+                </div>
+              ) : notificationProviders?.length ? (
+                <div className="space-y-3">
+                  {notificationProviders.map(provider => (
+                    <NotificationProviderCard
+                      key={provider.id}
+                      provider={provider}
+                      onEdit={(item) => {
+                        setEditingProvider(item);
                         setShowNotificationModal(true);
                       }}
-                    >
-                      <Plus className="w-4 h-4" />
-                      {t('settings.addProvider')}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1 rounded-lg border border-bambu-dark-tertiary px-4 py-5 text-center">
+                  <p className="font-medium text-white">{t('settings.noProvidersTitle')}</p>
+                  <p className="text-xs">{t('settings.noProvidersDescription')}</p>
+                </div>
+              )}
+            </SettingsDashboardCard>
+
+            <SettingsDashboardCard id="card-user-notifications" title={t('settings.userNotificationsEnabled')} icon={Users}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0">
+                  {advancedAuthStatus?.advanced_auth_enabled
+                    ? t('settings.userNotificationsEnabledDescription')
+                    : t('settings.userNotificationsDisabledHint')}
+                </p>
+                <Switch
+                  ariaLabel={t('settings.userNotificationsEnabled')}
+                  checked={localSettings.user_notifications_enabled ?? true}
+                  disabled={!advancedAuthStatus?.advanced_auth_enabled}
+                  onCheckedChange={(checked) => updateSetting('user_notifications_enabled', checked)}
+                />
+              </div>
+            </SettingsDashboardCard>
           </div>
 
-          {/* Right Column: Templates */}
-          <div>
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-2" id="card-templates">
-              <FileText className="w-5 h-5 text-bambu-green" />
-              {t('settings.messageTemplates')}
-            </h2>
-            <p className="text-sm text-bambu-gray mb-3">
-              {t('settings.messageTemplatesDescription')}
-            </p>
-
-            {/* Filter input */}
-            <div className="relative mb-3">
-              <Search className="w-4 h-4 text-bambu-gray absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <SettingsDashboardCard id="card-templates" title={t('settings.messageTemplates')} icon={FileText}>
+            <p>{t('settings.messageTemplatesDescription')}</p>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-table-secondary" aria-hidden="true" />
               <TextField
                 type="text"
                 value={templateFilter}
                 onChange={(e) => setTemplateFilter(e.target.value)}
                 placeholder={t('settings.filterTemplates', 'Filter templates…')}
-                className="w-full pl-9 pr-8 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+                aria-label={t('settings.filterTemplates', 'Filter templates…')}
+                className="pl-9 pr-9 text-sm"
               />
               {templateFilter && (
-                <Button variant="unstyled"
+                <Button
+                  variant="unstyled"
                   onClick={() => setTemplateFilter('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-bambu-gray hover:text-white"
-                  aria-label={t("orders.runtimeInterface.clearFilter")}
+                  className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-table-secondary hover:bg-secondary-action-hover hover:text-white"
+                  aria-label={t('orders.runtimeInterface.clearFilter')}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="h-4 w-4" aria-hidden="true" />
                 </Button>
               )}
             </div>
 
             {templatesLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
+              <div role="status" aria-label={t('common.loading')} className="flex justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-bambu-green" aria-hidden="true" />
               </div>
-            ) : notificationTemplates && notificationTemplates.length > 0 ? (
+            ) : notificationTemplates?.length ? (
               (() => {
                 const filter = templateFilter.trim().toLowerCase();
-                const filtered = [...notificationTemplates]
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .filter(tpl =>
-                    !filter ||
-                    tpl.name.toLowerCase().includes(filter) ||
-                    (tpl.title_template || '').toLowerCase().includes(filter)
-                  );
-                if (filtered.length === 0) {
-                  return (
-                    <p className="text-sm text-bambu-gray italic text-center py-6">
-                      {t('settings.noTemplatesMatch', 'No templates match your filter.')}
-                    </p>
-                  );
-                }
-                return (
-              <div className="space-y-2">
-                {filtered.map((template) => (
-                  <Card
-                    key={template.id}
-                    className="cursor-pointer hover:border-bambu-green/50 transition-colors"
-                    onClick={() => setEditingTemplate(template)}
-                  >
-                    <CardContent className="py-2.5 px-3">
-                      <div className="flex items-center justify-between">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-white font-medium text-sm truncate">{template.name}</p>
-                          <p className="text-bambu-gray text-xs truncate mt-0.5">
-                            {template.title_template}
-                          </p>
-                        </div>
-                        <Button variant="unstyled"
-                          className="p-1.5 hover:bg-bambu-dark-tertiary rounded transition-colors shrink-0 ml-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTemplate(template);
-                          }}
+                const filtered = notificationTemplates
+                  .filter(template => template.name.toLowerCase().includes(filter) || (template.title_template ?? '').toLowerCase().includes(filter))
+                  .sort((a, b) => a.name.localeCompare(b.name));
+                return filtered.length ? (
+                  <ul className="divide-y divide-bambu-dark-tertiary rounded-lg border border-bambu-dark-tertiary">
+                    {filtered.map(template => (
+                      <li key={template.id}>
+                        <Button
+                          variant="unstyled"
+                          onClick={() => setEditingTemplate(template)}
+                          className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-secondary-action-hover focus-visible:-outline-offset-2"
                         >
-                          <Edit2 className="w-4 h-4 text-bambu-gray" />
+                          <span className="min-w-0 space-y-0.5">
+                            <span className="block wrap-break-word font-medium text-white">{template.name}</span>
+                            <span className="block wrap-anywhere text-xs text-table-secondary">{template.title_template}</span>
+                          </span>
+                          <Edit2 className="h-4 w-4 shrink-0 text-table-secondary" aria-hidden="true" />
                         </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-                );
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p role="status">{t('settings.noTemplatesMatch', 'No templates match your filter.')}</p>;
               })()
             ) : (
-              <Card>
-                <CardContent className="py-8">
-                  <div className="text-center text-bambu-gray">
-                    <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">{t('settings.noTemplatesAvailable')}</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <p>{t('settings.noTemplatesAvailable')}</p>
             )}
-          </div>
-      </div>
-      )}
-
-      {activeTab === 'integrations' && integrationSubTab === 'webhooks' && hasPermission('api_keys:read') && (
-        <div className="max-w-4xl">
-          {webhookDocumentationCard}
+          </SettingsDashboardCard>
         </div>
       )}
 
-      {activeTab === 'integrations' && integrationSubTab === 'api-metrics' && (
-        <div className={hasPermission('api_keys:read')
-          ? 'grid grid-cols-1 xl:grid-cols-2 gap-4 items-start'
-          : 'space-y-4'}>
-          <div className="space-y-4">
-            {/* API key management is admin-gated; camera tokens stay visible
-                to users who can self-manage stable camera stream URLs. */}
-            {hasPermission('api_keys:read') && <>
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div className="flex-1">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2" id="card-createapi">
-                  <Key className="w-5 h-5 text-bambu-green" />
-                  {t('settings.apiKeys')}
-                </h2>
-                <p className="text-sm text-bambu-gray mt-1">
-                  {t('settings.apiKeysDescription')}
-                </p>
-              </div>
-              <Button size="sm" onClick={() => setShowCreateAPIKey(true)} className="flex-shrink-0">
-                <Plus className="w-4 h-4" />
-                {t('settings.createKey')}
-              </Button>
-            </div>
+      {activeTab === 'integrations' && integrationSubTab === 'webhooks' && canReadApiKeys && (
+        <div className="max-w-5xl">
+          <WebhookEndpoints />
+        </div>
+      )}
 
-            {/* Created Key Display */}
-            {createdAPIKey && (
-              <Card className="mb-6 border-bambu-green">
-                <CardContent className="py-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-bambu-green flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-white font-medium mb-1">{t('settings.apiKeyCreated')}</p>
-                      <p className="text-sm text-bambu-gray mb-2">
-                        {t('settings.apiKeyCopyWarning')}
-                      </p>
-                      <div className="flex items-center gap-2 bg-bambu-dark rounded-lg p-2">
-                        <code className="flex-1 text-sm text-bambu-green font-mono break-all">
-                          {createdAPIKey}
-                        </code>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              if (navigator.clipboard && navigator.clipboard.writeText) {
-                                await navigator.clipboard.writeText(createdAPIKey);
-                              } else {
-                                const textArea = document.createElement('textarea');
-                                textArea.value = createdAPIKey;
-                                textArea.style.position = 'fixed';
-                                textArea.style.left = '-999999px';
-                                document.body.appendChild(textArea);
-                                textArea.select();
-                                document.execCommand('copy');
-                                document.body.removeChild(textArea);
-                              }
-                              showToast(t('settings.toast.keyCopied'));
-                            } catch {
-                              showToast(t('settings.toast.copyFailed'), 'error');
-                            }
-                          }}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="flex gap-2 mt-3">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            setTestApiKey(createdAPIKey);
-                            showToast(t('settings.toast.keyAddedToBrowser'));
-                          }}
-                        >
-                          {t('settings.useInApiBrowser')}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setShowApiKeyQR(true)}
-                        >
-                          <QrCode className="w-4 h-4" />
-                          {t('settings.apiKeyQrButton')}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            setShowApiKeyQR(false);
-                            setCreatedAPIKey(null);
-                          }}
-                        >
-                          {t('common.dismiss')}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+      {activeTab === 'integrations' && integrationSubTab === 'api-metrics' && (canReadApiKeys || isAdmin) && (
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
+          <div className="min-w-0 space-y-6">
+            {canReadApiKeys && (
+              <SettingsDashboardCard id="card-createapi" title={t('settings.apiKeys')} icon={Key}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p>{t('settings.apiKeysDescription')}</p>
+                  <Button size="sm" onClick={() => setShowCreateAPIKey(true)}>
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    {t('settings.createKey')}
+                  </Button>
+                </div>
 
-            {/* QR code with base URL + key for mobile clients. Prefer the
-                configured External URL; fall back to the current origin. */}
-            {showApiKeyQR && createdAPIKey && (
-              <ApiKeyQRCodeModal
-                apiKey={createdAPIKey}
-                baseUrl={localSettings?.external_url || undefined}
-                onClose={() => setShowApiKeyQR(false)}
-              />
-            )}
-
-            {/* Create Key Form */}
-            {showCreateAPIKey && (
-              <Card className="mb-6">
-                <CardHeader>
-                  <h3 className="text-base font-semibold text-white">{t('settings.createNewApiKey')}</h3>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-1">{t('settings.keyName')}</label>
-                    <TextField
-                      type="text"
-                      value={newAPIKeyName}
-                      onChange={(e) => setNewAPIKeyName(e.target.value)}
-                      placeholder={t('settings.keyNamePlaceholder')}
-                      className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-bambu-gray mb-2">{t('common.permissions')}</label>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_read_status}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_read_status: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.readStatus')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.readStatusDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_queue}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_queue: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.manageQueue')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.manageQueueDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_control_printer}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_control_printer: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.controlPrinter')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.controlPrinterDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_manage_library}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_library: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.manageLibrary')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.manageLibraryDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_manage_inventory}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_inventory: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.manageInventory')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.manageInventoryDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_manage_maintenance}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_maintenance: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.manageMaintenance')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.manageMaintenanceDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_manage_archives}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_archives: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.manageArchives')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.manageArchivesDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_manage_projects}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_projects: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.manageProjects')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.manageProjectsDescription')}</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_render_documents}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_render_documents: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.renderDocuments', 'Render documents')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.renderDocumentsDescription', 'Read layouts and immutable evidence, render PDFs, export artifacts and inspect the render audit.')}</p>
-                        </div>
-                      </label>
-                      <APIKeyScopeControl checked={newAPIKeyPermissions.can_access_cloud} onChange={(checked) => setNewAPIKeyPermissions(prev => ({ ...prev, can_access_cloud: checked }))} title={t('settings.cloudAccess')} description={t('settings.cloudAccessDescription')} />
-                      <APIKeyScopeControl checked={newAPIKeyPermissions.can_send_notifications} onChange={(checked) => setNewAPIKeyPermissions(prev => ({ ...prev, can_send_notifications: checked }))} title={t('appNotifications.label')} description={t('appNotifications.keyDescription')} />
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <Checkbox
-                          checked={newAPIKeyPermissions.can_update_energy_cost}
-                          onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_update_energy_cost: e.target.checked }))}
-                        />
-                        <div>
-                          <span className="text-white">{t('settings.updateEnergyCost')}</span>
-                          <p className="text-xs text-bambu-gray">{t('settings.updateEnergyCostDescription')}</p>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button
-                      onClick={() => createAPIKeyMutation.mutate({
-                        name: newAPIKeyName || t('settings.unnamedKey'),
-                        ...newAPIKeyPermissions,
-                      })}
-                      disabled={createAPIKeyMutation.isPending}
-                    >
-                      {createAPIKeyMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                      {t('settings.createKey')}
-                    </Button>
-                    <Button variant="secondary" onClick={() => setShowCreateAPIKey(false)}>
-                      {t('common.cancel')}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Existing Keys List */}
-            {apiKeysLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />
-              </div>
-            ) : apiKeys && apiKeys.length > 0 ? (
-              <div className="space-y-3">
-                {apiKeys.map((key) => (
-                  <Card key={key.id}>
-                    <CardContent className="py-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Key className={`w-5 h-5 ${key.enabled ? 'text-bambu-green' : 'text-bambu-gray'}`} />
-                          <div>
-                            <p className="text-white font-medium">{key.name}</p>
-                            <p className="text-xs text-bambu-gray">
-                              {key.key_prefix}••••••••
-                              {key.last_used && ` · ${t('settings.lastUsed')}: ${formatDateOnly(key.last_used)}`}
-                            </p>
+                {/* Created Key Display */}
+                {createdAPIKey && (
+                  <div className="rounded-lg border border-bambu-green p-3">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="w-5 h-5 text-bambu-green flex-shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="mb-1 font-medium text-white">{t('settings.apiKeyCreated')}</p>
+                          <p className="mb-2">
+                            {t('settings.apiKeyCopyWarning')}
+                          </p>
+                          <div className="flex items-center gap-2 bg-bambu-dark rounded-lg p-2">
+                            <code className="flex-1 text-sm text-bambu-green font-mono break-all">
+                              {createdAPIKey}
+                            </code>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    await navigator.clipboard.writeText(createdAPIKey);
+                                  } else {
+                                    const textArea = document.createElement('textarea');
+                                    textArea.value = createdAPIKey;
+                                    textArea.style.position = 'fixed';
+                                    textArea.style.left = '-999999px';
+                                    document.body.appendChild(textArea);
+                                    textArea.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(textArea);
+                                  }
+                                  showToast(t('settings.toast.keyCopied'));
+                                } catch {
+                                  showToast(t('settings.toast.copyFailed'), 'error');
+                                }
+                              }}
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setTestApiKey(createdAPIKey);
+                                showToast(t('settings.toast.keyAddedToBrowser'));
+                              }}
+                            >
+                              {t('settings.useInApiBrowser')}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setShowApiKeyQR(true)}
+                            >
+                              <QrCode className="w-4 h-4" />
+                              {t('settings.apiKeyQrButton')}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setShowApiKeyQR(false);
+                                setCreatedAPIKey(null);
+                              }}
+                            >
+                              {t('common.dismiss')}
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1 text-xs flex-wrap justify-end">
-                            {key.can_read_status && (
-                              <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded">{t('settings.read')}</span>
-                            )}
-                            {key.can_queue && (
-                              <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded">{t('queue.title')}</span>
-                            )}
-                            {key.can_control_printer && (
-                              <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 rounded">{t('settings.control')}</span>
-                            )}
-                            {key.can_manage_library && (
-                              <span className="px-1.5 py-0.5 bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 rounded">{t('settings.libraryBadge')}</span>
-                            )}
-                            {key.can_manage_inventory && (
-                              <span className="px-1.5 py-0.5 bg-pink-100 dark:bg-pink-500/20 text-pink-700 dark:text-pink-400 rounded">{t('settings.inventoryBadge')}</span>
-                            )}
-                            {key.can_manage_maintenance && (
-                              <span className="px-1.5 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400 rounded">{t('settings.maintenanceBadge')}</span>
-                            )}
-                            {key.can_manage_archives && (
-                              <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 rounded">{t('settings.archivesBadge')}</span>
-                            )}
-                            {key.can_manage_projects && (
-                              <span className="px-1.5 py-0.5 bg-lime-100 dark:bg-lime-500/20 text-lime-700 dark:text-lime-400 rounded">{t('settings.projectsBadge')}</span>
-                            )}
-                            {key.can_render_documents && (
-                              <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded">{t('settings.documentsBadge', 'Documents')}</span>
-                            )}
-                            {key.can_access_cloud && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 rounded">{t('settings.cloudBadge', 'Cloud')}</span>
-                            )}
-                            {key.can_update_energy_cost && (
-                              <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded">{t('settings.energyCostBadge')}</span>
-                            )}
-                            {key.user_id === null && (
-                              <span
-                                className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded"
-                                title={t('settings.legacyKeyTooltip', 'Created before per-user ownership; recreate to use cloud access')}
+                      </div>
+                  </div>
+                )}
+
+                {/* QR code with base URL + key for mobile clients. Prefer the
+                    configured External URL; fall back to the current origin. */}
+                {showApiKeyQR && createdAPIKey && (
+                  <ApiKeyQRCodeModal
+                    apiKey={createdAPIKey}
+                    baseUrl={localSettings?.external_url || undefined}
+                    onClose={() => setShowApiKeyQR(false)}
+                  />
+                )}
+
+                {/* Create Key Form */}
+                {showCreateAPIKey && (
+                  <div className="space-y-4 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/30 p-3">
+                      <h3 className={dashboardStyles.cardTitle}>{t('settings.createNewApiKey')}</h3>
+                      <TextField
+                        label={t('settings.keyName')}
+                        value={newAPIKeyName}
+                        onChange={(e) => setNewAPIKeyName(e.target.value)}
+                        placeholder={t('settings.keyNamePlaceholder')}
+                        className="text-sm"
+                      />
+                      <fieldset className="min-w-0">
+                        <legend className="mb-2 font-medium text-white">{t('common.permissions')}</legend>
+                        <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_read_status}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_read_status: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.readStatus')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.readStatusDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_queue}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_queue: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.manageQueue')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.manageQueueDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_control_printer}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_control_printer: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.controlPrinter')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.controlPrinterDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_manage_library}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_library: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.manageLibrary')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.manageLibraryDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_manage_inventory}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_inventory: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.manageInventory')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.manageInventoryDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_manage_maintenance}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_maintenance: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.manageMaintenance')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.manageMaintenanceDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_manage_archives}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_archives: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.manageArchives')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.manageArchivesDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_manage_projects}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_manage_projects: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.manageProjects')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.manageProjectsDescription')}</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_render_documents}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_render_documents: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.renderDocuments', 'Render documents')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.renderDocumentsDescription', 'Read layouts and immutable evidence, render PDFs, export artifacts and inspect the render audit.')}</p>
+                            </div>
+                          </label>
+                          <APIKeyScopeControl checked={newAPIKeyPermissions.can_access_cloud} onChange={(checked) => setNewAPIKeyPermissions(prev => ({ ...prev, can_access_cloud: checked }))} title={t('settings.cloudAccess')} description={t('settings.cloudAccessDescription')} />
+                          <APIKeyScopeControl checked={newAPIKeyPermissions.can_send_notifications} onChange={(checked) => setNewAPIKeyPermissions(prev => ({ ...prev, can_send_notifications: checked }))} title={t('appNotifications.label')} description={t('appNotifications.keyDescription')} />
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={newAPIKeyPermissions.can_update_energy_cost}
+                              onChange={(e) => setNewAPIKeyPermissions(prev => ({ ...prev, can_update_energy_cost: e.target.checked }))}
+                            />
+                            <div>
+                              <span className="text-white">{t('settings.updateEnergyCost')}</span>
+                              <p className="text-xs text-bambu-gray">{t('settings.updateEnergyCostDescription')}</p>
+                            </div>
+                          </label>
+                        </div>
+                      </fieldset>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          onClick={() => createAPIKeyMutation.mutate({
+                            name: newAPIKeyName || t('settings.unnamedKey'),
+                            ...newAPIKeyPermissions,
+                          })}
+                          disabled={createAPIKeyMutation.isPending}
+                        >
+                          {createAPIKeyMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                          {t('settings.createKey')}
+                        </Button>
+                        <Button variant="secondary" onClick={() => setShowCreateAPIKey(false)}>
+                          {t('common.cancel')}
+                        </Button>
+                      </div>
+                  </div>
+                )}
+
+                {/* Existing Keys List */}
+                {apiKeysLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-8 h-8 text-bambu-green animate-spin" />
+                  </div>
+                ) : apiKeys && apiKeys.length > 0 ? (
+                  <ul className="divide-y divide-bambu-dark-tertiary rounded-lg border border-bambu-dark-tertiary">
+                    {apiKeys.map((key) => (
+                      <li key={key.id} className="min-w-0 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <Key className={`h-4 w-4 shrink-0 ${key.enabled ? 'text-bambu-green' : 'text-table-secondary'}`} aria-hidden="true" />
+                              <div className="min-w-0">
+                                <p className="wrap-break-word font-medium text-white">{key.name}</p>
+                                <p className="wrap-break-word text-xs">
+                                  <code>{key.key_prefix}••••••••</code>
+                                  {key.last_used && ` · ${t('settings.lastUsed')}: ${formatDateOnly(key.last_used)}`}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              <div className="flex flex-wrap gap-1 text-xs">
+                                {key.can_read_status && (
+                                  <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded">{t('settings.read')}</span>
+                                )}
+                                {key.can_queue && (
+                                  <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded">{t('queue.title')}</span>
+                                )}
+                                {key.can_control_printer && (
+                                  <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 rounded">{t('settings.control')}</span>
+                                )}
+                                {key.can_manage_library && (
+                                  <span className="px-1.5 py-0.5 bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 rounded">{t('settings.libraryBadge')}</span>
+                                )}
+                                {key.can_manage_inventory && (
+                                  <span className="px-1.5 py-0.5 bg-pink-100 dark:bg-pink-500/20 text-pink-700 dark:text-pink-400 rounded">{t('settings.inventoryBadge')}</span>
+                                )}
+                                {key.can_manage_maintenance && (
+                                  <span className="px-1.5 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400 rounded">{t('settings.maintenanceBadge')}</span>
+                                )}
+                                {key.can_manage_archives && (
+                                  <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 rounded">{t('settings.archivesBadge')}</span>
+                                )}
+                                {key.can_manage_projects && (
+                                  <span className="px-1.5 py-0.5 bg-lime-100 dark:bg-lime-500/20 text-lime-700 dark:text-lime-400 rounded">{t('settings.projectsBadge')}</span>
+                                )}
+                                {key.can_render_documents && (
+                                  <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded">{t('settings.documentsBadge', 'Documents')}</span>
+                                )}
+                                {key.can_access_cloud && (
+                                  <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 rounded">{t('settings.cloudBadge', 'Cloud')}</span>
+                                )}
+                                {key.can_update_energy_cost && (
+                                  <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded">{t('settings.energyCostBadge')}</span>
+                                )}
+                                {key.user_id === null && (
+                                  <span
+                                    className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded"
+                                    title={t('settings.legacyKeyTooltip', 'Created before per-user ownership; recreate to use cloud access')}
+                                  >
+                                    {t('settings.legacyKey', 'Legacy')}
+                                  </span>
+                                )}
+                              </div>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setShowDeleteAPIKeyConfirm(key.id)}
+                                aria-label={`${t('common.delete')}: ${key.name}`}
                               >
-                                {t('settings.legacyKey', 'Legacy')}
-                              </span>
-                            )}
+                                <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                              </Button>
+                            </div>
                           </div>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setShowDeleteAPIKeyConfirm(key.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          </Button>
-                        </div>
-                      </div><AppNotificationKeyToggle apiKey={key} />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center text-bambu-gray">
-                    <Key className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                    <p className="text-lg font-medium text-white mb-2">{t('settings.apiKeysEmptyTitle')}</p>
-                    <p className="text-sm mb-4">{t('settings.apiKeysEmptyDescription')}</p>
-                    <Button onClick={() => setShowCreateAPIKey(true)}>
-                      <Plus className="w-4 h-4" />
+                        <AppNotificationKeyToggle apiKey={key} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="rounded-lg border border-bambu-dark-tertiary px-4 py-6 text-center">
+                    <Key className="mx-auto mb-2 h-6 w-6 text-table-secondary" aria-hidden="true" />
+                    <p className="mb-1 font-medium text-white">{t('settings.apiKeysEmptyTitle')}</p>
+                    <p className="mb-3">{t('settings.apiKeysEmptyDescription')}</p>
+                    <Button size="sm" variant="secondary" onClick={() => setShowCreateAPIKey(true)}>
+                      <Plus className="h-4 w-4" aria-hidden="true" />
                       {t('settings.createFirstKey')}
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                )}
+
+              </SettingsDashboardCard>
             )}
-
-            </>}
             <ConnectedAppsSettings />
-            {prometheusCard}
           </div>
-
-          {hasPermission('api_keys:read') && (
-            <div className="space-y-4">
-              {apiBrowserCard}
-            </div>
-          )}
+          <div className="min-w-0 space-y-6">
+            {prometheusCard}
+            {apiBrowserCard}
+          </div>
         </div>
+      )}
+
+      {activeTab === 'integrations' && integrationSubTab === 'api-metrics' && !canReadApiKeys && !isAdmin && (
+          <p className={`${dashboardStyles.card} ${dashboardStyles.cardBody} max-w-2xl text-sm text-table-secondary`}>
+            {t('settings.apiMetricsNoAccess')}
+          </p>
       )}
 
       {activeTab === 'printers-production' && printerProductionSubTab === 'devices' && (
@@ -5536,21 +5102,35 @@ export function SettingsPage() {
         />
       )}
 
-      {/* Confirm Modal: Clear Local Storage */}
       {showClearStorageConfirm && (
-        <ConfirmModal
+        <Modal
+          open
           title={t('settings.resetUiPreferences')}
-          message={t('settings.resetUiPreferencesMessage')}
-          confirmText={t('settings.resetPreferences')}
-          variant="default"
-          onConfirm={() => {
-            setShowClearStorageConfirm(false);
-            localStorage.clear();
-            showToast(t('settings.toast.uiPreferencesReset'), 'success');
-            setTimeout(() => window.location.reload(), 1000);
-          }}
-          onCancel={() => setShowClearStorageConfirm(false)}
-        />
+          closeLabel={t('common.close')}
+          onClose={() => setShowClearStorageConfirm(false)}
+          initialFocusRef={cancelUiResetRef}
+          className="max-w-md"
+          footer={(
+            <>
+              <Button ref={cancelUiResetRef} variant="secondary" onClick={() => setShowClearStorageConfirm(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                className="text-black!"
+                onClick={() => {
+                  setShowClearStorageConfirm(false);
+                  localStorage.clear();
+                  showToast(t('settings.toast.uiPreferencesReset'), 'success');
+                  setTimeout(() => window.location.reload(), 1000);
+                }}
+              >
+                {t('settings.resetPreferences')}
+              </Button>
+            </>
+          )}
+        >
+          <p className="whitespace-pre-line text-sm text-table-secondary">{t('settings.resetUiPreferencesMessage')}</p>
+        </Modal>
       )}
 
       {/* Confirm Modal: Bulk Plug Action */}
@@ -5571,55 +5151,37 @@ export function SettingsPage() {
 
       {/* Release Notes Modal */}
       {showReleaseNotes && updateCheck?.release_notes && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowReleaseNotes(false)}
-        >
-          <Card className="w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-            <CardHeader className="flex flex-row items-center justify-between shrink-0">
-              <div>
-                <h2 className="text-lg font-semibold text-white">
-                  {t("orders.runtimeInterface.releaseNotesV")}{updateCheck.latest_version}
-                </h2>
-                {updateCheck.release_name && updateCheck.release_name !== updateCheck.latest_version && (
-                  <p className="text-sm text-bambu-gray">{updateCheck.release_name}</p>
-                )}
-              </div>
-              <Button variant="unstyled"
-                onClick={() => setShowReleaseNotes(false)}
-                className="p-1 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="overflow-y-auto flex-1">
-              <pre className="text-sm text-bambu-gray whitespace-pre-wrap font-sans">
-                {updateCheck.release_notes}
-              </pre>
-            </CardContent>
-            <div className="p-4 border-t border-bambu-dark-tertiary shrink-0 flex gap-2">
+        <Modal
+          open
+          onClose={() => setShowReleaseNotes(false)}
+          closeLabel={t('common.close')}
+          title={`${t('orders.runtimeInterface.releaseNotesV')}${updateCheck.latest_version}`}
+          description={updateCheck.release_name && updateCheck.release_name !== updateCheck.latest_version
+            ? <span className="text-table-secondary">{updateCheck.release_name}</span>
+            : undefined}
+          footer={(
+            <>
               {updateCheck.release_url && (
                 <a
                   href={updateCheck.release_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-bambu-dark-tertiary px-4 py-2 text-sm font-medium text-white hover:bg-secondary-action-hover md:min-h-[38px]"
                 >
-                  <Button variant="secondary" className="w-full">
-                    <ExternalLink className="w-4 h-4" />
-                    {t("nav.viewOnGithub")}
-                  </Button>
+                  <ExternalLink className="h-4 w-4 shrink-0" />
+                  {t('nav.viewOnGithub')}
                 </a>
               )}
-              <Button
-                onClick={() => setShowReleaseNotes(false)}
-                className="flex-1"
-              >
-                {t("common.close")}
+              <Button variant="secondary" onClick={() => setShowReleaseNotes(false)}>
+                {t('common.close')}
               </Button>
-            </div>
-          </Card>
-        </div>
+            </>
+          )}
+        >
+          <pre className="whitespace-pre-wrap wrap-anywhere font-sans text-sm text-table-secondary">
+            {updateCheck.release_notes}
+          </pre>
+        </Modal>
       )}
 
       {/* Users Tab */}
@@ -5627,13 +5189,13 @@ export function SettingsPage() {
         <div className="space-y-3">
           {/* Users Sub-tab */}
           {shownUsersSubTab === 'users' && (
-          <div id="card-users" className="space-y-3">
+          <div id="card-users" className="space-y-4">
           {/* Auth Toggle Header */}
           <Card>
             <CardContent className="py-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${authEnabled ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
+                  <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${authEnabled ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
                     {authEnabled ? (
                       <Lock className="w-5 h-5 text-green-600 dark:text-green-400" />
                     ) : (
@@ -5684,9 +5246,9 @@ export function SettingsPage() {
           )}
 
           {authEnabled && (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
               {/* Left Column: Session Policy + Current User + User List */}
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-4">
                 {/* Session Policy (#1706) — admin-set ceiling for user session lifetime */}
                 <Card id="card-session-policy">
                   <CardHeader>
@@ -5755,7 +5317,7 @@ export function SettingsPage() {
                 {user && (
                   <Card>
                     <CardHeader>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2" id="card-currentuser">
                           <Users className="w-5 h-5 text-bambu-green" />
                           {t('settings.currentUser')}
@@ -5788,7 +5350,7 @@ export function SettingsPage() {
                                     ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
                                     : group.name === 'Viewers'
                                     ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
-                                    : 'bg-gray-500/20 text-gray-300'
+                                    : 'bg-bambu-dark-tertiary/60 text-table-secondary'
                                 }`}
                               >
                                 {group.name}
@@ -5804,7 +5366,7 @@ export function SettingsPage() {
                 {/* User List */}
                 <Card>
                   <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                         <Users className="w-5 h-5 text-bambu-green" />
                         {t('settings.users')}
@@ -5833,7 +5395,7 @@ export function SettingsPage() {
                     ) : (
                       <div className="divide-y divide-bambu-dark-tertiary">
                         {usersData.map((userItem) => (
-                          <div key={userItem.id} className="py-3 flex items-center justify-between">
+                          <div key={userItem.id} className="flex items-center justify-between gap-2 py-3 hover:bg-secondary-action-hover/30">
                             <div className="flex-1 min-w-0">
                               <p className="text-white font-medium truncate">{userItem.username}</p>
                               <div className="flex flex-wrap gap-1 mt-1">
@@ -5857,7 +5419,7 @@ export function SettingsPage() {
                                         ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
                                         : group.name === 'Viewers'
                                         ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
-                                        : 'bg-gray-500/20 text-gray-300'
+                                        : 'bg-bambu-dark-tertiary/60 text-table-secondary'
                                     }`}
                                   >
                                     {group.name}
@@ -5870,14 +5432,14 @@ export function SettingsPage() {
                                 </span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 ml-4">
+                            <div className="flex shrink-0 items-center gap-1">
                               {hasPermission('users:update') && (
-                                <Button size="sm" variant="ghost" onClick={() => startEditUser(userItem)}>
+                                <Button size="sm" variant="ghost" aria-label={`${t('common.edit')}: ${userItem.username}`} onClick={() => startEditUser(userItem)}>
                                   <Edit2 className="w-4 h-4" />
                                 </Button>
                               )}
                               {hasPermission('users:delete') && userItem.id !== user?.id && (
-                                <Button size="sm" variant="ghost" onClick={() => handleDeleteUserClick(userItem.id)}>
+                                <Button size="sm" variant="ghost" aria-label={`${t('common.delete')}: ${userItem.username}`} onClick={() => handleDeleteUserClick(userItem.id)}>
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               )}
@@ -5894,7 +5456,7 @@ export function SettingsPage() {
               <div>
                 <Card>
                   <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-lg font-semibold text-white flex items-center gap-2" id="card-groups">
                         <Shield className="w-5 h-5 text-bambu-green" />
                         {t('settings.groups')}
@@ -5920,9 +5482,9 @@ export function SettingsPage() {
                     ) : (
                       <div className="divide-y divide-bambu-dark-tertiary">
                         {groupsData.map((group) => (
-                          <div key={group.id} className="py-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
+                          <div key={group.id} className="py-3 hover:bg-secondary-action-hover/30">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <Shield
                                   className={`w-4 h-4 ${
                                     group.name === 'Administrators'
@@ -5934,21 +5496,21 @@ export function SettingsPage() {
                                       : 'text-bambu-gray'
                                   }`}
                                 />
-                                <span className="text-white font-medium">{group.name}</span>
+                                <span className="break-all font-medium text-white">{group.name}</span>
                                 {group.is_system && (
                                   <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400">
                                     {t('settings.system')}
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1">
+                              <div className="flex shrink-0 items-center gap-1">
                                 {hasPermission('groups:update') && (
-                                  <Button size="sm" variant="ghost" onClick={() => navigate(`/groups/${group.id}/edit`)}>
+                                  <Button size="sm" variant="ghost" aria-label={`${t('common.edit')}: ${group.name}`} onClick={() => navigate(`/groups/${group.id}/edit`)}>
                                     <Edit2 className="w-4 h-4" />
                                   </Button>
                                 )}
                                 {hasPermission('groups:delete') && !group.is_system && (
-                                  <Button size="sm" variant="ghost" onClick={() => setDeleteGroupId(group.id)}>
+                                  <Button size="sm" variant="ghost" aria-label={`${t('common.delete')}: ${group.name}`} onClick={() => setDeleteGroupId(group.id)}>
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
                                 )}
@@ -6020,13 +5582,13 @@ export function SettingsPage() {
           )}
 
           {shownUsersSubTab === 'twofa' && (
-            <div className="max-w-2xl">
+            <div className="min-w-0 max-w-5xl">
               <TwoFactorSettings />
             </div>
           )}
 
           {shownUsersSubTab === 'oidc' && isAdmin && (
-            <div className="max-w-3xl space-y-4">
+            <div className="min-w-0 max-w-5xl space-y-4">
               <Card>
                 <CardContent className="space-y-3 p-4">
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -6046,7 +5608,7 @@ export function SettingsPage() {
           )}
 
           {shownUsersSubTab === 'security' && isAdmin && (
-            <div className="max-w-3xl">
+            <div className="min-w-0 max-w-5xl">
               <SecurityStatusCard />
             </div>
           )}
@@ -6055,198 +5617,15 @@ export function SettingsPage() {
 
       {/* Create User Modal */}
       {showCreateUserModal && !advancedAuthStatus?.advanced_auth_enabled && (
-        <div
-          className="fixed inset-0 bg-black flex items-center justify-center z-50 p-4"
-          onClick={() => {
-            setShowCreateUserModal(false);
-            setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-          }}
-        >
-          <Card
-            className="w-full max-w-md"
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-bambu-green" />
-                  <h2 className="text-lg font-semibold text-white">{t('settings.createUser')}</h2>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setShowCreateUserModal(false);
-                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-                  }}
-                >
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {ldapStatus?.ldap_enabled && (
-                <div
-                  className="mb-4 flex items-center gap-1 p-1 bg-bambu-dark-secondary rounded-lg"
-                  role="tablist"
-                  aria-label={t('users.modal.tabsAriaLabel')}
-                >
-                  <Button variant="unstyled"
-                    type="button"
-                    role="tab"
-                    aria-selected={createUserTab === 'local'}
-                    onClick={() => setCreateUserTab('local')}
-                    className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
-                      createUserTab === 'local'
-                        ? 'bg-bambu-green/15 text-bambu-green'
-                        : 'text-bambu-gray hover:text-white'
-                    }`}
-                  >
-                    {t('users.modal.localTab')}
-                  </Button>
-                  <Button variant="unstyled"
-                    type="button"
-                    role="tab"
-                    aria-selected={createUserTab === 'ldap'}
-                    onClick={() => setCreateUserTab('ldap')}
-                    className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
-                      createUserTab === 'ldap'
-                        ? 'bg-bambu-green/15 text-bambu-green'
-                        : 'text-bambu-gray hover:text-white'
-                    }`}
-                  >
-                    {t('users.modal.ldapTab')}
-                  </Button>
-                </div>
-              )}
-
-              {createUserTab === 'ldap' && ldapStatus?.ldap_enabled ? (
-                <>
-                  <LdapUserPicker
-                    onSuccess={(user) => {
-                      setShowCreateUserModal(false);
-                      setCreateUserTab('local');
-                      setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-                      showToast(t('users.toast.ldapProvisioned', { username: user.username }));
-                    }}
-                  />
-                  <div className="mt-6 flex justify-end">
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setShowCreateUserModal(false);
-                        setCreateUserTab('local');
-                        setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-                      }}
-                    >
-                      {t('common.cancel')}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-              <>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('settings.username')}</label>
-                  <TextField
-                    type="text"
-                    value={userFormData.username}
-                    onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
-                    className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                    placeholder={t('settings.enterUsername')}
-                    autoComplete="username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('settings.password')}</label>
-                  <TextField
-                    type="password"
-                    value={userFormData.password ?? ''}
-                    onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                    className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                    placeholder={t('settings.enterPassword')}
-                    autoComplete="new-password"
-                    minLength={8}
-                  />
-                  <p className="text-bambu-gray text-xs mt-1">{t('settings.passwordRequirements')}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
-                  <TextField
-                    type="password"
-                    value={userFormData.confirmPassword}
-                    onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
-                    className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
-                      userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword
-                        ? 'border-red-500'
-                        : 'border-bambu-dark-tertiary'
-                    }`}
-                    placeholder={t('settings.confirmPasswordPlaceholder')}
-                    autoComplete="new-password"
-                    minLength={6}
-                  />
-                  {userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword && (
-                    <p className="text-red-700 dark:text-red-400 text-xs mt-1">{t('settings.passwordsDoNotMatch')}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('settings.groups')}</label>
-                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
-                    {groupsData.map(group => (
-                      <label
-                        key={group.id}
-                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={userFormData.group_ids.includes(group.id)}
-                          onChange={() => toggleUserGroup(group.id)}
-                        />
-                        <span className="text-sm text-white">{group.name}</span>
-                        {group.is_system && (
-                          <span className="text-xs text-yellow-700 dark:text-yellow-400">{t('settings.systemBadge')}</span>
-                        )}
-                      </label>
-                    ))}
-                    {groupsData.length === 0 && (
-                      <p className="text-sm text-bambu-gray">{t('settings.noGroupsAvailable')}</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
-                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
-                    <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
-                      <Checkbox
-                        checked={userFormData.allowed_printer_ids == null}
-                        onChange={clearUserPrinterScope}
-                      />
-                      <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
-                    </label>
-                    {(printers ?? []).map(printer => (
-                      <label
-                        key={printer.id}
-                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
-                          onChange={() => toggleUserPrinterScope(printer.id)}
-                        />
-                        <span className="text-sm text-white">{printer.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-6 flex justify-end gap-3">
+        <Modal open onClose={closeCreateSettingsUser} closeLabel={t('common.close')} title={t('settings.createUser')} className="max-w-md"
+          footer={<>
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    setShowCreateUserModal(false);
-                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-                  }}
+                  onClick={closeCreateSettingsUser}
                 >
                   {t('common.cancel')}
                 </Button>
+                {!(createUserTab === 'ldap' && ldapStatus?.ldap_enabled) && (
                 <Button
                   onClick={handleCreateUser}
                   disabled={createUserMutation.isPending || !userFormData.username || !userFormData.password || userFormData.password !== userFormData.confirmPassword || checkPasswordComplexity(userFormData.password) !== null}
@@ -6263,12 +5642,152 @@ export function SettingsPage() {
                     </>
                   )}
                 </Button>
-              </div>
-              </>
+                )}
+          </>}
+        >
+          {ldapStatus?.ldap_enabled && (
+            <div
+              className="mb-4 flex items-center gap-1 p-1 bg-bambu-dark-secondary rounded-lg"
+              role="tablist"
+              aria-label={t('users.modal.tabsAriaLabel')}
+            >
+              <Button variant="unstyled"
+                type="button"
+                role="tab"
+                aria-selected={createUserTab === 'local'}
+                onClick={() => setCreateUserTab('local')}
+                className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
+                  createUserTab === 'local'
+                    ? 'bg-bambu-green/15 text-bambu-green'
+                    : 'text-bambu-gray hover:text-white'
+                }`}
+              >
+                {t('users.modal.localTab')}
+              </Button>
+              <Button variant="unstyled"
+                type="button"
+                role="tab"
+                aria-selected={createUserTab === 'ldap'}
+                onClick={() => setCreateUserTab('ldap')}
+                className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
+                  createUserTab === 'ldap'
+                    ? 'bg-bambu-green/15 text-bambu-green'
+                    : 'text-bambu-gray hover:text-white'
+                }`}
+              >
+                {t('users.modal.ldapTab')}
+              </Button>
+            </div>
+          )}
+
+          {createUserTab === 'ldap' && ldapStatus?.ldap_enabled ? (
+            <>
+              <LdapUserPicker
+                onSuccess={(user) => {
+                  setShowCreateUserModal(false);
+                  setCreateUserTab('local');
+                  setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
+                  showToast(t('users.toast.ldapProvisioned', { username: user.username }));
+                }}
+              />
+            </>
+          ) : (
+          <>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">{t('settings.username')}</label>
+              <TextField
+                type="text"
+                value={userFormData.username}
+                onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                placeholder={t('settings.enterUsername')}
+                autoComplete="username"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">{t('settings.password')}</label>
+              <TextField
+                type="password"
+                value={userFormData.password ?? ''}
+                onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                placeholder={t('settings.enterPassword')}
+                autoComplete="new-password"
+                minLength={8}
+              />
+              <p className="text-bambu-gray text-xs mt-1">{t('settings.passwordRequirements')}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
+              <TextField
+                type="password"
+                value={userFormData.confirmPassword}
+                onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
+                className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
+                  userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword
+                    ? 'border-red-500'
+                    : 'border-bambu-dark-tertiary'
+                }`}
+                placeholder={t('settings.confirmPasswordPlaceholder')}
+                autoComplete="new-password"
+                minLength={6}
+              />
+              {userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword && (
+                <p className="text-red-700 dark:text-red-400 text-xs mt-1">{t('settings.passwordsDoNotMatch')}</p>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">{t('settings.groups')}</label>
+              <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                {groupsData.map(group => (
+                  <label
+                    key={group.id}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={userFormData.group_ids.includes(group.id)}
+                      onChange={() => toggleUserGroup(group.id)}
+                    />
+                    <span className="text-sm text-white">{group.name}</span>
+                    {group.is_system && (
+                      <span className="text-xs text-yellow-700 dark:text-yellow-400">{t('settings.systemBadge')}</span>
+                    )}
+                  </label>
+                ))}
+                {groupsData.length === 0 && (
+                  <p className="text-sm text-bambu-gray">{t('settings.noGroupsAvailable')}</p>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
+              <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
+                  <Checkbox
+                    checked={userFormData.allowed_printer_ids == null}
+                    onChange={clearUserPrinterScope}
+                  />
+                  <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
+                </label>
+                {(printers ?? []).map(printer => (
+                  <label
+                    key={printer.id}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
+                      onChange={() => toggleUserPrinterScope(printer.id)}
+                    />
+                    <span className="text-sm text-white">{printer.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          </>
+          )}
+        </Modal>
       )}
 
       {/* Create User Modal - Advanced Authentication */}
@@ -6296,194 +5815,11 @@ export function SettingsPage() {
 
       {/* Edit User Modal */}
       {showEditUserModal && editingUserId !== null && (
-        <div
-          className="fixed inset-0 bg-black flex items-center justify-center z-50 p-4"
-          onClick={() => {
-            setShowEditUserModal(false);
-            setEditingUserId(null);
-            setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-          }}
-        >
-          <Card
-            className="w-full max-w-md"
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Edit2 className="w-5 h-5 text-bambu-green" />
-                  <h2 className="text-lg font-semibold text-white">{t('settings.editUser')}</h2>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setShowEditUserModal(false);
-                    setEditingUserId(null);
-                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-                  }}
-                >
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {/* Username Field */}
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    {t('settings.username')} {advancedAuthStatus?.advanced_auth_enabled && <span className="text-red-700 dark:text-red-400">*</span>}
-                  </label>
-                  <TextField
-                    type="text"
-                    value={userFormData.username}
-                    onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
-                    className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                    placeholder={t('settings.enterUsername')}
-                    autoComplete="username"
-                  />
-                </div>
-
-                {/* Email Field */}
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    {t('users.form.email') || 'Email'} {advancedAuthStatus?.advanced_auth_enabled ? <span className="text-red-700 dark:text-red-400">*</span> : <span className="text-bambu-gray font-normal">({t('users.form.optional') || 'optional'})</span>}
-                  </label>
-                  <TextField
-                    type="email"
-                    value={userFormData.email ?? ''}
-                    onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                    placeholder={t('users.form.emailPlaceholder') || 'user@example.com'}
-                    required={advancedAuthStatus?.advanced_auth_enabled}
-                  />
-                </div>
-
-                {/* Password Fields - only show when Advanced Auth is disabled */}
-                {!advancedAuthStatus?.advanced_auth_enabled && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {t('users.form.password') || 'Password'} <span className="text-bambu-gray font-normal">({t('users.form.leaveBlankToKeep') || 'leave blank to keep current'})</span>
-                      </label>
-                      <TextField
-                        type="password"
-                        value={userFormData.password ?? ''}
-                        onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value, confirmPassword: '' })}
-                        className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
-                        placeholder={t('settings.enterNewPassword')}
-                        autoComplete="new-password"
-                        minLength={8}
-                      />
-                      <p className="text-bambu-gray text-xs mt-1">{t('settings.passwordRequirements')}</p>
-                    </div>
-                    {userFormData.password && (
-                      <div>
-                        <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
-                        <TextField
-                          type="password"
-                          value={userFormData.confirmPassword}
-                          onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
-                          className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
-                            userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword
-                              ? 'border-red-500'
-                              : 'border-bambu-dark-tertiary'
-                          }`}
-                          placeholder={t('settings.confirmNewPassword')}
-                          autoComplete="new-password"
-                          minLength={6}
-                        />
-                        {userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword && (
-                          <p className="text-red-700 dark:text-red-400 text-xs mt-1">{t('settings.passwordsDoNotMatch')}</p>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Info box about auto-generated password when Advanced Auth is enabled */}
-                {advancedAuthStatus?.advanced_auth_enabled && (
-                  <div className="bg-bambu-dark-secondary/50 border border-bambu-green/20 rounded-lg p-3 space-y-3">
-                    <p className="text-sm text-bambu-gray">
-                      {t('users.form.passwordManagedByAdvancedAuth')}
-                    </p>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => editingUserId && resetPasswordMutation.mutate(editingUserId)}
-                      disabled={resetPasswordMutation.isPending || !userFormData.email}
-                      className="w-full"
-                    >
-                      {resetPasswordMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          {t('users.form.resettingPassword') || 'Resetting Password...'}
-                        </>
-                      ) : (
-                        <>
-                          <RotateCcw className="w-4 h-4" />
-                          {t('users.form.resetPassword') || 'Reset Password'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-
-                {/* Groups Field */}
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.groups') || 'Groups'}</label>
-                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
-                    {groupsData.map(group => (
-                      <label
-                        key={group.id}
-                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={userFormData.group_ids.includes(group.id)}
-                          onChange={() => toggleUserGroup(group.id)}
-                        />
-                        <span className="text-sm text-white">{group.name}</span>
-                        {group.is_system && (
-                          <span className="text-xs text-yellow-700 dark:text-yellow-400">({t('users.system') || 'System'})</span>
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
-                  <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
-                    <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
-                      <Checkbox
-                        checked={userFormData.allowed_printer_ids == null}
-                        onChange={clearUserPrinterScope}
-                      />
-                      <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
-                    </label>
-                    {(printers ?? []).map(printer => (
-                      <label
-                        key={printer.id}
-                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
-                          onChange={() => toggleUserPrinterScope(printer.id)}
-                        />
-                        <span className="text-sm text-white">{printer.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <AdminTwoFactorReset key={editingUserId} userId={editingUserId} />
-              <div className="mt-6 flex justify-end gap-3">
+        <Modal open onClose={closeEditSettingsUser} closeLabel={t('common.close')} title={t('settings.editUser')} className="max-w-md"
+          footer={<>
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    setShowEditUserModal(false);
-                    setEditingUserId(null);
-                    setUserFormData({ username: '', password: '', email: '', confirmPassword: '', role: 'user', group_ids: [] });
-                  }}
+                  onClick={closeEditSettingsUser}
                 >
                   {t('users.modal.cancel') || 'Cancel'}
                 </Button>
@@ -6508,32 +5844,164 @@ export function SettingsPage() {
                     </>
                   )}
                 </Button>
+          </>}
+        >
+          <div className="space-y-3">
+            {/* Username Field */}
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">
+                {t('settings.username')} {advancedAuthStatus?.advanced_auth_enabled && <span className="text-red-700 dark:text-red-400">*</span>}
+              </label>
+              <TextField
+                type="text"
+                value={userFormData.username}
+                onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                placeholder={t('settings.enterUsername')}
+                autoComplete="username"
+              />
+            </div>
+
+            {/* Email Field */}
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">
+                {t('users.form.email') || 'Email'} {advancedAuthStatus?.advanced_auth_enabled ? <span className="text-red-700 dark:text-red-400">*</span> : <span className="text-bambu-gray font-normal">({t('users.form.optional') || 'optional'})</span>}
+              </label>
+              <TextField
+                type="email"
+                value={userFormData.email ?? ''}
+                onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                placeholder={t('users.form.emailPlaceholder') || 'user@example.com'}
+                required={advancedAuthStatus?.advanced_auth_enabled}
+              />
+            </div>
+
+            {/* Password Fields - only show when Advanced Auth is disabled */}
+            {!advancedAuthStatus?.advanced_auth_enabled && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    {t('users.form.password') || 'Password'} <span className="text-bambu-gray font-normal">({t('users.form.leaveBlankToKeep') || 'leave blank to keep current'})</span>
+                  </label>
+                  <TextField
+                    type="password"
+                    value={userFormData.password ?? ''}
+                    onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value, confirmPassword: '' })}
+                    className="w-full px-4 py-3 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors"
+                    placeholder={t('settings.enterNewPassword')}
+                    autoComplete="new-password"
+                    minLength={8}
+                  />
+                  <p className="text-bambu-gray text-xs mt-1">{t('settings.passwordRequirements')}</p>
+                </div>
+                {userFormData.password && (
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
+                    <TextField
+                      type="password"
+                      value={userFormData.confirmPassword}
+                      onChange={(e) => setUserFormData({ ...userFormData, confirmPassword: e.target.value })}
+                      className={`w-full px-4 py-3 bg-bambu-dark-secondary border rounded-lg text-white placeholder-bambu-gray focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:border-bambu-green transition-colors ${
+                        userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword
+                          ? 'border-red-500'
+                          : 'border-bambu-dark-tertiary'
+                      }`}
+                      placeholder={t('settings.confirmNewPassword')}
+                      autoComplete="new-password"
+                      minLength={6}
+                    />
+                    {userFormData.confirmPassword && userFormData.password !== userFormData.confirmPassword && (
+                      <p className="text-red-700 dark:text-red-400 text-xs mt-1">{t('settings.passwordsDoNotMatch')}</p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Info box about auto-generated password when Advanced Auth is enabled */}
+            {advancedAuthStatus?.advanced_auth_enabled && (
+              <div className="bg-bambu-dark-secondary/50 border border-bambu-green/20 rounded-lg p-3 space-y-3">
+                <p className="text-sm text-bambu-gray">
+                  {t('users.form.passwordManagedByAdvancedAuth')}
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => editingUserId && resetPasswordMutation.mutate(editingUserId)}
+                  disabled={resetPasswordMutation.isPending || !userFormData.email}
+                  className="w-full"
+                >
+                  {resetPasswordMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t('users.form.resettingPassword') || 'Resetting Password...'}
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      {t('users.form.resetPassword') || 'Reset Password'}
+                    </>
+                  )}
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+
+            {/* Groups Field */}
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">{t('users.form.groups') || 'Groups'}</label>
+              <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                {groupsData.map(group => (
+                  <label
+                    key={group.id}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={userFormData.group_ids.includes(group.id)}
+                      onChange={() => toggleUserGroup(group.id)}
+                    />
+                    <span className="text-sm text-white">{group.name}</span>
+                    {group.is_system && (
+                      <span className="text-xs text-yellow-700 dark:text-yellow-400">({t('users.system') || 'System'})</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">{t('users.form.printerScope', 'Printer access')}</label>
+              <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
+                <label className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer">
+                  <Checkbox
+                    checked={userFormData.allowed_printer_ids == null}
+                    onChange={clearUserPrinterScope}
+                  />
+                  <span className="text-sm text-white">{t('users.form.allPrinters', 'All printers')}</span>
+                </label>
+                {(printers ?? []).map(printer => (
+                  <label
+                    key={printer.id}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bambu-dark-tertiary cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={userFormData.allowed_printer_ids?.includes(printer.id) ?? false}
+                      onChange={() => toggleUserPrinterScope(printer.id)}
+                    />
+                    <span className="text-sm text-white">{printer.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <AdminTwoFactorReset key={editingUserId} userId={editingUserId} />
+        </Modal>
       )}
 
       {/* Delete User Confirmation Modal */}
       {deleteUserId !== null && (
-        <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-          onClick={() => {
-            setDeleteUserId(null);
-            setDeleteUserItemCounts(null);
-          }}
-        >
-          <Card
-            className="w-full max-w-md"
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          >
-            <CardHeader>
-              <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
-                <Trash2 className="w-5 h-5" />
-                <h3 className="text-lg font-semibold">{t('settings.deleteUserTitle')}</h3>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
+        <Modal open onClose={() => { setDeleteUserId(null); setDeleteUserItemCounts(null); }}
+          closeLabel={t('common.close')} title={t('settings.deleteUserTitle')} className="max-w-md">
+            <div className="space-y-3">
               {deleteUserLoading ? (
                 <div className="flex items-center justify-center py-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-2 border-bambu-green border-t-transparent" />
@@ -6608,9 +6076,8 @@ export function SettingsPage() {
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+        </Modal>
       )}
 
       {/* Delete Group Confirmation Modal */}
@@ -6636,23 +6103,19 @@ export function SettingsPage() {
       )}
 
       {activeTab === 'operations' && operationSubTab === 'updates' && (
-        <div className="space-y-4">
-          {updatesCard}
-        </div>
+        updatesCard
       )}
 
       {activeTab === 'operations' && operationSubTab === 'data-management' && (
-        <div className="space-y-4">
-          {dataManagementCard}
-        </div>
+        dataManagementCard
       )}
 
       {activeTab === 'operations' && operationSubTab === 'backups' && (
         <div className="space-y-4">
           <div id="card-backup">
-            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-lg flex items-start gap-2">
+            <div className="mb-6 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
               <Shield className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={16} />
-              <p className="text-sm text-amber-700 dark:text-amber-400">{t('backup.includesEncryptionKey')}</p>
+              <p className="text-sm text-amber-900 dark:text-amber-200">{t('backup.includesEncryptionKey')}</p>
             </div>
             <GitHubBackupSettings />
           </div>
@@ -6685,36 +6148,52 @@ export function SettingsPage() {
 
       {/* Change Password Modal */}
       {showChangePasswordModal && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-          onClick={() => {
-            setShowChangePasswordModal(false);
-            setChangePasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-          }}
-        >
-          <Card
-            className="w-full max-w-md"
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-bambu-green" />
-                  <h2 className="text-lg font-semibold text-white">{t('settings.changePassword')}</h2>
-                </div>
+        <Modal open onClose={closeSettingsPassword} closeLabel={t('common.close')}
+          title={t('settings.changePassword')} className="max-w-md" footer={<>
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setShowChangePasswordModal(false);
-                    setChangePasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-                  }}
+                  variant="secondary"
+                  onClick={closeSettingsPassword}
                 >
-                  <X className="w-5 h-5" />
+                  {t('common.cancel')}
                 </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
+                <Button
+                  onClick={async () => {
+                    if (changePasswordData.newPassword !== changePasswordData.confirmPassword) {
+                      showToast(t('settings.toast.passwordsDoNotMatch'), 'error');
+                      return;
+                    }
+                    if (changePasswordData.newPassword.length < 6) {
+                      showToast(t('settings.toast.passwordTooShort'), 'error');
+                      return;
+                    }
+                    setChangePasswordLoading(true);
+                    try {
+                      await api.changePassword(changePasswordData.currentPassword, changePasswordData.newPassword);
+                      showToast(t('settings.toast.passwordChanged'), 'success');
+                      setShowChangePasswordModal(false);
+                      setChangePasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                    } catch (error: unknown) {
+                      const message = error instanceof Error ? error.message : 'Failed to change password';
+                      showToast(message, 'error');
+                    } finally {
+                      setChangePasswordLoading(false);
+                    }
+                  }}
+                  disabled={changePasswordLoading || !changePasswordData.currentPassword || !changePasswordData.newPassword || changePasswordData.newPassword !== changePasswordData.confirmPassword || changePasswordData.newPassword.length < 6}
+                >
+                  {changePasswordLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t('settings.changing')}
+                    </>
+                  ) : (
+                    <>
+                      <Key className="w-4 h-4" />
+                      {t('settings.changePassword')}
+                    </>
+                  )}
+                </Button>
+          </>}>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
@@ -6765,57 +6244,7 @@ export function SettingsPage() {
                   )}
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setShowChangePasswordModal(false);
-                    setChangePasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-                  }}
-                >
-                  {t('common.cancel')}
-                </Button>
-                <Button
-                  onClick={async () => {
-                    if (changePasswordData.newPassword !== changePasswordData.confirmPassword) {
-                      showToast(t('settings.toast.passwordsDoNotMatch'), 'error');
-                      return;
-                    }
-                    if (changePasswordData.newPassword.length < 6) {
-                      showToast(t('settings.toast.passwordTooShort'), 'error');
-                      return;
-                    }
-                    setChangePasswordLoading(true);
-                    try {
-                      await api.changePassword(changePasswordData.currentPassword, changePasswordData.newPassword);
-                      showToast(t('settings.toast.passwordChanged'), 'success');
-                      setShowChangePasswordModal(false);
-                      setChangePasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-                    } catch (error: unknown) {
-                      const message = error instanceof Error ? error.message : 'Failed to change password';
-                      showToast(message, 'error');
-                    } finally {
-                      setChangePasswordLoading(false);
-                    }
-                  }}
-                  disabled={changePasswordLoading || !changePasswordData.currentPassword || !changePasswordData.newPassword || changePasswordData.newPassword !== changePasswordData.confirmPassword || changePasswordData.newPassword.length < 6}
-                >
-                  {changePasswordLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {t('settings.changing')}
-                    </>
-                  ) : (
-                    <>
-                      <Key className="w-4 h-4" />
-                      {t('settings.changePassword')}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        </Modal>
       )}
       </div>
     </div>

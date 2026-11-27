@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.location import Location
+from backend.app.models.project_production import ProjectProductionOutput
 from backend.app.models.small_part import SmallPart
 from backend.app.models.spool import Spool
 from backend.app.models.warehouse_article import WarehouseArticleLedgerEntry
@@ -69,6 +70,15 @@ async def protect_warehouse_location(db: AsyncSession, location_id: int) -> None
     )
     if history is not None:
         raise ValueError("Lagerort wird in der unveränderlichen Warenhistorie verwendet")
+    if (
+        await db.scalar(
+            select(ProjectProductionOutput.project_id)
+            .where(ProjectProductionOutput.location_id == location_id)
+            .limit(1)
+        )
+        is not None
+    ):
+        raise ValueError("Lagerort ist einem Produktionsprojekt zugeordnet")
     if await db.scalar(select(SmallPart.id).where(SmallPart.location_id == location_id).limit(1)) is not None:
         raise ValueError("Location has materials assigned and cannot be deleted")
 

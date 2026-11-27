@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 /**
  * Long-lived camera-stream tokens (#1108).
  *
@@ -348,10 +350,12 @@ interface TokenTableProps {
 
 function TokenTable({ tokens, showOwner, userIdToName, onRevoke, emptyMessage }: TokenTableProps) {
   const { t } = useTranslation();
+  const pagination = useTablePagination(tokens, '', 15);
   if (tokens.length === 0) {
     return <p className="text-sm text-bambu-gray italic">{emptyMessage}</p>;
   }
   return (
+    <>
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="text-bambu-gray text-left border-b border-bambu-dark-tertiary">
@@ -367,7 +371,7 @@ function TokenTable({ tokens, showOwner, userIdToName, onRevoke, emptyMessage }:
           </tr>
         </thead>
         <tbody>
-          {tokens.map((tok) => (
+          {pagination.rows.map((tok) => (
             <TokenRow
               key={tok.id}
               token={tok}
@@ -379,6 +383,8 @@ function TokenTable({ tokens, showOwner, userIdToName, onRevoke, emptyMessage }:
         </tbody>
       </table>
     </div>
+    <TablePagination {...pagination.footer} />
+    </>
   );
 }
 

@@ -23,6 +23,7 @@ const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Re
   encode_time: (s) => s.encode_time || '',
   last_used_time: (s) => s.last_used || '',
   last_dried: (s) => parseUTCDate(s.last_dried_at)?.getTime() || 0,
+  stock_checked_at: (s) => parseUTCDate(s.stock_checked_at)?.getTime() || 0,
   material: (s) => (s.material || '').toLowerCase(),
   material_number: (s) => s.material_number || '',
   subtype: (s) => (s.subtype || '').toLowerCase(),

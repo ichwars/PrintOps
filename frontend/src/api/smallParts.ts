@@ -49,6 +49,9 @@ export interface SmallPart extends SmallPartOption {
   balance: SmallPartBalance;
   created_at: string;
   updated_at: string;
+  stock_checked_at?: string | null;
+  last_used_at?: string | null;
+  consumed?: string;
 }
 
 export interface SmallPartInput {
@@ -74,7 +77,7 @@ export interface SmallPartCreateInput extends SmallPartInput {
 export type SmallPartUpdate = Partial<SmallPartInput>;
 
 export interface SmallPartLedgerInput {
-  entry_kind: 'receipt' | 'correction';
+  entry_kind: 'receipt' | 'issue' | 'correction';
   quantity: string;
   reason: string;
   idempotency_key: string;
@@ -203,6 +206,7 @@ async function downloadSmallPartsCsv(): Promise<void> {
 }
 
 export const smallPartsApi = {
+  confirmStockCheck: (ids: number[]) => request<{ stock_checked_at: string }>('/small-parts/stock-check', { method: 'POST', body: JSON.stringify({ ids }) }),
   search: (q: string) =>
     request<SmallPartOption[]>(`/small-parts/search?${queryString({ q, limit: 30 })}`),
   list: (params: SmallPartListParams = {}) =>

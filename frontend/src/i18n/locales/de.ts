@@ -220,10 +220,28 @@ export default {
       calculation: 'Kalkulation',
       customers: 'Kunden',
       invoice: 'Rechnung',
+      "reorder": "Nachbestellung",
     },
   },
 
   orders: {
+    documentDetails: {
+      invoicePositions: "Rechnungspositionen",
+      positions: "Belegpositionen",
+      orderPositions: "Auftragspositionen",
+      offerPositions: "Angebotspositionen",
+      noPositions: "Keine Belegpositionen verfügbar.",
+      unitPriceNet: "Einzelpreis netto",
+      lineTotalNet: "Positionssumme netto",
+    },
+    rowActions: {
+      openOrder: "Auftrag öffnen",
+      openOffer: "Angebot öffnen",
+      openDocument: "Beleg öffnen",
+      cancelOrder: "Auftrag stornieren",
+      showOffers: "Angebote anzeigen",
+      showInvoices: "Rechnungen anzeigen",
+    },
     default: 'Standard',
     businessProfile: {
       title: 'Unternehmensprofil',
@@ -590,7 +608,12 @@ export default {
       "blockerSellableLine": "Eine verkaufbare Position oder Projektplatte hinzufügen.",
       "blockerProductionOperation": "Einen Produktionsvorgang oder eine Projektplatte hinzufügen.",
       "blockerInvalidProvenance": "Die Quelldaten eines Produktionsvorgangs sind ungültig.",
-      "shippingCost": "Versand"
+      "shippingCost": "Versand",
+      "acceptOfferConfirmTitle": "Angebot annehmen?",
+      "searchOffers": "Angebote durchsuchen",
+      "searchOffersPlaceholder": "Nummer, Kalkulation oder Kunde …",
+      "clearSearch": "Suche löschen",
+      "noOffersMatchSearch": "Keine Angebote entsprechen der Suche."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -728,10 +751,6 @@ export default {
         "subtitle": "Bestandsübersicht für Filament, Materialien und Warenlager.",
         "openFilament": "Filament öffnen",
         "open": "Öffnen",
-        "planned": "Geplant",
-        "dataModelNext": "Datenmodell folgt im nächsten Schritt",
-        "empty": "Noch keine Datensätze",
-        "foundation": "Basis",
         "metrics": {
           "activeSpools": "Aktive Spulen",
           "lowStock": "Niedriger Bestand",
@@ -744,42 +763,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Vorgesehen für Zukaufteile, Verpackung, Hardware und Verbrauchsmaterial."
+            "body": "Zukaufteile, Hardware, Verpackung und Verbrauchsmaterial — mit Live-Bestand, Reservierungen und Meldebestand."
           },
           "stock": {
             "title": "Warenlager",
-            "body": "Vorgesehen für Warenbewegungen, Nachbestellbedarf und verfügbare Ware."
+            "body": "Fertig- und Handelswaren mit Warenbewegungen, Reservierungen und Nachbestellbedarf."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Lagerübersicht",
-            "subtitle": "Live-Filamentstatus plus die nächsten Lagerbereiche.",
-            "columns": [
-              "Bereich",
-              "Status",
-              "Nächster Schritt"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, Verpackung, Magnete, Einsätze und Verbrauchsmaterial.",
-            "columns": [
-              "Artikel",
-              "Lagerort",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Warenlager",
-            "subtitle": "Zulauf, reserviert, verfügbar und nachbestellrelevante Bestände.",
-            "columns": [
-              "Artikel",
-              "Verfügbar",
-              "Meldebestand"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Aktive Artikel",
+          "reserved": "Reserviert",
+          "stockValue": "Bestandswert"
+        },
+        "reorder": {
+          "title": "Nachbestellbedarf",
+          "items": "Artikel unter Meldebestand",
+          "open": "Zur Nachbestellung"
+        },
       },
       "orderPage": {
         "empty": "Noch keine Datensätze",
@@ -824,6 +824,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "Basis ist der gebuchte Verbrauch der letzten {{days}} Tage.",
+        "forecastDailyUsage": "Ø Verbrauch pro Tag",
+        "forecastProjectedStock": "Bestand in {{days}} Tagen",
+        "forecastDaysToMinimum": "Tage bis Mindestbestand",
+        "forecastMinimumReached": "Mindestbestand erreicht",
+        "forecastNoConsumption": "Kein Verbrauch im Zeitraum",
+        "forecastEmpty": "Keine aktiven Waren mit Bestandspflege vorhanden.",
+        "quickBookingSaved": "Bestandsbuchung gespeichert.",
+        "articleCount": "{{count}} Artikel",
+        "articleCount_one": "{{count}} Artikel",
+        "articleCount_other": "{{count}} Artikel",
         "title": "Warenlager",
         "subtitle": "Verkaufsartikel, physischer Bestand und Reservierungen in PrintOps.",
         "search": "Artikel suchen",
@@ -1633,6 +1644,31 @@ export default {
         "loadSuppliersFailed": "Lieferanten konnten nicht geladen werden. Die Spule kann weiterhin ohne Änderung der Bezugsquellen gespeichert werden.",
         "offersNotReady": "Bezugsquellen sind noch nicht vollständig geladen.",
         "saveOffersFailed": "Bezugsquellen konnten nicht gespeichert werden."
+      },
+      "warehouseReorder": {
+        "reproduce": "Nachproduzieren",
+        "prepareProduction": "Produktionsauftrag vorbereiten",
+        "productionProjectName": "Nachproduktion · {{name}}",
+        "productionProjectDescription": "Artikel {{sku}}\nVorgeschlagene Produktionsmenge {{quantity}}",
+        "colProduce": "Nachzuproduzierende Menge",
+        "purchasingTitle": "Einkaufsbedarf für Material",
+        "productionTitle": "Nachproduktionsbedarf",
+        "shoppingList": "Einkaufsliste",
+        "shoppingListEmpty": "Die Einkaufsliste ist leer.",
+        "addToShoppingList": "{{name}} auf die Einkaufsliste setzen",
+        "onShoppingList": "{{name}} steht auf der Einkaufsliste",
+        "addedToShoppingList": "{{name}} zur Einkaufsliste hinzugefügt.",
+        "removeFromShoppingList": "{{name}} von der Einkaufsliste entfernen",
+        "shoppingListLoadError": "Die Einkaufsliste konnte nicht geladen werden.",
+        "shoppingListSaveError": "Die Einkaufsliste konnte nicht geändert werden.",
+        "title": "Nachbestellbedarf",
+        "subtitle": "Fertigprodukte nachproduzieren und Material einkaufen.",
+        "empty": "Kein Nachbestellbedarf.",
+        "open": "Öffnen",
+        "summaryWarehouse": "Fertigprodukte zur Nachproduktion",
+        "summaryMaterial": "Materialien zum Einkauf",
+        "summaryTotal": "Gesamt",
+        "colSuggested": "Empfohlene Einkaufsmenge"
       }
     },
 
@@ -2375,6 +2411,12 @@ export default {
 
   // Common
   common: {
+    stockChecked: "Geprüft",
+    confirmStockCheck: "Inventur bestätigen",
+    stockCheckDescription: "Bestätige, dass die ausgewählten Bestände gezählt oder gewogen wurden.",
+    stockCheckFailed: "Die Inventur konnte nicht bestätigt werden. Prüfe, ob die Auswahl noch aktiv ist.",
+    unitShortPiece: "Stk.",
+    scrollTableHorizontally: 'Tabelle {{table}} horizontal scrollen',
     secretKept: 'Der gespeicherte Wert wird beibehalten.',
     secretReenter: 'Zugangsdaten für das geänderte Ziel erneut eingeben.',
     plusNMore: '+{{count}} weitere',
@@ -4806,6 +4848,7 @@ export default {
     messageTemplatesDescription: 'Passen Sie Benachrichtigungen für jedes Ereignis an.',
     // API Keys section
     apiKeys: 'API-Schlüssel',
+    apiMetricsNoAccess: "Dein Konto hat keinen Zugriff auf diese Integrationseinstellungen.",
     apiKeysDescription: 'Erstellen Sie API-Schlüssel für externe Integrationen und Webhooks.',
     createKey: 'Schlüssel erstellen',
     apiKeyCreated: 'API-Schlüssel erfolgreich erstellt',
@@ -5360,7 +5403,7 @@ export default {
     prometheusMetrics: 'Prometheus-Metriken',
     prometheusEndpointDescription: 'Druckermetriken unter <code>/api/v1/metrics</code> für Prometheus/Grafana-Überwachung bereitstellen.',
     bearerTokenOptional: 'Bearer-Token (optional)',
-    bearerTokenHint: 'Wenn gesetzt, müssen Anfragen <code>Authorization: Bearer <token></code> enthalten',
+    bearerTokenHint: 'Wenn gesetzt, müssen Anfragen <code>Authorization: Bearer &lt;token&gt;</code> enthalten',
     metricsConnectionStatus: 'Verbindungsstatus',
     metricsPrinterState: 'Druckerstatus (idle/printing/etc)',
     metricsPrintProgress: 'Druckfortschritt 0-100%',
@@ -10511,7 +10554,12 @@ useEmbedded: 'Datei-eigene Einstellungen verwenden',
     noReadAccess: 'Sie haben keine Berechtigung, Bestandsprognosen anzuzeigen.',
     noWriteAccess: 'Sie haben keine Berechtigung, Prognoseeinstellungen zu ändern.',
   },
-  suppliers: { navTitle: 'Lieferanten', title: 'Lieferanten', subtitle: 'Beschaffungskontakte und Einkaufsbedingungen verwalten.', createTitle: 'Lieferant anlegen', editTitle: 'Lieferant bearbeiten', searchLabel: 'Lieferanten durchsuchen', searchPlaceholder: 'Firma, Kontakt, E-Mail, Kundennummer …', activeFilter: 'Status', loading: 'Lieferanten werden geladen …', empty: 'Noch keine passenden Lieferanten vorhanden.', noContact: 'Keine Kontaktdaten', leadTime: '{{count}} Tage Standard-Lieferzeit', sections: { masterData: 'Stammdaten', contactAddress: 'Kontakt & Adresse', procurement: 'Beschaffung', internalNotes: 'Notiz intern' }, fields: { name: 'Firma', customerNumber: 'Kundennummer', active: 'Lieferant aktiv', contactName: 'Ansprechperson', email: 'E-Mail', phone: 'Telefon', website: 'Webseite', addressLine1: 'Adresszeile 1', addressLine2: 'Adresszeile 2', postalCode: 'Postleitzahl', city: 'Ort', countryCode: 'Ländercode', paymentTerms: 'Zahlungsbedingungen', defaultLeadTime: 'Standard-Lieferzeit', internalNotes: 'Interne Notizen' }, filters: { active: 'Aktiv', inactive: 'Inaktiv', all: 'Alle Lieferanten' }, actions: { create: 'Lieferant anlegen', save: 'Lieferant speichern', edit: '{{name}} bearbeiten', delete: 'Lieferant löschen' }, validation: { nameRequired: 'Firma ist erforderlich.' }, errors: { load: 'Lieferanten konnten nicht geladen werden.', save: 'Lieferant konnte nicht gespeichert werden.', delete: 'Lieferant konnte nicht gelöscht werden.', noReadPermission: 'Sie haben keine Berechtigung, Lieferanten anzuzeigen.' } },
+  suppliers: { navTitle: 'Lieferanten', title: 'Lieferanten', subtitle: 'Beschaffungskontakte und Einkaufsbedingungen verwalten.', createTitle: 'Lieferant anlegen', editTitle: 'Lieferant bearbeiten', searchLabel: 'Lieferanten durchsuchen', searchPlaceholder: 'Firma, Kontakt, E-Mail, Kundennummer …', activeFilter: 'Status', loading: 'Lieferanten werden geladen …', empty: 'Noch keine passenden Lieferanten vorhanden.', noContact: 'Keine Kontaktdaten', leadTime: '{{count}} Tage Standard-Lieferzeit', sections: { masterData: 'Stammdaten', contactAddress: 'Kontakt & Adresse', procurement: 'Beschaffung', internalNotes: 'Notiz intern' }, fields: { name: 'Firma', customerNumber: 'Kundennummer', active: 'Lieferant aktiv', contactName: 'Ansprechperson', email: 'E-Mail', phone: 'Telefon', website: 'Webseite', addressLine1: 'Adresszeile 1', addressLine2: 'Adresszeile 2', postalCode: 'Postleitzahl', city: 'Ort', countryCode: 'Ländercode', paymentTerms: 'Zahlungsbedingungen', defaultLeadTime: 'Standard-Lieferzeit', internalNotes: 'Interne Notizen' }, filters: { active: 'Aktiv', inactive: 'Inaktiv', all: 'Alle Lieferanten' }, actions: { create: 'Lieferant anlegen', save: 'Lieferant speichern', edit: '{{name}} bearbeiten', delete: 'Lieferant löschen' }, validation: { nameRequired: 'Firma ist erforderlich.' }, errors: { load: 'Lieferanten konnten nicht geladen werden.', save: 'Lieferant konnte nicht gespeichert werden.', delete: 'Lieferant konnte nicht gelöscht werden.', noReadPermission: 'Sie haben keine Berechtigung, Lieferanten anzuzeigen.' },
+  "pagination": "{{start}}–{{end}} von {{total}}",
+  "previous": "Zurück",
+  "next": "Weiter",
+  "emptyFiltered": "Keine Lieferanten entsprechen den aktuellen Filtern.",
+  "clearSearch": "Suche löschen" },
   storageSensors: {
     environment: "Umgebung",
     manage: "Sensoren",

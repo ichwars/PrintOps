@@ -6,6 +6,7 @@ import { BadgeEuro, Calculator, Clock3, Coins, Loader2, Package, TriangleAlert, 
 import { calculationsApi, type CalculationPreview, type CalculationPreviewInput, type PriceMethod } from '../../../api/calculations';
 import { api } from '../../../api/client';
 import { SUPPORTED_CURRENCIES } from '../../../utils/currency';
+import { dashboardStyles } from '../../dashboardStyles';
 import { NumberField, Select } from '../../ui';
 
 type SettingKey = 'currency' | 'default_filament_cost' | 'energy_cost_per_kwh' | 'energy_tracking_mode' | 'calculation_defaults';
@@ -99,8 +100,12 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
   const money = (value: string) => new Intl.NumberFormat(locale, { style: 'currency', currency: settings.currency }).format(Number(value));
   const renderGroup = (group: typeof groups[number]) => {
     const Icon = group.icon;
-    return <section key={group.title} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
-      <div className="flex items-start gap-3"><div className="rounded-lg bg-bambu-orange/10 p-2 text-bambu-orange"><Icon className="h-5 w-5" /></div><div><h3 className="font-semibold text-white">{group.title}</h3><p className="mt-1 text-xs text-bambu-gray">{group.description}</p></div></div>
+    return <section key={group.title} className={`${dashboardStyles.card} min-w-0`}>
+      <div className={`${dashboardStyles.cardHeader} rounded-t-xl`}>
+        <h3 className={`${dashboardStyles.cardTitle} flex items-center gap-2`}><Icon className="h-4 w-4 shrink-0 text-bambu-green" aria-hidden="true" />{group.title}</h3>
+      </div>
+      <div className={`${dashboardStyles.cardBody} text-sm text-table-secondary`}>
+      <p>{group.description}</p>
       {group.title === (t('orders.runtimeCalculation.costBasis', { lng: language })) && <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Select<number> label={t('orders.runtimeCalculation.defaultPrinter', { lng: language })} value={Number(defaults.defaultPrinterId)} onValueChange={(value) => update('defaultPrinterId', value)} options={[{ value: 0, label: t('orders.runtimeCalculation.noDefaultPrinter', { lng: language }) }, ...printers.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }))]} />
         <Select<number> label={t('orders.runtimeCalculation.defaultDryer', { lng: language })} value={Number(defaults.defaultDryerId)} onValueChange={(value) => update('defaultDryerId', value)} options={[{ value: 0, label: t('orders.runtimeCalculation.noDefaultDryer', { lng: language }) }, ...dryers.map(item => ({ value: item.id, label: item.name }))]} />
@@ -118,7 +123,7 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <NumberField key={key} label={label} min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} />)}</div>
       {group.title === (t('orders.runtimeCalculation.exampleCalculation', { lng: language })) && <div className="mt-4">
         {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.runtimeCalculation.calculating', { lng: language })}</div>}
-        {previewError && <div role="alert" className="text-sm text-red-300">{t('orders.runtimeCalculation.exampleCouldNotBeCalculated', { lng: language })}</div>}
+        {previewError && <div role="alert" className="text-sm text-red-800 dark:text-red-200">{t('orders.runtimeCalculation.exampleCouldNotBeCalculated', { lng: language })}</div>}
         {preview && <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">{[
           [t('printops.nav.parts', { lng: language }), preview.material_cost], [t('orders.runtimeCalculation.machine', { lng: language }), preview.machine_cost], [t('settings.energyCostBadge', { lng: language }), preview.energy_cost],
           [t('orders.runtimeCalculation.labor', { lng: language }), preview.labor_cost], [t('orders.runtimeCalculation.risk', { lng: language }), preview.risk_cost], [t('orders.runtimeCalculation.productionCost', { lng: language }), preview.production_cost],
@@ -126,17 +131,18 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
           [t('orders.runtimeCalculation.gross', { lng: language }), preview.gross_price], [t('orders.runtimeCalculation.unitPrice', { lng: language }), preview.unit_price], [t('orders.runtimeCalculation.runs', { lng: language }), String(preview.total_runs)],
         ].map(([label, value]) => <div key={label} className="rounded-lg bg-bambu-dark p-3"><span className="block text-xs text-bambu-gray">{label}</span><strong className="text-white">{label === (t('orders.runtimeCalculation.runs', { lng: language })) ? value : money(value)}</strong></div>)}</div>}
       </div>}
+      </div>
     </section>;
   };
   return <div id="card-cost" className="space-y-5">
     <h2 className="sr-only">{t('settings.costTracking', { lng: language })}</h2>
-    <div className="grid gap-3 md:grid-cols-4">
+    <div className={`${dashboardStyles.card} ${dashboardStyles.cardBody} grid gap-3 sm:grid-cols-2 xl:grid-cols-4`}>
       <Select label={t('orders.businessProfile.currency', { lng: language })} value={settings.currency} onValueChange={(value) => onChange('currency', value)} options={SUPPORTED_CURRENCIES.map(currency => ({ value: currency.code, label: currency.label }))} />
       <NumberField label={t('orders.runtimeCalculation.filamentPriceKg', { lng: language })} min="0" step="0.01" value={settings.default_filament_cost} onValueChange={(value) => onChange('default_filament_cost', Number(value))} />
       <NumberField label={t('orders.runtimeCalculation.electricityKWh', { lng: language })} min="0" step="0.001" value={settings.energy_cost_per_kwh} onValueChange={(value) => onChange('energy_cost_per_kwh', Number(value))} />
       <Select label={t('orders.runtimeCalculation.energyDisplay', { lng: language })} value={settings.energy_tracking_mode} onValueChange={(value) => onChange('energy_tracking_mode', value)} options={[{ value: 'total', label: t('orders.runtimeCalculation.totalConsumption', { lng: language }) }, { value: 'print', label: t('orders.runtimeCalculation.printEnergyOnly', { lng: language }) }]} />
     </div>
-    <div className="grid items-start gap-5 lg:grid-cols-2"><div className="space-y-5">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="space-y-5">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
+    <div className="grid items-start gap-4 lg:grid-cols-2"><div className="min-w-0 space-y-4">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="min-w-0 space-y-4">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
     <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-bambu-gray"><Calculator className="h-4 w-4 text-bambu-green" />{t('orders.runtimeCalculation.previewAndApprovalUseTheSameDecimalCostEngine', { lng: language })}</div>
   </div>;
 }

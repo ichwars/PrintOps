@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -119,6 +121,7 @@ export function LibraryTagsModal({ open, onClose, onPickTag }: LibraryTagsModalP
     saveMutation.mutate();
   };
 
+  const pagination = useTablePagination(tags, '', 15);
   if (!open) return null;
 
   const modalTitleId = 'library-tags-modal-title';
@@ -181,7 +184,7 @@ export function LibraryTagsModal({ open, onClose, onPickTag }: LibraryTagsModalP
                 </tr>
               </thead>
               <tbody>
-                {tags.map((tag) => (
+                {pagination.rows.map((tag) => (
                   <tr
                     key={tag.id}
                     className={`border-b border-bambu-dark-tertiary/60 hover:bg-bambu-dark-tertiary/30 ${onPickTag ? 'cursor-pointer' : ''}`}
@@ -222,6 +225,7 @@ export function LibraryTagsModal({ open, onClose, onPickTag }: LibraryTagsModalP
             </table>
           )}
         </div>
+        <TablePagination {...pagination.footer} />
       </div>
 
       {editorOpen && (

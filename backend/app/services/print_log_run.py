@@ -1,11 +1,25 @@
 """Keep one result per identified print run while preserving production snapshots."""
 
 from sqlalchemy import delete, false, func, or_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from backend.app.core.row_visibility import RowVisibility
 from backend.app.models.print_log import INCLUDE_OPEN_RUNS, RUN_OPEN, PrintLogEntry
 from backend.app.models.printer import Printer
+from backend.app.models.project_production import ProjectProductionReceipt
 from backend.app.utils.local_time import to_naive_utc, utcnow_naive
+
+
+def production_receipt(run_id: int | InstrumentedAttribute[int]):
+    return select(ProjectProductionReceipt.ledger_entry_id).where(ProjectProductionReceipt.run_id == run_id)
+
+
+async def lock_print_run(db: AsyncSession, run_id: int) -> bool:
+    # A write lock also serializes stock receipts and run updates on SQLite.
+    statement = update(PrintLogEntry).where(PrintLogEntry.id == run_id).values(id=PrintLogEntry.id)
+    return await db.scalar(statement.returning(PrintLogEntry.id)) is not None
+
 
 SNAPSHOT_FIELDS = frozenset({"project_id", "quantity", "confirm_requested"})
 KEEP_IF_UNREPORTED = frozenset(

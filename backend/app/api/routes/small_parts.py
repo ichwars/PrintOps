@@ -21,6 +21,7 @@ from backend.app.core.websocket import ws_manager
 from backend.app.models.small_part import SmallPart, SmallPartCategory, SmallPartLedgerEntry, SmallPartUnit
 from backend.app.models.user import User
 from backend.app.models.warehouse_article import WarehouseArticle
+from backend.app.schemas.inventory_stocktake import StockCheckRead, StockCheckRequest
 from backend.app.schemas.procurement import ProcurementOfferRead, SupplierRead
 from backend.app.schemas.small_part import (
     SmallPartCategoryCreate,
@@ -38,6 +39,7 @@ from backend.app.schemas.small_part import (
     SmallPartUpdate,
 )
 from backend.app.services import (
+    inventory_stocktake,
     procurement as procurement_service,
     small_parts as service,
     warehouse_number_sequence as warehouse_number_sequence_service,
@@ -124,8 +126,11 @@ async def _read_part(
     db: AsyncSession,
     part: SmallPart,
     preferred_offer: procurement_service.ProcurementOfferResult | None,
+    usage: service.StockUsage | None = None,
 ) -> SmallPartRead:
     balance = await service.get_balance(db, part.id)
+    if usage is None:
+        usage = (await service.usage_for_parts(db, [part.id])).get(part.id, service.StockUsage())
     return SmallPartRead.model_validate(
         {
             "id": part.id,
@@ -153,6 +158,9 @@ async def _read_part(
             },
             "created_at": part.created_at,
             "updated_at": part.updated_at,
+            "stock_checked_at": part.stock_checked_at,
+            "last_used_at": usage.last_used_at,
+            "consumed": usage.consumed,
         }
     )
 
@@ -761,12 +769,32 @@ async def list_small_parts(
     matches = await service.search_small_parts(db, query=q, active_only=active is True, limit=10000)
     if active is not None:
         matches = [item for item in matches if item.part.is_active is active]
-    preferred_offers = await procurement_service.preferred_offers_for_materials(db, [item.part.id for item in matches])
-    reads = [await _read_part(db, item.part, preferred_offers.get(item.part.id)) for item in matches]
     if low_stock:
-        reads = [item for item in reads if item.balance.is_low_stock]
-    total = len(reads)
-    return SmallPartListResponse(items=reads[offset : offset + limit], total=total, limit=limit, offset=offset)
+        matches = [item for item in matches if item.available <= item.part.minimum_stock]
+    page = matches[offset : offset + limit]
+    ids = [item.part.id for item in page]
+    preferred_offers = await procurement_service.preferred_offers_for_materials(db, ids)
+    usage = await service.usage_for_parts(db, ids)
+    reads = [
+        await _read_part(
+            db, item.part, preferred_offers.get(item.part.id), usage.get(item.part.id, service.StockUsage())
+        )
+        for item in page
+    ]
+    return SmallPartListResponse(items=reads, total=len(matches), limit=limit, offset=offset)
+
+
+@router.post("/stock-check", response_model=StockCheckRead)
+async def confirm_material_stock_check(
+    data: StockCheckRequest,
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+) -> StockCheckRead:
+    checked_at = datetime.now(timezone.utc)
+    await inventory_stocktake.mark_checked(db, SmallPart, data.ids, checked_at, SmallPart.is_active.is_(True))
+    await db.commit()
+    await ws_manager.broadcast({"type": "inventory_changed", "resource": "small_part"})
+    return StockCheckRead(stock_checked_at=checked_at)
 
 
 @router.post("", response_model=SmallPartRead, status_code=status.HTTP_201_CREATED)
@@ -882,16 +910,23 @@ async def add_small_part_stock(
             db,
             small_part_id=small_part_id,
             entry_kind=data.entry_kind,
-            physical_delta=data.quantity,
+            physical_delta=-data.quantity if data.entry_kind == "issue" else data.quantity,
             reserved_delta=Decimal("0"),
             reason=data.reason,
             idempotency_key=data.idempotency_key,
             actor_id=user.id if user else None,
+            require_active=data.entry_kind == "issue",
         )
         await db.commit()
     except service.SmallPartNotFound as exc:
         await db.rollback()
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": str(exc)}) from exc
+    except service.SmallPartInactive as exc:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"code": "inactive_material", "message": str(exc)},
+        ) from exc
     except service.InsufficientSmallPartStock as exc:
         await db.rollback()
         raise HTTPException(

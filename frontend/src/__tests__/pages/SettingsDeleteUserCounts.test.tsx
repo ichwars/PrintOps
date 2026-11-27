@@ -8,7 +8,7 @@ import { SettingsPage } from '../../pages/SettingsPage';
 import { server } from '../mocks/server';
 import { render } from '../utils';
 
-function useUserItems(count: number | { archives: number; queue_items: number; library_files: number }, canDelete = true) {
+function mockUserItems(count: number | { archives: number; queue_items: number; library_files: number }, canDelete = true) {
   const currentUser = {
     id: 1, username: 'operator', role: 'user', is_active: true, is_admin: false,
     groups: [], permissions: canDelete ? ['users:read', 'users:delete'] : ['users:read'],
@@ -19,7 +19,7 @@ function useUserItems(count: number | { archives: number; queue_items: number; l
   server.use(
     http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
     http.get('/api/v1/auth/me', () => HttpResponse.json(currentUser)),
-    http.get('/api/v1/users/', () => HttpResponse.json([currentUser, targetUser])),
+    http.get('/api/v1/users/', () => HttpResponse.json(deletions.length ? [currentUser] : [currentUser, targetUser])),
     http.get('/api/v1/users/2/items-count', () => HttpResponse.json(typeof count === 'number'
       ? { archives: count, queue_items: count, library_files: count }
       : count)),
@@ -49,7 +49,7 @@ describe('SettingsPage delete-user item counts', () => {
     { language: 'en', count: 1, labels: ['1 archive', '1 queue item', '1 library file'], action: 'Delete user, keep items (become ownerless)' },
     { language: 'en', count: 2, labels: ['2 archives', '2 queue items', '2 library files'], action: 'Delete user AND their items' },
   ])('renders complete $language count phrases for $count items and preserves deletion choice', async ({ language, count, labels, action }) => {
-    const deletions = useUserItems(count);
+    const deletions = mockUserItems(count);
     await i18n.changeLanguage(language);
     const user = userEvent.setup();
     render(<SettingsPage />);
@@ -61,13 +61,14 @@ describe('SettingsPage delete-user item counts', () => {
     expect(deletions).toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: action }));
-    await waitFor(() => expect(deletions).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText('Artifact owner')).not.toBeInTheDocument());
+    expect(deletions).toHaveLength(1);
     expect(deletions[0].pathname).toBe('/api/v1/users/2');
     expect(deletions[0].searchParams.get('delete_items')).toBe(String(count > 1));
   });
 
   it('keeps independent category quantities and omits zero-count categories', async () => {
-    useUserItems({ archives: 0, queue_items: 1, library_files: 3 });
+    mockUserItems({ archives: 0, queue_items: 1, library_files: 3 });
     await i18n.changeLanguage('nl');
     render(<SettingsPage />);
     const owner = await screen.findByText('Artifact owner');
@@ -79,7 +80,7 @@ describe('SettingsPage delete-user item counts', () => {
   });
 
   it('keeps deletion unavailable without users:delete permission', async () => {
-    useUserItems(2, false);
+    mockUserItems(2, false);
     await i18n.changeLanguage('nl');
     render(<SettingsPage />);
     const owner = await screen.findByText('Artifact owner');

@@ -270,6 +270,7 @@ export interface CommercialDocument {
   document_type: DocumentType;
   business_profile_id: number;
   customer_id: number | null;
+  customer_display_name?: string | null;
   source_offer_id: number | null;
   source_order_id: number | null;
   number: string | null;

@@ -2,12 +2,14 @@
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled, caller_is_api_key
 from backend.app.core.database import DB_SESSION
@@ -33,6 +35,8 @@ from backend.app.services.lexware_documents import file_ids
 router = APIRouter(prefix="/lexware", tags=["lexware-documents"])
 READ = Permission.COMMERCIAL_DOCUMENTS_READ
 FINANCE = Permission.PAYMENTS_READ
+DocumentSort = Literal["number", "type", "contact", "date", "status", "open"]
+SortDirection = Literal["asc", "desc"]
 
 
 def _filters(connection_id: int | None, business_profile_id: int | None):
@@ -109,6 +113,41 @@ async def _read(db: AsyncSession, document: LexwareDocument, connection: Lexware
     return result
 
 
+async def _page_by_open_amount(db: AsyncSession, filters, direction: SortDirection, offset: int, limit: int):
+    # Use the same validated balance as the response. Keep only IDs and sort values in memory.
+    documents = await db.stream_scalars(
+        select(LexwareDocument)
+        .join(LexwareConnection)
+        .where(*filters)
+        .options(
+            load_only(
+                LexwareDocument.id,
+                LexwareDocument.currency,
+                LexwareDocument.voucher_type,
+                LexwareDocument.voucher_status,
+                LexwareDocument.total_amount,
+                LexwareDocument.due_date,
+                LexwareDocument.supported,
+                LexwareDocument.in_latest_sync,
+                LexwareDocument.local_document_id,
+            )
+        )
+        .order_by(LexwareDocument.id.desc())
+        .execution_options(yield_per=200)
+    )
+    known = []
+    unknown = []
+    async for document in documents:
+        amount = project_finance(document).open_amount
+        if amount is not None:
+            known.append((document.id, amount))
+        else:
+            unknown.append(document.id)
+    known.sort(key=lambda entry: entry[1], reverse=direction == "desc")
+    ids = [document_id for document_id, _ in known] + unknown
+    return ids[offset : offset + limit]
+
+
 @router.get("/documents", response_model=LexwareDocumentList, response_model_exclude_unset=True)
 async def list_documents(
     connection_id: int | None = None,
@@ -117,6 +156,8 @@ async def list_documents(
     voucher_type: str | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    sort: DocumentSort = "date",
+    direction: SortDirection = "desc",
     db: AsyncSession = DB_SESSION,
     actor: User | None = RequirePermissionIfAuthEnabled(READ),
     api_key: bool = Depends(caller_is_api_key),
@@ -131,16 +172,37 @@ async def list_documents(
         )
     if voucher_type:
         filters.append(LexwareDocument.voucher_type == voucher_type)
+    financial = not api_key and (actor is None or actor.has_all_permissions(FINANCE.value))
+    if sort == "open" and not financial:
+        raise HTTPException(403, "Payment read permission is required to sort by open amount")
+
     statement = select(LexwareDocument, LexwareConnection).join(LexwareConnection).where(*filters)
     total = await db.scalar(select(func.count()).select_from(statement.subquery()))
-    rows = (
-        await db.execute(
-            statement.order_by(LexwareDocument.voucher_date.desc(), LexwareDocument.id.desc())
-            .offset(offset)
-            .limit(limit)
+    if sort == "open":
+        ids = await _page_by_open_amount(db, filters, direction, offset, limit)
+        documents = (await db.execute(statement.where(LexwareDocument.id.in_(ids)))).all() if ids else []
+        rows_by_id = {document.id: (document, connection) for document, connection in documents}
+        rows = [rows_by_id[document_id] for document_id in ids if document_id in rows_by_id]
+    else:
+        visible_status = (
+            LexwareDocument.voucher_status
+            if financial
+            else case(
+                (LexwareDocument.voucher_status.in_(FINAL_STATUSES), "final"),
+                else_=LexwareDocument.voucher_status,
+            )
         )
-    ).all()
-    financial = not api_key and (actor is None or actor.has_all_permissions(FINANCE.value))
+        column = {
+            "number": func.lower(func.nullif(LexwareDocument.voucher_number, "")),
+            "type": LexwareDocument.voucher_type,
+            "contact": func.lower(func.nullif(LexwareDocument.contact_name, "")),
+            "date": LexwareDocument.voucher_date,
+            "status": visible_status,
+        }[sort]
+        order = (column.asc() if direction == "asc" else column.desc()).nulls_last()
+        rows = (
+            await db.execute(statement.order_by(order, LexwareDocument.id.desc()).offset(offset).limit(limit))
+        ).all()
     return LexwareDocumentList(items=[await _read(db, d, c, financial) for d, c in rows], total=total)
 
 

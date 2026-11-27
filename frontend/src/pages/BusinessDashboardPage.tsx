@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { isValidElement, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -43,7 +45,8 @@ import {
   type Supplier,
 } from '../api/procurement';
 import { smallPartsApi, type SmallPart } from '../api/smallParts';
-import { Select } from '../components/ui';
+import { Button, Select } from '../components/ui';
+import { dashboardStyles } from '../components/dashboardStyles';
 import { useAuth } from '../contexts/AuthContext';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatMoney } from '../utils/calculationFormatting';
@@ -119,6 +122,8 @@ type DashboardProcurementResource = {
   resource: SpoolProcurementResource;
 };
 
+const touchControl = 'max-[768px]:min-h-[44px]!';
+
 const tabs: Array<{ value: DashboardTab; label: string; icon: LucideIcon }> = [
   { value: 'overview', get label() { return dashboardText('overview'); }, icon: BarChart3 },
   { value: 'revenue', get label() { return dashboardText('revenue'); }, icon: Receipt },
@@ -131,20 +136,18 @@ const isDashboardTab = (value: string | null): value is DashboardTab =>
   tabs.some((tab) => tab.value === value);
 
 const surface = {
-  panel: 'rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 shadow-sm',
-  panelQuiet: 'rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-4',
-  tile: 'rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary',
+  panelQuiet: 'min-w-0 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-4',
   rail: 'var(--bg-tertiary)',
 };
 
-const toneClasses: Record<Tone, { bg: string; text: string; bar: string }> = {
-  green: { bg: 'bg-[#0f2b1d]', text: 'text-[#35c46f]', bar: 'bg-[#00a14a]' },
-  blue: { bg: 'bg-[#102737]', text: 'text-[#65b7dc]', bar: 'bg-[#38a8d5]' },
-  amber: { bg: 'bg-[#302510]', text: 'text-[#e1ad43]', bar: 'bg-[#d89a18]' },
-  red: { bg: 'bg-[#341c20]', text: 'text-[#e1727b]', bar: 'bg-[#dc5b64]' },
-  violet: { bg: 'bg-[#261f35]', text: 'text-[#a992df]', bar: 'bg-[#8d73d9]' },
-  cyan: { bg: 'bg-[#0d2b31]', text: 'text-[#5bc2d1]', bar: 'bg-[#21b7cf]' },
-  neutral: { bg: 'bg-white/[0.04]', text: 'text-bambu-gray', bar: 'bg-[#78828b]' },
+const toneClasses: Record<Tone, { text: string; bar: string }> = {
+  green: { text: 'text-green-700 dark:text-green-400', bar: 'bg-[#00ae42]' },
+  blue: { text: 'text-blue-700 dark:text-blue-300', bar: 'bg-blue-500' },
+  amber: { text: 'text-amber-800 dark:text-amber-300', bar: 'bg-status-warning' },
+  red: { text: 'text-red-700 dark:text-red-300', bar: 'bg-status-error' },
+  violet: { text: 'text-violet-700 dark:text-violet-300', bar: 'bg-violet-500' },
+  cyan: { text: 'text-cyan-800 dark:text-cyan-300', bar: 'bg-cyan-500' },
+  neutral: { text: 'text-table-secondary', bar: 'bg-bambu-gray' },
 };
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
@@ -596,23 +599,21 @@ function deriveMaterialUsage(spools: InventorySpool[], smallParts: SmallPart[]):
 
 function BusinessTabs({ value, onChange }: { value: DashboardTab; onChange: (value: DashboardTab) => void }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex min-w-0 flex-wrap gap-2">
       {tabs.map((tab) => {
         const selected = tab.value === value;
         return (
-          <button
+          <Button
             key={tab.value}
             type="button"
+            variant={selected ? 'primary' : 'secondary'}
+            aria-pressed={selected}
             onClick={() => onChange(tab.value)}
-            className={`flex min-h-10 shrink-0 items-center gap-2 rounded px-4 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green ${
-              selected
-                ? 'bg-[#00a14a] text-[#07120b] shadow-[0_0_0_1px_rgba(0,0,0,0.25)]'
-                : 'border border-bambu-dark-tertiary bg-bambu-dark-secondary text-bambu-gray hover:border-bambu-green/60 hover:text-white'
-            }`}
+            className={`${touchControl} max-w-full aria-pressed:text-black!`}
           >
-            <tab.icon className="h-4 w-4" />
+            <tab.icon className="h-4 w-4 shrink-0" />
             {tab.label}
-          </button>
+          </Button>
         );
       })}
     </div>
@@ -635,19 +636,15 @@ function Panel({
   tone?: Tone;
 }) {
   return (
-    <section className={`${surface.panel} ${className}`}>
-      <div className="mb-4 flex items-start gap-2.5">
-        {Icon ? (
-          <span className={`mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center ${toneClasses[tone].text}`}>
-            <Icon className="h-4 w-4" />
-          </span>
-        ) : null}
+    <section className={`${dashboardStyles.card} min-w-0 ${className}`}>
+      <div className={`${dashboardStyles.cardHeader} flex items-start gap-2.5 rounded-t-xl`}>
+        {Icon ? <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${toneClasses[tone].text}`} /> : null}
         <div className="min-w-0">
-          <h2 className="text-base font-semibold leading-6 text-white">{title}</h2>
-          {subtitle ? <p className="mt-0.5 text-xs leading-5 text-bambu-gray">{subtitle}</p> : null}
+          <h2 className={dashboardStyles.cardTitle}>{title}</h2>
+          {subtitle ? <p className="mt-0.5 text-xs text-table-secondary">{subtitle}</p> : null}
         </div>
       </div>
-      {children}
+      <div className={dashboardStyles.cardBody}>{children}</div>
     </section>
   );
 }
@@ -671,24 +668,24 @@ function MetricCard({
 }) {
   const trendClass = trend
     ? trend.direction === 'flat'
-      ? 'text-bambu-gray'
+      ? 'text-table-secondary'
       : trend.positive
-        ? 'text-[#35c46f]'
-        : 'text-amber-300'
+        ? toneClasses.green.text
+        : toneClasses.amber.text
     : '';
   const TrendIcon = trend?.direction === 'up' ? ArrowUp : trend?.direction === 'down' ? ArrowDown : ArrowUpDown;
   const content = (
     <>
       <div className="flex items-center gap-2.5">
         {Icon ? <Icon className={`h-4 w-4 shrink-0 ${toneClasses[tone].text}`} /> : null}
-        <p className="min-w-0 text-[11px] font-medium leading-4 text-bambu-gray">{label}</p>
+        <p className="min-w-0 text-xs text-table-secondary">{label}</p>
       </div>
-      <strong className="mt-3 block text-[1.35rem] font-semibold leading-none text-white">{value}</strong>
-      <p className="mt-2 truncate text-[11px] leading-4 text-bambu-gray">{detail}</p>
+      <strong className={`${dashboardStyles.metricValue} mt-2 block wrap-break-word`}>{value}</strong>
+      <p className="mt-1 text-xs text-table-secondary">{detail}</p>
       {trend ? (
-        <p className={`mt-2 flex items-center gap-1 text-[11px] leading-4 ${trendClass}`}>
+        <p className={`mt-2 flex items-center gap-1 text-xs ${trendClass}`}>
           <TrendIcon className="h-3 w-3 shrink-0" />
-          <span className="truncate">{trend.label}</span>
+          <span>{trend.label}</span>
         </p>
       ) : null}
     </>
@@ -697,13 +694,13 @@ function MetricCard({
     return (
       <Link
         to={to}
-        className={`${surface.tile} block min-h-[108px] p-4 transition-colors hover:border-bambu-green/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green`}
+        className={`${dashboardStyles.card} ${dashboardStyles.cardBody} block min-w-0 transition-colors hover:border-bambu-green/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green`}
       >
         {content}
       </Link>
     );
   }
-  return <section className={`${surface.tile} min-h-[108px] p-4`}>{content}</section>;
+  return <section className={`${dashboardStyles.card} ${dashboardStyles.cardBody} min-w-0`}>{content}</section>;
 }
 
 function MiniMetric({
@@ -718,14 +715,14 @@ function MiniMetric({
   tone: Tone;
 }) {
   return (
-    <div className={`${surface.panelQuiet} p-3`}>
+    <div className={surface.panelQuiet}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-medium text-bambu-gray">{label}</p>
+        <p className="min-w-0 text-xs text-table-secondary">{label}</p>
         <span className={toneClasses[tone].text}>
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <strong className="mt-2 block text-lg font-semibold text-white">{value}</strong>
+      <strong className={`${dashboardStyles.metricValue} mt-1 block wrap-break-word`}>{value}</strong>
     </div>
   );
 }
@@ -753,7 +750,7 @@ function ChartTooltip({
         <span className="mt-2 block space-y-1">
           {lines.map((line) => (
             <span key={`${line.label}-${line.value}`} className="flex items-center justify-between gap-4 text-xs">
-              <span className="whitespace-nowrap text-bambu-gray">{line.label}</span>
+              <span className="whitespace-nowrap text-table-secondary">{line.label}</span>
               <span className="whitespace-nowrap font-medium text-white">{line.value}</span>
             </span>
           ))}
@@ -786,7 +783,7 @@ function FinanceTrendChart({
           <span key={index} className="border-t border-bambu-dark-tertiary" />
         ))}
       </div>
-      <div className="absolute inset-x-5 bottom-8 top-4 flex items-end justify-between gap-4">
+      <div className="absolute inset-x-1 bottom-8 top-4 flex items-end justify-between gap-1 sm:inset-x-5 sm:gap-4">
         {data.map((item) => {
           const total = item.revenue + item.costs + item.energy;
           const totalHeight = (total / max) * 180;
@@ -794,7 +791,7 @@ function FinanceTrendChart({
           const costsHeight = item.costs > 0 ? Math.max(4, (item.costs / max) * 180) : 0;
           const energyHeight = item.energy > 0 ? Math.max(3, (item.energy / max) * 180) : 0;
           return (
-            <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
+            <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
               <ChartTooltip
                 title={item.label}
                 lines={[
@@ -807,19 +804,19 @@ function FinanceTrendChart({
               >
                 <span className="block w-full overflow-hidden rounded-t-md transition-opacity group-hover/tooltip:opacity-80" style={{ height: `${total > 0 ? clamp(totalHeight, 6, 178) : 0}px` }}>
                   <span className="block bg-[#21b7cf]" style={{ height: `${energyHeight}px` }} />
-                  <span className="block bg-[#d89a18]" style={{ height: `${costsHeight}px` }} />
-                  <span className="block bg-[#00a14a]" style={{ height: `${revenueHeight}px` }} />
+                  <span className="block bg-[#f59e0b]" style={{ height: `${costsHeight}px` }} />
+                  <span className="block bg-[#00ae42]" style={{ height: `${revenueHeight}px` }} />
                 </span>
               </ChartTooltip>
-              <span className="text-xs text-bambu-gray">{item.label}</span>
+              <span className="w-full truncate text-center text-xs text-table-secondary" title={item.label}>{item.label}</span>
             </div>
           );
         })}
       </div>
-      <svg className="pointer-events-none absolute inset-x-5 bottom-8 top-4 h-[178px] w-[calc(100%-2.5rem)] overflow-visible" preserveAspectRatio="none" viewBox="0 0 400 178">
-        <polyline points={points} fill="none" stroke="#00a14a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <svg className="pointer-events-none absolute inset-x-1 bottom-8 top-4 h-[178px] w-[calc(100%-0.5rem)] overflow-visible sm:inset-x-5 sm:w-[calc(100%-2.5rem)]" preserveAspectRatio="none" viewBox="0 0 400 178">
+        <polyline points={points} fill="none" stroke="#00ae42" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
-      <div className="absolute bottom-0 left-0 text-xs text-bambu-gray">
+      <div className="absolute bottom-0 left-0 text-xs text-table-secondary">
         {dashboardText('greenOrderValueOrangeCostsBlueEnergyLineMargin')}
       </div>
     </div>
@@ -870,7 +867,7 @@ function Donut({
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-xs text-bambu-gray">{dashboardText('costs')}</span>
+          <span className="text-xs text-table-secondary">{dashboardText('costs')}</span>
           <strong className="text-sm text-white">{center}</strong>
         </div>
       </div>
@@ -886,7 +883,7 @@ function Donut({
             className={`grid w-full grid-cols-[minmax(0,1fr)_32px] items-center gap-2 ${rowText}`}
           >
             <>
-              <span className="flex min-w-0 items-center gap-2 text-bambu-gray">
+              <span className="flex min-w-0 items-center gap-2 text-table-secondary">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
                 <span className="truncate">{slice.label}</span>
               </span>
@@ -903,23 +900,23 @@ function PipelineChart({ stages, currency, locale }: { stages: PipelineStage[]; 
   const max = Math.max(...stages.map((stage) => stage.value), 1);
   return (
     <div>
-      <div className="mb-4 grid h-[150px] grid-cols-5 items-end gap-5 border-y border-bambu-dark-tertiary py-4">
+      <div className="mb-4 grid h-[150px] grid-cols-5 items-end gap-2 border-y border-bambu-dark-tertiary py-4">
         {stages.map((stage) => (
-          <div key={stage.label} className="flex h-full flex-col justify-end gap-3">
+          <div key={stage.label} className="flex h-full min-w-0 flex-col gap-2">
             <ChartTooltip
               title={stage.label}
               lines={[
                 { label: dashboardText('value'), value: formatMoney(stage.value, locale, currency) },
                 { label: dashboardText('shareOfMaximum'), value: `${Math.round((stage.value / max) * 100)}%` },
               ]}
-              className="mx-auto h-full w-full max-w-[54px] items-end"
+              className="mx-auto min-h-0 w-full max-w-[54px] flex-1 items-end"
             >
               <span
                 className="block w-full rounded-t transition-opacity group-hover/tooltip:opacity-80"
                 style={{ height: `${stage.value > 0 ? clamp((stage.value / max) * 100, 4, 100) : 0}%`, backgroundColor: stage.color }}
               />
             </ChartTooltip>
-            <span className="w-full truncate text-center text-xs text-bambu-gray" title={stage.label}>{stage.label}</span>
+            <span className="min-h-7 text-center text-xs leading-tight wrap-break-word text-table-secondary">{stage.label}</span>
           </div>
         ))}
       </div>
@@ -943,7 +940,7 @@ function ProgressRow({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-        <span className="truncate text-bambu-gray">{label}</span>
+        <span className="truncate text-table-secondary">{label}</span>
         <span className="shrink-0 font-medium text-white">{suffix}</span>
       </div>
       <ChartTooltip
@@ -1039,7 +1036,7 @@ function EnergyHeatmap({
         <div className="grid grid-cols-[24px_repeat(24,minmax(5px,1fr))] gap-1">
           {days.map((day) => (
             <div key={day} className="contents">
-              <span className="text-xs text-bambu-gray">{day}</span>
+              <span className="text-xs text-table-secondary">{day}</span>
               {hours.map((hour) => {
                 const cell = cells.get(`${days.indexOf(day)}-${hour}`) ?? { kwh: 0, cost: 0, runs: 0, source: dashboardText('noData') };
                 const value = cell.kwh > 0 ? clamp((cell.kwh / maxKwh) * 100, 12, 100) : 0;
@@ -1057,7 +1054,7 @@ function EnergyHeatmap({
                   >
                     <span
                       className="block h-4 rounded-sm transition-opacity group-hover/tooltip:opacity-80"
-                      style={{ backgroundColor: `rgba(0, 161, 74, ${0.08 + (value / 100) * 0.62})` }}
+                      style={{ backgroundColor: `rgba(0, 174, 66, ${0.08 + (value / 100) * 0.62})` }}
                     />
                   </ChartTooltip>
                 );
@@ -1065,7 +1062,7 @@ function EnergyHeatmap({
             </div>
           ))}
         </div>
-        <div className="mt-3 flex justify-between text-xs text-bambu-gray">
+        <div className="mt-3 flex justify-between text-xs text-table-secondary">
           <span>00</span>
           <span>12</span>
           <span>23</span>
@@ -1087,21 +1084,21 @@ function RevenueStatus({ status }: { status: RevenueRow['status'] }) {
     missing_payment_source: dashboardText('paymentSourceMissing'),
   };
   const tones = {
-    paid: 'text-[#35c46f]',
-    partially_paid: 'text-amber-300',
-    unpaid: 'text-bambu-gray',
-    overdue: 'text-red-300',
-    completed: 'text-[#35c46f]',
-    active: 'text-bambu-gray',
-    offer: 'text-amber-300',
-    missing_payment_source: 'text-red-300',
+    paid: toneClasses.green.text,
+    partially_paid: toneClasses.amber.text,
+    unpaid: 'text-table-secondary',
+    overdue: toneClasses.red.text,
+    completed: toneClasses.green.text,
+    active: 'text-table-secondary',
+    offer: toneClasses.amber.text,
+    missing_payment_source: toneClasses.red.text,
   };
   return <span className={tones[status]}>{labels[status]}</span>;
 }
 
 function EntityLink({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Link to={to} className="font-medium text-white underline-offset-4 hover:text-bambu-green hover:underline">
+    <Link to={to} className="font-medium text-white underline-offset-4 hover:text-accent-foreground hover:underline">
       {children}
     </Link>
   );
@@ -1109,7 +1106,7 @@ function EntityLink({ to, children }: { to: string; children: ReactNode }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className={`${surface.panelQuiet} flex min-h-24 items-center text-sm text-bambu-gray`}>
+    <div className={`${surface.panelQuiet} flex min-h-24 items-center text-sm text-table-secondary`}>
       {label}
     </div>
   );
@@ -1117,19 +1114,19 @@ function EmptyState({ label }: { label: string }) {
 
 function ActionStrip({ actions }: { actions: ActionShortcut[] }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
       {actions.map((action) => {
         const Icon = action.icon;
         return (
           <Link
             key={`${action.label}-${action.to}`}
             to={action.to}
-            className={`${surface.tile} flex min-h-[76px] items-start gap-3 px-4 py-3 transition-colors hover:border-bambu-green/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green`}
+            className={`${dashboardStyles.card} flex min-h-[76px] min-w-0 items-start gap-3 px-4 py-3 transition-colors hover:border-bambu-green/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green`}
           >
             <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${toneClasses[action.tone].text}`} />
             <span className="min-w-0">
-              <span className="block text-sm font-semibold leading-5 text-white">{action.label}</span>
-              <span className="mt-0.5 block truncate text-xs leading-5 text-bambu-gray">{action.detail}</span>
+              <span className="block text-sm font-medium text-white">{action.label}</span>
+              <span className="mt-0.5 block truncate text-xs leading-5 text-table-secondary">{action.detail}</span>
             </span>
           </Link>
         );
@@ -1200,10 +1197,12 @@ function CompactTable({
     });
   }, [rows, sort]);
 
+  const pagination = useTablePagination(sortedRows, JSON.stringify(sort));
   return (
+    <div className="min-w-0">
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
-        <thead className="text-xs text-bambu-gray">
+        <thead className="text-xs text-table-secondary">
           <tr>
             {columns.map((column, columnIndex) => {
               const active = sort?.column === columnIndex;
@@ -1220,7 +1219,7 @@ function CompactTable({
                     ))}
                   >
                     <span className="truncate">{column}</span>
-                    <SortIcon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-[#35c46f]' : 'text-[#7f978b]'}`} />
+                    <SortIcon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-accent-foreground' : 'text-table-secondary'}`} />
                   </button>
                 </th>
               );
@@ -1228,15 +1227,17 @@ function CompactTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-bambu-dark-tertiary">
-          {sortedRows.map((row, rowIndex) => (
+          {pagination.rows.map((row, rowIndex) => (
             <tr key={rowIndex}>
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="py-2.5 pr-4 text-bambu-gray first:text-white">{cell}</td>
+                <td key={cellIndex} className="py-2.5 pr-4 text-table-secondary first:text-(color:--text-primary)">{cell}</td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+    <TablePagination {...pagination.footer} density="compact" />
     </div>
   );
 }
@@ -1292,18 +1293,18 @@ function Overview({
 
   return (
     <div className="mt-5 space-y-5">
-      <div className="grid gap-5 xl:grid-cols-[1.12fr_1.18fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.12fr_1.18fr_1fr]">
         <Panel icon={BarChart3} title={dashboardText('financialTrendWithCostsEnergyAndMargin')} subtitle={dashboardText('orderValuesCostsAndEnergyCostsFromAvailableSources')}>
           <FinanceTrendChart data={trend} currency={currency} locale={locale} />
         </Panel>
 
         <Panel icon={Zap} title={dashboardText('energyElectricityCosts')} subtitle={dashboardText('smartPlugPrintLogSourceWithANoticeWhenDataIsMissing')}>
-          <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <MiniMetric icon={Zap} label={dashboardText('usage')} value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} tone="cyan" />
             <MiniMetric icon={CircleDollarSign} label={dashboardText('costs')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currency)} tone="amber" />
             <MiniMetric icon={BatteryCharging} label="kWh/h" value={energyPerHour.toFixed(2)} tone="green" />
           </div>
-          <div className="grid gap-4 min-[1500px]:grid-cols-[1.05fr_1fr]">
+          <div className="grid grid-cols-1 gap-4 min-[1500px]:grid-cols-[1.05fr_1fr]">
             <Donut
               size="small"
               center={String(Math.round(stats?.total_energy_kwh ?? 0))}
@@ -1314,9 +1315,9 @@ function Overview({
             />
             <div className={`${surface.panelQuiet} text-sm`}>
               <strong className="block text-white">{dashboardText('energySignals')}</strong>
-              <p className="mt-3 text-bambu-gray">{dashboardText('period')} {formatKwh(stats?.total_energy_kwh ?? 0, locale)}</p>
-              <p className="mt-2 text-bambu-gray">{dashboardText('costs2')} {formatMoney(stats?.total_energy_cost ?? 0, locale, currency)}</p>
-              <p className="mt-2 text-bambu-gray">{dashboardText('source2')} {dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))}</p>
+              <p className="mt-3 text-table-secondary">{dashboardText('period')} {formatKwh(stats?.total_energy_kwh ?? 0, locale)}</p>
+              <p className="mt-2 text-table-secondary">{dashboardText('costs2')} {formatMoney(stats?.total_energy_cost ?? 0, locale, currency)}</p>
+              <p className="mt-2 text-table-secondary">{dashboardText('source2')} {dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))}</p>
             </div>
           </div>
         </Panel>
@@ -1326,9 +1327,9 @@ function Overview({
           <div className={`${surface.panelQuiet} text-sm`}>
             <div className="flex items-center justify-between gap-3">
               <strong className="text-white">{dashboardText('expectedRevenue')}</strong>
-              <span className="text-bambu-gray">{formatMoney(pipelineTotal, locale, currency)}</span>
+              <span className="text-table-secondary">{formatMoney(pipelineTotal, locale, currency)}</span>
             </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-bambu-gray">
+            <div className="mt-2 flex items-center justify-between gap-3 text-table-secondary">
               <span>{dashboardText('ofWhichCompleted')}</span>
               <span>{formatMoney(completedStage, locale, currency)}</span>
             </div>
@@ -1336,7 +1337,7 @@ function Overview({
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr_0.9fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr_0.9fr]">
         <Panel icon={Lightbulb} title={dashboardText('priorities')} subtitle={dashboardText('nextStepsForRevenueMarginInventoryAndEnergy')}>
           <CompactTable columns={[dashboardText('area'), dashboardText('signal'), dashboardText('value'), dashboardText('action')]} rows={priorityRows} />
         </Panel>
@@ -1348,7 +1349,7 @@ function Overview({
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-4">
         <Panel icon={Receipt} title={dashboardText('revenueSummary')} subtitle={dashboardText('actualOrderAndOfferValues')}>
           {revenueRows.length > 0 ? (
             <>
@@ -1365,13 +1366,13 @@ function Overview({
                     className="h-full flex-1 items-end"
                   >
                     <span
-                      className={`block w-full rounded-t transition-opacity group-hover/tooltip:opacity-80 ${row.status === 'overdue' ? 'bg-[#dc5b64]' : row.status === 'offer' || row.status === 'unpaid' || row.status === 'partially_paid' ? 'bg-[#d89a18]' : 'bg-[#00a14a]'}`}
+                      className={`block w-full rounded-t transition-opacity group-hover/tooltip:opacity-80 ${row.status === 'overdue' ? 'bg-[#ef4444]' : row.status === 'offer' || row.status === 'unpaid' || row.status === 'partially_paid' ? 'bg-[#f59e0b]' : 'bg-[#00ae42]'}`}
                       style={{ height: `${clamp((row.amount / Math.max(...revenueRows.map((item) => item.amount), 1)) * 100, 6, 100)}%` }}
                     />
                   </ChartTooltip>
                 ))}
               </div>
-              <p className="mt-8 text-xs text-bambu-gray">
+              <p className="mt-8 text-xs text-table-secondary">
                 {dashboardText('paid')} {formatMoney(revenueRows.filter((row) => row.status === 'paid').reduce((sum, row) => sum + row.amount, 0), locale, currency)} {dashboardText('open2')} {formatMoney(revenueRows.filter((row) => row.status === 'unpaid' || row.status === 'partially_paid' || row.status === 'overdue').reduce((sum, row) => sum + row.amount, 0), locale, currency)}
               </p>
             </>
@@ -1397,7 +1398,7 @@ function Overview({
               ))}
             </div>
           ) : <EmptyState label={dashboardText('noActiveInventoryItemsFound')} />}
-          <p className="mt-5 text-xs text-bambu-gray">
+          <p className="mt-5 text-xs text-table-secondary">
             {dashboardText('inventoryValue')} {formatMoney(stockValue, locale, currency)} {dashboardText('reserved')} {formatMoney(reservedValue, locale, currency)}
           </p>
         </Panel>
@@ -1414,7 +1415,7 @@ function Overview({
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr_1fr]">
         <Panel icon={Receipt} title={dashboardText('ordersAndOffers')}>
           <CompactTable columns={[dashboardText('document'), dashboardText('customer'), dashboardText('status'), dashboardText('amount')]} rows={revenueRowsForTable} />
         </Panel>
@@ -1723,25 +1724,25 @@ export function BusinessDashboardPage() {
           <EntityLink to={`/orders/${order.id}`}>{order.number}</EntityLink>,
           reservation.material_code ?? reservation.resource_kind,
           `${reservation.requested_quantity} ${reservation.unit_code}`,
-          value > 0 ? formatMoney(value, locale, currencyCode) : <span className="text-bambu-gray">{dashboardText('cannotBeValued')}</span>,
-          reservation.status === 'fulfilled' || reservation.status === 'allocated' ? 'OK' : <span className="text-amber-300">{dashboardText('check')}</span>,
+          value > 0 ? formatMoney(value, locale, currencyCode) : <span className="text-table-secondary">{dashboardText('cannotBeValued')}</span>,
+          reservation.status === 'fulfilled' || reservation.status === 'allocated' ? 'OK' : <span className={toneClasses.amber.text}>{dashboardText('check')}</span>,
         ] as Array<ReactNode>;
       }))
       .slice(0, 6);
 
     const costSlices: CostSlice[] = [
-      { label: dashboardText('material'), value: acceptedCost > 0 ? 0 : stats?.total_cost ?? 0, color: '#00a14a' },
-      { label: dashboardText('orderCalculation'), value: acceptedCost, color: '#38a8d5' },
+      { label: dashboardText('material'), value: acceptedCost > 0 ? 0 : stats?.total_cost ?? 0, color: '#00ae42' },
+      { label: dashboardText('orderCalculation'), value: acceptedCost, color: '#3b82f6' },
       { label: dashboardText('energy'), value: acceptedCost > 0 ? 0 : energyCost, color: '#21b7cf' },
       { label: dashboardText('reservation'), value: reservedValue, color: '#8d73d9' },
     ];
 
     const pipelineStages: PipelineStage[] = [
-      { label: dashboardText('draft'), value: draftRevenue, color: '#00a14a' },
-      { label: dashboardText('sent'), value: sentRevenue, color: '#38a8d5' },
-      { label: dashboardText('accepted'), value: acceptedOfferRevenue, color: '#d89a18' },
+      { label: dashboardText('draft'), value: draftRevenue, color: '#00ae42' },
+      { label: dashboardText('sent'), value: sentRevenue, color: '#3b82f6' },
+      { label: dashboardText('accepted'), value: acceptedOfferRevenue, color: '#f59e0b' },
       { label: dashboardText('active'), value: activeOrderRevenue, color: '#8d73d9' },
-      { label: dashboardText('completed'), value: completedRevenue, color: '#dc5b64' },
+      { label: dashboardText('completed'), value: completedRevenue, color: '#ef4444' },
     ];
 
     return {
@@ -1904,15 +1905,15 @@ export function BusinessDashboardPage() {
       formatMoney(row.value, locale, currencyCode),
       row.idleDays === null ? dashboardText('unknown2') : dashboardText('daysValue2', { value1: row.idleDays }),
       row.spool.storage_location ?? dashboardText('noLocation'),
-      row.value > 25 ? <span className="text-amber-300">{dashboardText('checkStock')}</span> : dashboardText('monitor'),
+      row.value > 25 ? <span className={toneClasses.amber.text}>{dashboardText('checkStock')}</span> : dashboardText('monitor'),
     ] as Array<ReactNode>);
   const inventoryWithoutCostCount = spoolsWithoutCostCount + activeSmallPartsWithoutCostCount;
   const procurementReadinessRows = [
-    [dashboardText('costBasis'), dashboardText('itemsValue', { value1: inventoryItemCount - inventoryWithoutCostCount, value2: inventoryItemCount || 0 }), inventoryWithoutCostCount > 0 ? <span className="text-amber-300">{dashboardText('marginIncomplete')}</span> : 'OK', inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('maintainCosts')}</EntityLink> : dashboardText('noAction')],
-    [dashboardText('skuSupplier'), dashboardText('spoolsValue', { value1: directSupplierAssignedSpoolCount, value2: spools.length || 0 }), directSupplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">{dashboardText('assignmentMissing')}</span> : 'OK', <EntityLink to={supplierListUrl()}>{dashboardText('checkSuppliers')}</EntityLink>],
-    [dashboardText('overallSupplierCoverage'), dashboardText('spoolsValue', { value1: supplierAssignedSpoolCount, value2: spools.length || 0 }), supplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">{dashboardText('offersMissing')}</span> : 'OK', <EntityLink to={supplierListUrl()}>{dashboardText('checkOffers')}</EntityLink>],
-    [dashboardText('storageLocation'), dashboardText('itemsValue', { value1: inventoryWithLocationCount, value2: inventoryItemCount || 0 }), inventoryWithLocationCount < inventoryItemCount ? <span className="text-amber-300">{dashboardText('harderToLocate')}</span> : 'OK', <EntityLink to={inventoryFocusUrl('missing-location')}>{dashboardText('maintainLocations')}</EntityLink>],
-    [dashboardText('shortageRate'), dashboardText('itemsValue', { value1: derived.lowStockCount, value2: inventoryItemCount || 0 }), derived.lowStockCount > 0 ? <span className="text-red-300">{dashboardText('reorder')}</span> : 'OK', derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>{dashboardText('reorderSuggestions')}</EntityLink> : dashboardText('noAction')],
+    [dashboardText('costBasis'), dashboardText('itemsValue', { value1: inventoryItemCount - inventoryWithoutCostCount, value2: inventoryItemCount || 0 }), inventoryWithoutCostCount > 0 ? <span className={toneClasses.amber.text}>{dashboardText('marginIncomplete')}</span> : 'OK', inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('maintainCosts')}</EntityLink> : dashboardText('noAction')],
+    [dashboardText('skuSupplier'), dashboardText('spoolsValue', { value1: directSupplierAssignedSpoolCount, value2: spools.length || 0 }), directSupplierAssignedSpoolCount < spools.length ? <span className={toneClasses.amber.text}>{dashboardText('assignmentMissing')}</span> : 'OK', <EntityLink to={supplierListUrl()}>{dashboardText('checkSuppliers')}</EntityLink>],
+    [dashboardText('overallSupplierCoverage'), dashboardText('spoolsValue', { value1: supplierAssignedSpoolCount, value2: spools.length || 0 }), supplierAssignedSpoolCount < spools.length ? <span className={toneClasses.amber.text}>{dashboardText('offersMissing')}</span> : 'OK', <EntityLink to={supplierListUrl()}>{dashboardText('checkOffers')}</EntityLink>],
+    [dashboardText('storageLocation'), dashboardText('itemsValue', { value1: inventoryWithLocationCount, value2: inventoryItemCount || 0 }), inventoryWithLocationCount < inventoryItemCount ? <span className={toneClasses.amber.text}>{dashboardText('harderToLocate')}</span> : 'OK', <EntityLink to={inventoryFocusUrl('missing-location')}>{dashboardText('maintainLocations')}</EntityLink>],
+    [dashboardText('shortageRate'), dashboardText('itemsValue', { value1: derived.lowStockCount, value2: inventoryItemCount || 0 }), derived.lowStockCount > 0 ? <span className={toneClasses.red.text}>{dashboardText('reorder')}</span> : 'OK', derived.lowStockCount > 0 ? <EntityLink to={inventoryFocusUrl('low-stock')}>{dashboardText('reorderSuggestions')}</EntityLink> : dashboardText('noAction')],
     [dashboardText('reservationPressure'), dashboardText('linesValue', { value1: derived.reservedLines }), formatMoney(derived.reservedValue, locale, currencyCode), derived.reservedLines > 0 ? <EntityLink to="/orders">{dashboardText('checkOrders')}</EntityLink> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const inventoryRiskRows = [
@@ -1924,14 +1925,14 @@ export function BusinessDashboardPage() {
         <EntityLink to={spoolDetailUrl(spool)}>{label || dashboardText('spoolValue', { value1: spool.id })}</EntityLink>,
         `${Math.round(remaining)} g`,
         spool.storage_location ?? dashboardText('inventory'),
-        pct < 8 ? <span className="text-red-300">{dashboardText('critical')}</span> : <span className="text-amber-300">{dashboardText('low')}</span>,
+        pct < 8 ? <span className={toneClasses.red.text}>{dashboardText('critical')}</span> : <span className={toneClasses.amber.text}>{dashboardText('low')}</span>,
       ] as Array<ReactNode>;
     }),
     ...lowStockSmallParts.slice(0, 4).map((part) => [
       <EntityLink to={`/warehouse/parts?part=${part.id}`}>{part.name}</EntityLink>,
       `${formatQuantity(asNumber(part.balance.available), locale)} ${part.unit.label || part.unit_code}`,
       part.location_id ? dashboardText('storageLocationValue', { value1: part.location_id }) : dashboardText('materialStorage'),
-      asNumber(part.balance.available) <= 0 ? <span className="text-red-300">{dashboardText('critical')}</span> : <span className="text-amber-300">{dashboardText('low')}</span>,
+      asNumber(part.balance.available) <= 0 ? <span className={toneClasses.red.text}>{dashboardText('critical')}</span> : <span className={toneClasses.amber.text}>{dashboardText('low')}</span>,
     ] as Array<ReactNode>),
   ];
   const riskRows = inventoryRiskRows;
@@ -1974,7 +1975,7 @@ export function BusinessDashboardPage() {
         dashboardText('daysValue2', { value1: shortestLeadTime }),
         group.supplier.email || group.supplier.phone || group.supplier.website || dashboardText('noContact'),
         group.skuCount > 0
-          ? <span className="text-[#35c46f]">{group.skuCount} {dashboardText('directSkuAssignment')}</span>
+          ? <span className={toneClasses.green.text}>{group.skuCount} {dashboardText('directSkuAssignment')}</span>
           : dashboardText('offerFallbacksValue', { value1: group.fallbackCount }),
       ] as Array<ReactNode>;
     });
@@ -1990,7 +1991,7 @@ export function BusinessDashboardPage() {
       dashboardText('label1Spool'),
       supplier ? <EntityLink to={supplierListUrl(supplier.name)}>{supplier.name}</EntityLink> : <EntityLink to={supplierListUrl(spool.brand ?? '')}>{spool.brand || dashboardText('assignSupplier')}</EntityLink>,
       assignment.leadTimeDays > 0 ? dashboardText('daysValue2', { value1: assignment.leadTimeDays }) : dashboardText('remainingValue', { value1: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(pct) }),
-      pct < 8 ? <span className="text-red-300">{dashboardText('checkToday')}</span> : <span className="text-amber-300">{dashboardText('plan')}</span>,
+      pct < 8 ? <span className={toneClasses.red.text}>{dashboardText('checkToday')}</span> : <span className={toneClasses.amber.text}>{dashboardText('plan')}</span>,
     ] as Array<ReactNode>;
   });
   const materialPlanningRows = derived.materialUsage
@@ -2024,9 +2025,9 @@ export function BusinessDashboardPage() {
       item.supplier ? dashboardText('daysValue2', { value1: item.leadTimeDays }) : '-',
       item.reorderGrams > 0 ? dashboardText('replenishValue', { value1: formatWeightKg(item.reorderGrams, locale) }) : dashboardText('stockSufficient'),
       item.days <= Math.max(item.leadTimeDays + 7, 14)
-        ? <span className="text-red-300">{dashboardText('critical')}</span>
+        ? <span className={toneClasses.red.text}>{dashboardText('critical')}</span>
         : item.reorderGrams > 0
-          ? <span className="text-amber-300">{dashboardText('plan')}</span>
+          ? <span className={toneClasses.amber.text}>{dashboardText('plan')}</span>
         : 'OK',
     ] as Array<ReactNode>);
   const openReceivableDocuments = [...derived.paymentDocuments]
@@ -2067,21 +2068,21 @@ export function BusinessDashboardPage() {
     return [
       <EntityLink to={invoicePaymentUrl(document.id)}>{document.number ?? dashboardText('documentValue', { value1: document.id })}</EntityLink>,
       displayCustomer(document.customer_id),
-      dueDate ? dueDate.toLocaleDateString(locale) : <span className="text-bambu-gray">{dashboardText('noDueDate')}</span>,
+      dueDate ? dueDate.toLocaleDateString(locale) : <span className="text-table-secondary">{dashboardText('noDueDate')}</span>,
       formatMoney(asNumber(document.open_amount), locale, document.currency || currencyCode),
       daysUntilDue === null
-        ? <span className="text-amber-300">{dashboardText('maintainDueDate')}</span>
+        ? <span className={toneClasses.amber.text}>{dashboardText('maintainDueDate')}</span>
         : daysUntilDue < 0
-          ? <span className="text-red-300">{Math.abs(daysUntilDue)} {dashboardText('daysOverdue')}</span>
+          ? <span className={toneClasses.red.text}>{Math.abs(daysUntilDue)} {dashboardText('daysOverdue')}</span>
           : daysUntilDue <= 7
-            ? <span className="text-amber-300">{dashboardText('dueIn')} {daysUntilDue} {dashboardText('days')}</span>
+            ? <span className={toneClasses.amber.text}>{dashboardText('dueIn')} {daysUntilDue} {dashboardText('days')}</span>
             : 'OK',
       <EntityLink to={invoicePaymentUrl(document.id)}>{dashboardText('recordPayment')}</EntityLink>,
     ] as Array<ReactNode>;
   });
   const nextPaymentDocument = overdueDocuments[0] ?? dueSoonDocuments[0] ?? openReceivableDocuments[0] ?? null;
   const paymentStatusRows = [
-    [dashboardText('receivedPayments'), formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode), dashboardText('transactionsValue', { value1: paymentRows.length }), derived.paymentEffectiveRevenue > 0 ? 'OK' : <span className="text-bambu-gray">{dashboardText('noTransactions')}</span>],
+    [dashboardText('receivedPayments'), formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode), dashboardText('transactionsValue', { value1: paymentRows.length }), derived.paymentEffectiveRevenue > 0 ? 'OK' : <span className="text-table-secondary">{dashboardText('noTransactions')}</span>],
     [dashboardText('openReceivables'), formatMoney(derived.openRevenue, locale, currencyCode), dashboardText('documentsValue', { value1: openReceivableDocuments.length }), nextPaymentDocument ? <EntityLink to={invoicePaymentUrl(nextPaymentDocument.id)}>{dashboardText('recordPayment')}</EntityLink> : <EntityLink to={invoiceListUrl('open')}>{dashboardText('check')}</EntityLink>],
     [dashboardText('overdue'), formatMoney(derived.overdueRevenue, locale, currencyCode), dashboardText('documentsValue', { value1: overdueDocuments.length }), overdueDocuments.length > 0 ? <EntityLink to={invoiceListUrl('overdue')}>{dashboardText('dunningRun')}</EntityLink> : 'OK'],
     [dashboardText('dueSoon'), formatMoney(dueSoonDocuments.reduce((sum, document) => sum + asNumber(document.open_amount), 0), locale, currencyCode), dashboardText('documentsValue', { value1: dueSoonDocuments.length }), dueSoonDocuments.length > 0 ? <EntityLink to={invoiceListUrl('open')}>{dashboardText('sendReminder')}</EntityLink> : 'OK'],
@@ -2147,13 +2148,13 @@ export function BusinessDashboardPage() {
       formatKwh(row.kwh, locale),
       formatMoney(row.cost, locale, currencyCode),
       dashboardText('printsValue', { value1: row.runs }),
-      row.kwh > 0 && row.kwh >= (stats?.total_energy_kwh ?? 0) * 0.2 ? <span className="text-amber-300">{dashboardText('checkPeak')}</span> : 'OK',
+      row.kwh > 0 && row.kwh >= (stats?.total_energy_kwh ?? 0) * 0.2 ? <span className={toneClasses.amber.text}>{dashboardText('checkPeak')}</span> : 'OK',
     ] as Array<ReactNode>);
   const energyActionRows = [
     [dashboardText('periodTotal'), formatKwh(stats?.total_energy_kwh ?? 0, locale), selectedDateRange.label, <EntityLink to={archiveEnergyUrl('measured')}>{dashboardEnergySource(stats?.energy_source, dashboardText('archive'))}</EntityLink>],
-    [dashboardText('energyCosts'), formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), selectedDateRange.label, (stats?.total_energy_cost ?? 0) > 0 ? <EntityLink to={archiveEnergyUrl('measured')}>{dashboardText('checkCosts')}</EntityLink> : <span className="text-bambu-gray">{dashboardText('noCosts')}</span>],
+    [dashboardText('energyCosts'), formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), selectedDateRange.label, (stats?.total_energy_cost ?? 0) > 0 ? <EntityLink to={archiveEnergyUrl('measured')}>{dashboardText('checkCosts')}</EntityLink> : <span className="text-table-secondary">{dashboardText('noCosts')}</span>],
     [dashboardText('costsKwh'), formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode), dashboardText('setting'), <EntityLink to={energyCostSettingsUrl}>{dashboardText('open3')}</EntityLink>],
-    [dashboardText('printIntensity'), `${energyPerHour.toFixed(2)} kWh/h`, dashboardText('filamentValue', { value1: formatWeightKg((stats?.total_filament_grams ?? 0), locale) }), energyPerHour > 0 ? 'OK' : <span className="text-amber-300">{dashboardText('noHours')}</span>],
+    [dashboardText('printIntensity'), `${energyPerHour.toFixed(2)} kWh/h`, dashboardText('filamentValue', { value1: formatWeightKg((stats?.total_filament_grams ?? 0), locale) }), energyPerHour > 0 ? 'OK' : <span className={toneClasses.amber.text}>{dashboardText('noHours')}</span>],
     [dashboardText('measurementCoverage'), formatPercent(energyDataCoverage, locale), dashboardText('eventsValue', { value1: measuredEnergyEvents.length, value2: archiveEvents.length || 0 }), energyDataCoverage >= 80 ? <EntityLink to={archiveEnergyUrl('measured')}>{dashboardText('measurements')}</EntityLink> : <EntityLink to={archiveEnergyUrl('missing')}>{dashboardText('dataGap')}</EntityLink>],
   ];
   const printerRows = Object.entries(stats?.prints_by_printer ?? {})
@@ -2172,13 +2173,13 @@ export function BusinessDashboardPage() {
       eventDate(event)?.toLocaleDateString(locale) ?? '-',
       <EntityLink to={archiveEnergyUrl(undefined, 'log', event.print_name || '')}>{event.print_name || dashboardText('unnamedPrint')}</EntityLink>,
       event.printer_id ? <EntityLink to="/printers">{dashboardText('printerValue', { value1: event.printer_id })}</EntityLink> : dashboardText('unknown2'),
-      asNumber(event.energy_kwh) > 0 ? formatKwh(asNumber(event.energy_kwh), locale) : <span className="text-bambu-gray">{dashboardText('fromPeriod')}</span>,
-      asNumber(event.energy_cost) > 0 ? formatMoney(asNumber(event.energy_cost), locale, currencyCode) : <span className="text-bambu-gray">{dashboardText('proportional')}</span>,
+      asNumber(event.energy_kwh) > 0 ? formatKwh(asNumber(event.energy_kwh), locale) : <span className="text-table-secondary">{dashboardText('fromPeriod')}</span>,
+      asNumber(event.energy_cost) > 0 ? formatMoney(asNumber(event.energy_cost), locale, currencyCode) : <span className="text-table-secondary">{dashboardText('proportional')}</span>,
     ] as Array<ReactNode>);
   const energyQualityRows = [
     [dashboardText('printLogMeasurements'), `${measuredEnergyEvents.length}/${archiveEvents.length || 0}`, formatPercent(energyDataCoverage, locale), energyDataCoverage >= 80 ? <EntityLink to={archiveEnergyUrl('measured')}>{dashboardText('stable')}</EntityLink> : <EntityLink to={archiveEnergyUrl('missing')}>{dashboardText('addMeasurements')}</EntityLink>],
     [dashboardText('timeBasedEstimate'), archiveEvents.length > measuredEnergyEvents.length ? dashboardText('printsValue', { value1: archiveEvents.length - measuredEnergyEvents.length }) : dashboardText('label0Prints'), dashboardEnergySource(stats?.energy_source, dashboardText('archive')), archiveEvents.length > measuredEnergyEvents.length ? <EntityLink to={archiveEnergyUrl('missing')}>{dashboardText('markEstimateClearly')}</EntityLink> : 'OK'],
-    [dashboardText('smartPlugHistory2'), stats?.energy_data_warming_up ? dashboardText('warmingUp') : dashboardText('ready'), selectedDateRange.label, stats?.energy_data_warming_up ? <span className="text-amber-300">{dashboardText('collectHistory')}</span> : 'OK'],
+    [dashboardText('smartPlugHistory2'), stats?.energy_data_warming_up ? dashboardText('warmingUp') : dashboardText('ready'), selectedDateRange.label, stats?.energy_data_warming_up ? <span className={toneClasses.amber.text}>{dashboardText('collectHistory')}</span> : 'OK'],
     [dashboardText('costBasis'), formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode), dashboardText('settings'), (settingsQuery.data?.energy_cost_per_kwh ?? 0) > 0 ? 'OK' : <EntityLink to={energyCostSettingsUrl}>{dashboardText('maintain')}</EntityLink>],
   ];
   const energyRecommendationRows = [
@@ -2209,7 +2210,7 @@ export function BusinessDashboardPage() {
       row.title || formatMoney(row.revenue, locale, currencyCode),
       formatMoney(row.cost, locale, currencyCode),
       formatPercent(row.margin, locale),
-      row.margin < 20 ? <span className="text-red-300">{dashboardText('marginRisk')}</span> : row.margin < 35 ? <span className="text-amber-300">{dashboardText('check2')}</span> : 'OK',
+      row.margin < 20 ? <span className={toneClasses.red.text}>{dashboardText('marginRisk')}</span> : row.margin < 35 ? <span className={toneClasses.amber.text}>{dashboardText('check2')}</span> : 'OK',
     ] as Array<ReactNode>);
   const marginSourceRows = derived.activeOrders
     .map((order) => {
@@ -2222,8 +2223,8 @@ export function BusinessDashboardPage() {
   const lowMarginOrders = marginSourceRows.filter((row) => row.revenue > 0 && row.margin < 25);
   const contributionRows = [
     [dashboardText('orderValue'), formatMoney(derived.acceptedRevenue, locale, currencyCode), dashboardText('ordersValue', { value1: derived.activeOrders.length }), dashboardText('basis')],
-    [dashboardText('productionCosts'), formatMoney(derived.productionCost, locale, currencyCode), dashboardText('materialProductionEnergy'), derived.productionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className="text-red-300">{dashboardText('tooHigh')}</span> : 'OK'],
-    [dashboardText('contributionMargin'), formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode), formatPercent(derived.margin, locale), derived.margin < 25 && derived.acceptedRevenue > 0 ? <span className="text-amber-300">{dashboardText('check')}</span> : 'OK'],
+    [dashboardText('productionCosts'), formatMoney(derived.productionCost, locale, currencyCode), dashboardText('materialProductionEnergy'), derived.productionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className={toneClasses.red.text}>{dashboardText('tooHigh')}</span> : 'OK'],
+    [dashboardText('contributionMargin'), formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode), formatPercent(derived.margin, locale), derived.margin < 25 && derived.acceptedRevenue > 0 ? <span className={toneClasses.amber.text}>{dashboardText('check')}</span> : 'OK'],
     [dashboardText('reservedInventoryValue'), formatMoney(derived.reservedValue, locale, currencyCode), dashboardText('reservationsValue', { value1: derived.reservedLines }), derived.reservedValue > 0 ? dashboardText('committed') : dashboardText('available')],
   ] as Array<Array<ReactNode>>;
   const costControlRows = [
@@ -2233,39 +2234,39 @@ export function BusinessDashboardPage() {
     [dashboardText('inventoryCommitment'), formatMoney(derived.reservedValue, locale, currencyCode), dashboardText('linesValue', { value1: derived.reservedLines }), derived.reservedLines > 0 ? <EntityLink to={dashboardTabUrl('inventory')}>{dashboardText('checkReservations')}</EntityLink> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const marginActionRows = [
-    [dashboardText('marginBelow25'), dashboardText('ordersValue', { value1: lowMarginOrders.length }), lowMarginOrders.length > 0 ? formatMoney(lowMarginOrders.reduce((sum, row) => sum + row.revenue, 0), locale, currencyCode) : '-', lowMarginOrders.length > 0 ? <span className="text-amber-300">{dashboardText('recalculate')}</span> : 'OK'],
-    [dashboardText('costsWithoutRevenue'), derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? formatMoney(derived.productionCost, locale, currencyCode) : '0,00 €', dashboardText('period2'), derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? <span className="text-red-300">{dashboardText('check')}</span> : 'OK'],
-    [dashboardText('energyInCalculation'), formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), settingsQuery.data?.energy_tracking_mode ?? dashboardText('archive'), (stats?.total_energy_cost ?? 0) > 0 ? dashboardText('included') : <span className="text-amber-300">{dashboardText('noData')}</span>],
-    [dashboardText('maintainMaterialCosts'), dashboardText('itemsValue2', { value1: inventoryWithoutCostCount }), <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('openInventory')}</EntityLink>, inventoryWithoutCostCount > 0 ? <span className="text-amber-300">{dashboardText('complete')}</span> : 'OK'],
+    [dashboardText('marginBelow25'), dashboardText('ordersValue', { value1: lowMarginOrders.length }), lowMarginOrders.length > 0 ? formatMoney(lowMarginOrders.reduce((sum, row) => sum + row.revenue, 0), locale, currencyCode) : '-', lowMarginOrders.length > 0 ? <span className={toneClasses.amber.text}>{dashboardText('recalculate')}</span> : 'OK'],
+    [dashboardText('costsWithoutRevenue'), derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? formatMoney(derived.productionCost, locale, currencyCode) : '0,00 €', dashboardText('period2'), derived.acceptedRevenue <= 0 && derived.productionCost > 0 ? <span className={toneClasses.red.text}>{dashboardText('check')}</span> : 'OK'],
+    [dashboardText('energyInCalculation'), formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode), settingsQuery.data?.energy_tracking_mode ?? dashboardText('archive'), (stats?.total_energy_cost ?? 0) > 0 ? dashboardText('included') : <span className={toneClasses.amber.text}>{dashboardText('noData')}</span>],
+    [dashboardText('maintainMaterialCosts'), dashboardText('itemsValue2', { value1: inventoryWithoutCostCount }), <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('openInventory')}</EntityLink>, inventoryWithoutCostCount > 0 ? <span className={toneClasses.amber.text}>{dashboardText('complete')}</span> : 'OK'],
   ] as Array<Array<ReactNode>>;
   const overviewPriorityRows = [
     [
       dashboardText('revenue'),
-      overdueDocuments.length > 0 ? <span className="text-red-300">{dashboardText('overdue2')}</span> : openReceivableDocuments.length > 0 ? <span className="text-amber-300">{dashboardText('open4')}</span> : 'OK',
+      overdueDocuments.length > 0 ? <span className={toneClasses.red.text}>{dashboardText('overdue2')}</span> : openReceivableDocuments.length > 0 ? <span className={toneClasses.amber.text}>{dashboardText('open4')}</span> : 'OK',
       overdueDocuments.length > 0 ? formatMoney(derived.overdueRevenue, locale, currencyCode) : formatMoney(derived.openRevenue, locale, currencyCode),
       openReceivableDocuments.length > 0 ? <EntityLink to={dashboardTabUrl('revenue')}>{dashboardText('checkReceivables')}</EntityLink> : dashboardText('noAction'),
     ],
     [
       dashboardText('margin'),
-      lowMarginOrders.length > 0 ? <span className="text-amber-300">{dashboardText('risk')}</span> : 'OK',
+      lowMarginOrders.length > 0 ? <span className={toneClasses.amber.text}>{dashboardText('risk')}</span> : 'OK',
       dashboardText('ordersValue', { value1: lowMarginOrders.length }),
       lowMarginOrders.length > 0 ? <EntityLink to={dashboardTabUrl('margin')}>{dashboardText('checkCalculation')}</EntityLink> : dashboardText('noAction'),
     ],
     [
       dashboardText('inventory'),
-      derived.lowStockCount > 0 ? <span className="text-red-300">{dashboardText('replenishment')}</span> : 'OK',
+      derived.lowStockCount > 0 ? <span className={toneClasses.red.text}>{dashboardText('replenishment')}</span> : 'OK',
       dashboardText('itemsValue2', { value1: derived.lowStockCount }),
       derived.lowStockCount > 0 ? <EntityLink to={dashboardTabUrl('inventory')}>{dashboardText('reorderSuggestions')}</EntityLink> : dashboardText('stockStable'),
     ],
     [
       dashboardText('energy'),
-      energyDataCoverage < 80 ? <span className="text-amber-300">{dashboardText('dataGap')}</span> : 'OK',
+      energyDataCoverage < 80 ? <span className={toneClasses.amber.text}>{dashboardText('dataGap')}</span> : 'OK',
       formatPercent(energyDataCoverage, locale),
       energyDataCoverage < 80 ? <EntityLink to={dashboardTabUrl('energy')}>{dashboardText('checkMeasurementBasis')}</EntityLink> : dashboardText('measurementBasisStable'),
     ],
     [
       dashboardText('pipeline'),
-      derived.pipelineRevenue > derived.paymentEffectiveRevenue && derived.paymentEffectiveRevenue <= 0 ? <span className="text-amber-300">{dashboardText('notAReceivedPayment')}</span> : 'OK',
+      derived.pipelineRevenue > derived.paymentEffectiveRevenue && derived.paymentEffectiveRevenue <= 0 ? <span className={toneClasses.amber.text}>{dashboardText('notAReceivedPayment')}</span> : 'OK',
       formatMoney(derived.pipelineRevenue, locale, currencyCode),
       <EntityLink to="/orders/offers">{dashboardText('openOffers')}</EntityLink>,
     ],
@@ -2274,31 +2275,31 @@ export function BusinessDashboardPage() {
     [
       dashboardText('payments'),
       paymentRows.length > 0 ? dashboardText('transactionsValue', { value1: paymentRows.length }) : dashboardText('noTransactions'),
-      derived.missingPaymentSource ? <span className="text-amber-300">{dashboardText('manualConfirmationMissing')}</span> : dashboardText('receivablesCanBeEvaluated'),
+      derived.missingPaymentSource ? <span className={toneClasses.amber.text}>{dashboardText('manualConfirmationMissing')}</span> : dashboardText('receivablesCanBeEvaluated'),
       <EntityLink to={invoiceListUrl(derived.openRevenue > 0 ? 'open' : undefined)}>{dashboardText('invoices')}</EntityLink>,
     ],
     [
       dashboardText('materialCosts'),
       dashboardText('itemsValue', { value1: inventoryItemCount - inventoryWithoutCostCount, value2: inventoryItemCount || 0 }),
-      inventoryWithoutCostCount > 0 ? <span className="text-amber-300">{dashboardText('marginIncomplete')}</span> : dashboardText('costBasisOk'),
+      inventoryWithoutCostCount > 0 ? <span className={toneClasses.amber.text}>{dashboardText('marginIncomplete')}</span> : dashboardText('costBasisOk'),
       inventoryWithoutCostCount > 0 ? <EntityLink to={inventoryFocusUrl('missing-cost')}>{dashboardText('maintainCosts')}</EntityLink> : dashboardText('noAction'),
     ],
     [
       dashboardText('suppliers'),
       dashboardText('directTotalValue', { value1: directSupplierAssignedSpoolCount, value2: spools.length || 0, value3: supplierAssignedSpoolCount }),
-      directSupplierAssignedSpoolCount < spools.length ? <span className="text-amber-300">{dashboardText('skuAssignmentMissing')}</span> : dashboardText('replenishmentCanBeDetermined'),
+      directSupplierAssignedSpoolCount < spools.length ? <span className={toneClasses.amber.text}>{dashboardText('skuAssignmentMissing')}</span> : dashboardText('replenishmentCanBeDetermined'),
       <EntityLink to={supplierListUrl()}>{dashboardText('suppliers')}</EntityLink>,
     ],
     [
       dashboardText('energy'),
       formatPercent(energyDataCoverage, locale),
-      energyDataCoverage < 80 ? <span className="text-amber-300">{dashboardText('partlyEstimated')}</span> : dashboardText('measurementsReliable'),
+      energyDataCoverage < 80 ? <span className={toneClasses.amber.text}>{dashboardText('partlyEstimated')}</span> : dashboardText('measurementsReliable'),
       <EntityLink to="/settings?tab=operations">{dashboardText('settings')}</EntityLink>,
     ],
     [
       dashboardText('calculation'),
       dashboardText('ordersValue2', { value1: marginSourceRows.length, value2: derived.activeOrders.length || 0 }),
-      marginSourceRows.length < derived.activeOrders.length ? <span className="text-amber-300">{dashboardText('notAllOrdersValued')}</span> : dashboardText('marginsCanBeDetermined'),
+      marginSourceRows.length < derived.activeOrders.length ? <span className={toneClasses.amber.text}>{dashboardText('notAllOrdersValued')}</span> : dashboardText('marginsCanBeDetermined'),
       <EntityLink to="/orders/calculation">{dashboardText('calculation')}</EntityLink>,
     ],
   ] as Array<Array<ReactNode>>;
@@ -2323,7 +2324,7 @@ export function BusinessDashboardPage() {
       dashboardText('costRunRate'),
       formatMoney(forecastProductionCost, locale, currencyCode),
       dashboardText('productionIncludingEnergy'),
-      forecastProductionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className="text-amber-300">{dashboardText('checkCostCoverage')}</span> : <EntityLink to={dashboardTabUrl('margin')}>{dashboardText('viewCosts')}</EntityLink>,
+      forecastProductionCost > derived.acceptedRevenue && derived.acceptedRevenue > 0 ? <span className={toneClasses.amber.text}>{dashboardText('checkCostCoverage')}</span> : <EntityLink to={dashboardTabUrl('margin')}>{dashboardText('viewCosts')}</EntityLink>,
     ],
     [
       dashboardText('energyDemand'),
@@ -2532,7 +2533,7 @@ export function BusinessDashboardPage() {
 
   const revenueTab = (
     <div className="mt-5 space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Receipt} label={dashboardText('receivedPayments')} value={formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode)} detail={derived.paymentDocuments.length > 0 ? dashboardText('invoicesValue', { value1: derived.paymentDocuments.length }) : derived.missingPaymentSource ? dashboardText('paymentSourceMissing') : dashboardText('noTransactions')} tone={derived.paymentEffectiveRevenue > 0 ? 'green' : 'neutral'} to={invoiceListUrl(derived.paymentEffectiveRevenue > 0 ? 'paid' : undefined)} trend={trendLabels.paymentEffectiveRevenue} />
         <MetricCard icon={AlertTriangle} label={dashboardText('openOverdue')} value={formatMoney(derived.openRevenue, locale, currencyCode)} detail={dashboardText('overdueValue', { value1: formatMoney(derived.overdueRevenue, locale, currencyCode) })} tone={derived.overdueRevenue > 0 ? 'red' : 'amber'} to={invoiceListUrl(overdueDocuments.length > 0 ? 'overdue' : 'open')} />
         <MetricCard icon={Clock} label={dashboardText('activeOrders')} value={formatMoney(derived.activeOrderRevenue, locale, currencyCode)} detail={dashboardText('runningValue', { value1: derived.runningOrders.length })} tone="amber" to="/orders" />
@@ -2540,7 +2541,7 @@ export function BusinessDashboardPage() {
       </div>
       <ActionStrip actions={revenueShortcuts} />
 
-      <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <Panel icon={Receipt} title={dashboardText('ordersOffersAndPaymentSource')} subtitle={dashboardText('receivedRevenueStaysAt0UntilInvoicePaymentsOrBankReconciliationAreConnected')}>
           {derived.revenueRows.length > 0 ? (
             <CompactTable
@@ -2550,12 +2551,12 @@ export function BusinessDashboardPage() {
           ) : <EmptyState label={dashboardText('noOffersOrOrdersYet')} />}
         </Panel>
         <Panel icon={CircleDollarSign} title={dashboardText('completionRateAndOpenValues')}>
-          <div className="flex items-end gap-4">
-            <strong className="text-6xl font-semibold text-white">{formatPercent(completionRate, locale)}</strong>
-            <span className="pb-2 text-sm text-bambu-gray">{dashboardText('fromOrderStatus')}</span>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <strong className="text-2xl font-bold text-white">{formatPercent(completionRate, locale)}</strong>
+            <span className="text-sm text-table-secondary">{dashboardText('fromOrderStatus')}</span>
           </div>
           <div className="mt-5 h-3 rounded bg-bambu-dark-tertiary">
-            <div className="h-3 rounded bg-[#00a14a]" style={{ width: `${clamp(completionRate, 0, 100)}%` }} />
+            <div className="h-3 rounded bg-[#00ae42]" style={{ width: `${clamp(completionRate, 0, 100)}%` }} />
           </div>
           <div className="mt-5 space-y-4">
             <ProgressRow label={dashboardText('completed')} value={derived.completedRevenue} max={Math.max(derived.acceptedRevenue, derived.pipelineRevenue, 1)} suffix={formatMoney(derived.completedRevenue, locale, currencyCode)} tone="green" />
@@ -2566,7 +2567,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Panel icon={TrendingUp} title={dashboardText('pipelineRepresentsExpectations')} subtitle={dashboardText('keepSeparateFromReceivedPayments')}>
           <PipelineChart stages={derived.pipelineStages} currency={currencyCode} locale={locale} />
         </Panel>
@@ -2575,7 +2576,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <Panel icon={AlertTriangle} title={dashboardText('openReceivables')} subtitle={dashboardText('dueDateOutstandingAmountAndNextManualStep')}>
           {receivableRows.length > 0 ? (
             <CompactTable columns={[dashboardText('document'), dashboardText('customer'), dashboardText('due'), dashboardText('open'), dashboardText('signal'), dashboardText('action')]} rows={receivableRows} />
@@ -2586,7 +2587,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
         <Panel icon={CircleDollarSign} title={dashboardText('paymentReceipts')} subtitle={dashboardText('manuallyConfirmedPaymentsInThePeriod')}>
           {paymentRows.length > 0 ? (
             <CompactTable columns={[dashboardText('date'), dashboardText('document'), dashboardText('customer'), dashboardText('amount'), dashboardText('method')]} rows={paymentRows} />
@@ -2601,7 +2602,7 @@ export function BusinessDashboardPage() {
 
   const marginTab = (
     <div className="mt-5 space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Factory} label={dashboardText('productionCosts')} value={formatMoney(derived.productionCost, locale, currencyCode)} detail={dashboardText('materialProductionEnergy')} tone="violet" to="/orders/calculation" trend={trendLabels.productionCost} />
         <MetricCard icon={Zap} label={dashboardText('energyShare')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} detail={dashboardText('canBeEvaluatedSeparately')} tone="cyan" to={dashboardTabUrl('energy')} trend={trendLabels.energyCost} />
         <MetricCard icon={CircleDollarSign} label={dashboardText('contributionMargin')} value={formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode)} detail={dashboardText('beforeOverheads')} tone="green" to="/orders" trend={trendLabels.contribution} />
@@ -2609,7 +2610,7 @@ export function BusinessDashboardPage() {
       </div>
       <ActionStrip actions={marginShortcuts} />
 
-      <div className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.78fr_1.22fr]">
         <Panel icon={CircleDollarSign} title={dashboardText('detailedCostStructure')} subtitle={dashboardText('archiveCostsOrderCalculationEnergyAndReservations')}>
           <Donut slices={derived.costSlices} center={formatMoney(derived.productionCost, locale, currencyCode)} valueFormatter={(value) => formatMoney(value, locale, currencyCode)} />
         </Panel>
@@ -2623,7 +2624,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
         <Panel icon={BarChart3} title={dashboardText('costTrend')}>
           <FinanceTrendChart data={trend} currency={currencyCode} locale={locale} />
         </Panel>
@@ -2637,7 +2638,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Panel icon={CircleDollarSign} title={dashboardText('contributionMarginSummary')} subtitle={dashboardText('orderValueComparedWithCostsAndCommittedStock')}>
           <CompactTable columns={[dashboardText('metric'), dashboardText('value'), dashboardText('basis'), dashboardText('signal')]} rows={contributionRows} />
         </Panel>
@@ -2654,7 +2655,7 @@ export function BusinessDashboardPage() {
 
   const inventoryTab = (
     <div className="mt-5 space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Warehouse} label={dashboardText('inventoryValue')} value={formatMoney(derived.stockValue, locale, currencyCode)} detail={dashboardText('reservedValue', { value1: formatMoney(derived.reservedValue, locale, currencyCode) })} tone="green" to={inventoryFocusUrl()} />
         <MetricCard icon={AlertTriangle} label={dashboardText('reorder')} value={dashboardText('itemsValue2', { value1: derived.lowStockCount })} detail={dashboardText('belowThreshold')} tone={derived.lowStockCount > 0 ? 'red' : 'neutral'} to={inventoryFocusUrl('low-stock')} />
         <MetricCard icon={ClipboardList} label={dashboardText('reservations')} value={`${derived.reservedLines}`} detail={dashboardText('fromOpenOrders')} tone="blue" to="/orders" />
@@ -2662,7 +2663,7 @@ export function BusinessDashboardPage() {
       </div>
       <ActionStrip actions={inventoryShortcuts} />
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Panel icon={Warehouse} title={dashboardText('stockCoverageAndUsage')} subtitle={dashboardText('inventoryManagementRemainsASeparateFocus')}>
           {derived.materialUsage.length > 0 ? (
             <div className="space-y-4">
@@ -2711,7 +2712,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr_1fr]">
         <Panel icon={Truck} title={dashboardText('supplierDashboard')} subtitle={dashboardText('supplySourceMaterialCoverageAndReliability')}>
           {supplierRows.length > 0 ? (
             <CompactTable columns={[dashboardText('supplier'), dashboardText('materialSourcing'), dashboardText('leadTime'), dashboardText('contact'), dashboardText('status')]} rows={supplierRows} />
@@ -2732,7 +2733,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <Panel icon={Lightbulb} title={dashboardText('materialSupplierPlanning')} subtitle={dashboardText('stockCoverageComparedWithLeadTimeAndUsage')}>
           {materialPlanningRows.length > 0 ? (
             <CompactTable columns={[dashboardText('material'), dashboardText('stockCoverage'), dashboardText('supplier'), dashboardText('leadTime'), dashboardText('suggestion'), dashboardText('signal')]} rows={materialPlanningRows} />
@@ -2749,7 +2750,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Panel icon={Gauge} title={dashboardText('procurementReadiness')} subtitle={dashboardText('howFullyReorderingAndCalculationsCanBeDetermined')}>
           <CompactTable columns={[dashboardText('checkPoint'), dashboardText('coverage'), dashboardText('signal'), dashboardText('action')]} rows={procurementReadinessRows} />
         </Panel>
@@ -2764,7 +2765,7 @@ export function BusinessDashboardPage() {
 
   const energyTab = (
     <div className="mt-5 space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Zap} label={dashboardText('usage')} value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} detail={`${selectedDateRange.label} · ${energyMode}`} tone="cyan" to="/dashboard" trend={trendLabels.energyKwh} />
         <MetricCard icon={CircleDollarSign} label={dashboardText('energyCosts')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} detail={dashboardText('inThePeriod')} tone="amber" to={energyCostSettingsUrl} trend={trendLabels.energyCost} />
         <MetricCard icon={BatteryCharging} label={dashboardText('costsKwh')} value={formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} detail={dashboardText('fromSettings')} tone="neutral" to={energyCostSettingsUrl} />
@@ -2772,15 +2773,15 @@ export function BusinessDashboardPage() {
       </div>
       <ActionStrip actions={energyShortcuts} />
 
-      <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.85fr_1.15fr]">
         <Panel icon={Zap} title={dashboardText('energyMetrics')} subtitle={`${selectedDateRange.label} · ${energyMode}`}>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <MiniMetric icon={Zap} label={dashboardText('usage')} value={formatKwh(stats?.total_energy_kwh ?? 0, locale)} tone="cyan" />
             <MiniMetric icon={CircleDollarSign} label={dashboardText('energyCosts')} value={formatMoney(stats?.total_energy_cost ?? 0, locale, currencyCode)} tone="amber" />
             <MiniMetric icon={BatteryCharging} label={dashboardText('costsKwh')} value={formatMoney(settingsQuery.data?.energy_cost_per_kwh ?? 0, locale, currencyCode)} tone="neutral" />
             <MiniMetric icon={Factory} label={dashboardText('kwhPrintHour')} value={energyPerHour.toFixed(2)} tone="green" />
           </div>
-          <div className={`${surface.panelQuiet} mt-5 text-sm text-bambu-gray`}>
+          <div className={`${surface.panelQuiet} mt-5 text-sm text-table-secondary`}>
             {dashboardText('source2')} <span className="font-medium text-white">{dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))}</span>
           </div>
         </Panel>
@@ -2800,7 +2801,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
         <Panel icon={BarChart3} title={dashboardText('energyPerPrint')} subtitle={dashboardText('latestEventsFromTheSelectedPeriod')}>
           {energyEventRows.length > 0 ? (
             <CompactTable columns={[dashboardText('date'), dashboardText('print'), dashboardText('printer'), 'kWh', dashboardText('costs')]} rows={energyEventRows} />
@@ -2814,7 +2815,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
         <Panel icon={Clock} title={dashboardText('peakWindows')} subtitle={dashboardText('hoursWithTheHighestEnergyDemandInThePeriod')}>
           {peakHourRows.length > 0 ? (
             <CompactTable columns={[dashboardText('timeWindow'), 'kWh', dashboardText('costs'), dashboardText('prints'), dashboardText('signal')]} rows={peakHourRows} />
@@ -2825,7 +2826,7 @@ export function BusinessDashboardPage() {
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr_1fr]">
         <Panel icon={Lightbulb} title={dashboardText('energyOptimization')} subtitle={dashboardText('specificImprovementsBasedOnAvailableMetrics')}>
           <CompactTable columns={[dashboardText('improvementLever'), dashboardText('value'), dashboardText('basis'), dashboardText('nextStep')]} rows={energyRecommendationRows} />
         </Panel>
@@ -2835,8 +2836,8 @@ export function BusinessDashboardPage() {
             rows={[
               [dashboardText('printHours'), `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(stats?.total_print_time_hours ?? 0)} h`, dashboardText('archive'), 'OK'],
               [dashboardText('filament'), formatWeightKg(stats?.total_filament_grams ?? 0, locale), dashboardText('archive'), 'OK'],
-              [dashboardText('energySource'), dashboardEnergySource(stats?.energy_source, dashboardText('none')), energyMode, (stats?.total_energy_kwh ?? 0) > 0 ? 'OK' : <span className="text-amber-300">{dashboardText('missing')}</span>],
-              [dashboardText('warmUpPhase'), stats?.energy_data_warming_up ? dashboardText('active2') : dashboardText('no'), dashboardText('archive'), stats?.energy_data_warming_up ? <span className="text-amber-300">{dashboardText('wait')}</span> : 'OK'],
+              [dashboardText('energySource'), dashboardEnergySource(stats?.energy_source, dashboardText('none')), energyMode, (stats?.total_energy_kwh ?? 0) > 0 ? 'OK' : <span className={toneClasses.amber.text}>{dashboardText('missing')}</span>],
+              [dashboardText('warmUpPhase'), stats?.energy_data_warming_up ? dashboardText('active2') : dashboardText('no'), dashboardText('archive'), stats?.energy_data_warming_up ? <span className={toneClasses.amber.text}>{dashboardText('wait')}</span> : 'OK'],
             ]}
           />
         </Panel>
@@ -2844,33 +2845,32 @@ export function BusinessDashboardPage() {
           {printerRows.length > 0 ? (
             <CompactTable columns={[dashboardText('printer'), dashboardText('prints'), dashboardText('proportionalKwh'), dashboardText('share')]} rows={printerRows} />
           ) : <EmptyState label={dashboardText('noPrinterSharesInThePeriod')} />}
-          <p className="mt-5 text-xs text-bambu-gray">{dashboardText('source2')} {dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))} {dashboardText('mode')} {energyMode}</p>
+          <p className="mt-5 text-xs text-table-secondary">{dashboardText('source2')} {dashboardEnergySource(stats?.energy_source, dashboardText('archiveStatistics'))} {dashboardText('mode')} {energyMode}</p>
         </Panel>
       </div>
     </div>
   );
 
   return (
-    <div className="w-full p-4 sm:p-6">
-      <div className="w-full">
+    <div className={dashboardStyles.page}>
+      <div className="min-w-0">
         <header className="space-y-4">
           <div>
-            <h1 className="text-[1.75rem] font-semibold leading-tight text-white sm:text-[2rem]">{dashboardText('businessDashboard')}</h1>
-            <p className="mt-1 text-sm leading-5 text-bambu-gray">
+            <h1 className={dashboardStyles.title}>
+              <BarChart3 className={dashboardStyles.titleIcon} />
+              {dashboardText('businessDashboard')}
+            </h1>
+            <p className={`${dashboardStyles.subtitle} text-table-secondary`}>
               {dashboardText('aDedicatedBusinessOverviewOfCostsRevenueInventoryAndEnergyUsage')}
             </p>
           </div>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <BusinessTabs value={activeTab} onChange={handleTabChange} />
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleCsvExport}
-                className="flex min-h-10 items-center gap-2 rounded border border-bambu-dark-tertiary bg-bambu-dark-secondary px-3 text-sm font-medium text-bambu-gray transition-colors hover:border-bambu-green/60 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green"
-              >
-                <Download className="h-4 w-4 text-bambu-green" />
+              <Button type="button" variant="secondary" className={touchControl} onClick={handleCsvExport}>
+                <Download className="h-4 w-4" />
                 {dashboardText('csvExport')}
-              </button>
+              </Button>
               <Select
                 ariaLabel={dashboardText('period2')}
                 value={dateRangeValue}
@@ -2879,12 +2879,12 @@ export function BusinessDashboardPage() {
                   value: option.value,
                   label: option.label,
                 }))}
-                className="min-w-56"
-                controlClassName="min-h-10 bg-bambu-dark-secondary text-sm"
+                className="min-w-0 max-w-full"
+                controlClassName={`${touchControl} bg-bambu-dark-tertiary! text-sm`}
                 renderValue={(option) => (
                   <span className="flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-bambu-green" />
-                    <span className="text-bambu-gray">{dashboardText('period')}</span>
+                    <CalendarDays className="h-4 w-4 shrink-0" />
+                    <span className="text-table-secondary">{dashboardText('period')}</span>
                     <span className="font-medium text-white">{option?.label}</span>
                   </span>
                 )}
@@ -2902,7 +2902,7 @@ export function BusinessDashboardPage() {
         ) : null}
 
         {canReadBusinessDashboard && activeTab === 'overview' ? (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
             <MetricCard icon={Receipt} label={dashboardText('receivedPayments')} value={formatMoney(derived.paymentEffectiveRevenue, locale, currencyCode)} detail={derived.paymentDocuments.length > 0 ? dashboardText('invoicesValue', { value1: derived.paymentDocuments.length }) : derived.missingPaymentSource ? dashboardText('paymentSourceMissing') : dashboardText('noTransactions')} tone={derived.paymentEffectiveRevenue > 0 ? 'green' : 'neutral'} to={dashboardTabUrl('revenue')} trend={trendLabels.paymentEffectiveRevenue} />
             <MetricCard icon={TrendingUp} label={dashboardText('orderValue')} value={formatMoney(derived.acceptedRevenue, locale, currencyCode)} detail={dashboardText('ordersValue', { value1: derived.activeOrders.length })} tone="green" to={dashboardTabUrl('revenue')} trend={trendLabels.acceptedRevenue} />
             <MetricCard icon={CircleDollarSign} label={dashboardText('contributionMargin')} value={formatMoney(Math.max(derived.acceptedRevenue - derived.productionCost, 0), locale, currencyCode)} detail={dashboardText('effectiveMarginValue', { value1: formatPercent(derived.margin, locale) })} tone="green" to={dashboardTabUrl('margin')} trend={trendLabels.contribution} />

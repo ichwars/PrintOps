@@ -1,3 +1,5 @@
+import { TablePagination } from './ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { smallPartsText as text, useSmallPartsText } from './warehouse/smallPartsCopy';
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { AlertTriangle, CheckCircle, FileText, Loader2, MinusCircle, Upload, X, XCircle } from 'lucide-react';
@@ -76,6 +78,7 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
 
   const validCount = preview?.valid_count ?? 0;
 
+  const pagination = useTablePagination(preview?.rows ?? [], file?.name);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary">
@@ -160,7 +163,7 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.rows.map((row) => (
+                      {pagination.rows.map((row) => (
                         <tr key={row.row_number} className="border-t border-bambu-dark-tertiary">
                           <td className="px-3 py-2 text-bambu-gray">{row.row_number}</td>
                           <td className="px-3 py-2">
@@ -179,6 +182,7 @@ export function MaterialCsvImportModal({ onClose, onImported }: MaterialCsvImpor
                     </tbody>
                   </table>
                 </div>
+                <TablePagination {...pagination.footer} />
               </div>
             </>
           ) : null}

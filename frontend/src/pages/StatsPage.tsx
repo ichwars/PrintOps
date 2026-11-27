@@ -38,6 +38,7 @@ import { api, type ArchiveSlim } from '../api/client';
 import { PrintCalendar } from '../components/PrintCalendar';
 import { FilamentTrends } from '../components/FilamentTrends';
 import { Dashboard, type DashboardWidget } from '../components/Dashboard';
+import { dashboardStyles } from '../components/dashboardStyles';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { formatWeight } from '../utils/weight';
 import { parseUTCDate, formatDuration, localDateKey } from '../utils/date';
@@ -185,7 +186,7 @@ function QuickStatsWidget({
               {item.label}
               {item.warning && <AlertTriangle className="w-3 h-3 text-yellow-600 dark:text-yellow-400" aria-label={item.tooltip} />}
             </p>
-            <p className="text-xl font-bold text-white">{item.value}</p>
+            <p className={dashboardStyles.metricValue}>{item.value}</p>
             {item.detail && <p className="mt-0.5 text-xs text-bambu-gray">{item.detail}</p>}
           </div>
         </div>
@@ -1131,7 +1132,7 @@ export function StatsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 md:p-8">
+      <div className={dashboardStyles.page}>
         <div className="text-center py-12 text-bambu-gray">{t('stats.loadingStats')}</div>
       </div>
     );
@@ -1192,17 +1193,17 @@ export function StatsPage() {
   ];
 
   return (
-    <div className="p-4 md:p-8">
+    <div className={dashboardStyles.page}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <BarChart3 className="w-7 h-7 text-bambu-green" />
+            <h1 className={dashboardStyles.title}>
+              <BarChart3 className={dashboardStyles.titleIcon} />
               {t('stats.title')}
             </h1>
             {isRefetching && <Loader2 className="w-5 h-5 text-bambu-green animate-spin" />}
           </div>
-          <p className="text-bambu-gray mt-1">{t('stats.subtitle')}</p>
+          <p className={`${dashboardStyles.subtitle} text-bambu-gray`}>{t('stats.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Hidden widgets button - toggles panel in Dashboard */}

@@ -64,6 +64,7 @@ class SmallPart(Base):
     default_consumption_reason: Mapped[str] = mapped_column(String(120), nullable=False, default="Produktion")
     internal_notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    stock_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

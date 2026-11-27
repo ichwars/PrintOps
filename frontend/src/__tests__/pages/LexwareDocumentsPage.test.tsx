@@ -1,10 +1,11 @@
 import i18n from '../../i18n';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import LexwareDocumentsPage from '../../pages/LexwareDocumentsPage';
 import { lexwareDocumentsApi } from '../../api/client/lexware-documents';
+import * as clipboard from '../../utils/clipboard';
 import { setAuthToken } from '../../api/client/core';
 import { render } from '../utils';
 import { server } from '../mocks/server';
@@ -40,14 +41,19 @@ beforeEach(async () => {
   );
 });
 
+afterEach(() => vi.restoreAllMocks());
+
 describe('Lexware documents', () => {
   it('shows missing payment data as unknown and keeps the local-link action explicit', async () => {
     render(<LexwareDocumentsPage />);
     expect(await screen.findByText('LX-42')).toBeInTheDocument();
     expect(await screen.findByText('Unknown')).toBeInTheDocument();
     expect(screen.getByText(/Not a bank balance/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
+    await userEvent.click(screen.getByText('LX-42'));
     expect(await screen.findByText('Manual PrintOps linkage')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'LX-42' })).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('row', { name: /LX-42/ })).toHaveFocus();
     expect(screen.queryByText('Settled (not necessarily a bank payment)')).not.toBeInTheDocument();
   });
 
@@ -61,7 +67,8 @@ describe('Lexware documents', () => {
       http.get('/api/v1/lexware/documents/12', () => HttpResponse.json(redacted)),
     );
     render(<LexwareDocumentsPage />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Details' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions: LX-42' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Details' }));
     expect(await screen.findByText('Financial details and original files require payment read permission.')).toBeInTheDocument();
     expect(screen.queryByText('Manual PrintOps linkage')).not.toBeInTheDocument();
     expect(screen.queryByText('Separate Lexware finance')).not.toBeInTheDocument();
@@ -75,7 +82,8 @@ describe('Lexware documents', () => {
       return HttpResponse.json({ detail: 'Changed' }, { status: 409 });
     }));
     render(<LexwareDocumentsPage />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Details' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions: LX-42' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Details' }));
     await userEvent.click(screen.getByRole('combobox', { name: 'Choose a local document' }));
     await userEvent.click(await screen.findByRole('option', { name: /LOCAL-6/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Link document' }));
@@ -91,11 +99,37 @@ describe('Lexware documents', () => {
     }));
     render(<LexwareDocumentsPage />);
     expect(await screen.findByText('Unsupported type — not imported into finance')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() => expect(queries.some(query => query.searchParams.get('offset') === '25')).toBe(true));
     await userEvent.type(screen.getByLabelText('Search number or contact'), 'LX');
     await waitFor(() => expect(queries.at(-1)?.searchParams.get('search')).toBe('LX'));
     expect(queries.at(-1)?.searchParams.get('offset')).toBe('0');
+  });
+
+  it('opens the associated local document and downloads a single cached original from the row menu', async () => {
+    server.use(
+      http.get('/api/v1/lexware/documents', () => HttpResponse.json({
+        items: [{ ...document, local_document_id: 6, connection_enabled: false, files: [{ file_id: 'original-id', cached: true }] }], total: 1,
+      })),
+      http.get('/api/v1/commercial-documents/6', () => HttpResponse.json({
+        id: 6, number: 'LOCAL-6', document_type: 'invoice', currency: 'EUR', total_amount: '123.45',
+        open_amount: '0.00', payment_status: 'paid', lines: [], artifacts: [], payments: [],
+      })),
+    );
+    const blob = new Blob(['document']);
+    const request = vi.spyOn(lexwareDocumentsApi, 'download').mockResolvedValue({ blob, filename: 'original.pdf' });
+    const saveFile = vi.spyOn(clipboard, 'downloadBlob').mockImplementation(() => {});
+    const user = userEvent.setup();
+    render(<LexwareDocumentsPage />);
+    const menu = await screen.findByRole('button', { name: 'Actions: LX-42' });
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitem', { name: 'Open document' }));
+    expect(await screen.findByRole('dialog', { name: 'Invoice LOCAL-6' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitem', { name: 'Download original' }));
+    expect(request).toHaveBeenCalledWith(12, 'original-id');
+    expect(saveFile).toHaveBeenCalledWith(blob, 'original.pdf');
   });
 
   it('downloads the binary original with authentication, never a token in the URL', async () => {
@@ -117,7 +151,8 @@ it('renders Dutch financial separation and unknown payment data in the actual do
   expect(await screen.findByText('LX-42')).toBeInTheDocument();
   expect(screen.getByText('Onbekend')).toBeInTheDocument();
   expect(screen.getByText(/Geen banksaldo/)).toHaveTextContent('Lokale betalingen blijven ongewijzigd.');
-  await userEvent.click(screen.getByRole('button', { name: 'Gegevens' }));
+  await userEvent.click(screen.getByRole('button', { name: /LX-42/ }));
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Gegevens' }));
   expect(await screen.findByText('Handmatige PrintOps-koppeling')).toBeInTheDocument();
   expect(screen.getByRole('combobox', { name: 'Selecteer een lokaal document' })).toBeInTheDocument();
 });

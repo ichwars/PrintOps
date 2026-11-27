@@ -12,6 +12,7 @@ import {
 } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Checkbox, NumberField, TextField } from '../ui';
+import { SettingsDashboardCard } from './SettingsDashboardCard';
 
 interface SequenceDraft {
   prefix: string;
@@ -105,18 +106,13 @@ export function WarehouseNumberSequenceSettings() {
   };
 
   return (
-    <section id="card-warehouse-number-sequences" className="w-full overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary card-shadow" aria-labelledby="warehouse-number-sequences-heading">
-      <div className="flex items-center gap-2 border-b border-bambu-dark-tertiary px-4 py-4">
-        <Hash className="h-5 w-5 text-bambu-green" aria-hidden="true" />
-        <h2 id="warehouse-number-sequences-heading" className="text-lg font-semibold text-white">{tr('warehouse.title')}</h2>
-      </div>
-      <div className="space-y-4 p-4">
+    <SettingsDashboardCard id="card-warehouse-number-sequences" title={tr('warehouse.title')} icon={Hash}>
         <p className="text-sm text-bambu-gray">
           {tr('warehouse.description')}
         </p>
 
         {(error || sequencesQuery.error) && (
-          <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error ?? (sequencesQuery.error instanceof Error ? sequencesQuery.error.message : tr('sequenceLoadError'))}
           </div>
@@ -161,7 +157,6 @@ export function WarehouseNumberSequenceSettings() {
             })}
           </div>
         )}
-      </div>
-    </section>
+    </SettingsDashboardCard>
   );
 }

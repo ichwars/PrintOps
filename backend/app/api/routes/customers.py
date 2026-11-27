@@ -24,6 +24,8 @@ from backend.app.schemas.customer import (
     CustomerKind,
     CustomerListItem,
     CustomerListResponse,
+    CustomerSortDirection,
+    CustomerSortKey,
     CustomerStatus,
     CustomerTaxIdentifierResponse,
     CustomerUpdate,
@@ -261,6 +263,8 @@ async def list_customers(
     customer_kind: CustomerKind | None = Query(default=None, alias="kind"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    sort: CustomerSortKey = "name",
+    direction: CustomerSortDirection = "asc",
     db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.CUSTOMERS_READ),
 ) -> CustomerListResponse:
@@ -272,6 +276,8 @@ async def list_customers(
         kind=customer_kind,
         limit=limit,
         offset=offset,
+        sort=sort,
+        direction=direction,
     )
     return CustomerListResponse(
         items=[_serialize_list_item(customer, account) for customer, account in page.rows],

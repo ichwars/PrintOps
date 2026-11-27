@@ -220,9 +220,27 @@ export default {
       calculation: 'Hesaplama',
       customers: 'Müşteriler',
       invoice: 'Fatura',
+      "reorder": "Yeniden sipariş",
     },
   },
   orders: {
+    documentDetails: {
+      invoicePositions: "Fatura kalemleri",
+      positions: "Belge kalemleri",
+      orderPositions: "Sipariş kalemleri",
+      offerPositions: "Teklif kalemleri",
+      noPositions: "Belge kalemi bulunmuyor.",
+      unitPriceNet: "Net birim fiyat",
+      lineTotalNet: "Net kalem toplamı",
+    },
+    rowActions: {
+      openOrder: "Siparişi aç",
+      openOffer: "Teklifi aç",
+      openDocument: "Belgeyi aç",
+      cancelOrder: "Siparişi iptal et",
+      showOffers: "Teklifleri göster",
+      showInvoices: "Faturaları göster",
+    },
     default: 'Default',
     businessProfile: { title: 'Business Profile', loading: 'Loading business profiles...', error: 'Unable to load business profiles.', empty: 'No business profiles yet.', permissionDenied: 'You do not have permission to view business profiles.', add: 'Add business profile', includeInactive: 'Include inactive profiles', profile: 'Profile', country: 'Country', currency: 'Currency', timezone: 'Timezone', billingMode: 'Billing mode', status: 'Status', actions: 'Actions', active: 'Active', inactive: 'Inactive', edit: 'Edit {{name}}', setDefault: 'Set {{name}} as default', activate: 'Activate {{name}}', deactivate: 'Deactivate {{name}}', delete: 'Delete {{name}}', deleteConfirm: 'Delete {{name}}? This cannot be undone.', dismiss: 'Dismiss', createTitle: 'Add business profile', editTitle: 'Edit business profile', identity: 'Identity', address: 'Address', taxAndBank: 'Tax and bank', localeSection: 'Locale', profileName: 'Profile name', legalName: 'Legal name', tradingName: 'Trading name', profileCountry: 'Profile country', street: 'Street', city: 'City', postalCode: 'Postal code', addAddress: 'Add address', removeAddress: 'Remove address {{number}}', defaultAddress: 'Default address {{number}}', taxIdKind: 'Tax ID kind', taxIdValue: 'Tax ID value', addTaxId: 'Add tax ID', removeTaxId: 'Remove tax ID {{number}}', primaryTaxId: 'Primary tax ID {{number}}', bankAccountLabel: 'Bank account label', accountHolder: 'Account holder', bankName: 'Bank name', bankCountry: 'Bank country', bankCurrency: 'Bank currency', iban: 'IBAN', bic: 'BIC', accountNumber: 'Account number', routingNumber: 'Routing number', defaultBankAccount: 'Default bank account {{number}}', addBankAccount: 'Add bank account', removeBankAccount: 'Remove bank account {{number}}', locale: 'Locale', save: 'Save business profile' },
     customers: { title: 'Customers', subtitle: 'Customer master data for the selected business profile.', businessProfile: 'Business profile', loading: 'Loading customers...', error: 'Unable to load customers.', noBusinessProfile: 'No active business profile is available.', empty: 'No customers yet.', customer: 'Customer', discount: 'Discount', permissionDenied: 'You do not have permission to view customers.', configureProfiles: 'Configure business profiles', add: 'Add customer', search: 'Search customers', statusFilter: 'Customer status', kindFilter: 'Customer kind', emptyFiltered: 'No customers match the current filters.', number: 'Number', name: 'Name', primaryContact: 'Primary contact', billingAddress: 'Billing address', actions: 'Actions', view: 'View details', viewAria: 'View {{name}}', editCustomer: 'Edit customer', editAria: 'Edit {{name}}', deleteCustomer: 'Delete customer', deleteAria: 'Delete {{name}}', deleteTitle: 'Delete {{name}}?', deleteConfirm: 'This customer will be permanently deleted.', pagination: '{{start}}-{{end}} of {{total}}', previous: 'Previous page', next: 'Next page' ,
@@ -553,7 +571,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -691,10 +714,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -707,42 +726,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -787,6 +787,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "Son {{days}} günde kaydedilen stok tüketimine göre.",
+        "forecastDailyUsage": "Ortalama günlük tüketim",
+        "forecastProjectedStock": "{{days}} gün sonraki stok",
+        "forecastDaysToMinimum": "Asgari stok düzeyine kalan gün",
+        "forecastMinimumReached": "Asgari stok düzeyine ulaşıldı",
+        "forecastNoConsumption": "Bu dönemde tüketim yok",
+        "forecastEmpty": "Stok takibi yapılan etkin ürün yok.",
+        "quickBookingSaved": "Stok hareketi kaydedildi.",
+        "articleCount": "{{count}} ürün",
+        "articleCount_one": "{{count}} ürün",
+        "articleCount_other": "{{count}} ürün",
         "title": "Warehouse goods",
         "subtitle": "Sales articles, physical stock and reservations managed in PrintOps.",
         "search": "Search articles",
@@ -1596,6 +1607,31 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "reproduce": "Yeniden üret",
+        "prepareProduction": "Üretim emrini hazırla",
+        "productionProjectName": "Stok yenileme · {{name}}",
+        "productionProjectDescription": "Ürün {{sku}}\nÖnerilen üretim miktarı {{quantity}}",
+        "colProduce": "Üretilecek miktar",
+        "purchasingTitle": "Satın alma ihtiyacı",
+        "productionTitle": "Üretim ihtiyacı",
+        "shoppingList": "Alışveriş listesi",
+        "shoppingListEmpty": "Alışveriş listesi boş.",
+        "addToShoppingList": "{{name}} ürününü alışveriş listesine ekle",
+        "onShoppingList": "{{name}} alışveriş listesinde",
+        "addedToShoppingList": "{{name}} alışveriş listesine eklendi.",
+        "removeFromShoppingList": "{{name}} ürününü alışveriş listesinden çıkar",
+        "shoppingListLoadError": "Alışveriş listesi yüklenemedi.",
+        "shoppingListSaveError": "Alışveriş listesi güncellenemedi.",
+        "title": "Reorder needs",
+        "subtitle": "Tamamlanmış ürün stokunu üretimle yenileyin ve malzeme satın alın.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Üretilecek bitmiş ürünler",
+        "summaryMaterial": "Satın alınacak malzemeler",
+        "summaryTotal": "Total",
+        "colSuggested": "Önerilen satın alma miktarı"
       }
     },
 
@@ -2337,6 +2373,12 @@ export default {
   },
   // Ortak
   common: {
+    stockChecked: "Kontrol edildi",
+    confirmStockCheck: "Sayımı onayla",
+    stockCheckDescription: "Seçilen stokların sayıldığını veya tartıldığını onaylayın.",
+    stockCheckFailed: "Sayım onaylanamadı. Seçimin hâlâ etkin olduğunu kontrol edin.",
+    unitShortPiece: "ad.",
+    scrollTableHorizontally: '{{table}} tablosunu yatay kaydır',
     secretKept: 'Kayıtlı değer korunacak.',
     secretReenter: 'Değişen hedef için kimlik bilgisini yeniden girin.',
     plusNMore: '+{{count}} tane daha',
@@ -4767,6 +4809,7 @@ export default {
     messageTemplatesDescription: 'Her olay için bildirim mesajlarını özelleştirin.',
     // API Anahtarları bölümü
     apiKeys: 'API Anahtarları',
+    apiMetricsNoAccess: "Hesabınız bu entegrasyon ayarlarına erişemiyor.",
     apiKeysDescription: 'Harici entegrasyonlar ve webhook\'lar için API anahtarları oluşturun.',
     createKey: 'Anahtar Oluştur',
     apiKeyCreated: 'API Anahtarı Başarıyla Oluşturuldu',
@@ -5326,7 +5369,7 @@ export default {
     prometheusMetrics: 'Prometheus Metrikleri',
     prometheusEndpointDescription: 'Prometheus/Grafana izleme için yazıcı metriklerini <code>/api/v1/metrics</code> adresinde sun.',
     bearerTokenOptional: 'Bearer Belirteci (isteğe bağlı)',
-    bearerTokenHint: 'Ayarlandıysa, isteklerin <code>Authorization: Bearer <token></code> içermesi gerekir',
+    bearerTokenHint: 'Ayarlandıysa, isteklerin <code>Authorization: Bearer &lt;token&gt;</code> içermesi gerekir',
     metricsConnectionStatus: 'Bağlantı durumu',
     metricsPrinterState: 'Yazıcı durumu (boşta/yazdırılıyor/vb.)',
     metricsPrintProgress: 'Baskı ilerlemesi 0-100%',
@@ -10401,7 +10444,12 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
     noReadAccess: 'Envanter tahminlerini görüntüleme izniniz yok.',
     noWriteAccess: 'Tahmin ayarlarını değiştirme izniniz yok.',
   },
-  suppliers: { navTitle: 'Tedarikçiler', title: 'Tedarikçiler', subtitle: 'Satın alma kişilerini ve satın alma koşullarını yönetin.', createTitle: 'Tedarikçi ekle', editTitle: 'Tedarikçiyi düzenle', searchLabel: 'Tedarikçi ara', searchPlaceholder: 'Şirket, ilgili kişi, e-posta, müşteri numarası …', activeFilter: 'Durum', loading: 'Tedarikçiler yükleniyor …', empty: 'Eşleşen tedarikçi bulunamadı.', noContact: 'İletişim bilgisi yok', leadTime: 'Varsayılan teslim süresi: {{count}} gün', sections: { masterData: 'Ana bilgiler', contactAddress: 'İletişim ve adres', procurement: 'Satın alma', internalNotes: 'Dahili not' }, fields: { name: 'Şirket', customerNumber: 'Müşteri numarası', active: 'Aktif tedarikçi', contactName: 'İlgili kişi', email: 'E-posta', phone: 'Telefon', website: 'Web sitesi', addressLine1: 'Adres satırı 1', addressLine2: 'Adres satırı 2', postalCode: 'Posta kodu', city: 'Şehir', countryCode: 'Ülke kodu', paymentTerms: 'Ödeme koşulları', defaultLeadTime: 'Varsayılan teslim süresi', internalNotes: 'Dahili notlar' }, filters: { active: 'Aktif', inactive: 'Pasif', all: 'Tüm tedarikçiler' }, actions: { create: 'Tedarikçi ekle', save: 'Tedarikçiyi kaydet', edit: '{{name}} tedarikçisini düzenle', delete: 'Tedarikçiyi sil' }, validation: { nameRequired: 'Şirket adı zorunludur.' }, errors: { load: 'Tedarikçiler yüklenemedi.', save: 'Tedarikçi kaydedilemedi.', delete: 'Tedarikçi silinemedi.', noReadPermission: 'Tedarikçileri görüntüleme izniniz yok.' } },
+  suppliers: { navTitle: 'Tedarikçiler', title: 'Tedarikçiler', subtitle: 'Satın alma kişilerini ve satın alma koşullarını yönetin.', createTitle: 'Tedarikçi ekle', editTitle: 'Tedarikçiyi düzenle', searchLabel: 'Tedarikçi ara', searchPlaceholder: 'Şirket, ilgili kişi, e-posta, müşteri numarası …', activeFilter: 'Durum', loading: 'Tedarikçiler yükleniyor …', empty: 'Eşleşen tedarikçi bulunamadı.', noContact: 'İletişim bilgisi yok', leadTime: 'Varsayılan teslim süresi: {{count}} gün', sections: { masterData: 'Ana bilgiler', contactAddress: 'İletişim ve adres', procurement: 'Satın alma', internalNotes: 'Dahili not' }, fields: { name: 'Şirket', customerNumber: 'Müşteri numarası', active: 'Aktif tedarikçi', contactName: 'İlgili kişi', email: 'E-posta', phone: 'Telefon', website: 'Web sitesi', addressLine1: 'Adres satırı 1', addressLine2: 'Adres satırı 2', postalCode: 'Posta kodu', city: 'Şehir', countryCode: 'Ülke kodu', paymentTerms: 'Ödeme koşulları', defaultLeadTime: 'Varsayılan teslim süresi', internalNotes: 'Dahili notlar' }, filters: { active: 'Aktif', inactive: 'Pasif', all: 'Tüm tedarikçiler' }, actions: { create: 'Tedarikçi ekle', save: 'Tedarikçiyi kaydet', edit: '{{name}} tedarikçisini düzenle', delete: 'Tedarikçiyi sil' }, validation: { nameRequired: 'Şirket adı zorunludur.' }, errors: { load: 'Tedarikçiler yüklenemedi.', save: 'Tedarikçi kaydedilemedi.', delete: 'Tedarikçi silinemedi.', noReadPermission: 'Tedarikçileri görüntüleme izniniz yok.' },
+  "pagination": "{{total}} kayıttan {{start}}–{{end}}",
+  "previous": "Önceki",
+  "next": "Sonraki",
+  "emptyFiltered": "Geçerli filtrelere uyan tedarikçi yok.",
+  "clearSearch": "Aramayı temizle" },
   storageSensors: {
     environment: "Ortam",
     manage: "Sensörler",

@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -265,6 +267,7 @@ export function UsersPage() {
     }));
   };
 
+  const pagination = useTablePagination(users, '', 15);
   if (!hasPermission('users:read')) {
     return (
       <div className="p-6">
@@ -337,7 +340,7 @@ export function UsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-bambu-dark-tertiary">
-                {users.map((user) => (
+                {pagination.rows.map((user) => (
                   <tr key={user.id} className="hover:bg-bambu-dark-tertiary/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                       {user.username}
@@ -417,6 +420,7 @@ export function UsersPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination {...pagination.footer} />
         </Card>
       )}
 

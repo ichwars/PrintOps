@@ -75,10 +75,10 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         <span
           data-testid="checkbox-visual"
           aria-hidden="true"
-          className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center leading-none rounded border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-bambu-green peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-bambu-dark max-[768px]:h-[22px] max-[768px]:w-[22px] ${
+          className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center leading-none rounded border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-accent-foreground peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-bambu-dark max-[768px]:h-[22px] max-[768px]:w-[22px] ${
             checked || indeterminate
-              ? 'border-bambu-green bg-bambu-green text-white'
-              : 'border-bambu-dark-tertiary bg-bambu-dark text-transparent'
+              ? 'border-accent-foreground bg-accent-foreground text-bambu-dark-secondary'
+              : 'border-bambu-gray-light bg-bambu-dark text-transparent'
           }`}
         >
           {indeterminate ? (

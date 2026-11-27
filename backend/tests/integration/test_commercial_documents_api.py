@@ -13,9 +13,11 @@ from backend.app.core.auth import create_access_token
 from backend.app.core.permissions import Permission
 from backend.app.models.business_profile import BusinessProfile
 from backend.app.models.commercial_document import CommercialDocument, DocumentArtifact
+from backend.app.models.customer import Customer
 from backend.app.models.document_audit import DocumentAuditEvent
 from backend.app.models.group import Group
 from backend.app.models.user import User
+from backend.app.schemas.commercial_document import IssuedDocumentSnapshot
 from backend.app.schemas.document_layout import (
     CloneLayoutRequest,
     CreateLayoutRequest,
@@ -23,6 +25,7 @@ from backend.app.schemas.document_layout import (
     PublishLayoutRequest,
 )
 from backend.app.services.document_layouts import clone_layout, create_draft as create_layout_draft, publish_layout
+from backend.app.services.document_snapshot import attach_issued_snapshot
 
 BASE_URL = "/api/v1/commercial-documents"
 
@@ -92,6 +95,54 @@ async def test_draft_crud_and_list_resources_are_exposed(async_client, db_sessio
     assert updated.status_code == 200
     assert updated.json()["lock_version"] == 2
     assert updated.json()["lines"][0]["description"] == "3D-Druck, geändert"
+
+
+async def test_invoice_recipients_use_the_document_name_and_keep_read_permissions(async_client, db_session):
+    profile = await _profile(db_session)
+    customer = Customer(kind="company", display_name="Current customer name")
+    db_session.add(customer)
+    await db_session.flush()
+    fields = {"document_type": "invoice", "business_profile_id": profile.id, "language": "de-DE", "currency": "EUR"}
+    draft = CommercialDocument(**fields, customer_id=customer.id)
+    issued = CommercialDocument(**fields, customer_id=customer.id, technical_status="issued", number="RE-2026-0091")
+    unassigned = CommercialDocument(**fields)
+    db_session.add_all([draft, issued, unassigned])
+    await db_session.flush()
+    await attach_issued_snapshot(
+        db_session,
+        issued,
+        IssuedDocumentSnapshot(
+            document_type="invoice",
+            number=issued.number,
+            issue_date=date(2026, 7, 22),
+            language="de-DE",
+            currency="EUR",
+            seller={},
+            buyer={"name": "Historical customer name", "contact": {"email": "buyer@example.test"}},
+            totals={"net": Decimal("25.00")},
+        ),
+        configuration_id=None,
+        configuration_version=1,
+        tax_rule_version="2026.1",
+        einvoice_rule_versions={},
+        actor_id=None,
+    )
+    await db_session.commit()
+    reader = await _permission_headers(db_session, "invoice-reader", [Permission.COMMERCIAL_DOCUMENTS_READ.value])
+    other = await _permission_headers(db_session, "invoice-nonreader", [Permission.PROJECTS_READ.value])
+    with patch("backend.app.core.auth.is_auth_enabled", return_value=True):
+        response = await async_client.get(BASE_URL, params={"document_type": "invoice"}, headers=reader)
+        assert response.status_code == 200, response.text
+        assert {row["id"]: row["customer_display_name"] for row in response.json()} == {
+            draft.id: "Current customer name",
+            issued.id: "Historical customer name",
+            unassigned.id: None,
+        }
+        assert "buyer@example.test" not in response.text
+        detail = await async_client.get(f"{BASE_URL}/{issued.id}", headers=reader)
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["customer_display_name"] == "Historical customer name"
+        assert (await async_client.get(BASE_URL, headers=other)).status_code == 403
 
 
 async def test_issue_requires_issue_permission(async_client, db_session):

@@ -77,7 +77,11 @@ export interface LexwareFinance {
   stale_connection_count: number;
 }
 
+export type LexwareDocumentSortKey = 'number' | 'type' | 'contact' | 'date' | 'status' | 'open';
+
 export interface LexwareDocumentFilters {
+  sort?: LexwareDocumentSortKey;
+  direction?: 'asc' | 'desc';
   connection_id?: number;
   business_profile_id?: number;
   search?: string;

@@ -6,7 +6,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.app.schemas.commercial_document import CommercialDocumentLineRead
 from backend.app.schemas.stock_reservation import ReservationRead
+
+OfferStatus = Literal["draft", "sent", "accepted", "rejected"]
 
 
 class CommerceSchema(BaseModel):
@@ -41,7 +44,7 @@ class OfferRead(CommerceSchema):
     order_id: int | None = None
     quotation_document_id: int | None = None
     number: str
-    status: Literal["draft", "sent", "accepted", "rejected"]
+    status: OfferStatus
     preferred_variant_sort_order: int
     snapshot: dict
     sent_at: datetime | None
@@ -50,6 +53,46 @@ class OfferRead(CommerceSchema):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class CommercialAmountsRead(CommerceSchema):
+    currency: str
+    subtotal_amount: Decimal
+    tax_amount: Decimal
+    total_amount: Decimal
+    lines: list[CommercialDocumentLineRead]
+
+
+class OfferQuotationRead(CommercialAmountsRead):
+    customer_id: int | None
+
+
+class OfferListItemRead(OfferRead):
+    customer_display_name: str | None = None
+
+
+class OfferPageQuery(CommerceSchema):
+    status: OfferStatus | None = None
+    customer_id: int | None = Field(default=None, gt=0, le=2147483647)
+    business_profile_id: int | None = Field(default=None, gt=0, le=2147483647)
+    calculation_id: int | None = Field(default=None, gt=0, le=2147483647)
+    q: str = Field(default="", max_length=200)
+    sort_by: Literal["number", "calculation", "customer", "revision", "price", "status", "updated"] = "updated"
+    sort_dir: Literal["asc", "desc"] = "desc"
+    status_order: list[OfferStatus] = Field(default_factory=list, max_length=4)
+    offset: int = Field(default=0, ge=0, le=9007199254740991)
+    limit: int = Field(default=25, ge=1, le=200)
+
+
+class OfferPageRead(CommerceSchema):
+    items: list[OfferListItemRead]
+    total: int
+    offset: int
+    limit: int
+
+
+class OfferDetailRead(OfferListItemRead):
+    quotation: OfferQuotationRead | None
 
 
 class OrderRead(CommerceSchema):
@@ -64,6 +107,11 @@ class OrderRead(CommerceSchema):
     created_at: datetime
     updated_at: datetime
     reservations: list[ReservationRead]
+
+
+class OrderDetailRead(OrderRead):
+    customer_display_name: str | None
+    confirmation: CommercialAmountsRead | None
 
 
 class AcceptanceRead(CommerceSchema):

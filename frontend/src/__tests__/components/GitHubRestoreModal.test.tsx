@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
 import { QueryClient } from '@tanstack/react-query';
@@ -85,6 +85,11 @@ function mockEndpoints(overrides: { preview?: JsonBody; commits?: JsonBody } = {
       HttpResponse.json(overrides.preview ?? (mockPreview as unknown as JsonBody))
     ),
   );
+}
+
+async function confirmRestore() {
+  const confirmation = await screen.findByRole('dialog', { name: 'Restore from backup?' });
+  await userEvent.click(within(confirmation).getByRole('button', { name: 'Restore', exact: true }));
 }
 
 describe('GitHubRestoreModal', () => {
@@ -256,10 +261,7 @@ describe('GitHubRestoreModal', () => {
     const checkboxes = await waitFor(() => screen.getAllByRole('checkbox') as HTMLInputElement[]);
     await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('button', { name: /Restore$/ }));
-    await waitFor(() => screen.getByText('Restore from backup?'));
-
-    const confirmButtons = screen.getAllByRole('button', { name: /Restore$/ });
-    await userEvent.click(confirmButtons[confirmButtons.length - 1]);
+    await confirmRestore();
 
     await waitFor(() => {
       expect(screen.getByText('Restored 4 item(s) from aaa1111')).toBeInTheDocument();
@@ -325,9 +327,7 @@ describe('GitHubRestoreModal', () => {
     await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('switch'));
     await userEvent.click(screen.getByRole('button', { name: /Restore$/ }));
-    await waitFor(() => screen.getByText('Restore from backup?'));
-    const confirmButtons = screen.getAllByRole('button', { name: /Restore$/ });
-    await userEvent.click(confirmButtons[confirmButtons.length - 1]);
+    await confirmRestore();
 
     await waitFor(() => expect(body).toMatchObject({ overwrite_existing: true }));
   });
@@ -459,9 +459,7 @@ describe('GitHubRestoreModal', () => {
     const checkboxes = await waitFor(() => screen.getAllByRole('checkbox') as HTMLInputElement[]);
     await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('button', { name: /Restore$/ }));
-    await waitFor(() => screen.getByText('Restore from backup?'));
-    const confirmButtons = screen.getAllByRole('button', { name: /Restore$/ });
-    await userEvent.click(confirmButtons[confirmButtons.length - 1]);
+    await confirmRestore();
 
     await waitFor(() => {
       expect(
@@ -489,9 +487,7 @@ describe('GitHubRestoreModal', () => {
     const checkboxes = await waitFor(() => screen.getAllByRole('checkbox') as HTMLInputElement[]);
     await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('button', { name: /Restore$/ }));
-    await waitFor(() => screen.getByText('Restore from backup?'));
-    const confirmButtons = screen.getAllByRole('button', { name: /Restore$/ });
-    await userEvent.click(confirmButtons[confirmButtons.length - 1]);
+    await confirmRestore();
     await waitFor(() => screen.getByText('A restore is already running'));
 
     const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
@@ -526,9 +522,7 @@ describe('GitHubRestoreModal', () => {
     const checkboxes = await waitFor(() => screen.getAllByRole('checkbox') as HTMLInputElement[]);
     await userEvent.click(checkboxes[1]);
     await userEvent.click(screen.getByRole('button', { name: /Restore$/ }));
-    await waitFor(() => screen.getByText('Restore from backup?'));
-    const confirmButtons = screen.getAllByRole('button', { name: /Restore$/ });
-    await userEvent.click(confirmButtons[confirmButtons.length - 1]);
+    await confirmRestore();
   };
 
   it('reports the categories a part-way failure already committed', async () => {
@@ -560,6 +554,9 @@ describe('GitHubRestoreModal', () => {
     await runRestore();
     await userEvent.click(await screen.findByRole('button', { name: 'Merge duplicates' }));
     expect(await screen.findByText('No duplicate archive groups found.')).toBeInTheDocument();
+    const mergeDialog = screen.getByRole('dialog', { name: 'Merge duplicates' });
+    await userEvent.tab();
+    expect(mergeDialog).toContainElement(document.activeElement as HTMLElement);
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Merge duplicates' })).toBeNull();
     expect(close).not.toHaveBeenCalled();
@@ -645,9 +642,7 @@ describe('GitHubRestoreModal', () => {
       const checkboxes = await waitFor(() => screen.getAllByRole('checkbox') as HTMLInputElement[]);
       await userEvent.click(checkboxes[1]);
       await userEvent.click(screen.getByRole('button', { name: /Restore$/ }));
-      await waitFor(() => screen.getByText('Restore from backup?'));
-      const confirmButtons = screen.getAllByRole('button', { name: /Restore$/ });
-      await userEvent.click(confirmButtons[confirmButtons.length - 1]);
+      await confirmRestore();
       await waitFor(() => screen.getByText('Restored 77 item(s) from aaa1111'));
       return onClose;
     }

@@ -648,7 +648,7 @@ describe('WLEDSettings', () => {
     render(<WLEDSettings />);
 
     expect(await screen.findByRole('heading', { name: 'WLED' })).toBeInTheDocument();
-    expect(screen.getByText('No printers configured.')).toBeInTheDocument();
+    expect(await screen.findByText('No printers configured.')).toBeInTheDocument();
     expect(screen.getByLabelText('Enable WLED integration')).toBeDisabled();
   });
 

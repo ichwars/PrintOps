@@ -44,3 +44,36 @@ async def repair_project_choices(conn: AsyncConnection) -> None:
         await conn.execute(
             update(projects).where(or_(field.is_(None), field.not_in(allowed))).values({field: fallback})
         )
+
+
+def descendants_of(children: dict[int, list[int]], root_id: int) -> list[int]:
+    """Every project nested under ``root_id``, at any depth, root excluded.
+
+    Walked in Python off one already-fetched parent map rather than a recursive
+    CTE, so SQLite and PostgreSQL stay on identical code paths.
+
+    ``seen`` is not belt-and-braces. ``update_project`` only ever rejected a
+    project as its own *direct* parent, so any database written before that
+    guard was widened can hold A -> B -> A, and an unguarded walk over one
+    would never terminate.
+    """
+    found: list[int] = []
+    seen = {root_id}
+    stack = [root_id]
+    while stack:
+        for child in children.get(stack.pop(), ()):
+            if child in seen:
+                continue
+            seen.add(child)
+            found.append(child)
+            stack.append(child)
+    return found
+
+
+async def project_descendants(db: AsyncSession, root_id: int) -> list[int]:
+    """``descendants_of`` for callers that only need the ids, not the totals."""
+    rows = (await db.execute(select(Project.id, Project.parent_id).where(Project.parent_id.is_not(None)))).all()
+    children: dict[int, list[int]] = {}
+    for pid, parent_id in rows:
+        children.setdefault(parent_id, []).append(pid)
+    return descendants_of(children, root_id)

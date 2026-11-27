@@ -142,10 +142,12 @@ describe('InventoryPage — restore inside a group row', () => {
     const header = await screen.findByText('#2, #3');
     fireEvent.click(header.closest('tr')!);
 
-    const buttons = await screen.findAllByTitle('Restore');
-    fireEvent.click(buttons[0]);
+    const trigger = (await screen.findAllByRole('button', { name: /^Actions: #[23]$/ }))[0];
+    const id = Number(trigger.getAttribute('aria-label')?.split('#')[1]);
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Restore' }));
 
     await waitFor(() => expect(restored).toHaveLength(1));
-    expect([2, 3]).toContain(restored[0]);
+    expect(restored[0]).toBe(id);
   });
 });

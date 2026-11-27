@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.app.api.routes.library import get_library_dir
+from backend.app.api.routes.project_production import production_destination, update_production_output
 from backend.app.core.auth import (
     OwnershipAccess,
     RequirePermissionIfAuthEnabled,
@@ -46,6 +47,7 @@ from backend.app.models.project import (
     normalize_project_status,
 )
 from backend.app.models.project_bom import ProjectBOMItem
+from backend.app.models.project_production import ProjectProductionOutput
 from backend.app.models.user import User
 from backend.app.schemas.project import (
     ArchivePreview,
@@ -265,39 +267,6 @@ async def compute_project_stats(
     return _stats_from_totals(totals, target_count, target_parts_count)
 
 
-def _descendants_of(children: dict[int, list[int]], root_id: int) -> list[int]:
-    """Every project nested under ``root_id``, at any depth, root excluded.
-
-    Walked in Python off one already-fetched parent map rather than a recursive
-    CTE, so SQLite and PostgreSQL stay on identical code paths.
-
-    ``seen`` is not belt-and-braces. ``update_project`` only ever rejected a
-    project as its own *direct* parent, so any database written before that
-    guard was widened can hold A -> B -> A, and an unguarded walk over one
-    would never terminate.
-    """
-    found: list[int] = []
-    seen = {root_id}
-    stack = [root_id]
-    while stack:
-        for child in children.get(stack.pop(), ()):
-            if child in seen:
-                continue
-            seen.add(child)
-            found.append(child)
-            stack.append(child)
-    return found
-
-
-async def _project_descendants(db: AsyncSession, root_id: int) -> list[int]:
-    """``_descendants_of`` for callers that only need the ids, not the totals."""
-    rows = (await db.execute(select(Project.id, Project.parent_id).where(Project.parent_id.is_not(None)))).all()
-    children: dict[int, list[int]] = {}
-    for pid, parent_id in rows:
-        children.setdefault(parent_id, []).append(pid)
-    return _descendants_of(children, root_id)
-
-
 @dataclass
 class _SubtreeReport:
     """What the detail endpoint needs to describe a project and its tree."""
@@ -337,7 +306,7 @@ async def compute_subtree_stats(db: AsyncSession, root_id: int) -> _SubtreeRepor
         if row.parent_id is not None:
             children.setdefault(row.parent_id, []).append(row.id)
 
-    descendants = _descendants_of(children, root_id)
+    descendants = project_lifecycle.descendants_of(children, root_id)
     if not descendants:
         return _SubtreeReport(descendant_count=0, rollup=None, child_previews=[])
 
@@ -345,7 +314,7 @@ async def compute_subtree_stats(db: AsyncSession, root_id: int) -> _SubtreeRepor
 
     def branch(node_id: int) -> tuple[_ProjectTotals, list[int]]:
         """Totals for ``node_id`` plus everything under it, and that id list."""
-        ids = [node_id, *_descendants_of(children, node_id)]
+        ids = [node_id, *project_lifecycle.descendants_of(children, node_id)]
         summed = _ProjectTotals()
         for pid in ids:
             summed = summed + totals[pid]
@@ -408,6 +377,12 @@ async def list_projects(
 
     result = await db.execute(query)
     projects = result.scalars().all()
+    production_outputs = {
+        output.project_id: production_destination(output)
+        for output in await db.scalars(
+            select(ProjectProductionOutput).where(ProjectProductionOutput.project_id.in_([p.id for p in projects]))
+        )
+    }
 
     # Direct sub-project counts for every project in one pass (#1264). Counted
     # across all projects rather than the filtered page: a sub-project hidden
@@ -495,6 +470,7 @@ async def list_projects(
                 status=project.status,
                 target_count=project.target_count,
                 target_parts_count=project.target_parts_count,
+                production_output=production_outputs.get(project.id),
                 budget=project.budget,
                 created_at=project.created_at,
                 archive_count=archive_count,
@@ -518,7 +494,7 @@ async def list_projects(
 async def create_project(
     data: ProjectCreate,
     db: AsyncSession = DB_SESSION,
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_CREATE),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_CREATE)),
 ):
     """Create a new project."""
     if data.priority not in PROJECT_PRIORITIES:
@@ -549,6 +525,7 @@ async def create_project(
     db.add(project)
     await db.flush()
     await db.refresh(project)
+    output = await update_production_output(db, project, access, data.production_output)
 
     stats = await compute_project_stats(db, project.id, project.target_count, project.target_parts_count)
 
@@ -560,6 +537,7 @@ async def create_project(
         status=project.status,
         target_count=project.target_count,
         target_parts_count=project.target_parts_count,
+        production_output=output,
         notes=project.notes,
         attachments=project.attachments,
         url=project.url,
@@ -740,6 +718,7 @@ async def get_project(
         status=project.status,
         target_count=project.target_count,
         target_parts_count=project.target_parts_count,
+        production_output=production_destination(await db.get(ProjectProductionOutput, project.id)),
         notes=project.notes,
         attachments=project.attachments,
         url=project.url,
@@ -766,14 +745,21 @@ async def update_project(
     project_id: int,
     data: ProjectUpdate,
     db: AsyncSession = DB_SESSION,
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.PROJECTS_UPDATE),
+    access: OwnershipAccess = Depends(require_permission_with_key(Permission.PROJECTS_UPDATE)),
 ):
     """Update a project."""
+    if data.status == "completed" or data.production_output is not None:
+        # Serialize destination updates and completion on both SQLite and PostgreSQL.
+        await db.execute(update(Project).where(Project.id == project_id).values(updated_at=Project.updated_at))
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    output = await update_production_output(
+        db, project, access, data.production_output, completing=data.status == "completed"
+    )
 
     # Update fields if provided
     if data.name is not None:
@@ -815,9 +801,9 @@ async def update_project(
                 raise HTTPException(status_code=400, detail="Parent project not found")
             # Refusing only the project itself left A -> B -> A reachable in two
             # calls, and a cycle has no root to roll figures up to — the walk in
-            # ``_descendants_of`` would revisit forever without its seen-set
+            # ``descendants_of`` would revisit forever without its seen-set
             # (#1264).
-            if data.parent_id in await _project_descendants(db, project_id):
+            if data.parent_id in await project_lifecycle.project_descendants(db, project_id):
                 raise HTTPException(status_code=400, detail="Project cannot be moved under one of its own sub-projects")
             project.parent_id = data.parent_id
         else:
@@ -844,6 +830,7 @@ async def update_project(
         status=project.status,
         target_count=project.target_count,
         target_parts_count=project.target_parts_count,
+        production_output=output,
         notes=project.notes,
         attachments=project.attachments,
         url=project.url,

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { ApiError } from '../../api/client/core';
 import { warehouseArticlesApi, type WarehouseArticle, type WarehouseMovementInput, type WarehouseMovementKind } from '../../api/client/warehouse-articles';
@@ -12,7 +13,17 @@ type PendingMovement = { key: string; payload: MovementPayload; uncertain?: bool
 
 const pendingMovementKey = (articleId: number) => ['warehouse-articles', articleId, 'pending-movement-command'] as const;
 
-export function WarehouseStockPanel({ article, canBook, disabled = false, onBusyChange }: { article: WarehouseArticle; canBook: boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void }) {
+export function WarehouseStockPanel({
+  article, canBook, disabled = false, onBusyChange, quickKind, onCancel,
+}: {
+  article: WarehouseArticle;
+  canBook: boolean;
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+  quickKind?: 'receipt' | 'issue';
+  onCancel?: () => void;
+}) {
+  const { t } = useTranslation();
   const copy = useWarehouseCopy();
   const cache = useQueryClient();
   const [commandKey] = useState(() => {
@@ -22,7 +33,7 @@ export function WarehouseStockPanel({ article, canBook, disabled = false, onBusy
   });
   const [remembered, setRemembered] = useState(() => cache.getQueryData<PendingMovement>(commandKey));
   const rememberedPayload = remembered?.payload;
-  const [kind, setKind] = useState<WarehouseMovementKind>(rememberedPayload?.entry_kind ?? 'receipt');
+  const [kind, setKind] = useState<WarehouseMovementKind>(rememberedPayload?.entry_kind ?? quickKind ?? 'receipt');
   const [locationId, setLocationId] = useState(rememberedPayload?.location_id ?? 0);
   const [targetId, setTargetId] = useState(rememberedPayload?.target_location_id ?? 0);
   const [quantity, setQuantity] = useState(rememberedPayload?.quantity ?? '');
@@ -31,10 +42,16 @@ export function WarehouseStockPanel({ article, canBook, disabled = false, onBusy
   const [reservationId, setReservationId] = useState(rememberedPayload?.reservation_id ?? 0);
   const [reversesId, setReversesId] = useState(rememberedPayload?.reverses_id ?? 0);
   const [offset, setOffset] = useState(0);
+  // An uncertain command may predate the inline action and require the full form.
+  const compact = quickKind !== undefined && kind === quickKind;
   const pendingRef = useRef(false);
+  const quantityRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (quickKind) quantityRef.current?.focus();
+  }, [quickKind]);
   const locations = useQuery({ queryKey: ['warehouse', 'locations'], queryFn: api.getLocations });
-  const ledger = useQuery({ queryKey: ['warehouse-articles', article.id, 'ledger', offset], queryFn: () => warehouseArticlesApi.ledger(article.id, offset) });
-  const reservations = useQuery({ queryKey: ['warehouse-articles', article.id, 'reservations'], queryFn: () => warehouseArticlesApi.reservations(article.id) });
+  const ledger = useQuery({ queryKey: ['warehouse-articles', article.id, 'ledger', offset], queryFn: () => warehouseArticlesApi.ledger(article.id, offset), enabled: !compact });
+  const reservations = useQuery({ queryKey: ['warehouse-articles', article.id, 'reservations'], queryFn: () => warehouseArticlesApi.reservations(article.id), enabled: !compact });
   const usesReservation = kind === 'release' || kind === 'reserved_issue';
   const selectedReservation = reservations.data?.find((entry) => entry.id === reservationId);
   const mutation = useMutation({
@@ -44,7 +61,7 @@ export function WarehouseStockPanel({ article, canBook, disabled = false, onBusy
         cache.removeQueries({ queryKey: commandKey, exact: true });
       }
       setRemembered(undefined);
-      setQuantity(''); setReason(''); setReversesId(0); setKind('receipt');
+      setQuantity(''); setReason(''); setReversesId(0); setKind(quickKind ?? 'receipt');
       await cache.invalidateQueries({ queryKey: ['warehouse-articles'] });
     },
     onError: (error, submitted) => {
@@ -90,34 +107,36 @@ export function WarehouseStockPanel({ article, canBook, disabled = false, onBusy
   const locationName = (id: number) => locations.data?.find((item) => item.id === id)?.name ?? `#${id}`;
   const valid = !!reason.trim() && (kind === 'counter' ? reversesId > 0 : !!quantity && (usesReservation ? !!selectedReservation : locationId > 0) && (kind !== 'transfer' || (targetId > 0 && targetId !== locationId)));
   return <div className="space-y-6 text-sm">
-    {canBook && article.is_active && <form className="space-y-4 border-t border-bambu-dark-tertiary pt-4" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+    {canBook && article.is_active && <form className={compact ? "space-y-3 [&_.text-red-400]:text-red-700 dark:[&_.text-red-400]:text-red-300" : "space-y-4 border-t border-bambu-dark-tertiary pt-4"} onSubmit={(event) => { event.preventDefault(); submit(); }}>
       <fieldset className="min-w-0 space-y-4" disabled={commandLocked}>
-      <h3 className="text-sm font-semibold text-white">{copy.booking}</h3>
+      <h3 className="text-sm font-semibold text-white">{quickKind ? `${copy[kind]} · ${article.sku}` : copy.booking}</h3>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Select<WarehouseMovementKind> label={copy.booking} value={kind} onValueChange={changeKind} options={(['opening', 'receipt', 'issue', 'transfer', 'correction', 'reservation', 'release', 'reserved_issue', ...(reversesId ? ['counter'] : [])] as WarehouseMovementKind[]).map((value) => ({ value, label: copy[value] }))} />
-        {kind !== 'counter' && <NumberField label={`${copy.quantity} (${article.unit_code})`} step="any" required value={quantity} onValueChange={setQuantity} />}
+        {!compact && <Select<WarehouseMovementKind> label={copy.booking} value={kind} onValueChange={changeKind} options={(['opening', 'receipt', 'issue', 'transfer', 'correction', 'reservation', 'release', 'reserved_issue', ...(reversesId ? ['counter'] : [])] as WarehouseMovementKind[]).map((value) => ({ value, label: copy[value] }))} />}
+        {kind !== 'counter' && <NumberField ref={quantityRef} label={`${copy.quantity} (${article.unit_code})`} step="any" required value={quantity} onValueChange={setQuantity} />}
         {kind !== 'counter' && !usesReservation && <Select label={copy.location} value={locationId} placeholder={copy.choose} onValueChange={setLocationId} options={(locations.data ?? []).map((item) => ({ value: item.id, label: item.name }))} />}
         {kind === 'transfer' && <Select label={copy.destination} value={targetId} placeholder={copy.choose} onValueChange={setTargetId} options={(locations.data ?? []).filter((item) => item.id !== locationId).map((item) => ({ value: item.id, label: item.name }))} />}
         {usesReservation && <Select label={copy.reservationSelect} value={reservationId} placeholder={copy.choose} onValueChange={setReservationId} options={(reservations.data ?? []).map((entry) => ({ value: entry.id, label: `#${entry.id} · ${locationName(entry.location_id)} · ${warehouseQuantity(entry.remaining)} ${article.unit_code}${entry.order_id ? ` · ${copy.order}: ${entry.order_id}` : ''}` }))} />}
-        {kind !== 'counter' && !usesReservation && <NumberField label={copy.order} min="1" step="1" value={orderId} onValueChange={setOrderId} />}
+        {!compact && kind !== 'counter' && !usesReservation && <NumberField label={copy.order} min="1" step="1" value={orderId} onValueChange={setOrderId} />}
       </div>
       {kind === 'correction' && <p className="text-sm text-bambu-gray">{copy.quantityNote}</p>}
       {kind === 'counter' && <p className="text-sm text-bambu-gray">#{reversesId} · {copy.counterNote}</p>}
-      <TextArea label={copy.reason} className="min-h-20" required maxLength={2000} value={reason} onValueChange={setReason} />
+      <TextArea label={copy.reason} className={compact ? "min-h-11" : "min-h-20"} required maxLength={2000} value={reason} onValueChange={setReason} />
       </fieldset>
       {locations.isLoading && <p role="status" className="text-bambu-gray">{copy.loading}</p>}
-      {locations.isSuccess && !locations.data.length && <p role="alert" className="text-amber-300">{copy.noLocations}</p>}
-      {(locations.isError || reservations.isError) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-950/50 p-3 text-red-300">{copy.error}<Button type="button" size="sm" variant="secondary" onClick={() => { void locations.refetch(); void reservations.refetch(); }}>{copy.retry}</Button></div>}
-      {mutation.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">{mutation.error.message}</p>}
-      {remembered?.uncertain && <p role="status" className="text-amber-300">{copy.uncertainMovement}</p>}
-      <div className="flex justify-end">
-        <Button type="submit" loading={mutation.isPending} disabled={disabled || (!remembered && (!valid || locations.isError || (usesReservation && reservations.isError)))}>{copy.book}</Button>
+      {locations.isSuccess && !locations.data.length && <p role="alert" className="text-amber-800 dark:text-amber-300">{copy.noLocations}</p>}
+      {(locations.isError || reservations.isError) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-100 p-3 text-red-900 dark:bg-red-950/50 dark:text-red-300">{copy.error}<Button type="button" size="sm" variant="secondary" onClick={() => { void locations.refetch(); void reservations.refetch(); }}>{copy.retry}</Button></div>}
+      {mutation.isError && <p role="alert" className="rounded-lg bg-red-100 p-3 text-red-900 dark:bg-red-950/50 dark:text-red-300">{mutation.error.message}</p>}
+      {remembered?.uncertain && <p role="status" className="text-amber-800 dark:text-amber-300">{copy.uncertainMovement}</p>}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {quickKind && mutation.isSuccess && <p role="status" className="mr-auto text-accent-foreground">{t('orders.runtimeDomain.warehouseGoods.quickBookingSaved')}</p>}
+        {onCancel && <Button type="button" variant="secondary" disabled={mutation.isPending} onClick={onCancel}>{t('common.cancel')}</Button>}
+        <Button type="submit" className={quickKind ? 'text-black!' : undefined} loading={mutation.isPending} disabled={disabled || (!remembered && (!valid || locations.isError || (usesReservation && reservations.isError)))}>{copy.book}</Button>
       </div>
     </form>}
-    <section className="space-y-3 border-t border-bambu-dark-tertiary pt-4" aria-label={copy.history}>
+    {!compact && <section className="space-y-3 border-t border-bambu-dark-tertiary pt-4" aria-label={copy.history}>
       <h3 className="text-sm font-semibold text-white">{copy.history}</h3>
       {ledger.isLoading && <p role="status" className="text-bambu-gray">{copy.loading}</p>}
-      {ledger.isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-950/50 p-3 text-red-300">{copy.error}<Button type="button" size="sm" variant="secondary" onClick={() => void ledger.refetch()}>{copy.retry}</Button></div>}
+      {ledger.isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-100 p-3 text-red-900 dark:bg-red-950/50 dark:text-red-300">{copy.error}<Button type="button" size="sm" variant="secondary" onClick={() => void ledger.refetch()}>{copy.retry}</Button></div>}
       {ledger.isSuccess && !ledger.data.length && <p className="text-bambu-gray">{copy.noHistory}</p>}
       {ledger.data?.map((entry) => <div key={entry.id} className="space-y-2 rounded-lg border border-bambu-dark-tertiary p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -136,6 +155,6 @@ export function WarehouseStockPanel({ article, canBook, disabled = false, onBusy
         <Button type="button" size="sm" variant="secondary" disabled={mutation.isPending || offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>{copy.previous}</Button>
         <Button type="button" size="sm" variant="secondary" disabled={mutation.isPending || (ledger.data?.length ?? 0) < 50} onClick={() => setOffset(offset + 50)}>{copy.next}</Button>
       </div>
-    </section>
+    </section>}
   </div>;
 }

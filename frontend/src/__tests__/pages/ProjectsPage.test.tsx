@@ -2,7 +2,7 @@
  * Tests for the ProjectsPage component.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '../utils';
@@ -380,6 +380,26 @@ describe('ProjectsPage', () => {
       expect(card).not.toBeNull();
     });
   });
+  it('prefills the production project and requires a destination before saving', async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    server.use(http.get('/api/v1/inventory/locations', () => HttpResponse.json([{ id: 8, name: 'Finished stock' }])));
+    render(<ProjectModal draft={{ name: 'Production draft', description: 'SKU-1 · 7 pcs', target_parts_count: 7, parent_id: 1, productionArticleId: 12 }}
+      onClose={() => {}} onSave={onSave} isLoading={false} currencySymbol="€" t={key => key} />);
+    expect(screen.getByRole('textbox', { name: 'common.name' })).toHaveValue('Production draft');
+    expect(screen.getByRole('textbox', { name: 'common.description' })).toHaveValue('SKU-1 · 7 pcs');
+    expect(screen.getByRole('spinbutton', { name: 'projects.targetParts' })).toHaveValue(7);
+    expect(screen.getByRole('button', { name: 'projects.create' })).toBeDisabled();
+    expect(onSave).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('combobox', { name: 'orders.runtimeDomain.warehouseGoods.destination' }));
+    await user.click(await screen.findByRole('option', { name: 'Finished stock' }));
+    await user.click(screen.getByRole('button', { name: 'projects.create' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Production draft', description: 'SKU-1 · 7 pcs', target_parts_count: 7, parent_id: 1,
+      production_output: { article_id: 12, location_id: 8 },
+    }));
+  });
+
   describe('nesting projects under a master project (#1264)', () => {
     const listItem = (over: Record<string, unknown>) => ({
       id: 1,

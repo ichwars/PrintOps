@@ -73,7 +73,7 @@ export function ConfirmModal({
     },
     warning: {
       icon: 'text-yellow-600 dark:text-yellow-400',
-      button: 'bg-yellow-500 hover:bg-yellow-600 text-black',
+      button: 'bg-yellow-500 hover:bg-yellow-600 text-black!',
     },
     default: {
       icon: 'text-bambu-green',
@@ -106,7 +106,7 @@ export function ConfirmModal({
             </div>
             <div className="flex-1">
               <h3 id={titleId} className="text-lg font-semibold text-white mb-2">{title}</h3>
-              <p id={descriptionId} className="text-bambu-gray text-sm whitespace-pre-line">{message}</p>
+              <p id={descriptionId} className="text-table-secondary text-sm whitespace-pre-line">{message}</p>
               {children && <div className="mt-4">{children}</div>}
             </div>
           </div>

@@ -14,6 +14,8 @@ from backend.app.core.text_normalization import (
 
 CustomerKind = Literal["company", "person"]
 CustomerStatus = Literal["active", "inactive", "blocked"]
+CustomerSortKey = Literal["number", "name", "contact", "billing", "status", "tags"]
+CustomerSortDirection = Literal["asc", "desc"]
 CustomerAddressKind = Literal["billing", "delivery", "other"]
 TaxValidationStatus = Literal["unchecked", "valid", "invalid"]
 EInvoiceRequirement = Literal["inherit", "optional", "required"]

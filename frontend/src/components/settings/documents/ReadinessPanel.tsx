@@ -23,7 +23,7 @@ function focusFinding(finding: ReadinessFinding) {
 export function ReadinessPanel({ report, error, loading = false, onReload }: ReadinessPanelProps) {
   const { t, i18n } = useTranslation();
   if (loading) {
-    return <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-gray-400">{t('settings.documents.readiness.loading', 'Checking readiness...')}</section>;
+    return <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-table-secondary">{t('settings.documents.readiness.loading', 'Checking readiness...')}</section>;
   }
   if (error) {
     const apiError = error instanceof ApiError ? error : null;
@@ -31,7 +31,7 @@ export function ReadinessPanel({ report, error, loading = false, onReload }: Rea
     const correlationId = typeof apiError?.detail?.correlation_id === 'string' ? apiError.detail.correlation_id : null;
     const versionConflict = apiError?.status === 409 && apiError.code === 'version_conflict';
     return (
-      <section role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+      <section role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-900 dark:text-red-100">
         <h3 className="font-semibold">{versionConflict ? t('settings.documents.readiness.versionConflict', 'The draft was changed elsewhere') : t('settings.documents.readiness.checkFailed', 'Compliance check failed')}</h3>
         {ruleId ? <p className="mt-2">{t('settings.documents.readiness.ruleId', 'Rule ID')}: <code>{ruleId}</code></p> : null}
         {correlationId ? <p>{t('settings.documents.readiness.correlationId', 'Correlation ID')}: <code>{correlationId}</code></p> : null}
@@ -51,7 +51,7 @@ export function ReadinessPanel({ report, error, loading = false, onReload }: Rea
       <div className="flex items-center gap-2">
         {report.status === 'ready'
           ? <CheckCircle2 className="h-5 w-5 text-bambu-green" />
-          : <AlertTriangle className={`h-5 w-5 ${report.status === 'blocked' ? 'text-red-400' : 'text-amber-300'}`} />}
+          : <AlertTriangle className={`h-5 w-5 ${report.status === 'blocked' ? 'text-red-700 dark:text-red-400' : 'text-amber-800 dark:text-amber-300'}`} />}
         <h3 id="document-readiness-heading" className="font-semibold text-white">
           {t('settings.documents.readiness.title', 'Publication readiness')}: {t(`settings.documents.readiness.${report.status}`, report.status)}
         </h3>
@@ -64,15 +64,15 @@ export function ReadinessPanel({ report, error, loading = false, onReload }: Rea
             return (
               <li key={`${finding.field_path}-${finding.code}-${index}`}>
                 <button type="button" className="w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-3 text-left hover:border-bambu-green/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green" onClick={() => focusFinding(finding)}>
-                  <span className={finding.severity === 'blocker' ? 'text-red-300' : 'text-amber-200'}>{localized.title}</span>
-                  <span className="mt-1 block text-xs text-gray-400">{localized.correction}</span>
-                  {finding.rule_id ? <span className="mt-1 block font-mono text-xs text-gray-500">{finding.rule_id}</span> : null}
+                  <span className={finding.severity === 'blocker' ? 'text-red-700 dark:text-red-300' : 'text-amber-900 dark:text-amber-200'}>{localized.title}</span>
+                  <span className="mt-1 block text-xs text-table-secondary">{localized.correction}</span>
+                  {finding.rule_id ? <span className="mt-1 block font-mono text-xs text-table-secondary">{finding.rule_id}</span> : null}
                 </button>
               </li>
             );
           })}
         </ol>
-      ) : <p className="mt-2 text-sm text-gray-400">{t('settings.documents.readiness.noFindings', 'No blocking findings.')}</p>}
+      ) : <p className="mt-2 text-sm text-table-secondary">{t('settings.documents.readiness.noFindings', 'No blocking findings.')}</p>}
     </section>
   );
 }

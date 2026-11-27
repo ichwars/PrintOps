@@ -1,3 +1,4 @@
+import { TablePagination } from '../components/ui/TablePagination';
 import interfaceI18n from "../i18n";
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
@@ -5,10 +6,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   Plus, Loader2, Trash2, Archive, RotateCcw, Edit2, Package,
-  Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   TrendingDown, Layers, Printer, AlertTriangle, X, Clock, LayoutGrid, TableProperties, Columns,
   ArrowUp, ArrowDown, ArrowUpDown, Group, ChevronDown, Check, RefreshCw, TrendingUp, Lock, Copy, Eraser, MapPin,
-  Upload, Download, CircleDollarSign, ScanLine,
+  Upload, Download, CircleDollarSign, ScanLine, ClipboardCheck,
 } from 'lucide-react';
 import { ForecastPanel } from '../components/ForecastPanel';
 import { shownCostPerKg } from '../utils/spoolCost';
@@ -45,8 +45,11 @@ import {
 import { aggregateGroupSpool } from '../utils/inventoryGrouping';
 import { isSortableInventoryColumn, sortInventorySpools, type LocationDisplay, type SortState } from '../utils/inventorySorting';
 import { Checkbox, LegacySelect, TextField } from '../components/ui';
+import { WarehouseFilters, WarehouseHeader, WarehousePage, WarehouseSegment, WarehouseSegments, WarehouseTable, WarehouseTableScroll, WarehouseToolbar } from '../components/warehouse/WarehouseLayout';
+import { WarehouseActionHeader, WarehouseRowActions } from '../components/warehouse/WarehouseRowActions';
+import { WarehouseStockCheckDialog } from '../components/warehouse/WarehouseStocktake';
+import { warehouseActionCellClass, warehouseArchivedActionClass, warehouseGroupedActionClass, warehouseSelectedActionClass, warehouseMetricsClass, warehouseMetricClass, warehouseResultsClass, warehouseTableDescriptionClass, warehouseTableIdentifierClass, warehouseTableRowClass, warehouseFilterSelectClass } from '../components/warehouse/warehouseStyles';
 import {
-  tableHeaderActionCellClass,
   tableHeaderCellClass,
   tableHeaderCellCompactClass,
   tableHeaderClass,
@@ -108,10 +111,17 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'tag_type', label: 'Linked Tag Type', visible: false },
   { id: 'stock', label: 'Stock', visible: false },
   { id: 'remaining', label: 'Remaining', visible: true },
+  { id: 'stock_checked_at', label: 'Checked', visible: true },
   { id: 'spool_name', label: 'Spool', visible: false },
   { id: 'cost_per_kg', label: 'Cost/kg', visible: false },
   { id: 'weight_check', label: 'Weight Check', visible: false },
 ];
+
+const CENTERED_COLUMNS = new Set([
+  'added_time', 'encode_time', 'last_used_time', 'last_dried', 'rgba',
+  'label_weight', 'net', 'gross', 'used', 'printed_total', 'printed_since_weight',
+  'pa_k', 'stock', 'remaining', 'cost_per_kg', 'weight_check', 'stock_checked_at',
+]);
 
 function loadColumnConfig(): ColumnConfig[] {
   try {
@@ -207,6 +217,7 @@ const columnHeaders: Record<string, (t: TFn) => string> = {
   tag_type: (t) => t('orders.runtimeInterface.inventoryColumns.tagType'),
   stock: (t) => t('inventory.stock'),
   remaining: (t) => t('inventory.remaining'),
+  stock_checked_at: (t) => t('common.stockChecked'),
   spool_name: (t) => t('inventory.spoolName'),
   cost_per_kg: (t) => t('inventory.costPerKg'),
   weight_check: (t) => t('inventory.weightCheck'),
@@ -218,16 +229,16 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     <span className="text-sm font-medium text-white">{spool.id}</span>
   ),
   added_time: ({ spool, dateFormat }) => (
-    <span className="text-sm text-bambu-gray">{formatInventoryDate(spool.created_at, dateFormat)}</span>
+    <span className="text-sm text-table-secondary">{formatInventoryDate(spool.created_at, dateFormat)}</span>
   ),
   encode_time: ({ spool, dateFormat }) => (
-    <span className="text-sm text-bambu-gray">{formatInventoryDate(spool.encode_time, dateFormat)}</span>
+    <span className="text-sm text-table-secondary">{formatInventoryDate(spool.encode_time, dateFormat)}</span>
   ),
   last_used_time: ({ spool, dateFormat }) => (
-    <span className="text-sm text-bambu-gray">{spool.last_used ? formatInventoryDate(spool.last_used, dateFormat) : 'Never'}</span>
+    <span className="text-sm text-table-secondary">{spool.last_used ? formatInventoryDate(spool.last_used, dateFormat) : 'Never'}</span>
   ),
   last_dried: ({ spool, dateFormat }) => (
-    <div className="text-sm text-bambu-gray">
+    <div className="text-sm text-table-secondary">
       {formatInventoryDate(spool.last_dried_at ?? null, dateFormat)}
       {spool.last_dried_at && <div className="text-xs">{formatSpoolDryingDetails(spool)}</div>}
     </div>
@@ -244,40 +255,40 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     </div>
   ),
   material: ({ spool }) => (
-    <span className="text-sm text-white">{spool.material}</span>
+    <span className={warehouseTableDescriptionClass}>{spool.material}</span>
   ),
   material_number: ({ spool }) => (
-    <span className="text-sm font-mono text-bambu-gray">{spool.material_number || '-'}</span>
+    <span className={`${warehouseTableIdentifierClass} text-table-secondary`}>{spool.material_number || '-'}</span>
   ),
   subtype: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.subtype || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.subtype || '-'}</span>
   ),
   color_name: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{resolveSpoolColorName(spool.color_name, spool.rgba) || '-'}</span>
+    <span className="text-sm text-table-secondary">{resolveSpoolColorName(spool.color_name, spool.rgba) || '-'}</span>
   ),
   brand: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.brand || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.brand || '-'}</span>
   ),
   slicer_filament: ({ spool }) => (
-    <span className="text-sm text-bambu-gray" title={spool.slicer_filament || undefined}>
+    <span className="text-sm text-table-secondary" title={spool.slicer_filament || undefined}>
       {spool.slicer_filament_name || spool.slicer_filament || '-'}
     </span>
   ),
   location: ({ spool, assignmentMap }) => {
     const assignment = assignmentMap[spool.id];
-    if (!assignment) return <span className="text-sm text-bambu-gray">-</span>;
+    if (!assignment) return <span className="text-sm text-table-secondary">-</span>;
     const printerLabel = assignment.printer_name || `Printer ${assignment.printer_id}`;
     const slotLabel = formatAssignmentSlotLabel(assignment);
     return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
         {printerLabel} {slotLabel}{assignment.ams_label ? ` (${assignment.ams_label})` : ''}
       </span>
     );
   },
   storage_location: ({ spool }) => {
-    if (!spool.storage_location) return <span className="text-sm text-bambu-gray">-</span>;
+    if (!spool.storage_location) return <span className="text-sm text-table-secondary">-</span>;
     return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
         {spool.storage_location}
       </span>
     );
@@ -289,43 +300,43 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     <span className="text-sm text-white">{formatWeight(remaining)}</span>
   ),
   gross: ({ spool, remaining }) => (
-    <span className="text-sm text-bambu-gray">{formatWeight(remaining + spool.core_weight)}</span>
+    <span className="text-sm text-table-secondary">{formatWeight(remaining + spool.core_weight)}</span>
   ),
   used: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.weight_used > 0 ? formatWeight(spool.weight_used) : '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.weight_used > 0 ? formatWeight(spool.weight_used) : '-'}</span>
   ),
   printed_total: () => (
-    <span className="text-sm text-bambu-gray/50">-</span>
+    <span className="text-sm text-table-secondary">-</span>
   ),
   printed_since_weight: () => (
-    <span className="text-sm text-bambu-gray/50">-</span>
+    <span className="text-sm text-table-secondary">-</span>
   ),
   note: ({ spool }) => (
-    <span className="text-sm text-bambu-gray max-w-[150px] truncate block" title={spool.note || undefined}>{spool.note || '-'}</span>
+    <span className="text-sm text-table-secondary max-w-[150px] truncate block" title={spool.note || undefined}>{spool.note || '-'}</span>
   ),
   pa_k: ({ spool }) => {
     const count = spool.k_profiles?.length ?? 0;
-    if (count === 0) return <span className="text-sm text-bambu-gray">-</span>;
+    if (count === 0) return <span className="text-sm text-table-secondary">-</span>;
     return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-bambu-green/20 text-bambu-green">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-bambu-green/20 text-accent-foreground">
         K
       </span>
     );
   },
   tag_id: ({ spool }) => {
     const tag = spool.tag_uid || spool.tray_uuid;
-    if (!tag) return <span className="text-sm text-bambu-gray/50">-</span>;
+    if (!tag) return <span className="text-sm text-table-secondary">-</span>;
     return (
-      <span className="text-sm text-bambu-gray font-mono" title={tag}>
+      <span className="text-sm text-table-secondary font-mono" title={tag}>
         {tag.length > 12 ? `${tag.slice(0, 6)}...${tag.slice(-4)}` : tag}
       </span>
     );
   },
   data_origin: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.data_origin || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.data_origin || '-'}</span>
   ),
   tag_type: ({ spool }) => (
-    <span className="text-sm text-bambu-gray">{spool.tag_type || '-'}</span>
+    <span className="text-sm text-table-secondary">{spool.tag_type || '-'}</span>
   ),
   stock: ({ spool, t }) => {
     if (!spool.slicer_filament) {
@@ -335,31 +346,34 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
         </span>
       );
     }
-    return <span className="text-sm text-bambu-gray">-</span>;
+    return <span className="text-sm text-table-secondary">-</span>;
   },
   remaining: ({ remaining, pct }) => (
-    <div className="flex items-center gap-2">
+    <div className="mx-auto flex max-w-32 items-center gap-2">
       <div className="flex-1 h-2 bg-bambu-dark-tertiary rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${pct > 50 ? 'bg-bambu-green' : pct > 20 ? 'bg-yellow-500' : 'bg-red-500'}`}
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
-      <span className="text-xs text-bambu-gray min-w-[40px] text-right">{Math.round(remaining)}g</span>
+      <span className="text-xs text-table-secondary min-w-[40px] text-right">{Math.round(remaining)}g</span>
     </div>
+  ),
+  stock_checked_at: ({ spool, dateFormat }) => (
+    <span className="whitespace-nowrap text-sm text-table-secondary">{formatInventoryDate(spool.stock_checked_at ?? null, dateFormat)}</span>
   ),
   spool_name: ({ spool, catalogMap }) => {
     const entry = spool.core_weight_catalog_id != null ? catalogMap[spool.core_weight_catalog_id] : undefined;
-    return <span className="text-sm text-bambu-gray">{entry?.name || '-'}</span>;
+    return <span className="text-sm text-table-secondary">{entry?.name || '-'}</span>;
   },
   cost_per_kg: ({ spool, currencySymbol, t }) => {
     const rate = shownCostPerKg(spool);
     const inherited = spool.effective_cost_per_kg != null && !(spool.cost_per_kg && spool.cost_per_kg > 0);
-    return <span className="text-sm text-bambu-gray" title={inherited ? t('inventory.costFromFilament') : undefined}>{rate != null ? `${currencySymbol}${rate.toFixed(2)}` : '-'}</span>;
+    return <span className="text-sm text-table-secondary" title={inherited ? t('inventory.costFromFilament') : undefined}>{rate != null ? `${currencySymbol}${rate.toFixed(2)}` : '-'}</span>;
   },
   weight_check: ({ spool, onSyncWeight }) => {
     const scaleWeight = spool.last_scale_weight;
-    if (scaleWeight == null) return <span className="text-sm text-bambu-gray/50" title={interfaceI18n.t("orders.runtimeInterface.noScaleMeasurement")}>-</span>;
+    if (scaleWeight == null) return <span className="text-sm text-table-secondary" title={interfaceI18n.t("orders.runtimeInterface.noScaleMeasurement")}>-</span>;
 
     const coreWeight = spool.core_weight || 0;
     const calculatedWeight = Math.max(0, spool.label_weight - spool.weight_used) + coreWeight;
@@ -382,7 +396,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
 
     return (
       <div
-        className={`flex items-center gap-1 text-sm font-medium ${isMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}
+        className={`inline-flex items-center gap-1 text-sm font-medium ${isMatch ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}`}
         title={tooltip}
       >
         <span>{Math.round(scaleWeight)}g</span>
@@ -399,7 +413,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
                   e.preventDefault();
                   onSyncWeight(spool);
                 }}
-                className="p-1 hover:bg-bambu-green/20 rounded transition-colors text-bambu-green"
+                className="p-1 hover:bg-bambu-green/20 rounded transition-colors text-accent-foreground"
                 title={interfaceI18n.t("orders.runtimeInterface.syncTrustScaleWeightAndResetTracking")}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -456,6 +470,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const { focusFilter, storageLocationFilter, deepLinkSpoolId: linkedSpoolId, hasURLOverride } = parseInventoryURLFilters(searchParams);
   const [scanOpen, setScanOpen] = useState(false);
   const canScan = !authLoading && spoolmanModeReady && hasPermission('inventory:read') && hasPermission('inventory:update');
+  const [checkingIds, setCheckingIds] = useState<number[]>([]);
   const [formModal, setFormModal] = useState<{ spool?: InventorySpool | null; mode: SpoolFormMode } | null>(null);
   const [confirmAction, setConfirmAction] = useState<
     | { type: 'delete' | 'archive' | 'reset-consumed-counter'; spoolId: number }
@@ -548,6 +563,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       spoolmanMode ? api.getSpoolmanInventorySpools(true) : api.getSpools(true),
     refetchInterval: 30000,
   });
+  // The native response exposes this capability even for users without settings access.
+  const canCheckStock = !spoolmanMode && !authLoading && hasPermission('inventory:update')
+    && spools?.some(spool => Object.hasOwn(spool, 'stock_checked_at')) === true;
 
   // CSV export (#1576) — downloads the active inventory as a CSV file.
   const handleExportCsv = useCallback(async () => {
@@ -1283,81 +1301,73 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     resetPage();
   };
 
-  const filterSelectClass = (active: boolean) => `h-8 w-full min-w-0 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer focus:outline-none ${
-    active
-      ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
-      : 'bg-transparent text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
-  }`;
+  const tableViewport = useRef<HTMLDivElement>(null);
+  const footer = !isLoading && viewMode !== 'forecast' && pagedItems.length > 0 && (
+    <TablePagination total={totalDisplayItems} offset={safePageIndex * effectivePageSize} pageSize={pageSize}
+      onOffsetChange={offset => setPageIndex(offset / effectivePageSize)} onPageSizeChange={handlePageSizeChange}
+      sizes={[15, 30, 50, 100, -1]} viewportRef={viewMode === 'table' ? tableViewport : undefined}
+      itemLabel={t(totalDisplayItems === 1 ? 'inventory.spool' : 'inventory.spools')} />
+  );
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <Package className="w-7 h-7 text-bambu-green" />
-            {t('inventory.title')}
-          </h1>
-          <p className="text-bambu-gray mt-1">{t('inventory.subtitle')}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* CSV import/export (#1576). Operates on PrintOps's local inventory.
-              In Spoolman mode the buttons stay visible (feature parity) but are
-              disabled with a hint pointing at Spoolman's own CSV export, since
-              Spoolman owns the data store in that mode. */}
-          <Button
-            variant="secondary"
-            disabled={spoolmanMode}
-            onClick={() => setCsvImportOpen(true)}
-            title={spoolmanCsvHint}
-          >
-            <Upload className="w-4 h-4" />
-            {t('inventory.csv.importButton', 'Import CSV')}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={spoolmanMode || exportingCsv}
-            onClick={handleExportCsv}
-            title={spoolmanCsvHint}
-          >
-            {exportingCsv ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {t('inventory.csv.exportButton', 'Export CSV')}
-          </Button>
-          {canScan && <Button variant="secondary" onClick={() => setScanOpen(true)}>
-            <ScanLine className="w-4 h-4" />{t('inventory.qrAssign.title')}
-          </Button>}
-          <Button variant="secondary" onClick={() => setLocationsModalOpen(true)}>
-            <MapPin className="w-4 h-4" />
-            {t('locations.manage')}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={filteredSpools.length === 0}
-            // Pre-select every visible spool so the user lands in "all
-            // checked", then refines downward in the modal. Per-card icon
-            // pre-selects only that spool — both flows share the same picker.
-            onClick={() => setLabelPickerSpoolIds(filteredSpools.map((s) => s.id))}
-            title={
-              filteredSpools.length === 0
-                ? t('inventory.labels.noSpoolsTitle', 'No spools to label')
-                : t('inventory.labels.bulkTitle', 'Pick spools to print labels for from the {{count}} currently shown', { count: filteredSpools.length })
-            }
-          >
-            <Printer className="w-4 h-4" />
-            {t('inventory.labels.printLabels', 'Print labels…')}
-          </Button>
-          <Button onClick={() => setFormModal({ spool: null, mode: 'create' })}>
-            <Plus className="w-4 h-4" />
-            {t('inventory.addSpool')}
-          </Button>
-        </div>
-      </div>
+    <WarehousePage footer={footer}>
+      <WarehouseHeader icon={Package} title={t('inventory.title')} description={t('inventory.subtitle')}>
+        {/* CSV import/export (#1576). Operates on PrintOps's local inventory.
+            In Spoolman mode the buttons stay visible (feature parity) but are
+            disabled with a hint pointing at Spoolman's own CSV export, since
+            Spoolman owns the data store in that mode. */}
+        <Button
+          variant="secondary"
+          disabled={spoolmanMode}
+          onClick={() => setCsvImportOpen(true)}
+          title={spoolmanCsvHint}
+        >
+          <Upload className="w-4 h-4" />
+          {t('inventory.csv.importButton', 'Import CSV')}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={spoolmanMode || exportingCsv}
+          onClick={handleExportCsv}
+          title={spoolmanCsvHint}
+        >
+          {exportingCsv ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {t('inventory.csv.exportButton', 'Export CSV')}
+        </Button>
+        {canScan && <Button variant="secondary" onClick={() => setScanOpen(true)}>
+          <ScanLine className="w-4 h-4" />{t('inventory.qrAssign.title')}
+        </Button>}
+        <Button variant="secondary" onClick={() => setLocationsModalOpen(true)}>
+          <MapPin className="w-4 h-4" />
+          {t('locations.manage')}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={filteredSpools.length === 0}
+          // Pre-select every visible spool so the user lands in "all
+          // checked", then refines downward in the modal. Per-card icon
+          // pre-selects only that spool — both flows share the same picker.
+          onClick={() => setLabelPickerSpoolIds(filteredSpools.map((s) => s.id))}
+          title={
+            filteredSpools.length === 0
+              ? t('inventory.labels.noSpoolsTitle', 'No spools to label')
+              : t('inventory.labels.bulkTitle', 'Pick spools to print labels for from the {{count}} currently shown', { count: filteredSpools.length })
+          }
+        >
+          <Printer className="w-4 h-4" />
+          {t('inventory.labels.printLabels', 'Print labels…')}
+        </Button>
+        <Button onClick={() => setFormModal({ spool: null, mode: 'create' })}>
+          <Plus className="w-4 h-4" />
+          {t('inventory.addSpool')}
+        </Button>
+      </WarehouseHeader>
 
       {/* Stats Bar */}
       {stats && !isLoading && (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className={`${warehouseMetricsClass} xl:grid-cols-6`}>
           {/* Total Inventory */}
-          <div className="bg-bambu-dark-secondary rounded-lg p-4">
+          <div className={warehouseMetricClass}>
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-4 h-4 text-bambu-green" />
               <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.totalInventory')}</span>
@@ -1369,7 +1379,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           </div>
 
           {/* Inventory Value */}
-          <div className="bg-bambu-dark-secondary rounded-lg p-4">
+          <div className={warehouseMetricClass}>
             <div className="flex items-center gap-2 mb-1">
               <CircleDollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.inventoryValue', 'Bestandswert')}</span>
@@ -1379,7 +1389,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           </div>
 
           {/* Total Consumed */}
-          <div className="bg-bambu-dark-secondary rounded-lg p-4">
+          <div className={warehouseMetricClass}>
             <div className="flex items-center justify-between gap-2 mb-1">
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -1401,7 +1411,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           </div>
 
           {/* By Material */}
-          <div className="bg-bambu-dark-secondary rounded-lg p-4">
+          <div className={warehouseMetricClass}>
             <div className="flex items-center gap-2 mb-1">
               <Layers className="w-4 h-4 text-green-600 dark:text-green-400" />
               <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.byMaterial')}</span>
@@ -1419,7 +1429,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           </div>
 
           {/* In Printer */}
-          <div className="bg-bambu-dark-secondary rounded-lg p-4">
+          <div className={warehouseMetricClass}>
             <div className="flex items-center gap-2 mb-1">
               <Printer className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.inPrinter')}</span>
@@ -1429,7 +1439,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           </div>
 
           {/* Low Stock */}
-          <div className="bg-bambu-dark-secondary rounded-lg p-4">
+          <div className={warehouseMetricClass}>
             <div className="flex items-center gap-2 mb-1">
               <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
               <span className="text-xs text-bambu-gray font-medium uppercase tracking-wide">{t('inventory.lowStock')}</span>
@@ -1492,229 +1502,160 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         </div>
       )}
 
-      {/* Toolbar: Search + View toggle */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className={`relative flex-1 max-w-md ${viewMode === 'forecast' ? 'invisible pointer-events-none' : ''}`}>
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray/50" />
-          <TextField
-            type="text"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); resetPage(); }}
-            placeholder={t('inventory.search')}
-            className="w-full pl-10 pr-8 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg text-white text-sm placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
-          />
-          {search && (
-            <button
-              onClick={() => { setSearch(''); resetPage(); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Columns button (table view only) */}
-          {viewMode === 'table' && (
-            <button
-              onClick={() => setShowColumnModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-bambu-gray border border-bambu-dark-tertiary rounded-lg hover:bg-bambu-dark-tertiary transition-colors"
-              title={t('inventory.configureColumns')}
-            >
-              <Columns className="w-4 h-4" />
-              <span className="hidden sm:inline">{t('inventory.columns')}</span>
-            </button>
-          )}
-          {/* Group similar toggle — hidden in forecast mode */}
-          {viewMode !== 'forecast' && (
-            <button
-              onClick={toggleGroupSimilar}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-colors ${
-                groupSimilar
-                  ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
-                  : 'text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
-              }`}
-              title={t('inventory.groupSimilar')}
-            >
-              <Group className="w-4 h-4" />
-              <span className="hidden sm:inline">{t('inventory.groupSimilar')}</span>
-            </button>
-          )}
-          {viewMode !== 'forecast' && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="max-[768px]:min-w-11"
-              aria-label={`${t('inventory.sortByColor')}${sortState?.column === 'rgba' ? `: ${t(sortState.direction === 'asc' ? 'common.ascending' : 'common.descending')}` : ''}`}
-              aria-pressed={sortState?.column === 'rgba'}
-              onClick={() => handleSort('rgba')}
-            >
-              {sortState?.column === 'rgba'
-                ? sortState.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                : <ArrowUpDown className="w-4 h-4" />}
-              <span className="hidden sm:inline">{t('inventory.color')}</span>
-            </Button>
-          )}
-          {/* Table / Cards toggle */}
-          <div className="flex bg-bambu-dark-primary border border-bambu-dark-tertiary rounded-lg overflow-hidden">
-            <button aria-label={t('inventory.table')}
-              onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
-                viewMode === 'table'
-                  ? 'bg-bambu-green text-white'
-                  : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-              }`}
-            >
-              <TableProperties className="w-4 h-4" />
-              <span className="hidden sm:inline">{t('inventory.table')}</span>
-            </button>
-            <button aria-label={t('inventory.cards')}
-              onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
-                viewMode === 'cards'
-                  ? 'bg-bambu-green text-white'
-                  : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span className="hidden sm:inline">{t('inventory.cards')}</span>
-            </button>
-            <button
-              onClick={() => canViewForecast && setViewMode('forecast')}
-              disabled={!canViewForecast}
-              aria-label={t('forecast.title')}
-              title={canViewForecast ? undefined : t('forecast.noReadAccess')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                viewMode === 'forecast'
-                  ? 'bg-bambu-green text-white'
-                  : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-              }`}
-            >
-              {canViewForecast ? <TrendingUp className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-              <span className="hidden sm:inline">{t('forecast.title')}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter chips row — hidden in forecast mode */}
-      <div className={`flex flex-wrap items-center gap-2 ${viewMode === 'forecast' ? 'hidden' : ''}`}>
-        {/* Active / Archived chips */}
-        <div className="flex items-center rounded-lg border border-bambu-dark-tertiary overflow-hidden">
+      <WarehouseToolbar
+        searchLabel={t('inventory.search')}
+        value={search}
+        onSearch={(value) => { setSearch(value); resetPage(); }}
+        hideSearch={viewMode === 'forecast'}
+      >
+        {/* Columns button (table view only) */}
+        {viewMode === 'table' && (
           <button
-            onClick={() => { setArchiveFilter('active'); resetPage(); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-              archiveFilter === 'active'
-                ? 'bg-bambu-green/20 text-bambu-green'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
+            onClick={() => setShowColumnModal(true)}
+            className="flex min-h-8 items-center gap-1.5 rounded-lg border border-bambu-dark-tertiary px-3 py-1.5 text-sm font-medium text-table-secondary transition-colors hover:bg-bambu-dark-tertiary max-[768px]:min-h-[44px]"
+            title={t('inventory.configureColumns')}
+            aria-label={t('inventory.columns')}
+          >
+            <Columns className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('inventory.columns')}</span>
+          </button>
+        )}
+        {/* Group similar toggle — hidden in forecast mode */}
+        {viewMode !== 'forecast' && (
+          <button
+            onClick={toggleGroupSimilar}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-colors ${
+              groupSimilar
+                ? 'bg-bambu-green/20 text-bambu-green border-bambu-green/30'
+                : 'text-bambu-gray border-bambu-dark-tertiary hover:bg-bambu-dark-tertiary'
             }`}
+            title={t('inventory.groupSimilar')}
+          >
+            <Group className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('inventory.groupSimilar')}</span>
+          </button>
+        )}
+        {viewMode !== 'forecast' && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="max-[768px]:min-w-11"
+            aria-label={`${t('inventory.sortByColor')}${sortState?.column === 'rgba' ? `: ${t(sortState.direction === 'asc' ? 'common.ascending' : 'common.descending')}` : ''}`}
+            aria-pressed={sortState?.column === 'rgba'}
+            onClick={() => handleSort('rgba')}
+          >
+            {sortState?.column === 'rgba'
+              ? sortState.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+              : <ArrowUpDown className="w-4 h-4" />}
+            <span className="hidden sm:inline">{t('inventory.color')}</span>
+          </Button>
+        )}
+        <WarehouseSegments>
+          <WarehouseSegment variant="view" active={viewMode === 'table'} aria-label={t('inventory.table')} onClick={() => setViewMode('table')}>
+            <TableProperties className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('inventory.table')}</span>
+          </WarehouseSegment>
+          <WarehouseSegment variant="view" active={viewMode === 'cards'} aria-label={t('inventory.cards')} onClick={() => setViewMode('cards')}>
+            <LayoutGrid className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('inventory.cards')}</span>
+          </WarehouseSegment>
+          <WarehouseSegment
+            variant="view"
+            active={viewMode === 'forecast'}
+            onClick={() => canViewForecast && setViewMode('forecast')}
+            disabled={!canViewForecast}
+            aria-label={t('forecast.title')}
+            title={canViewForecast ? undefined : t('forecast.noReadAccess')}
+          >
+            {canViewForecast ? <TrendingUp className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+            <span className="hidden sm:inline">{t('forecast.title')}</span>
+          </WarehouseSegment>
+        </WarehouseSegments>
+      </WarehouseToolbar>
+
+      <WarehouseFilters hidden={viewMode === 'forecast'}>
+        {/* Active / Archived chips */}
+        <WarehouseSegments>
+          <WarehouseSegment
+            onClick={() => { setArchiveFilter('active'); resetPage(); }}
+            active={archiveFilter === 'active'}
           >
             <Package className="w-3.5 h-3.5" />
             {t('inventory.active')}
-          </button>
-          <button
+          </WarehouseSegment>
+          <WarehouseSegment
             onClick={() => { setArchiveFilter('archived'); resetPage(); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-              archiveFilter === 'archived'
-                ? 'bg-bambu-green/20 text-bambu-green'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={archiveFilter === 'archived'}
           >
             <Archive className="w-3.5 h-3.5" />
             {t('inventory.archived')}
-          </button>
-        </div>
+          </WarehouseSegment>
+        </WarehouseSegments>
 
-        <div className="w-px h-5 bg-bambu-dark-tertiary" />
+        <div aria-hidden="true" className="w-px h-5 bg-bambu-dark-tertiary" />
 
         {/* All / Used / New chips */}
-        <div className="flex items-center rounded-lg border border-bambu-dark-tertiary overflow-hidden">
-          <button
+        <WarehouseSegments>
+          <WarehouseSegment
             onClick={() => { setUsageFilter('all'); resetPage(); }}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              usageFilter === 'all'
-                ? 'bg-bambu-green/20 text-bambu-green'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={usageFilter === 'all'}
           >
             {t('inventory.all')}
-          </button>
-          <button
+          </WarehouseSegment>
+          <WarehouseSegment
             onClick={() => { setUsageFilter('used'); resetPage(); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-              usageFilter === 'used'
-                ? 'bg-bambu-green/20 text-bambu-green'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={usageFilter === 'used'}
           >
             <Clock className="w-3.5 h-3.5" />
             {t('inventory.used')}
-          </button>
-          <button
+          </WarehouseSegment>
+          <WarehouseSegment
             onClick={() => { setUsageFilter('new'); resetPage(); }}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              usageFilter === 'new'
-                ? 'bg-bambu-green/20 text-bambu-green'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={usageFilter === 'new'}
           >
             {t('inventory.new')}
-          </button>
-          <button
+          </WarehouseSegment>
+          <WarehouseSegment
             onClick={() => { setUsageFilter('lowstock'); resetPage(); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-              usageFilter === 'lowstock'
-                ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={usageFilter === 'lowstock'}
+            variant="warning"
           >
             <AlertTriangle className="w-3.5 h-3.5" />
             {t('inventory.lowStock')}
-          </button>
-        </div>
+          </WarehouseSegment>
+        </WarehouseSegments>
 
         {/* Stock filter chips */}
-        <div className="flex items-center rounded-lg border border-bambu-dark-tertiary overflow-hidden">
-          <button
+        <WarehouseSegments>
+          <WarehouseSegment
             onClick={() => { setStockFilter('all'); resetPage(); }}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              stockFilter === 'all'
-                ? 'bg-bambu-green/20 text-bambu-green'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={stockFilter === 'all'}
           >
             {t('inventory.all')}
-          </button>
-          <button
+          </WarehouseSegment>
+          <WarehouseSegment
             onClick={() => { setStockFilter('stock'); resetPage(); }}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              stockFilter === 'stock'
-                ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={stockFilter === 'stock'}
+            variant="warning"
           >
             {t('inventory.stock')}
-          </button>
-          <button
+          </WarehouseSegment>
+          <WarehouseSegment
             onClick={() => { setStockFilter('configured'); resetPage(); }}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              stockFilter === 'configured'
-                ? 'bg-bambu-green/20 text-bambu-green'
-                : 'text-bambu-gray hover:bg-bambu-dark-tertiary'
-            }`}
+            active={stockFilter === 'configured'}
           >
             {t('inventory.configured')}
-          </button>
-        </div>
+          </WarehouseSegment>
+        </WarehouseSegments>
 
-        <div className="w-px h-5 bg-bambu-dark-tertiary" />
+        <div aria-hidden="true" className="w-px h-5 bg-bambu-dark-tertiary" />
 
         <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:w-auto 2xl:flex-1 2xl:grid-cols-5">
           {/* Material dropdown chip */}
           <LegacySelect
             value={materialFilter}
             onChange={(e) => { setMaterialFilter(e.target.value); resetPage(); }}
-            className={filterSelectClass(Boolean(materialFilter))}
+            className={warehouseFilterSelectClass(Boolean(materialFilter))}
           >
             <option value="">{t('inventory.material')}</option>
             {uniqueMaterials.map((m) => (
@@ -1726,7 +1667,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           <LegacySelect
             value={brandFilter}
             onChange={(e) => { setBrandFilter(e.target.value); resetPage(); }}
-            className={filterSelectClass(Boolean(brandFilter))}
+            className={warehouseFilterSelectClass(Boolean(brandFilter))}
           >
             <option value="">{t('inventory.brand')}</option>
             {uniqueBrands.map((b) => (
@@ -1740,7 +1681,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             <LegacySelect
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); resetPage(); }}
-              className={filterSelectClass(Boolean(categoryFilter))}
+              className={warehouseFilterSelectClass(Boolean(categoryFilter))}
             >
               <option value="">{t('inventory.category')}</option>
               {uniqueCategories.map((c) => (
@@ -1757,7 +1698,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             <LegacySelect
               value={spoolFilter}
               onChange={(e) => { setSpoolFilter(e.target.value); resetPage(); }}
-              className={filterSelectClass(Boolean(spoolFilter))}
+              className={warehouseFilterSelectClass(Boolean(spoolFilter))}
             >
               <option value="">{t('inventory.spoolName')}</option>
               {uniqueSpoolCatalogIds.map((id) => (
@@ -1773,7 +1714,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             <LegacySelect
               value={storageLocationFilter}
               onChange={(e) => { setStorageLocationFilter(e.target.value); }}
-              className={filterSelectClass(Boolean(storageLocationFilter))}
+              className={warehouseFilterSelectClass(Boolean(storageLocationFilter))}
             >
               <option value="">{t('inventory.storageLocation')}</option>
               {storageLocations.map((loc) => (
@@ -1802,7 +1743,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         {/* Clear filters */}
         {hasActiveFilters && (
           <>
-            <div className="w-px h-5 bg-bambu-dark-tertiary" />
+            <div aria-hidden="true" className="w-px h-5 bg-bambu-dark-tertiary" />
             <button
               onClick={clearAllFilters}
               className="flex items-center gap-1 text-xs text-bambu-gray hover:text-bambu-green transition-colors"
@@ -1815,12 +1756,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
 
         {/* Results count — hidden in forecast mode */}
         {viewMode !== 'forecast' && (
-          <span className="ml-auto text-xs text-bambu-gray">
+          <span className={warehouseResultsClass}>
             {sortedSpools.length} {sortedSpools.length !== 1 ? t('inventory.spools') : t('inventory.spool')}
             {groupSimilar && totalDisplayItems < sortedSpools.length && ` (${totalDisplayItems} ${t('inventory.groupedRows')})`}
           </span>
         )}
-      </div>
+      </WarehouseFilters>
 
       {/* Bulk action toolbar (#1795). Appears as soon as at least one
           spool is selected; sticky so it stays visible while the user
@@ -1835,6 +1776,11 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
             </span>
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {canCheckStock && archiveFilter !== 'archived' && (
+              <Button size="sm" variant="secondary" onClick={() => setCheckingIds([...selectedIds])}>
+                <ClipboardCheck className="h-4 w-4" aria-hidden />{t('common.confirmStockCheck')}
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={() => setBulkEditOpen(true)}>
               <Edit2 className="w-3.5 h-3.5 mr-1.5" />
               {t('inventory.bulk.edit')}
@@ -1891,7 +1837,6 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       ) : viewMode === 'cards' ? (
         /* Cards view */
         pagedItems.length > 0 ? (
-          <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {pagedItems.map((item) => {
                 if (item.type === 'group') {
@@ -1988,17 +1933,6 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                 );
               })}
             </div>
-            {/* Pagination for cards */}
-            <PaginationBar
-              pageIndex={safePageIndex}
-              pageSize={pageSize}
-              totalRows={totalDisplayItems}
-              totalPages={totalPages}
-              onPageChange={setPageIndex}
-              onPageSizeChange={handlePageSizeChange}
-              t={t}
-            />
-          </>
         ) : (
           <EmptyFilterState
             hasFilters={hasActiveFilters}
@@ -2009,14 +1943,14 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
       ) : (
         /* Table view */
         pagedItems.length > 0 ? (
-          <div className="bg-bambu-dark-secondary rounded-lg overflow-hidden border border-bambu-dark-tertiary">
-            <div className="overflow-x-auto">
+          <WarehouseTable>
+            <WarehouseTableScroll label={t('inventory.title')} viewportRef={tableViewport}>
               <table className="w-full">
                 <thead className={tableHeaderClass}>
                   <tr className={tableHeaderRowClass}>
                     <th className={`w-10 ${tableHeaderCellCompactClass}`}>
                       <Checkbox
-                        aria-label={t('inventory.bulk.selectAllVisible')}
+                        ariaLabel={t('inventory.bulk.selectAllVisible')}
                         checked={pagedItems.length > 0 && pagedItems.every((item) => {
                           const ids = item.type === 'group' ? item.spools.map((s) => s.id) : [item.spool.id];
                           return ids.every((id) => selectedIds.has(id));
@@ -2046,12 +1980,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                       return (
                         <th
                           key={colId}
-                          className={`${tableHeaderCellClass} select-none ${colId === 'remaining' ? 'min-w-[150px]' : ''} ${
-                            sortable ? 'cursor-pointer transition-colors hover:text-bambu-green' : ''
-                          } ${isActive ? '!text-bambu-green' : ''}`}
+                          className={`${tableHeaderCellClass} select-none ${CENTERED_COLUMNS.has(colId) ? 'text-center' : ''} ${colId === 'remaining' ? 'min-w-[150px]' : ''} ${
+                            sortable ? 'cursor-pointer transition-colors hover:text-accent-foreground' : ''
+                          } ${isActive ? 'text-accent-foreground!' : ''}`}
                           aria-sort={sortable ? isActive ? sortState.direction === 'asc' ? 'ascending' : 'descending' : 'none' : undefined}
                         >
-                          {sortable ? <Button variant="unstyled" onClick={() => handleSort(colId)} className="inline-flex min-h-11 min-w-11 items-center gap-1">
+                          {sortable ? <Button variant="unstyled" onClick={() => handleSort(colId)} className="inline-flex items-center gap-1 max-[768px]:min-h-[44px]">
                             {columnHeaders[colId]?.(t) ?? colId}
                             {sortable && (
                               isActive
@@ -2064,7 +1998,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         </th>
                       );
                     })}
-                    <th className={tableHeaderActionCellClass}>{t('common.actions')}</th>
+                    <WarehouseActionHeader />
                   </tr>
                 </thead>
                 <tbody>
@@ -2105,6 +2039,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                           onDelete={(id) => setConfirmAction({ type: 'delete', spoolId: id })}
                           onPrintLabel={(id) => setLabelPickerSpoolIds([id])}
                           onResetConsumedCounter={(id) => setConfirmAction({ type: 'reset-consumed-counter', spoolId: id })}
+                          onConfirmStockCheck={canCheckStock ? id => setCheckingIds([id]) : undefined}
                           onRefill={(spool) => handleRefillSpool(spool)}
                           refillingSpoolId={refillingSpoolId}
                           visibleColumns={visibleColumns}
@@ -2135,6 +2070,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         onDelete={() => setConfirmAction({ type: 'delete', spoolId: spool.id })}
                         onPrintLabel={() => setLabelPickerSpoolIds([spool.id])}
                         onResetConsumedCounter={() => setConfirmAction({ type: 'reset-consumed-counter', spoolId: spool.id })}
+                        onConfirmStockCheck={canCheckStock ? () => setCheckingIds([spool.id]) : undefined}
                         onRefill={() => handleRefillSpool(spool)}
                         refilling={refillingSpoolId === spool.id}
                         visibleColumns={visibleColumns}
@@ -2149,72 +2085,9 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                   })}
                 </tbody>
               </table>
-            </div>
+            </WarehouseTableScroll>
 
-            {/* Pagination inside card footer */}
-            <div className="flex items-center justify-between px-4 py-3 bg-bambu-dark-tertiary/50 border-t border-bambu-dark-tertiary text-sm">
-              <span className="text-bambu-gray">
-                {showAll
-                  ? `${totalDisplayItems} ${totalDisplayItems !== 1 ? t('inventory.spools') : t('inventory.spool')}`
-                  : <>{t('inventory.showing')} {safePageIndex * effectivePageSize + 1} {t('inventory.to')}{' '}
-                    {Math.min((safePageIndex + 1) * effectivePageSize, totalDisplayItems)}{' '}
-                    {t('inventory.of')} {totalDisplayItems} {t('inventory.spools')}</>
-                }
-              </span>
-
-              <div className="flex items-center gap-2">
-                <span className="text-bambu-gray">{t('inventory.show')}</span>
-                <LegacySelect
-                  value={pageSize}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:border-bambu-green"
-                >
-                  {[15, 30, 50, 100].map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                  <option value={-1}>{t('inventory.all')}</option>
-                </LegacySelect>
-
-                {!showAll && (
-                  <>
-                    <button
-                      onClick={() => setPageIndex(0)}
-                      disabled={safePageIndex === 0}
-                      className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title={t("orders.runtimeInterface.firstPage")}
-                    >
-                      <ChevronsLeft className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
-                      disabled={safePageIndex === 0}
-                      className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span className="text-bambu-gray px-2 whitespace-nowrap">
-                      {t('inventory.page')} {safePageIndex + 1} {t('inventory.of')} {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setPageIndex((p) => Math.min(totalPages - 1, p + 1))}
-                      disabled={safePageIndex >= totalPages - 1}
-                      className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setPageIndex(totalPages - 1)}
-                      disabled={safePageIndex >= totalPages - 1}
-                      className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title={t("orders.runtimeInterface.lastPage")}
-                    >
-                      <ChevronsRight className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+          </WarehouseTable>
         ) : (
           <EmptyFilterState
             hasFilters={hasActiveFilters}
@@ -2307,6 +2180,17 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         onApply={(patch) => bulkUpdateMutation.mutate({ ids: [...selectedIds], update: patch })}
       />
 
+      {canCheckStock && checkingIds.length > 0 && (
+        <WarehouseStockCheckDialog
+          ids={checkingIds}
+          confirm={api.confirmSpoolStockCheck}
+          onClose={() => setCheckingIds([])}
+          onSaved={async () => {
+            clearSelection();
+            await refreshSpoolQueries();
+          }}
+        />
+      )}
       {bulkConfirmAction && (
         <ConfirmModal
           title={
@@ -2361,84 +2245,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         onClose={() => setLocationsModalOpen(false)}
         onPickLocation={(id) => setStorageLocationFilter(String(id))}
       />
-    </div>
-  );
-}
-
-/* Pagination bar (reused for cards view) */
-function PaginationBar({
-  pageIndex, pageSize, totalRows, totalPages, onPageChange, onPageSizeChange, t,
-}: {
-  pageIndex: number;
-  pageSize: number;
-  totalRows: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
-  t: (key: string) => string;
-}) {
-  const isShowAll = pageSize === -1;
-  if (totalPages <= 1 && !isShowAll) return null;
-  const effectiveSize = isShowAll ? totalRows || 1 : pageSize;
-  return (
-    <div className="flex items-center justify-between pt-2 text-sm">
-      <span className="text-bambu-gray">
-        {isShowAll
-          ? `${totalRows} ${totalRows !== 1 ? t('inventory.spools') : t('inventory.spool')}`
-          : <>{t('inventory.showing')} {pageIndex * effectiveSize + 1} {t('inventory.to')}{' '}
-              {Math.min((pageIndex + 1) * effectiveSize, totalRows)}{' '}
-              {t('inventory.of')} {totalRows} {t('inventory.spools')}</>
-        }
-      </span>
-      <div className="flex items-center gap-2">
-        <span className="text-bambu-gray">{t('inventory.show')}</span>
-        <LegacySelect
-          value={pageSize}
-          onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          className="px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:border-bambu-green"
-        >
-          {[15, 30, 50, 100].map((n) => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-          <option value={-1}>{t('inventory.all')}</option>
-        </LegacySelect>
-        {!isShowAll && (
-          <>
-            <button
-              onClick={() => onPageChange(0)}
-              disabled={pageIndex === 0}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronsLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onPageChange(Math.max(0, pageIndex - 1))}
-              disabled={pageIndex === 0}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-bambu-gray px-2 whitespace-nowrap">
-              {t('inventory.page')} {pageIndex + 1} {t('inventory.of')} {totalPages}
-            </span>
-            <button
-              onClick={() => onPageChange(Math.min(totalPages - 1, pageIndex + 1))}
-              disabled={pageIndex >= totalPages - 1}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onPageChange(totalPages - 1)}
-              disabled={pageIndex >= totalPages - 1}
-              className="p-1.5 rounded text-bambu-gray hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronsRight className="w-4 h-4" />
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+    </WarehousePage>
   );
 }
 
@@ -2570,7 +2377,7 @@ function SpoolCard({
 /* Single spool row for table view */
 function SpoolTableRow({
   spool, remaining, pct, isSelected, onToggleSelected,
-  onEdit, onCopy, onRestore, onArchive, onDelete, onPrintLabel, onResetConsumedCounter, onRefill, refilling,
+  onEdit, onCopy, onRestore, onArchive, onDelete, onPrintLabel, onResetConsumedCounter, onConfirmStockCheck, onRefill, refilling,
   visibleColumns, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight,
 }: {
   spool: InventorySpool;
@@ -2585,6 +2392,7 @@ function SpoolTableRow({
   onDelete: () => void;
   onPrintLabel?: () => void;
   onResetConsumedCounter?: () => void;
+  onConfirmStockCheck?: () => void;
   onRefill?: () => void;
   refilling?: boolean;
   visibleColumns: string[];
@@ -2597,73 +2405,47 @@ function SpoolTableRow({
 }) {
   return (
     <tr
-      className={`border-b border-bambu-dark-tertiary/50 hover:bg-bambu-dark-tertiary/30 transition-colors cursor-pointer ${
-        spool.archived_at ? 'opacity-50' : ''
-      } ${isSelected ? 'bg-bambu-green/10' : ''}`}
+      className={`${warehouseTableRowClass} cursor-pointer ${
+        isSelected ? `bg-bambu-green/10 ${warehouseSelectedActionClass}`
+          : spool.archived_at ? `bg-bambu-dark-tertiary/20 ${warehouseArchivedActionClass}` : ''
+      }`}
       onClick={onEdit}
     >
       <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
         {onToggleSelected && (
           <Checkbox
-            aria-label={t('inventory.bulk.selectRow')}
+            ariaLabel={t('inventory.bulk.selectRow')}
             checked={!!isSelected}
             onChange={onToggleSelected}
           />
         )}
       </td>
       {visibleColumns.map((colId) => (
-        <td key={colId} className="py-3 px-4">
+        <td key={colId} className={`py-3 px-4 ${CENTERED_COLUMNS.has(colId) ? 'text-center' : ''}`}>
           {columnCells[colId]?.({ spool, remaining, pct, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight })}
         </td>
       ))}
-      <td className="py-3 px-4">
-        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <button onClick={onEdit} className="p-1.5 text-bambu-gray hover:text-white rounded transition-colors" title={t('common.edit')}>
-            <Edit2 className="w-4 h-4" />
-          </button>
-          {onCopy && (
-            <button onClick={onCopy} className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors" title={t('inventory.copySpool')}>
-              <Copy className="w-4 h-4" />
-            </button>
-          )}
-          {onPrintLabel && (
-            <button onClick={onPrintLabel} className="p-1.5 text-bambu-gray hover:text-white rounded transition-colors" title={t('inventory.labels.printOne')}>
-              <Printer className="w-4 h-4" />
-            </button>
-          )}
-          {onResetConsumedCounter && spool.weight_used > 0 && (
-            // Eraser also shows on archived spools (#1390 follow-up):
-            // archived consumed weight now counts in "Total Consumed", so
-            // the user needs a way to zero an archived spool's tracking
-            // counter individually without having to un-archive it first.
-            <button onClick={onResetConsumedCounter} className="p-1.5 text-bambu-gray hover:text-orange-600 dark:hover:text-orange-400 rounded transition-colors" title={t('inventory.resetConsumedCounterTooltip')}>
-              <Eraser className="w-4 h-4" />
-            </button>
-          )}
-          {onRefill && !spool.archived_at && (
-            <button
-              onClick={onRefill}
-              disabled={!!refilling}
-              className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors disabled:opacity-50"
-              title={t('inventory.refill')}
-            >
-              {refilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            </button>
-          )}
-          {spool.archived_at ? (
-            <button onClick={onRestore} className="p-1.5 text-bambu-gray hover:text-bambu-green rounded transition-colors" title={t('inventory.restore')}>
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          ) : (
-            <button onClick={onArchive} className="p-1.5 text-bambu-gray hover:text-yellow-600 dark:hover:text-yellow-400 rounded transition-colors" title={t('inventory.archive')}>
-              <Archive className="w-4 h-4" />
-            </button>
-          )}
-          <button onClick={onDelete} className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 rounded transition-colors" title={t('common.delete')}>
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </td>
+      <WarehouseRowActions
+        subject={`#${spool.id}`}
+        actions={[
+          { label: t('common.edit'), icon: Edit2, onSelect: onEdit },
+          ...(onCopy ? [{ label: t('inventory.copySpool'), icon: Copy, onSelect: onCopy }] : []),
+          ...(onPrintLabel ? [{ label: t('inventory.labels.printOne'), icon: Printer, onSelect: onPrintLabel }] : []),
+          ...(onConfirmStockCheck && !spool.archived_at
+            ? [{ label: t('common.confirmStockCheck'), icon: ClipboardCheck, onSelect: onConfirmStockCheck }]
+            : []),
+          ...(onResetConsumedCounter && spool.weight_used > 0
+            ? [{ label: t('inventory.resetConsumedCounter'), icon: Eraser, onSelect: onResetConsumedCounter }]
+            : []),
+          ...(onRefill && !spool.archived_at
+            ? [{ label: t('inventory.refill'), icon: refilling ? Loader2 : RefreshCw, onSelect: onRefill, disabled: refilling }]
+            : []),
+          spool.archived_at
+            ? { label: t('inventory.restore'), icon: RotateCcw, onSelect: onRestore }
+            : { label: t('inventory.archive'), icon: Archive, onSelect: onArchive },
+          { label: t('common.delete'), icon: Trash2, onSelect: onDelete, destructive: true },
+        ]}
+      />
     </tr>
   );
 }
@@ -2671,7 +2453,7 @@ function SpoolTableRow({
 /* Grouped spool rows for table view */
 function SpoolTableGroup({
   spools, headerSpool, remaining, pct, isExpanded, onToggle,
-  onEdit, onCopy, onArchive, onRestore, onDelete, onPrintLabel, onResetConsumedCounter, onRefill, refillingSpoolId,
+  onEdit, onCopy, onArchive, onRestore, onDelete, onPrintLabel, onResetConsumedCounter, onConfirmStockCheck, onRefill, refillingSpoolId,
   visibleColumns, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight,
   selectedIds, onToggleSelected, onToggleGroupSelected,
 }: {
@@ -2690,6 +2472,7 @@ function SpoolTableGroup({
   onDelete: (id: number) => void;
   onPrintLabel?: (spoolId: number) => void;
   onResetConsumedCounter?: (id: number) => void;
+  onConfirmStockCheck?: (id: number) => void;
   onRefill?: (spool: InventorySpool) => void;
   refillingSpoolId?: number | null;
   visibleColumns: string[];
@@ -2703,32 +2486,41 @@ function SpoolTableGroup({
   onToggleSelected?: (id: number) => void;
   onToggleGroupSelected?: (ids: number[], select: boolean) => void;
 }) {
+  const spoolIds = spools.map((spool) => `#${spool.id}`).join(', ');
   const allMembersSelected = !!selectedIds && spools.every((s) => selectedIds.has(s.id));
   return (
     <>
       {/* Group header row */}
       <tr
-        className="border-b border-bambu-dark-tertiary/50 hover:bg-bambu-dark-tertiary/30 transition-colors cursor-pointer bg-bambu-green/5"
+        className={`${warehouseTableRowClass} ${warehouseGroupedActionClass} cursor-pointer bg-bambu-green/5`}
         onClick={onToggle}
       >
         <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
           {onToggleGroupSelected && (
             <Checkbox
-              aria-label={t('inventory.bulk.selectGroup')}
+              ariaLabel={t('inventory.bulk.selectGroup')}
               checked={allMembersSelected}
               onChange={(e) => onToggleGroupSelected(spools.map((s) => s.id), e.target.checked)}
             />
           )}
+          {visibleColumns.length === 0 && (
+            <span className="block text-xs text-table-secondary">{spoolIds}</span>
+          )}
         </td>
         {visibleColumns.map((colId, idx) => (
-          <td key={colId} className="py-3 px-4">
+          <td key={colId} className={`py-3 px-4 ${CENTERED_COLUMNS.has(colId) ? 'text-center' : ''}`}>
             {idx === 0 ? (
-              <div className="flex items-center gap-2">
-                <ChevronDown className={`w-4 h-4 text-bambu-gray transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-                {columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight })}
+              <div className={`flex items-center gap-2 ${CENTERED_COLUMNS.has(colId) ? 'justify-center' : ''}`}>
+                <ChevronDown className={`w-4 h-4 shrink-0 text-table-secondary transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                <div className={colId === 'remaining' ? 'min-w-0 flex-1' : undefined}>
+                  {columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight })}
+                  <span className="block text-xs text-table-secondary">
+                    {spoolIds}
+                  </span>
+                </div>
               </div>
             ) : colId === 'id' ? (
-              <span className="text-xs font-medium bg-bambu-green/20 text-bambu-green px-2 py-0.5 rounded-full">
+              <span className="text-xs font-medium bg-bambu-green/20 text-accent-foreground px-2 py-0.5 rounded-full">
                 {t('inventory.groupedSpools', { count: spools.length })}
               </span>
             ) : (
@@ -2736,11 +2528,7 @@ function SpoolTableGroup({
             )}
           </td>
         ))}
-        <td className="py-3 px-4">
-          <span className="text-xs text-bambu-gray">
-            {spools.map((s) => `#${s.id}`).join(', ')}
-          </span>
-        </td>
+        <td className={warehouseActionCellClass} />
       </tr>
       {/* Expanded individual rows */}
       {isExpanded && spools.map((spool) => {
@@ -2761,6 +2549,7 @@ function SpoolTableGroup({
             onDelete={() => onDelete(spool.id)}
             onPrintLabel={onPrintLabel ? () => onPrintLabel(spool.id) : undefined}
             onResetConsumedCounter={onResetConsumedCounter ? () => onResetConsumedCounter(spool.id) : undefined}
+            onConfirmStockCheck={onConfirmStockCheck ? () => onConfirmStockCheck(spool.id) : undefined}
             onRefill={onRefill ? () => onRefill(spool) : undefined}
             refilling={refillingSpoolId === spool.id}
             visibleColumns={visibleColumns}

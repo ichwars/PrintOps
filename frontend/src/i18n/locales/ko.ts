@@ -218,9 +218,27 @@ export default {
       calculation: '계산',
       customers: '고객',
       invoice: '송장',
+      "reorder": "재주문",
     },
   },
   orders: {
+    documentDetails: {
+      invoicePositions: "청구서 항목",
+      positions: "문서 항목",
+      orderPositions: "주문 항목",
+      offerPositions: "견적 항목",
+      noPositions: "표시할 문서 항목이 없습니다.",
+      unitPriceNet: "세전 단가",
+      lineTotalNet: "항목 세전 합계",
+    },
+    rowActions: {
+      openOrder: "주문 열기",
+      openOffer: "견적 열기",
+      openDocument: "문서 열기",
+      cancelOrder: "주문 취소",
+      showOffers: "견적 보기",
+      showInvoices: "청구서 보기",
+    },
     default: 'Default',
     businessProfile: { title: 'Business Profile', loading: 'Loading business profiles...', error: 'Unable to load business profiles.', empty: 'No business profiles yet.', permissionDenied: 'You do not have permission to view business profiles.', add: 'Add business profile', includeInactive: 'Include inactive profiles', profile: 'Profile', country: 'Country', currency: 'Currency', timezone: 'Timezone', billingMode: 'Billing mode', status: 'Status', actions: 'Actions', active: 'Active', inactive: 'Inactive', edit: 'Edit {{name}}', setDefault: 'Set {{name}} as default', activate: 'Activate {{name}}', deactivate: 'Deactivate {{name}}', delete: 'Delete {{name}}', deleteConfirm: 'Delete {{name}}? This cannot be undone.', dismiss: 'Dismiss', createTitle: 'Add business profile', editTitle: 'Edit business profile', identity: 'Identity', address: 'Address', taxAndBank: 'Tax and bank', localeSection: 'Locale', profileName: 'Profile name', legalName: 'Legal name', tradingName: 'Trading name', profileCountry: 'Profile country', street: 'Street', city: 'City', postalCode: 'Postal code', addAddress: 'Add address', removeAddress: 'Remove address {{number}}', defaultAddress: 'Default address {{number}}', taxIdKind: 'Tax ID kind', taxIdValue: 'Tax ID value', addTaxId: 'Add tax ID', removeTaxId: 'Remove tax ID {{number}}', primaryTaxId: 'Primary tax ID {{number}}', bankAccountLabel: 'Bank account label', accountHolder: 'Account holder', bankName: 'Bank name', bankCountry: 'Bank country', bankCurrency: 'Bank currency', iban: 'IBAN', bic: 'BIC', accountNumber: 'Account number', routingNumber: 'Routing number', defaultBankAccount: 'Default bank account {{number}}', addBankAccount: 'Add bank account', removeBankAccount: 'Remove bank account {{number}}', locale: 'Locale', save: 'Save business profile' },
     customers: { title: 'Customers', subtitle: 'Customer master data for the selected business profile.', businessProfile: 'Business profile', loading: 'Loading customers...', error: 'Unable to load customers.', noBusinessProfile: 'No active business profile is available.', empty: 'No customers yet.', customer: 'Customer', discount: 'Discount', permissionDenied: 'You do not have permission to view customers.', configureProfiles: 'Configure business profiles', add: 'Add customer', search: 'Search customers', statusFilter: 'Customer status', kindFilter: 'Customer kind', emptyFiltered: 'No customers match the current filters.', number: 'Number', name: 'Name', primaryContact: 'Primary contact', billingAddress: 'Billing address', actions: 'Actions', view: 'View details', viewAria: 'View {{name}}', editCustomer: 'Edit customer', editAria: 'Edit {{name}}', deleteCustomer: 'Delete customer', deleteAria: 'Delete {{name}}', deleteTitle: 'Delete {{name}}?', deleteConfirm: 'This customer will be permanently deleted.', pagination: '{{start}}-{{end}} of {{total}}', previous: 'Previous page', next: 'Next page' ,
@@ -551,7 +569,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -689,10 +712,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -705,42 +724,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -785,6 +785,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "최근 {{days}}일간 기록된 재고 사용량을 기준으로 합니다.",
+        "forecastDailyUsage": "일평균 사용량",
+        "forecastProjectedStock": "{{days}}일 후 재고",
+        "forecastDaysToMinimum": "최소 재고까지 남은 일수",
+        "forecastMinimumReached": "최소 재고에 도달함",
+        "forecastNoConsumption": "이 기간에 사용 내역 없음",
+        "forecastEmpty": "재고를 추적하는 활성 품목이 없습니다.",
+        "quickBookingSaved": "재고 이동을 저장했습니다.",
+        "articleCount": "품목 {{count}}개",
+        "articleCount_one": "품목 {{count}}개",
+        "articleCount_other": "품목 {{count}}개",
         "title": "Warehouse goods",
         "subtitle": "Sales articles, physical stock and reservations managed in PrintOps.",
         "search": "Search articles",
@@ -1594,6 +1605,31 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "reproduce": "추가 생산",
+        "prepareProduction": "생산 지시 준비",
+        "productionProjectName": "재고 보충 · {{name}}",
+        "productionProjectDescription": "품목 {{sku}}\n권장 생산 수량 {{quantity}}",
+        "colProduce": "생산할 수량",
+        "purchasingTitle": "구매 필요량",
+        "productionTitle": "생산 필요량",
+        "shoppingList": "구매 목록",
+        "shoppingListEmpty": "구매 목록이 비어 있습니다.",
+        "addToShoppingList": "{{name}}을(를) 구매 목록에 추가",
+        "onShoppingList": "{{name}}이(가) 구매 목록에 있음",
+        "addedToShoppingList": "{{name}}을(를) 구매 목록에 추가했습니다.",
+        "removeFromShoppingList": "{{name}}을(를) 구매 목록에서 삭제",
+        "shoppingListLoadError": "구매 목록을 불러올 수 없습니다.",
+        "shoppingListSaveError": "구매 목록을 업데이트할 수 없습니다.",
+        "title": "Reorder needs",
+        "subtitle": "완제품은 추가 생산하고 자재는 구매하여 재고를 보충합니다.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "생산할 완제품",
+        "summaryMaterial": "구매할 자재",
+        "summaryTotal": "Total",
+        "colSuggested": "권장 구매 수량"
       }
     },
 
@@ -2334,6 +2370,12 @@ export default {
     },
   },
   common: {
+    stockChecked: "확인됨",
+    confirmStockCheck: "재고 실사 확인",
+    stockCheckDescription: "선택한 재고를 세거나 무게를 측정했는지 확인합니다.",
+    stockCheckFailed: "재고 실사를 확인할 수 없습니다. 선택한 재고가 활성 상태인지 확인하세요.",
+    unitShortPiece: "개",
+    scrollTableHorizontally: '{{table}} 표 가로로 스크롤',
     secretKept: '저장된 값이 유지됩니다.',
     secretReenter: '연결 대상이 바뀌면 인증 정보를 다시 입력하세요.',
     plusNMore: '외 {{count}}개',
@@ -4648,6 +4690,7 @@ export default {
     messageTemplates: '메시지 템플릿',
     messageTemplatesDescription: '각 이벤트에 대한 알림 메시지를 사용자 지정하세요.',
     apiKeys: 'API 키',
+    apiMetricsNoAccess: "이 계정은 해당 통합 설정에 액세스할 수 없습니다.",
     apiKeysDescription: '외부 통합 및 웹훅을 위한 API 키를 만드세요.',
     createKey: '키 만들기',
     apiKeyCreated: 'API 키가 성공적으로 생성되었습니다',
@@ -5182,7 +5225,7 @@ export default {
     prometheusMetrics: 'Prometheus 메트릭',
     prometheusEndpointDescription: 'Prometheus/Grafana 모니터링을 위해 <code>/api/v1/metrics</code>에서 프린터 메트릭을 노출합니다.',
     bearerTokenOptional: '베어러 토큰 (선택사항)',
-    bearerTokenHint: '설정하면 요청에 <code>Authorization: Bearer <token></code>을 포함해야 합니다',
+    bearerTokenHint: '설정하면 요청에 <code>Authorization: Bearer &lt;token&gt;</code>을 포함해야 합니다',
     metricsConnectionStatus: '연결 상태',
     metricsPrinterState: '프린터 상태 (유휴/인쇄 중/등)',
     metricsPrintProgress: '인쇄 진행 0-100%',
@@ -10096,7 +10139,12 @@ useEmbedded: '파일의 내장 설정 사용',
       }
     }
   },
-  suppliers: { navTitle: '공급업체', title: '공급업체', subtitle: '조달 연락처와 구매 조건을 관리합니다.', createTitle: '공급업체 추가', editTitle: '공급업체 편집', searchLabel: '공급업체 검색', searchPlaceholder: '회사, 담당자, 이메일, 고객 번호 …', activeFilter: '상태', loading: '공급업체 불러오는 중 …', empty: '일치하는 공급업체가 없습니다.', noContact: '연락처 정보 없음', leadTime: '기본 리드 타임 {{count}}일', sections: { masterData: '기본 정보', contactAddress: '연락처 및 주소', procurement: '조달', internalNotes: '내부 메모' }, fields: { name: '회사명', customerNumber: '고객 번호', active: '활성 공급업체', contactName: '담당자 이름', email: '이메일 주소', phone: '전화번호', website: '웹사이트', addressLine1: '주소 1', addressLine2: '주소 2', postalCode: '우편번호', city: '시/군/구', countryCode: '국가 코드', paymentTerms: '결제 조건', defaultLeadTime: '기본 리드 타임', internalNotes: '내부 메모' }, filters: { active: '활성', inactive: '비활성', all: '모든 공급업체' }, actions: { create: '공급업체 추가', save: '공급업체 저장', edit: '{{name}} 편집', delete: '공급업체 삭제' }, validation: { nameRequired: '회사명은 필수입니다.' }, errors: { load: '공급업체를 불러올 수 없습니다.', save: '공급업체를 저장할 수 없습니다.', delete: '공급업체를 삭제할 수 없습니다.', noReadPermission: '공급업체를 볼 권한이 없습니다.' } },
+  suppliers: { navTitle: '공급업체', title: '공급업체', subtitle: '조달 연락처와 구매 조건을 관리합니다.', createTitle: '공급업체 추가', editTitle: '공급업체 편집', searchLabel: '공급업체 검색', searchPlaceholder: '회사, 담당자, 이메일, 고객 번호 …', activeFilter: '상태', loading: '공급업체 불러오는 중 …', empty: '일치하는 공급업체가 없습니다.', noContact: '연락처 정보 없음', leadTime: '기본 리드 타임 {{count}}일', sections: { masterData: '기본 정보', contactAddress: '연락처 및 주소', procurement: '조달', internalNotes: '내부 메모' }, fields: { name: '회사명', customerNumber: '고객 번호', active: '활성 공급업체', contactName: '담당자 이름', email: '이메일 주소', phone: '전화번호', website: '웹사이트', addressLine1: '주소 1', addressLine2: '주소 2', postalCode: '우편번호', city: '시/군/구', countryCode: '국가 코드', paymentTerms: '결제 조건', defaultLeadTime: '기본 리드 타임', internalNotes: '내부 메모' }, filters: { active: '활성', inactive: '비활성', all: '모든 공급업체' }, actions: { create: '공급업체 추가', save: '공급업체 저장', edit: '{{name}} 편집', delete: '공급업체 삭제' }, validation: { nameRequired: '회사명은 필수입니다.' }, errors: { load: '공급업체를 불러올 수 없습니다.', save: '공급업체를 저장할 수 없습니다.', delete: '공급업체를 삭제할 수 없습니다.', noReadPermission: '공급업체를 볼 권한이 없습니다.' },
+  "pagination": "{{total}}개 중 {{start}}–{{end}}",
+  "previous": "이전",
+  "next": "다음",
+  "emptyFiltered": "현재 필터와 일치하는 공급업체가 없습니다.",
+  "clearSearch": "검색 지우기" },
   storageSensors: {
     environment: "환경",
     manage: "센서",

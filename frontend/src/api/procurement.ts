@@ -74,6 +74,17 @@ export interface ProcurementOffer extends ProcurementOfferDraft {
   supplier: Supplier;
 }
 
+export interface WarehouseShoppingItem {
+  id: number;
+  resource_kind: 'material';
+  resource_id: number;
+  sku: string;
+  name: string;
+  quantity: string;
+  unit_code: string;
+  unit_label: string;
+}
+
 function queryString<T extends object>(params: T): string {
   const result = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -133,4 +144,11 @@ export const procurementOffersApi = {
         offers: offers.filter((offer) => offer.is_active).map(writableOffer),
       }),
     }),
+};
+
+export const warehouseShoppingListApi = {
+  list: () => request<WarehouseShoppingItem[]>('/warehouse-shopping-list'),
+  add: (id: number) =>
+    request<WarehouseShoppingItem>(`/warehouse-shopping-list/material/${id}`, { method: 'PUT' }),
+  remove: (id: number) => request<void>(`/warehouse-shopping-list/${id}`, { method: 'DELETE' }),
 };

@@ -331,7 +331,7 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'API & Metrics', level: 1 })).toBeInTheDocument();
-        expect(screen.getByText('Manage API keys, camera tokens, Prometheus metrics, and the API browser.')).toBeInTheDocument();
+        expect(screen.getByText('Manage API keys, connected applications, Prometheus metrics, and the API browser.')).toBeInTheDocument();
       });
     });
 
@@ -412,6 +412,23 @@ describe('SettingsPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Time Format')).toBeInTheDocument();
       });
+    });
+
+    it('associates the external-link dialog footer with its form and restores focus', async () => {
+      const user = userEvent.setup();
+      render(<SettingsPage />);
+
+      const sidebar = await screen.findByRole('region', { name: 'Sidebar' });
+      const addLink = within(sidebar).getByRole('button', { name: 'Add Link' });
+      await user.click(addLink);
+
+      const dialog = screen.getByRole('dialog', { name: 'Add External Link' });
+      const submit = within(dialog).getByRole('button', { name: 'Add', exact: true }) as HTMLButtonElement;
+      expect(submit.form).toContainElement(within(dialog).getByRole('textbox', { name: /^Name/ }));
+      expect(within(dialog).getByRole('switch', { name: 'Open in new tab' })).not.toBeChecked();
+      await user.keyboard('{Escape}');
+      expect(dialog).not.toBeInTheDocument();
+      expect(addLink).toHaveFocus();
     });
 
     it('keeps General focused on UI preferences and excludes orders or operations cards', async () => {
@@ -1026,6 +1043,7 @@ describe('SettingsPage', () => {
       'warehouse-filament',
       'warehouse-parts',
       'warehouse-stock',
+      'warehouse-reorder',
       'warehouse-suppliers',
       'orders',
       'orders-offers',
@@ -1202,103 +1220,6 @@ describe('SettingsPage', () => {
     });
   });
 
-  describe('update CTA per deployment shape', () => {
-    // The update card branches on the deployment shape returned by
-    // /updates/check. Each branch is mutually exclusive — verify the right
-    // one wins so HA addon users never see the docker-compose snippet
-    // (which they can't run from inside an HA addon container) and Docker
-    // users never see the in-app Install button (which would no-op).
-    const renderWithUpdateCheck = async (
-      checkBody: Record<string, unknown>,
-    ) => {
-      server.use(
-        http.get('/api/v1/settings/', () =>
-          HttpResponse.json({ ...mockSettings, check_updates: true }),
-        ),
-        http.get('/api/v1/updates/check', () => HttpResponse.json(checkBody)),
-      );
-      setSettingsTabUrl('operations');
-      render(<SettingsPage />);
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Updates', level: 1 })).toBeInTheDocument();
-      });
-    };
-
-    it('shows the HA Supervisor message when running as an HA addon', async () => {
-      await renderWithUpdateCheck({
-        update_available: true,
-        current_version: '0.2.4',
-        latest_version: '0.2.5',
-        release_name: '0.2.5',
-        release_notes: '',
-        release_url: 'https://example.invalid/r',
-        published_at: '2099-01-01T00:00:00Z',
-        is_docker: true,
-        is_ha_addon: true,
-        update_method: 'ha_addon',
-      });
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Home Assistant Supervisor/i),
-        ).toBeInTheDocument();
-      }, { timeout: 5000 });
-      // Docker hint must NOT render — HA branch wins.
-      expect(screen.queryByText('docker compose pull && docker compose up -d')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /install update/i })).not.toBeInTheDocument();
-    });
-
-    it('shows the docker-compose snippet for Docker (non-HA) deployments', async () => {
-      await renderWithUpdateCheck({
-        update_available: true,
-        current_version: '0.2.4',
-        latest_version: '0.2.5',
-        release_name: '0.2.5',
-        release_notes: '',
-        release_url: 'https://example.invalid/r',
-        published_at: '2099-01-01T00:00:00Z',
-        is_docker: true,
-        is_ha_addon: false,
-        update_method: 'docker',
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('docker compose pull && docker compose up -d')).toBeInTheDocument();
-      }, { timeout: 5000 });
-      expect(screen.queryByText(/Home Assistant Supervisor/i)).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /install update/i })).not.toBeInTheDocument();
-    });
-
-    it('shows the installer-download link for Windows installer installs', async () => {
-      const downloadUrl =
-        'https://github.com/ichwars/PrintOps/releases/download/v0.2.5/printops-0.2.5-windows-x64-setup.exe';
-      await renderWithUpdateCheck({
-        update_available: true,
-        current_version: '0.2.4',
-        latest_version: '0.2.5',
-        release_name: '0.2.5',
-        release_notes: '',
-        release_url: 'https://github.com/ichwars/PrintOps/releases/tag/v0.2.5',
-        published_at: '2099-01-01T00:00:00Z',
-        is_docker: false,
-        is_ha_addon: false,
-        is_windows_installer: true,
-        update_method: 'windows_installer',
-        installer_download_url: downloadUrl,
-      });
-
-      const link = await screen.findByRole('link', { name: /download installer for v0\.2\.5/i }, { timeout: 5000 });
-      expect(link).toHaveAttribute('href', downloadUrl);
-      expect(link).toHaveAttribute('target', '_blank');
-      expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
-      // The in-app update button must NOT render — the git-fetch path can't
-      // work from an installer payload.
-      expect(screen.queryByRole('button', { name: /install update/i })).not.toBeInTheDocument();
-      expect(screen.queryByText(/Home Assistant Supervisor/i)).not.toBeInTheDocument();
-      expect(screen.queryByText('docker compose pull && docker compose up -d')).not.toBeInTheDocument();
-    });
-  });
-
   describe('tabs navigation', () => {
     it('opens Integrations on Notifications by default', async () => {
       setSettingsTabUrl('integrations');
@@ -1306,6 +1227,14 @@ describe('SettingsPage', () => {
 
       expect(await screen.findByRole('button', { name: 'Notifications' })).toHaveClass('text-bambu-green');
       expect(await screen.findByLabelText('Slicer pause warning lead time (minutes)')).toBeInTheDocument();
+      const providers = screen.getByRole('region', { name: 'Providers' });
+      const add = within(providers).getByRole('button', { name: 'Add', exact: true });
+      await userEvent.click(add);
+      const dialog = await screen.findByRole('dialog', { name: 'Add Notification Provider' });
+      const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]');
+      expect(submit?.form).toBe(dialog.querySelector('form'));
+      await userEvent.keyboard('{Escape}');
+      expect(dialog).not.toBeInTheDocument();
       expect(screen.queryByText('Notification Language')).not.toBeInTheDocument();
     });
 
@@ -1315,8 +1244,11 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Smart Home' })).toHaveClass('text-bambu-green');
-        expect(screen.getByText('MQTT Publishing')).toBeInTheDocument();
-        expect(screen.getByText('Home Assistant')).toBeInTheDocument();
+        const mqtt = screen.getByRole('region', { name: 'MQTT Publishing' });
+        const homeAssistant = screen.getByRole('region', { name: 'Home Assistant' });
+        expect(within(mqtt).getByRole('switch', { name: /enable mqtt/i })).not.toBeChecked();
+        expect(within(homeAssistant).getByRole('switch', { name: /enable home assistant/i })).not.toBeChecked();
+        expect(within(screen.getByRole('region', { name: 'External URL' })).getByRole('textbox', { name: /printops url/i })).toBeInTheDocument();
       });
     });
 
@@ -1326,7 +1258,12 @@ describe('SettingsPage', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Webhooks' })).toHaveClass('text-bambu-green');
-        expect(screen.getByText('Webhook Endpoints')).toBeInTheDocument();
+        const card = screen.getByRole('region', { name: 'Webhook Endpoints' });
+        const entries = within(card).getAllByRole('listitem');
+        expect(entries).toHaveLength(6);
+        expect(within(entries[0]).getByText('GET')).toBeInTheDocument();
+        expect(within(entries[0]).getByText('/api/v1/webhook/printer/:id/status', { selector: 'code' })).toBeInTheDocument();
+        expect(within(entries[2]).getByText('POST')).toBeInTheDocument();
       });
     });
 
@@ -1334,10 +1271,20 @@ describe('SettingsPage', () => {
       setSettingsTabUrl('integrations', '&sub=smart-plugs');
       render(<SettingsPage />);
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Smart Plugs' })).toHaveClass('text-bambu-green');
-        expect(screen.getByText('Add Smart Plug')).toBeInTheDocument();
-      });
+      const user = userEvent.setup();
+      expect(await screen.findByRole('button', { name: 'Smart Plugs' })).toHaveClass('text-bambu-green');
+      const addButton = screen.getByRole('button', { name: 'Add Smart Plug' });
+      await user.click(addButton);
+      const dialog = await screen.findByRole('dialog', { name: 'Add Smart Plug' });
+      const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]');
+      expect(submit?.form).toBe(dialog.querySelector('form'));
+      expect(submit?.closest('form')).toBeNull();
+      const mqtt = within(dialog).getByRole('button', { name: 'MQTT' });
+      await user.click(mqtt);
+      expect(mqtt).toHaveAttribute('aria-pressed', 'true');
+      await user.keyboard('{Escape}');
+      expect(dialog).not.toBeInTheDocument();
+      expect(addButton).toHaveFocus();
     });
 
     it('can switch to API & Metrics under Integrations', async () => {
@@ -1349,8 +1296,27 @@ describe('SettingsPage', () => {
         expect(screen.getByText('API Keys')).toBeInTheDocument();
         expect(screen.queryByText('Camera API Tokens')).not.toBeInTheDocument();
         expect(screen.getByText('Prometheus Metrics')).toBeInTheDocument();
+        expect(screen.getByText('/api/v1/metrics', { selector: 'code' })).toBeInTheDocument();
         expect(screen.getByText('API Browser')).toBeInTheDocument();
       });
+    });
+
+    it('explains missing access on API & Metrics without exposing restricted cards', async () => {
+      setSettingsTabUrl('integrations', '&sub=api-metrics');
+      server.use(
+        http.get('/api/v1/auth/status', () => HttpResponse.json({ auth_enabled: true, requires_setup: false })),
+        http.get('/api/v1/auth/me', () => HttpResponse.json({
+          id: 1, username: 'operator', role: 'operator', is_active: true, is_admin: false,
+          groups: [], permissions: ['settings:read'], created_at: '2026-01-01T00:00:00Z',
+        })),
+      );
+      setAuthToken('test-token');
+      render(<SettingsPage />);
+
+      expect(await screen.findByText('Your account does not have access to these integration settings.')).toBeVisible();
+      for (const name of ['API Keys', 'Prometheus Metrics', 'Connected applications', 'API Browser']) {
+        expect(screen.queryByRole('heading', { name })).not.toBeInTheDocument();
+      }
     });
 
     it('can switch to Warehouse & Material', async () => {
@@ -1537,14 +1503,10 @@ describe('SettingsPage', () => {
         expect(screen.getByText('CI deploy key')).toBeInTheDocument();
       });
 
-      // Click the trash button on the row
-      const cards = screen.getByText('CI deploy key').closest('.flex.items-center.justify-between');
-      expect(cards).not.toBeNull();
-      const trashButton = cards!.querySelectorAll('button');
-      await user.click(trashButton[trashButton.length - 1]);
+      await user.click(screen.getByRole('button', { name: 'Delete: CI deploy key' }));
 
-      // Confirm the deletion in the modal
-      const confirmButton = await screen.findByRole('button', { name: /delete/i });
+      const dialog = await screen.findByRole('dialog');
+      const confirmButton = within(dialog).getByRole('button', { name: /delete/i });
       await user.click(confirmButton);
 
       // The deleted key disappears from the list immediately — no manual

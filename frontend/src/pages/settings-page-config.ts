@@ -525,8 +525,8 @@ export const INTEGRATION_SUB_TABS: Array<{
     fallback: 'API & Metrics',
     fallbackDe: 'API & Metriken',
     descriptionKey: 'settings.integrationSubTabDescriptions.apiMetrics',
-    descriptionFallback: 'Manage API keys, camera tokens, Prometheus metrics, and the API browser.',
-    descriptionFallbackDe: 'API-Schlüssel, Kamera-Tokens, Prometheus-Metriken und den API-Browser verwalten.',
+    descriptionFallback: 'Manage API keys, connected applications, Prometheus metrics, and the API browser.',
+    descriptionFallbackDe: 'API-Schlüssel, verbundene Anwendungen, Prometheus-Metriken und den API-Browser verwalten.',
     icon: TrendingUp,
   },
 ];

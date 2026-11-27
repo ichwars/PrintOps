@@ -1,6 +1,6 @@
 import i18n from '../../i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -112,14 +112,20 @@ describe('SmallPartEditor', () => {
   it('renders the ForgeDesk-derived material sections with shared controls', async () => {
     renderEditor(null);
 
-    expect(screen.getByRole('dialog', { name: 'Material hinzufügen' })).toHaveClass('max-w-3xl');
+    const dialog = screen.getByRole('dialog', { name: 'Material hinzufügen' });
+    expect(dialog).toHaveClass('max-w-3xl');
     for (const heading of ['Artikel', 'Bestand', 'Beschaffung', 'Verbrauchsgrund', 'Notiz intern']) {
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
     }
     expect(screen.getByLabelText('Anfangsmenge')).toBeInTheDocument();
     expect(screen.getByLabelText('Beschreibung')).toBeInTheDocument();
     expect(screen.getByLabelText('Interne Notiz')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Material speichern' })).toBeInTheDocument();
+    const form = dialog.querySelector('form');
+    const save = within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Material speichern' });
+    const cancel = within(dialog).getByRole('button', { name: 'Abbrechen' });
+    expect(save.form).toBe(form);
+    expect(form?.parentElement?.nextElementSibling).toBe(save.parentElement);
+    expect(cancel.parentElement).toBe(save.parentElement);
   });
 
   it('uses the configured default minimum stock for new material', async () => {

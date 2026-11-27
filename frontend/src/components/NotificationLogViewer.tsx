@@ -6,20 +6,20 @@ import { api } from '../api/client';
 import { parseUTCDate, formatTimeOnly, formatDateTime, type TimeFormat } from '../utils/date';
 import type { NotificationLogEntry } from '../api/client';
 import { Button } from './Button';
-import { Checkbox, LegacySelect } from './ui';
+import { Checkbox, LegacySelect, Modal } from './ui';
 import { useToast } from '../contexts/ToastContext';
 
 const EVENT_COLORS: Record<string, string> = {
-  print_start: 'text-blue-700 dark:text-blue-400',
-  print_complete: 'text-bambu-green',
-  print_failed: 'text-red-700 dark:text-red-400',
-  print_stopped: 'text-orange-700 dark:text-orange-400',
-  print_progress: 'text-yellow-700 dark:text-yellow-400',
-  printer_offline: 'text-gray-400',
-  printer_error: 'text-rose-700 dark:text-rose-400',
-  filament_low: 'text-cyan-700 dark:text-cyan-400',
-  maintenance_due: 'text-purple-700 dark:text-purple-400',
-  test: 'text-bambu-gray',
+  print_start: 'text-blue-800 dark:text-blue-300',
+  print_complete: 'text-green-800 dark:text-green-300',
+  print_failed: 'text-red-700 dark:text-red-300',
+  print_stopped: 'text-orange-800 dark:text-orange-300',
+  print_progress: 'text-yellow-800 dark:text-yellow-300',
+  printer_offline: 'text-table-secondary',
+  printer_error: 'text-rose-800 dark:text-rose-300',
+  filament_low: 'text-cyan-800 dark:text-cyan-300',
+  maintenance_due: 'text-purple-800 dark:text-purple-300',
+  test: 'text-table-secondary',
 };
 
 interface NotificationLogViewerProps {
@@ -81,35 +81,28 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg w-full max-w-3xl max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-bambu-dark-tertiary flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <History className="w-5 h-5 text-bambu-green" />
-            <h2 className="text-lg font-semibold text-white">{t('notifications.notificationLog')}</h2>
-          </div>
-          <Button variant="unstyled"
-            onClick={onClose}
-            className="text-bambu-gray hover:text-white transition-colors"
-          >
-            &times;
-          </Button>
-        </div>
-
+    <Modal
+      open
+      title={t('notifications.notificationLog')}
+      onClose={onClose}
+      closeLabel={t('common.close')}
+      closeOnBackdrop={false}
+      className="max-w-3xl!"
+    >
+      <div className="min-w-0 space-y-4 text-sm text-table-secondary">
         {/* Stats Bar */}
         {stats && (
-          <div className="px-4 py-3 border-b border-bambu-dark-tertiary bg-bambu-dark/50">
-            <div className="flex items-center gap-6 text-sm">
-              <span className="text-bambu-gray">
+          <div className="rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/30 p-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-table-secondary">
                 {t('notifications.statsSummary', { days })} <span className="text-white font-medium">{stats.total}</span> {t('notifications.statsNotifications')}
               </span>
-              <span className="flex items-center gap-1 text-bambu-green">
+              <span className="flex items-center gap-1 text-green-800 dark:text-green-300">
                 <CheckCircle className="w-4 h-4" />
                 {t('notifications.statsSent', { count: stats.success_count })}
               </span>
               {stats.failure_count > 0 && (
-                <span className="flex items-center gap-1 text-red-700 dark:text-red-400">
+                <span className="flex items-center gap-1 text-red-700 dark:text-red-300">
                   <XCircle className="w-4 h-4" />
                   {t('notifications.statsFailed', { count: stats.failure_count })}
                 </span>
@@ -119,11 +112,11 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
         )}
 
         {/* Filters */}
-        <div className="px-4 py-3 border-b border-bambu-dark-tertiary flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <LegacySelect
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="px-3 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-bambu-green"
+            className="w-auto max-w-full text-sm"
           >
             <option value={1}>{t('notifications.last24Hours')}</option>
             <option value={7}>{t('notifications.last7Days')}</option>
@@ -131,16 +124,14 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
             <option value={90}>{t('notifications.last90Days')}</option>
           </LegacySelect>
 
-          <label className="flex items-center gap-2 text-sm text-bambu-gray cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-table-secondary cursor-pointer">
             <Checkbox
               checked={showFailedOnly}
               onChange={(e) => setShowFailedOnly(e.target.checked)}
-              className="rounded border-bambu-dark-tertiary bg-bambu-dark text-bambu-green focus:ring-bambu-green"
+              className="rounded border-bambu-dark-tertiary bg-bambu-dark text-green-800 dark:text-green-300 focus:ring-bambu-green"
             />
             {t('notifications.showFailedOnly')}
           </label>
-
-          <div className="flex-1" />
 
           <Button
             size="sm"
@@ -161,7 +152,7 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
             variant="secondary"
             onClick={() => clearMutation.mutate()}
             disabled={clearMutation.isPending}
-            className="text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+            className="text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-300"
           >
             {clearMutation.isPending ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -173,10 +164,10 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
         </div>
 
         {/* Log List */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div>
           {isLoading ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
+              <Loader2 className="w-6 h-6 text-green-800 dark:text-green-300 animate-spin" />
             </div>
           ) : logs && logs.length > 0 ? (
             <div className="space-y-2">
@@ -192,7 +183,7 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-bambu-gray">
+            <div className="text-center py-12 text-table-secondary">
               <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">
                 {showFailedOnly ? t('notifications.noFailedNotifications') : t('notifications.noNotificationsLogged')}
@@ -201,7 +192,7 @@ export function NotificationLogViewer({ onClose }: NotificationLogViewerProps) {
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -228,57 +219,58 @@ function LogEntry({
       }`}
     >
       <Button variant="unstyled"
-        className="w-full px-3 py-2 flex items-center gap-3 text-left hover:bg-bambu-dark/50 transition-colors"
+        className="flex min-h-[34px] w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left transition-colors hover:bg-secondary-action-hover max-md:min-h-11"
         onClick={onToggle}
+        aria-expanded={isExpanded}
       >
         {log.success ? (
-          <CheckCircle className="w-4 h-4 text-bambu-green shrink-0" />
+          <CheckCircle className="w-4 h-4 text-green-800 dark:text-green-300 shrink-0" />
         ) : (
-          <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+          <XCircle className="w-4 h-4 text-red-600 dark:text-red-300 shrink-0" />
         )}
 
-        <span className={`text-xs font-medium ${EVENT_COLORS[log.event_type] || 'text-bambu-gray'}`}>
+        <span className={`text-xs font-medium ${EVENT_COLORS[log.event_type] || 'text-table-secondary'}`}>
           {t(`notifications.eventTypes.${log.event_type}`, log.event_type)}
         </span>
 
-        <span className="text-sm text-white truncate flex-1">
+        <span className="min-w-0 flex-1 wrap-anywhere text-sm text-white">
           {log.provider_name || t('notifications.unknownProvider')}
         </span>
 
         {log.printer_name && (
-          <span className="text-xs text-bambu-gray">
+          <span className="text-xs text-table-secondary">
             {log.printer_name}
           </span>
         )}
 
-        <span className="text-xs text-bambu-gray shrink-0">
+        <span className="text-xs text-table-secondary shrink-0">
           {formatDate(log.created_at)}
         </span>
 
         {isExpanded ? (
-          <ChevronUp className="w-4 h-4 text-bambu-gray shrink-0" />
+          <ChevronUp className="w-4 h-4 text-table-secondary shrink-0" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-bambu-gray shrink-0" />
+          <ChevronDown className="w-4 h-4 text-table-secondary shrink-0" />
         )}
       </Button>
 
       {isExpanded && (
         <div className="px-3 py-2 border-t border-bambu-dark-tertiary bg-bambu-dark/20 space-y-2">
           <div>
-            <p className="text-xs text-bambu-gray mb-1">{t('notifications.logTitle')}</p>
-            <p className="text-sm text-white">{log.title}</p>
+            <p className="text-xs text-table-secondary mb-1">{t('notifications.logTitle')}</p>
+            <p className="wrap-anywhere text-sm text-white">{log.title}</p>
           </div>
           <div>
-            <p className="text-xs text-bambu-gray mb-1">{t('notifications.logMessage')}</p>
-            <p className="text-sm text-white whitespace-pre-wrap">{log.message}</p>
+            <p className="text-xs text-table-secondary mb-1">{t('notifications.logMessage')}</p>
+            <p className="wrap-anywhere whitespace-pre-wrap text-sm text-white">{log.message}</p>
           </div>
           {!log.success && log.error_message && (
             <div>
-              <p className="text-xs text-red-700 dark:text-red-400 mb-1">{t('notifications.logError')}</p>
-              <p className="text-sm text-red-700 dark:text-red-300">{log.error_message}</p>
+              <p className="text-xs text-red-700 dark:text-red-300 mb-1">{t('notifications.logError')}</p>
+              <p className="wrap-anywhere text-sm text-red-700 dark:text-red-300">{log.error_message}</p>
             </div>
           )}
-          <div className="flex gap-4 text-xs text-bambu-gray pt-1">
+          <div className="flex flex-wrap gap-3 text-xs text-table-secondary pt-1">
             <span>{t('notifications.logProvider', { type: log.provider_type })}</span>
             <span>{t('notifications.logTime', { time: formatFullDate(log.created_at) })}</span>
           </div>

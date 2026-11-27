@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Children, cloneElement, isValidElement, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
@@ -6,9 +6,29 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfmNoAutolink from '../utils/remarkGfmNoAutolink';
 
 import { api } from '../api/client';
+import { useTablePagination } from '../hooks/useTablePagination';
+import { TablePagination } from './ui/TablePagination';
 
 interface FolderReadmePanelProps {
   folderId: number;
+}
+
+function ReadmeTable({ children }: { children?: ReactNode }) {
+  const sections = Children.toArray(children);
+  const body = sections.find(section => isValidElement(section) && section.type === 'tbody');
+  const tableBody = isValidElement<{ children: ReactNode }>(body) ? body : undefined;
+  const rows = Children.toArray(tableBody?.props.children).filter(row => isValidElement(row) && row.type === 'tr');
+  const pagination = useTablePagination(rows);
+  return (
+    <div className="min-w-0">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-xs border-collapse">
+          {sections.map(section => section === tableBody ? cloneElement(tableBody, {}, pagination.rows) : section)}
+        </table>
+      </div>
+      {tableBody && <TablePagination {...pagination.footer} />}
+    </div>
+  );
 }
 
 /**
@@ -82,11 +102,7 @@ export function FolderReadmePanel({ folderId }: FolderReadmePanelProps) {
                   {children}
                 </a>
               ),
-              table: ({ children }) => (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-xs border-collapse">{children}</table>
-                </div>
-              ),
+              table: ReadmeTable,
               th: ({ children }) => <th className="border border-bambu-dark-tertiary px-2 py-1 text-left font-semibold text-white">{children}</th>,
               td: ({ children }) => <td className="border border-bambu-dark-tertiary px-2 py-1">{children}</td>,
               hr: () => <hr className="border-bambu-dark-tertiary my-2" />,

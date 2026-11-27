@@ -16,7 +16,7 @@ export function LayoutFindings({ findings, stale = false, onNavigate }: { findin
   const { t } = useTranslation();
   return <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4" aria-labelledby="layout-findings-title">
     <h3 id="layout-findings-title" className="font-semibold text-white">{t('settings.documentLayout.findings.title', 'Validation findings')}</h3>
-    {stale ? <p className="mt-1 text-xs text-amber-300">{t('settings.documentLayout.findings.stale', 'Findings belong to an older draft and must be refreshed.')}</p> : null}
+    {stale ? <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">{t('settings.documentLayout.findings.stale', 'Findings belong to an older draft and must be refreshed.')}</p> : null}
     {findings.length === 0 ? <p className="mt-2 text-sm text-bambu-gray">{t('settings.documentLayout.findings.none', 'No findings for the latest saved version.')}</p> : <ul className="mt-3 space-y-2">
       {findings.map((finding, index) => {
         const Icon = finding.severity === 'blocker' ? AlertCircle : finding.severity === 'warning' ? AlertTriangle : Info;

@@ -1,11 +1,18 @@
+import { useAuth } from '../contexts/AuthContext';
+import { CalculationHistoryDialog } from '../components/orders/CalculationHistoryDialog';
+import { orderRecordId } from '../utils/orderLinks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calculator, Plus, RefreshCw, Search } from 'lucide-react';
+import { Calculator, Plus, RefreshCw } from 'lucide-react';
+import { useSearchParams } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { calculationsApi, type CalculationCreate, type CalculationDetail, type CalculationStatus, type CalculationTemplate } from '../api/calculations';
 import { offersApi } from '../api/offers';
 import { CalculationList } from '../components/orders/CalculationList';
 import { CalculationWorkspace } from '../components/orders/CalculationWorkspace';
-import { LegacySelect, TextField } from '../components/ui';
+import { Button, LegacySelect } from '../components/ui';
+import { OrderHeader, orderControlClass, orderPageClass } from '../components/orders/OrderLayout';
+import { WarehouseToolbar } from '../components/warehouse/WarehouseLayout';
 
 function duplicatePayload(item: CalculationDetail, title: string): CalculationCreate {
   return {
@@ -27,6 +34,22 @@ function duplicatePayload(item: CalculationDetail, title: string): CalculationCr
 export function CalculationsPage() {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
+  const { hasPermission, loading: authLoading } = useAuth();
+  const canRead = hasPermission('calculations:read');
+  const canUpdate = hasPermission('calculations:update');
+  const canApprove = hasPermission('calculations:approve');
+  const canCreateOffer = hasPermission('commercial_documents:draft');
+  const canReadOffers = hasPermission('commercial_documents:read');
+  const canReadProjects = hasPermission('projects:read');
+  const [params, setParams] = useSearchParams();
+  const [history, setHistory] = useState<CalculationDetail | null>(null);
+  const linkedId = orderRecordId(params.get('open'));
+  const linked = useQuery({
+    queryKey: ['calculations', 'detail', linkedId],
+    queryFn: () => calculationsApi.get(linkedId!),
+    enabled: canRead && linkedId !== null,
+    staleTime: 0,
+  });
   const [items, setItems] = useState<CalculationDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +62,16 @@ export function CalculationsPage() {
   const [actionMessage, setActionMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
   const load = useCallback(async () => {
+    if (!canRead) return;
     setLoading(true); setError(null);
     try { setItems((await calculationsApi.list({ status: status || undefined })).items); }
     catch { setError(t('orders.runtimeCalculation.calculationsCouldNotBeLoaded', { lng: locale })); }
     finally { setLoading(false); }
-  }, [t, locale, status]);
+  }, [t, locale, status, canRead]);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void calculationsApi.templates().then(setTemplates); }, []);
+  useEffect(() => {
+    if (canRead && canUpdate) void calculationsApi.templates().then(setTemplates).catch(() => setTemplates([]));
+  }, [canRead, canUpdate]);
   const instantiate = async (selectedTemplateId: string) => { if (!selectedTemplateId) return; const template = templates.find(item => item.id === Number(selectedTemplateId)); if (!template) return; const created = await calculationsApi.instantiateTemplate(template.id, template.name); setTemplateId(''); setEditor(created); void load(); };
   const visible = useMemo(() => items.filter(item => `${item.id} ${item.title}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [items, search]);
   const runAction = async (item: CalculationDetail, action: () => Promise<void>) => {
@@ -89,22 +115,67 @@ export function CalculationsPage() {
     });
   };
 
+  function closeLinked() {
+    if (linkedId === null) return;
+    const next = new URLSearchParams(params);
+    next.delete('open');
+    setParams(next, { replace: true });
+  }
+  function closeEditor() { setEditor(null); closeLinked(); }
+  function closeHistory() { setHistory(null); closeLinked(); }
+  const activeEditor = canRead && canUpdate ? editor : null;
+  const activeHistory = canRead ? history ?? linked.data : null;
+
   return (
-    <div className="w-full space-y-5 p-4 md:p-8">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0"><h1 className="flex items-center gap-3 text-2xl font-bold text-white"><Calculator className="h-7 w-7 shrink-0 text-bambu-green" />{t('orders.runtimeCalculation.calculations', { lng: locale })}</h1><p className="mt-1 text-bambu-gray">{t('orders.runtimeCalculation.costCustomerRequestsCompareVariantsAndApproveRevisions', { lng: locale })}</p></div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end"><div className="min-w-[260px] flex-1 xl:w-[420px] xl:flex-none"><LegacySelect value={templateId} onChange={event => { const next = event.target.value; setTemplateId(next); void instantiate(next); }} aria-label={t('orders.runtimeCalculation.selectTemplate', { lng: locale })} className="h-10 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white"><option value="">{t('orders.runtimeCalculation.selectTemplateCalculationsPage', { lng: locale })}</option>{templates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</LegacySelect></div><button type="button" onClick={() => setEditor('create')} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-bambu-green px-4 font-medium text-black"><Plus className="h-4 w-4" />{t('orders.runtimeCalculation.addCalculation', { lng: locale })}</button></div>
-      </div>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <label className="relative min-w-64 flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bambu-gray" /><span className="sr-only">{t('orders.runtimeCalculation.searchCalculations', { lng: locale })}</span><TextField value={search} onChange={event => setSearch(event.target.value)} placeholder={t('orders.runtimeCalculation.searchCalculationsCalculationsPage', { lng: locale })} className="h-10 w-full rounded-lg border border-bambu-dark-tertiary bg-bambu-dark pl-10 pr-3 text-white outline-none focus:border-bambu-green" /></label>
-        <div className="lg:w-56"><LegacySelect value={status} onChange={event => setStatus(event.target.value as CalculationStatus | '')} aria-label={t('orders.runtimeCalculation.filterStatus', { lng: locale })} className="h-10 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 text-white outline-none focus:border-bambu-green"><option value="">{t('printers.filter.allStatuses', { lng: locale })}</option><option value="draft">{t('settings.documentLayout.statuses.draft', { lng: locale })}</option><option value="approved">{t('orders.runtimeCalculation.approved', { lng: locale })}</option><option value="archived">{t('projects.statusArchived', { lng: locale })}</option></LegacySelect></div>
-      </div>
-      {actionMessage && <div className={`rounded-lg border px-4 py-3 text-sm ${actionMessage.kind === 'success' ? 'border-bambu-green/40 bg-bambu-green/10 text-bambu-green' : 'border-red-500/40 bg-red-500/10 text-red-200'}`}>{actionMessage.text}</div>}
-      {loading && <div className="rounded-lg border border-bambu-dark-tertiary p-10 text-center text-bambu-gray">{t('orders.runtimeCalculation.loadingCalculations', { lng: locale })}</div>}
-      {!loading && error && <div className="rounded-lg border border-red-500/40 p-8 text-center text-red-300"><p>{error}</p><button onClick={() => void load()} className="mt-3 inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-white"><RefreshCw className="h-4 w-4" />{t('common.retry', { lng: locale })}</button></div>}
-      {!loading && !error && visible.length === 0 && <div className="rounded-lg border border-bambu-dark-tertiary p-12 text-center"><Calculator className="mx-auto h-9 w-9 text-bambu-gray" /><h2 className="mt-3 font-semibold text-white">{t('orders.runtimeCalculation.noCalculationsYet', { lng: locale })}</h2><p className="mt-1 text-sm text-bambu-gray">{t('orders.runtimeCalculation.startWithAConcreteCustomerRequest', { lng: locale })}</p></div>}
-      {!loading && !error && visible.length > 0 && <CalculationList items={visible} locale={locale} onOpen={item => setEditor(item)} onDuplicate={duplicate} onCreateOffer={createOffer} onRevise={revise} onArchive={archive} onDelete={remove} busyId={busyId} />}
-      {editor && <CalculationWorkspace calculation={editor === 'create' ? null : editor} locale={locale} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} />}
+    <div className={orderPageClass}>
+      <OrderHeader
+        icon={Calculator}
+        title={t('orders.runtimeCalculation.calculations', { lng: locale })}
+        description={t('orders.runtimeCalculation.costCustomerRequestsCompareVariantsAndApproveRevisions', { lng: locale })}
+      >
+        {canRead && canUpdate && <><LegacySelect value={templateId} onChange={event => { const next = event.target.value; setTemplateId(next); void instantiate(next); }}
+          aria-label={t('orders.runtimeCalculation.selectTemplate', { lng: locale })}
+          className={`${orderControlClass} min-w-0 xl:w-64`}>
+          <option value="">{t('orders.runtimeCalculation.selectTemplateCalculationsPage', { lng: locale })}</option>
+          {templates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}
+        </LegacySelect>
+        <Button type="button" onClick={() => setEditor('create')} className="text-black! max-[768px]:min-h-[44px]!">
+          <Plus aria-hidden="true" className="h-4 w-4" />{t('orders.runtimeCalculation.addCalculation', { lng: locale })}
+        </Button></>}
+      </OrderHeader>
+      <WarehouseToolbar searchLabel={t('orders.runtimeCalculation.searchCalculations', { lng: locale })}
+        placeholder={t('orders.runtimeCalculation.searchCalculationsCalculationsPage', { lng: locale })}
+        value={search} onSearch={setSearch}>
+        <LegacySelect value={status} onChange={event => setStatus(event.target.value as CalculationStatus | '')}
+          aria-label={t('orders.runtimeCalculation.filterStatus', { lng: locale })} className={`${orderControlClass} sm:w-52`}>
+          <option value="">{t('printers.filter.allStatuses', { lng: locale })}</option>
+          <option value="draft">{t('settings.documentLayout.statuses.draft', { lng: locale })}</option>
+          <option value="approved">{t('orders.runtimeCalculation.approved', { lng: locale })}</option>
+          <option value="archived">{t('projects.statusArchived', { lng: locale })}</option>
+        </LegacySelect>
+      </WarehouseToolbar>
+      {actionMessage && <div className={`rounded-lg border px-4 py-3 text-sm ${actionMessage.kind === 'success' ? 'border-bambu-green/40 bg-bambu-green/10 text-accent-foreground' : 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-200'}`}>{actionMessage.text}</div>}
+      {canRead && linkedId !== null && linked.isPending && <p role="status">{t('common.loading')}</p>}
+      {canRead && linkedId !== null && linked.isError && <div role="alert" className="flex items-center gap-2">
+        <span>{t('common.errorLoading')}</span>
+        <Button variant="ghost" onClick={() => void linked.refetch()}>{t('common.retry')}</Button>
+        <Button variant="ghost" onClick={closeLinked}>{t('common.dismiss')}</Button>
+      </div>}
+      {authLoading && <p role="status">{t('common.loading')}</p>}
+      {!authLoading && !canRead && <p className="text-table-secondary">{t('orders.runtimeDashboard.permissionDenied')}</p>}
+      {canRead && loading && <div className="rounded-lg border border-bambu-dark-tertiary p-10 text-center text-table-secondary">{t('orders.runtimeCalculation.loadingCalculations', { lng: locale })}</div>}
+      {canRead && !loading && error && <div className="rounded-lg border border-red-500/40 p-8 text-center text-red-700 dark:text-red-300"><p>{error}</p><button onClick={() => void load()} className="mt-3 inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-white"><RefreshCw className="h-4 w-4" />{t('common.retry', { lng: locale })}</button></div>}
+      {canRead && !loading && !error && visible.length === 0 && <div className="rounded-lg border border-bambu-dark-tertiary p-12 text-center"><Calculator className="mx-auto h-9 w-9 text-table-secondary" /><h2 className="mt-3 font-semibold text-white">{t('orders.runtimeCalculation.noCalculationsYet', { lng: locale })}</h2><p className="mt-1 text-sm text-table-secondary">{t('orders.runtimeCalculation.startWithAConcreteCustomerRequest', { lng: locale })}</p></div>}
+      {canRead && !loading && !error && visible.length > 0 && (
+        <CalculationList items={visible} locale={locale} canReadOffers={canReadOffers} canReadProjects={canReadProjects}
+          onOpen={canUpdate ? setEditor : undefined} onHistory={setHistory}
+          onDuplicate={canUpdate ? duplicate : undefined} onCreateOffer={canCreateOffer ? createOffer : undefined}
+          onRevise={canUpdate ? revise : undefined} onArchive={canApprove ? archive : undefined}
+          onDelete={canUpdate ? remove : undefined} busyId={busyId} />
+      )}
+      {activeEditor && <CalculationWorkspace calculation={activeEditor === 'create' ? null : activeEditor} locale={locale}
+        onClose={closeEditor} onSaved={() => { closeEditor(); void load(); }} />}
+      {activeHistory && <CalculationHistoryDialog key={activeHistory.id} item={activeHistory} locale={locale} onClose={closeHistory} />}
     </div>
   );
 }

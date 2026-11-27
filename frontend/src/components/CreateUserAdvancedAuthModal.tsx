@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Plus, Loader2, Users as UsersIcon } from 'lucide-react';
-import { Card, CardContent, CardHeader } from './Card';
-import { Button } from './Button';
+import { Plus } from 'lucide-react';
+import { Button, Checkbox, Modal, TextField } from './ui';
 import { LdapUserPicker } from './LdapUserPicker';
 import type { Group, Printer, UserCreate, UserResponse } from '../api/client';
 
@@ -46,17 +45,6 @@ export function CreateUserAdvancedAuthModal({
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('local');
 
-  // Close modal on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
   const toggleGroup = (groupId: number) => {
     setFormData({
       ...formData,
@@ -77,33 +65,19 @@ export function CreateUserAdvancedAuthModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
+    <Modal open onClose={onClose} closeLabel={t('common.close')}
+      title={t('users.modal.createUser')} description={t('users.modal.advancedAuthSubtitle')}
+      className="max-w-md"
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>{t('users.modal.cancel')}</Button>
+        {tab === 'local' && (
+          <Button onClick={onCreate} disabled={isCreateButtonDisabled} loading={isCreating}>
+            {!isCreating && <Plus className="w-4 h-4" />}
+            {t(isCreating ? 'users.modal.creating' : 'users.modal.createUser')}
+          </Button>
+        )}
+      </>}
     >
-      <Card
-        className="w-full max-w-md"
-        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-      >
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <UsersIcon className="w-5 h-5 text-bambu-green" />
-                <h2 className="text-lg font-semibold text-white">{t('users.modal.createUser')}</h2>
-              </div>
-              <p className="text-sm text-bambu-gray ml-7">{t('users.modal.advancedAuthSubtitle') || 'with Advanced Authentication'}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
           {ldapEnabled && (
             <div
               className="mb-4 flex items-center gap-1 p-1 bg-bambu-dark-secondary rounded-lg"
@@ -242,38 +216,6 @@ export function CreateUserAdvancedAuthModal({
             </div>
           </div>
           )}
-
-          {/* Action Buttons — Cancel always shown; Create only on local tab
-              (LDAP picker has its own submit). */}
-          <div className="mt-6 flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={onClose}
-            >
-              {t('users.modal.cancel')}
-            </Button>
-            {tab === 'local' && (
-              <Button
-                onClick={onCreate}
-                disabled={isCreateButtonDisabled}
-              >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {t('users.modal.creating')}
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    {t('users.modal.createUser')}
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    </Modal>
   );
 }
-import { Checkbox, TextField } from './ui';

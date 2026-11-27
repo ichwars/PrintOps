@@ -9,6 +9,7 @@ import type {
   ReadinessStatus,
 } from '../../../api/documentManagement';
 import { Select } from '../../ui';
+import { dashboardStyles } from '../../dashboardStyles';
 import { effectiveDocumentLanguage, supportedDocumentLanguage, type DocumentContext } from './documentSettingsState';
 
 interface DocumentContextHeaderProps {
@@ -66,27 +67,27 @@ export function DocumentContextHeader({
     ...documentLanguages,
   ];
   const statusClass = readiness === 'blocked'
-    ? 'border-red-500/40 bg-red-500/10 text-red-200'
+    ? 'border-red-500/40 bg-red-500/10 text-red-800 dark:text-red-200'
     : readiness === 'warnings'
-      ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
-      : 'border-bambu-green/40 bg-bambu-green/10 text-bambu-green-light';
+      ? 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200'
+      : 'border-bambu-green/40 bg-bambu-green/10 text-accent-foreground';
 
   return (
-    <header className="sticky top-0 z-10 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary/95 p-4 shadow-lg backdrop-blur">
+    <header className={`${dashboardStyles.card} ${dashboardStyles.cardBody} md:sticky md:top-0 md:z-10`}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-bambu-green" aria-hidden="true" />
-          <p className="text-lg font-semibold text-white">
+          <FileText className="h-4 w-4 text-bambu-green" aria-hidden="true" />
+          <p className={dashboardStyles.cardTitle}>
             {t('settings.documents.title', 'Document settings')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
           {configuration ? (
-            <span className="rounded-full border border-bambu-dark-tertiary bg-bambu-dark px-3 py-1.5 text-gray-200">
+            <span className="rounded-full border border-bambu-dark-tertiary bg-bambu-dark px-3 py-1.5 text-table-secondary">
               {t(`settings.documents.status.${status}`, status ?? '')} · {t('settings.documents.version', { version: configuration.version, defaultValue: `Version ${configuration.version}` })}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full border border-bambu-dark-tertiary bg-bambu-dark px-3 py-1.5 text-gray-300">
+            <span className="inline-flex items-center gap-1 rounded-full border border-bambu-dark-tertiary bg-bambu-dark px-3 py-1.5 text-table-secondary">
               <FileQuestion className="h-3.5 w-3.5 text-bambu-gray" aria-hidden="true" />
               {t('settings.documents.status.missingDraft', 'No draft')}
             </span>

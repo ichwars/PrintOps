@@ -1,3 +1,5 @@
+import { TablePagination } from './ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FileSpreadsheet, Loader2 } from 'lucide-react';
@@ -146,6 +148,7 @@ export function SpreadsheetPreviewModal({
   }, [libraryFileId, fileType, fileSize, filename, t]);
 
   const sheet = sheets?.[activeSheet] ?? null;
+  const pagination = useTablePagination(sheet?.rows ?? [], sheet?.name, 50);
   const rowsTruncated = sheet != null && sheet.totalRows > sheet.rows.length;
   const colsTruncated = sheet != null && sheet.totalCols > MAX_COLS;
   const shownCols = sheet == null ? 0 : Math.min(sheet.totalCols, MAX_COLS);
@@ -212,10 +215,10 @@ export function SpreadsheetPreviewModal({
               </tr>
             </thead>
             <tbody>
-              {sheet.rows.map((row, r) => (
+              {pagination.rows.map((row, r) => (
                 <tr key={r}>
                   <td className="border border-bambu-dark-tertiary px-2 py-1 text-bambu-gray text-right bg-bambu-dark-secondary/50">
-                    {r + 1}
+                    {pagination.footer.offset + r + 1}
                   </td>
                   {Array.from({ length: shownCols }, (_, c) => (
                     <td
@@ -232,6 +235,8 @@ export function SpreadsheetPreviewModal({
           </table>
         )}
       </div>
+
+      {sheet && sheet.rows.length > 0 && <TablePagination {...pagination.footer} />}
 
       {/* Truncation notices */}
       {(rowsTruncated || colsTruncated || truncated) && sheet && (

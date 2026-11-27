@@ -31,7 +31,10 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
 
 /** Trigger a browser download of `text` as a file named `filename`. */
 export function downloadTextFile(text: string, filename: string, mimeType = 'text/plain'): void {
-  const blob = new Blob([text], { type: mimeType });
+  downloadBlob(new Blob([text], { type: mimeType }), filename);
+}
+
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

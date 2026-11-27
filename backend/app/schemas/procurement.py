@@ -144,3 +144,21 @@ class ProcurementOfferRead(ProcurementSchema):
     created_at: datetime
     updated_at: datetime
     supplier: SupplierRead
+
+
+WarehouseShoppingResource = Literal["warehouse", "material"]
+
+
+class WarehouseShoppingItemRead(ProcurementSchema):
+    id: int
+    resource_kind: Literal["material"]
+    resource_id: int
+    sku: str
+    name: str
+    quantity: Decimal
+    unit_code: str
+    unit_label: str
+
+    @field_serializer("quantity", when_used="json")
+    def serialize_quantity(self, value: Decimal) -> str:
+        return format(value, "f")

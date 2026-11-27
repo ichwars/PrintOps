@@ -115,8 +115,10 @@ describe('SmartPlugCard', () => {
       render(<SmartPlugCard plug={plug} onEdit={mockOnEdit} />);
 
       // Find and click the settings toggle
-      const settingsToggle = screen.getByText('Automation Settings');
+      const settingsToggle = screen.getByRole('button', { name: 'Automation Settings' });
+      expect(settingsToggle).toHaveAttribute('aria-expanded', 'false');
       await user.click(settingsToggle);
+      expect(settingsToggle).toHaveAttribute('aria-expanded', 'true');
 
       // Should show Auto On and Auto Off labels
       await waitFor(() => {

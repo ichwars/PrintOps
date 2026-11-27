@@ -33,6 +33,9 @@ export interface WarehouseArticle extends Required<WarehouseArticleInput> {
   created_at: string;
   updated_at: string;
   balance: WarehouseBalance;
+  stock_checked_at?: string | null;
+  last_used_at?: string | null;
+  consumed?: string;
   locations: Array<WarehouseBalance & { location_id: number | null; location_name: string }>;
 }
 export interface WarehouseArticlePage {
@@ -41,15 +44,51 @@ export interface WarehouseArticlePage {
   limit: number;
   offset: number;
 }
+export interface WarehouseForecastRow {
+  id: number;
+  sku: string;
+  name: string;
+  unit_code: string;
+  available: string;
+  minimum_stock: string;
+  daily_usage: string | null;
+  projected_available: string | null;
+  days_until_minimum: number | null;
+}
+export interface WarehouseForecastPage {
+  items: WarehouseForecastRow[];
+  window_days: number;
+  total: number;
+  limit: number;
+  offset: number;
+}
+export type WarehouseArticleSortColumn = 'id' | 'sku' | 'name' | 'kind' | 'physical' | 'reserved' | 'available'
+  | 'minimum_stock' | 'created_at' | 'last_used_at' | 'consumed' | 'remaining' | 'stock_checked_at';
+
 export interface WarehouseArticleListParams {
+  article_id?: number;
+  sort_by?: WarehouseArticleSortColumn | 'stock_source' | 'is_active' | 'unit_cost' | 'sale_price' | 'updated_at';
+  sort_dir?: 'asc' | 'desc';
   q?: string;
   active?: boolean;
   kind?: WarehouseArticleKind;
   stock_source?: WarehouseStockSource;
+  usage?: 'used' | 'new';
+  location_id?: number;
+  unit_code?: string;
   low_stock?: boolean;
   limit?: number;
   offset?: number;
 }
+export const productionDemandFilter = {
+  active: true, kind: 'finished', stock_source: 'own', low_stock: true,
+} as const satisfies WarehouseArticleListParams;
+
+export function needsWarehouseProduction(article: WarehouseArticle): boolean {
+  return article.is_active && article.kind === productionDemandFilter.kind &&
+    article.stock_source === productionDemandFilter.stock_source && article.balance.is_low_stock;
+}
+
 export type WarehouseMovementKind = 'opening' | 'receipt' | 'issue' | 'transfer' | 'correction' | 'reservation' | 'release' | 'reserved_issue' | 'counter';
 export interface WarehouseMovementInput {
   entry_kind: WarehouseMovementKind;
@@ -92,12 +131,21 @@ function query(params: object) {
   return result.toString();
 }
 
+export function canArchiveWarehouseArticle(article: WarehouseArticle) {
+  return Number(article.balance.physical) === 0 && Number(article.balance.reserved) === 0;
+}
+
 export const warehouseArticlesApi = {
+  confirmStockCheck: (ids: number[]) => request<{ stock_checked_at: string }>('/warehouse-articles/stock-check', { method: 'POST', body: JSON.stringify({ ids }) }),
   list: (params: WarehouseArticleListParams = {}) => request<WarehouseArticlePage>(`/warehouse-articles?${query(params)}`),
+  forecast: (offset: number, limit: number) => request<WarehouseForecastPage>(`/warehouse-articles/forecast?${query({ offset, limit })}`),
   get: (id: number) => request<WarehouseArticle>(`/warehouse-articles/${id}`),
   create: (input: WarehouseArticleInput) => request<WarehouseArticle>('/warehouse-articles', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: number, input: WarehouseArticleUpdate) => request<WarehouseArticle>(`/warehouse-articles/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   archive: (id: number, version: number) => request<WarehouseArticle>(`/warehouse-articles/${id}?version=${version}`, { method: 'DELETE' }),
+  setActive: (article: WarehouseArticle, active: boolean) => active
+    ? warehouseArticlesApi.update(article.id, { version: article.version, is_active: true })
+    : warehouseArticlesApi.archive(article.id, article.version),
   ledger: (id: number, offset = 0, limit = 50) => request<WarehouseMovement[]>(`/warehouse-articles/${id}/ledger?${query({ offset, limit })}`),
   reservations: (id: number) => request<WarehouseReservation[]>(`/warehouse-articles/${id}/reservations`),
   addLedger: (id: number, input: WarehouseMovementInput) => request<WarehouseMovement>(`/warehouse-articles/${id}/ledger`, { method: 'POST', body: JSON.stringify(input) }),

@@ -222,10 +222,10 @@ export function DocumentSettings() {
   };
 
   if (authLoading) {
-    return <div className="flex items-center gap-2 text-sm text-gray-400"><Loader2 className="h-4 w-4 animate-spin" />{t('common.loading', 'Loading...')}</div>;
+    return <div className="flex items-center gap-2 text-sm text-table-secondary"><Loader2 className="h-4 w-4 animate-spin" />{t('common.loading', 'Loading...')}</div>;
   }
   if (!canRead) {
-    return <section id="card-document-settings" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{t('settings.documents.permissionDenied', 'You do not have permission to view document settings.')}</section>;
+    return <section id="card-document-settings" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-800 dark:text-red-200">{t('settings.documents.permissionDenied', 'You do not have permission to view document settings.')}</section>;
   }
 
   const initialLoading = profilesQuery.isPending || catalogQuery.isPending || placeholdersQuery.isPending || (context.profileId > 0 && configurationQuery.isPending);
@@ -250,12 +250,12 @@ export function DocumentSettings() {
       ) : null}
 
       {initialLoading ? (
-        <div className="flex items-center gap-2 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-gray-400">
+        <div className="flex items-center gap-2 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-table-secondary">
           <Loader2 className="h-4 w-4 animate-spin" />{t('settings.documents.loading', 'Loading document configuration...')}
         </div>
       ) : null}
       {queryError ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-800 dark:text-red-200">
           <AlertTriangle className="h-4 w-4" />
           <span>{errorMessage(queryError, t('settings.documents.loadError', 'Document settings could not be loaded.'))}</span>
           <Button variant="secondary" size="sm" onClick={() => configurationQuery.refetch()}><RefreshCw className="h-4 w-4" />{t('common.retry', 'Retry')}</Button>
@@ -284,9 +284,9 @@ export function DocumentSettings() {
 
           {configuration ? (
             <>
-              <div className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-gray-300">
+              <div className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 text-sm text-table-secondary">
                 <p className="font-medium text-white">{t('settings.documents.policy.title', 'Configuration')}</p>
-                <p className="mt-1 text-gray-400">{t('settings.documents.policy.hint', 'The policy sections below are saved as a versioned draft. Published versions remain immutable.')}</p>
+                <p className="mt-1 text-table-secondary">{t('settings.documents.policy.hint', 'The policy sections below are saved as a versioned draft. Published versions remain immutable.')}</p>
               </div>
               {draft && capability && placeholdersQuery.data ? (
                 <div className="space-y-4">
@@ -349,7 +349,7 @@ export function DocumentSettings() {
             <div className="rounded-xl border border-dashed border-bambu-dark-tertiary bg-bambu-dark-secondary p-6 text-center">
               <FilePlus2 className="mx-auto h-8 w-8 text-bambu-green" aria-hidden="true" />
               <p className="mt-3 font-medium text-white">{t('settings.documents.empty.title', 'No configuration for this context')}</p>
-              <p className="mx-auto mt-1 max-w-2xl text-sm text-gray-400">{t('settings.documents.empty.description', 'Create a draft from the system defaults, then review it before publication.')}</p>
+              <p className="mx-auto mt-1 max-w-2xl text-sm text-table-secondary">{t('settings.documents.empty.description', 'Create a draft from the system defaults, then review it before publication.')}</p>
               {canManage ? (
                 <Button className="mt-4" onClick={() => void runAction('create', () => createMutation.mutateAsync())} loading={pendingAction === 'create'} disabled={pendingAction !== null}>
                   <FilePlus2 className="h-4 w-4" aria-hidden="true" />
@@ -400,7 +400,7 @@ export function DocumentSettings() {
             label={t('settings.documents.publish.effectiveFrom', 'Effective from')}
             onValueChange={setEffectiveFrom}
           />
-          <p className="text-sm text-gray-300">{t('settings.documents.publish.reason', { reason: changeReason, defaultValue: `Reason: ${changeReason}` })}</p>
+          <p className="text-sm text-table-secondary">{t('settings.documents.publish.reason', { reason: changeReason, defaultValue: `Reason: ${changeReason}` })}</p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setPublishOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
             <Button

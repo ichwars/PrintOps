@@ -21,7 +21,7 @@ export function VariantStrip({ variants, activeIndex, locale, onActiveChange, on
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-white">2. {t('orders.runtimeCalculation.variants', { lng: language })}</h3>
-          <p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.clickToEditTheStarSelectsTheOfferVariant', { lng: language })}</p>
+          <p className="text-xs text-table-secondary">{t('orders.runtimeCalculation.clickToEditTheStarSelectsTheOfferVariant', { lng: language })}</p>
         </div>
         <button type="button" onClick={onClone} className="inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-sm text-white">
           <Copy className="h-4 w-4" />{t('orders.runtimeCalculation.cloneVariant', { lng: language })}
@@ -33,7 +33,7 @@ export function VariantStrip({ variants, activeIndex, locale, onActiveChange, on
             <button type="button" aria-label={t('orders.runtimeCalculation.editVariant', { lng: language, name: variant.name })} onClick={() => onActiveChange(index)} className="px-3 py-2 text-sm text-white">
               {variant.name}
             </button>
-            <button type="button" aria-label={t('orders.runtimeCalculation.markAsPreferred', { lng: language, name: variant.name })} aria-pressed={variant.is_preferred} onClick={() => onPreferredChange(index)} className={`border-l border-bambu-dark-tertiary p-2 ${variant.is_preferred ? 'text-bambu-green' : 'text-bambu-gray hover:text-white'}`}>
+            <button type="button" aria-label={t('orders.runtimeCalculation.markAsPreferred', { lng: language, name: variant.name })} aria-pressed={variant.is_preferred} onClick={() => onPreferredChange(index)} className={`border-l border-bambu-dark-tertiary p-2 ${variant.is_preferred ? 'text-accent-foreground' : 'text-table-secondary hover:text-white'}`}>
               <Star className="h-4 w-4" fill={variant.is_preferred ? 'currentColor' : 'none'} />
             </button>
           </div>

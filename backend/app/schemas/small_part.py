@@ -7,6 +7,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from backend.app.schemas.procurement import ProcurementOfferRead
+from backend.app.schemas.utc_timestamp import UtcTimestamp
 
 
 class SmallPartSchema(BaseModel):
@@ -118,20 +119,23 @@ class SmallPartRead(SmallPartBase):
     category: SmallPartCategoryRead | None = None
     unit: SmallPartUnitRead
     balance: SmallPartBalanceRead
+    stock_checked_at: UtcTimestamp | None = None
+    last_used_at: UtcTimestamp | None = None
+    consumed: Decimal = Decimal("0")
     created_at: datetime
     updated_at: datetime
 
 
 class SmallPartLedgerCreate(SmallPartSchema):
-    entry_kind: Literal["receipt", "correction"]
-    quantity: Decimal
+    entry_kind: Literal["receipt", "issue", "correction"]
+    quantity: Decimal = Field(max_digits=18, decimal_places=6)
     reason: str = Field(min_length=1, max_length=2000)
     idempotency_key: str = Field(min_length=8, max_length=128)
 
     @model_validator(mode="after")
     def validate_quantity(self) -> Self:
-        if self.entry_kind == "receipt" and self.quantity <= 0:
-            raise ValueError("receipt quantity must be positive")
+        if self.entry_kind in ("receipt", "issue") and self.quantity <= 0:
+            raise ValueError(f"{self.entry_kind} quantity must be positive")
         if self.entry_kind == "correction" and self.quantity == 0:
             raise ValueError("correction quantity must be non-zero")
         return self

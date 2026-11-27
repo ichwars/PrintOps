@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
+import { useId, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Checkbox, NumberField , FileInput, LegacyDatePicker, LegacySelect, TextArea, TextField} from '../components/ui';
+import { Checkbox, NumberField, FileInput, LegacyDatePicker, LegacySelect, Select, TextArea, TextField } from '../components/ui';
 import {
   FolderKanban,
   Loader2,
@@ -34,6 +34,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency';
 import { eligibleParents } from '../utils/projectTree';
+import type { ProductionProjectDraft, ProjectsLocationState } from '../utils/projectLinks';
 import { ProjectGroup } from '../components/ProjectGroup';
 import { useProjectGroups } from '../hooks/useProjectGroups';
 
@@ -53,6 +54,7 @@ type TFunction = (key: string, options?: Record<string, unknown>) => string;
 
 interface ProjectModalProps {
   project?: ProjectListItem;
+  draft?: ProductionProjectDraft;
   onClose: () => void;
   onSave: (data: ProjectCreate | ProjectUpdate) => void;
   isLoading: boolean;
@@ -60,12 +62,13 @@ interface ProjectModalProps {
   t: TFunction;
 }
 
-export function ProjectModal({ project, onClose, onSave, isLoading, currencySymbol, t }: ProjectModalProps) {
-  const [name, setName] = useState(project?.name || '');
-  const [description, setDescription] = useState(project?.description || '');
+export function ProjectModal({ project, draft, onClose, onSave, isLoading, currencySymbol, t }: ProjectModalProps) {
+  const headingId = useId();
+  const [name, setName] = useState(project?.name ?? draft?.name ?? '');
+  const [description, setDescription] = useState(project?.description ?? draft?.description ?? '');
   const [color, setColor] = useState(project?.color || PROJECT_COLORS[0]);
   const [targetCount, setTargetCount] = useState(project?.target_count?.toString() || '');
-  const [targetPartsCount, setTargetPartsCount] = useState(project?.target_parts_count?.toString() || '');
+  const [targetPartsCount, setTargetPartsCount] = useState((project?.target_parts_count ?? draft?.target_parts_count)?.toString() ?? '');
   const [status, setStatus] = useState(project?.status || 'active');
   const [tags, setTags] = useState((project as ProjectListItem & { tags?: string })?.tags || '');
   const [dueDate, setDueDate] = useState((project as ProjectListItem & { due_date?: string })?.due_date?.split('T')[0] || '');
@@ -73,7 +76,18 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
   const [budget, setBudget] = useState(project?.budget?.toString() || '');
   const [url, setUrl] = useState(project?.url || '');
   const [urlError, setUrlError] = useState<string | null>(null);
-  const [parentId, setParentId] = useState<number | null>(project?.parent_id ?? null);
+  const [parentId, setParentId] = useState<number | null>(project?.parent_id ?? draft?.parent_id ?? null);
+  const [productionLocationId, setProductionLocationId] = useState(0);
+  const productionArticleId = draft?.productionArticleId;
+  const savedLocationId = project?.production_output?.location_id;
+  const { hasPermission } = useAuth();
+  const locations = useQuery({
+    queryKey: ['warehouse', 'locations'],
+    queryFn: api.getLocations,
+    enabled: !!productionArticleId || (!!savedLocationId && hasPermission('inventory:read')),
+  });
+  const needsLocation = !!productionArticleId && !productionLocationId;
+  const destinationLabel = t('orders.runtimeDomain.warehouseGoods.destination');
   const queryClient = useQueryClient();
 
   // Unfiltered on purpose: a completed or archived project is still a legal
@@ -123,6 +137,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (needsLocation) return;
     const trimmedUrl = url.trim();
     if (trimmedUrl && !/^https?:\/\//i.test(trimmedUrl)) {
       setUrlError(t('projects.urlInvalid'));
@@ -146,7 +161,10 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
       // The API reads 0 as "remove the parent" — null would be indistinguishable
       // from the field having been omitted (#1264).
       parent_id: project ? (parentId ?? 0) : (parentId ?? undefined),
-      ...(project && { status }),
+      ...(project && status !== project.status && { status }),
+      ...(productionArticleId && {
+        production_output: { article_id: productionArticleId, location_id: productionLocationId },
+      }),
     });
   };
 
@@ -155,10 +173,12 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
     // modal stays inside the viewport on short screens (#1642). Outer p-4 is
     // 1rem each side, hence the 2rem subtraction below.
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-bambu-dark-secondary rounded-lg w-full max-w-md border border-bambu-dark-tertiary flex flex-col max-h-[calc(100vh-2rem)]">
+      <div role="dialog" aria-modal="true" aria-labelledby={headingId}
+        className={`bg-bambu-dark-secondary rounded-lg w-full max-w-md border border-bambu-dark-tertiary flex flex-col max-h-[calc(100vh-2rem)] ${draft ? '[&_.text-bambu-gray]:text-table-secondary' : ''}`}
+        onKeyDown={event => { if (event.key === 'Escape' && !isLoading) onClose(); }}>
         <div className="p-4 border-b border-bambu-dark-tertiary flex-shrink-0">
-          <h2 className="text-lg font-semibold text-white">
-            {project ? t('projects.editProject') : t('projects.newProject')}
+          <h2 id={headingId} className="text-lg font-semibold text-white">
+            {draft ? t('orders.runtimeDomain.warehouseReorder.prepareProduction') : project ? t('projects.editProject') : t('projects.newProject')}
           </h2>
         </div>
 
@@ -170,6 +190,9 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
             </label>
             <TextField
               type="text"
+              aria-label={t('common.name')}
+              autoFocus={Boolean(draft)}
+              maxLength={255}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
@@ -183,6 +206,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               {t('common.description')}
             </label>
             <TextArea
+              aria-label={t('common.description')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green resize-none"
@@ -190,6 +214,25 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
               rows={2}
             />
           </div>
+
+          {productionArticleId && (
+            <div>
+              <Select
+                label={destinationLabel}
+                value={productionLocationId}
+                placeholder={t('orders.runtimeDomain.warehouseGoods.choose')}
+                onValueChange={setProductionLocationId}
+                options={(locations.data ?? []).map((location) => ({ value: location.id, label: location.name }))}
+              />
+              {locations.isError && <p className="mt-1 text-sm text-status-error">{t('orders.runtimeDomain.warehouseGoods.error')}</p>}
+            </div>
+          )}
+          {savedLocationId && (
+            <div className="text-sm text-table-secondary">
+              <span className="block font-medium text-white">{destinationLabel}</span>
+              {locations.data?.find((location) => location.id === savedLocationId)?.name ?? `#${savedLocationId}`}
+            </div>
+          )}
 
           {/* #1155: External URL */}
           <div>
@@ -324,6 +367,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
                 {t('projects.targetParts')}
               </label>
               <NumberField
+                aria-label={t('projects.targetParts')}
                 value={targetPartsCount}
                 onChange={(e) => setTargetPartsCount(e.target.value)}
                 className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-2 text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
@@ -421,7 +465,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
             <Button type="button" variant="secondary" onClick={onClose}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" disabled={!name.trim() || isLoading}>
+            <Button type="submit" className={draft ? 'text-black!' : undefined} disabled={!name.trim() || isLoading || needsLocation}>
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : project ? (
@@ -895,10 +939,14 @@ function ProjectCard({ project, parentName, onClick, onEdit, onDelete, hasPermis
 export function ProjectsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission, user } = useAuth();
   const groups = useProjectGroups(user?.id ?? null);
+  const productionDraft = hasPermission('projects:create')
+    ? (location.state as ProjectsLocationState | null)?.productionDraft
+    : undefined;
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectListItem | undefined>();
   const [statusFilter, setStatusFilter] = useState<string>('active');
@@ -1005,11 +1053,19 @@ export function ProjectsPage() {
     );
   };
 
+  const closeProjectModal = () => {
+    setShowModal(false);
+    setEditingProject(undefined);
+    if (productionDraft) {
+      navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace: true, state: null });
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: (data: ProjectCreate) => api.createProject(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      setShowModal(false);
+      closeProjectModal();
       showToast(t('projects.toast.created'), 'success');
     },
     onError: (error: Error) => {
@@ -1020,8 +1076,11 @@ export function ProjectsPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: ProjectUpdate }) =>
       api.updateProject(id, data),
-    onSuccess: () => {
+    onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      if (project.production_output && project.status === 'completed') {
+        queryClient.invalidateQueries({ queryKey: ['warehouse-articles'] });
+      }
       setShowModal(false);
       setEditingProject(undefined);
       showToast(t('projects.toast.updated'), 'success');
@@ -1297,13 +1356,12 @@ export function ProjectsPage() {
       )}
 
       {/* Modal */}
-      {showModal && (
+      {(showModal || productionDraft) && (
         <ProjectModal
+          key={productionDraft ? location.key : (editingProject?.id ?? 'new')}
           project={editingProject}
-          onClose={() => {
-            setShowModal(false);
-            setEditingProject(undefined);
-          }}
+          draft={productionDraft}
+          onClose={closeProjectModal}
           onSave={handleSave}
           isLoading={createMutation.isPending || updateMutation.isPending}
           currencySymbol={currencySymbol}

@@ -4,6 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import delete, func, nullslast, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import (
@@ -20,7 +21,12 @@ from backend.app.core.permissions import Permission
 from backend.app.models.archive import PrintArchive
 from backend.app.models.print_log import PrintLogEntry
 from backend.app.schemas.print_log import PrintLogEntrySchema, PrintLogEntryUpdate, PrintLogResponse
-from backend.app.services.print_log_run import project_latest_finished_run, run_visibility_conditions
+from backend.app.services.print_log_run import (
+    lock_print_run,
+    production_receipt,
+    project_latest_finished_run,
+    run_visibility_conditions,
+)
 from backend.app.utils.safe_path import PathTraversalError, safe_join_under
 
 logger = logging.getLogger(__name__)
@@ -163,10 +169,16 @@ async def clear_print_log(
 ):
     """Clear the print log.
 
-    Only deletes log entries. Archives and queue items are never touched.
+    Only deletes logs without a stock receipt. Archives and queue items stay intact.
     """
     visible = run_visibility_conditions(access)
-    result = await db.execute(delete(PrintLogEntry).where(*visible))
+    try:
+        result = await db.execute(delete(PrintLogEntry).where(*visible, ~production_receipt(PrintLogEntry.id).exists()))
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(
+            409, "Stock receipts changed during deletion. Reload the print log and try again."
+        ) from error
     deleted = result.rowcount
     await db.commit()
 
@@ -204,6 +216,10 @@ async def delete_print_log_entry(
     if not auth_result.can_access_all and (auth_result.user is None or entry.created_by_id != auth_result.user.id):
         raise HTTPException(403, "You can only delete your own print log entries")
 
+    if not await lock_print_run(db, entry_id):
+        raise HTTPException(404, "Print log entry not found")
+    if await db.scalar(production_receipt(entry_id)) is not None:
+        raise HTTPException(409, "Print runs received into stock are retained with their receipts.")
     await db.delete(entry)
     await db.commit()
 
@@ -292,6 +308,11 @@ async def update_print_log_entry(
         new_status = payload["status"]
         if new_status not in _STATUS_KEYS:
             raise HTTPException(400, f"Unknown status: {new_status!r}")
+        if new_status != entry.status:
+            if not await lock_print_run(db, entry_id):
+                raise HTTPException(404, "Print log entry not found")
+            if await db.scalar(production_receipt(entry_id)) is not None:
+                raise HTTPException(409, "The result of a print run received into stock is retained with its receipt.")
         entry.status = new_status
 
     if entry.archive_id is not None:

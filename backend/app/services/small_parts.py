@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -24,6 +25,10 @@ class InsufficientSmallPartStock(ValueError):
         super().__init__(f"Material {small_part_id} has insufficient stock ({available} available)")
 
 
+class SmallPartInactive(ValueError):
+    pass
+
+
 class SmallPartUnitChangeNotAllowed(ValueError):
     pass
 
@@ -37,6 +42,24 @@ class SmallPartBalance:
     physical: Decimal
     reserved: Decimal
     available: Decimal
+
+
+@dataclass(frozen=True)
+class StockUsage:
+    last_used_at: datetime | None = None
+    consumed: Decimal = Decimal("0")
+
+
+async def usage_for_parts(session: AsyncSession, ids: list[int]) -> dict[int, StockUsage]:
+    if not ids:
+        return {}
+    entries = SmallPartLedgerEntry
+    rows = await session.execute(
+        select(entries.small_part_id, func.max(entries.created_at), func.sum(entries.physical_delta))
+        .where(entries.small_part_id.in_(ids), entries.entry_kind == "issue")
+        .group_by(entries.small_part_id)
+    )
+    return {identifier: StockUsage(last_used, -quantity) for identifier, last_used, quantity in rows}
 
 
 @dataclass(frozen=True)
@@ -71,7 +94,16 @@ async def append_ledger_entry(
     reference_type: str | None = None,
     reference_id: int | None = None,
     actor_id: int | None = None,
+    require_active: bool = False,
 ) -> SmallPartLedgerEntry:
+    # Lock before checking for a replay or reading the balance. A no-op write
+    # also serializes concurrent SQLite stock writes without changing material metadata.
+    await session.execute(
+        update(SmallPart)
+        .where(SmallPart.id == small_part_id)
+        .values(id=SmallPart.id, updated_at=SmallPart.updated_at)
+        .execution_options(synchronize_session=False)
+    )
     existing = await session.scalar(
         select(SmallPartLedgerEntry).where(SmallPartLedgerEntry.idempotency_key == idempotency_key)
     )
@@ -90,9 +122,13 @@ async def append_ledger_entry(
             raise SmallPartIdempotencyConflict("Idempotency key belongs to a different stock command")
         return existing
 
-    part = await session.scalar(select(SmallPart).where(SmallPart.id == small_part_id).with_for_update())
+    part = await session.scalar(
+        select(SmallPart).where(SmallPart.id == small_part_id).execution_options(populate_existing=True)
+    )
     if part is None:
         raise SmallPartNotFound(small_part_id)
+    if require_active and not part.is_active:
+        raise SmallPartInactive(f"Material {small_part_id} is inactive")
 
     current = await get_balance(session, small_part_id)
     next_physical = current.physical + Decimal(physical_delta)

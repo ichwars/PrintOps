@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.app.api.routes import filament_profile_defaults, inventory_usage
+from backend.app.api.routes import filament_profile_defaults, inventory_stocktake, inventory_usage
 from backend.app.api.routes._spoolman_helpers import _spoolman_is_enabled as _spoolman_is_enabled
 from backend.app.core.auth import (
     OwnershipAccess,
@@ -104,12 +104,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 router.include_router(filament_profile_defaults.router)
 router.include_router(inventory_usage.router)
+router.include_router(inventory_stocktake.router)
 
 # Bounded read size for the CSV import body so a chunked upload with no
 # Content-Length can't stream past the cap into memory before we notice.
 _CSV_UPLOAD_CHUNK_BYTES = 64 * 1024
 
-# FilamentColors.xyz API
 FILAMENT_COLORS_API = "https://filamentcolors.xyz/api"
 
 

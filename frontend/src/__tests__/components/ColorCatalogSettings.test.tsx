@@ -80,9 +80,8 @@ describe('ColorCatalogSettings — Add form (#1154)', () => {
     fireEvent.change(screen.getByPlaceholderText('EC984C,#6CD4BC,A66EB9,D87694'), {
       target: { value: 'EC984C,#6CD4BC,A66EB9,D87694' },
     });
-    // The manufacturer filter is the first combobox; the add-form effect
-    // picker is the last one.
-    const effectSelectAdd = screen.getAllByRole('combobox').at(-1)!;
+    // Open the add-form effect picker.
+    const effectSelectAdd = screen.getByRole('combobox', { name: 'Effect' });
     fireEvent.click(effectSelectAdd);
     fireEvent.click(screen.getByRole('option', { name: /sparkle/i }));
 
@@ -112,7 +111,7 @@ describe('ColorCatalogSettings — Add form (#1154)', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Add$/i }));
-    const effectSelect = screen.getAllByRole('combobox').at(-1)!;
+    const effectSelect = screen.getByRole('combobox', { name: 'Effect' });
     fireEvent.click(effectSelect);
     const options = screen.getAllByRole('option').map((option) => option.textContent?.toLowerCase());
 
@@ -169,7 +168,7 @@ describe('ColorCatalogSettings — inline edit (#1154)', () => {
     ) as HTMLInputElement[];
     expect(extraColorsInputs[0].value).toBe('aabbcc,ddeeff');
 
-    // The final combobox is the inline effect editor and reflects the seed.
-    expect(screen.getAllByRole('combobox').at(-1)).toHaveTextContent(/galaxy/i);
+    // The inline effect editor reflects the seed.
+    expect(screen.getByRole('combobox', { name: 'Effect' })).toHaveTextContent(/galaxy/i);
   });
 });

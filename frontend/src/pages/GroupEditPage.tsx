@@ -7,8 +7,10 @@ import { api } from '../api/client';
 import type { Permission, PermissionCategory } from '../api/client';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { dashboardStyles } from '../components/dashboardStyles';
 import { useToast } from '../contexts/ToastContext';
-import { Checkbox, TextField } from '../components/ui';
+import { useIsSidebarCompact } from '../hooks/useIsSidebarCompact';
+import { Checkbox, ScrollArea, TextField } from '../components/ui';
 
 export function GroupEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +18,7 @@ export function GroupEditPage() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const isSidebarCompact = useIsSidebarCompact();
   const isEditing = Boolean(id);
 
   const [name, setName] = useState('');
@@ -161,16 +164,19 @@ export function GroupEditPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className={`flex min-h-0 flex-col ${isSidebarCompact ? 'h-[calc(100dvh-3.5rem)]' : 'h-dvh'}`}>
+      <ScrollArea className="min-h-0 flex-1" scrollbar="thin">
+      <div className={`${dashboardStyles.page} mx-auto max-w-5xl space-y-4`}>
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/settings?tab=users')}
+          aria-label={t('common.back')}
           className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-bold text-white">
+        <h1 className={dashboardStyles.title}>
           {isEditing ? t('groups.editor.title') : t('groups.editor.createTitle')}
         </h1>
       </div>
@@ -250,7 +256,7 @@ export function GroupEditPage() {
 
             return (
               <Card key={category.name}>
-                <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary rounded-t-xl">
+                <div className={`${dashboardStyles.cardHeader} flex items-center justify-between gap-2 rounded-t-xl`}>
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
@@ -284,9 +290,9 @@ export function GroupEditPage() {
                         onChange={() => togglePermission(perm.value)}
                       />
                       <span className="flex flex-col">
-                        <span className="text-sm text-bambu-gray">{perm.label}</span>
+                        <span className="text-sm text-white">{perm.label}</span>
                         {perm.value === 'websocket:connect' && (
-                          <span className="text-xs text-bambu-gray/60">
+                          <span className="text-xs text-table-secondary">
                             {t('groups.editor.websocketHint')}
                           </span>
                         )}
@@ -300,11 +306,9 @@ export function GroupEditPage() {
         </div>
       )}
 
-      {/* Spacer for fixed bottom bar */}
-      <div className="h-16" />
-
-      {/* Fixed bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 px-6 py-3 bg-bambu-dark-secondary border-t border-bambu-dark-tertiary flex items-center justify-center gap-3">
+      </div>
+      </ScrollArea>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary px-4 py-3 sm:px-6">
         <Button variant="secondary" onClick={() => navigate('/settings?tab=users')}>
           {t('common.cancel')}
         </Button>

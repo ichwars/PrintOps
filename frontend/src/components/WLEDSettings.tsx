@@ -6,7 +6,8 @@ import { api, ApiError } from '../api/client';
 import type { WLEDConfig, WLEDPreset, WLEDPresets } from '../api/client';
 import { Checkbox, LegacySelect, NumberField, TextField } from './ui';
 import { Button } from './Button';
-import { Card, CardContent, CardHeader } from './Card';
+import { dashboardStyles } from './dashboardStyles';
+import { SettingsDashboardCard } from './settings/SettingsDashboardCard';
 import { useToast } from '../contexts/ToastContext';
 import { registerSettingsSearch } from '../lib/settingsSearch';
 
@@ -192,192 +193,173 @@ export function WLEDSettings() {
     }));
   };
 
-  if (isLoading) return <p className="text-bambu-gray">{t('common.loading')}</p>;
-
   const configuredCount = mappingKeys.filter((key) => config.presets[key] !== null).length;
 
   return (
-    <div id="card-wled" className="max-w-7xl space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Lightbulb className="w-5 h-5 text-yellow-400" />
-          {t('wled.title')}
-        </h2>
-        <p className="mt-2 text-sm text-bambu-gray">{t('wled.description')}</p>
-      </div>
-
-      {!printers.length ? (
-        <Card>
-          <CardContent className="space-y-4">
-            <label className="flex items-center gap-3 text-white opacity-60">
-              <Checkbox ariaLabel={t('wled.enabled')} checked={false} disabled className="h-5 w-5 accent-bambu-green" />
-              {t('wled.enabled')}
-            </label>
-            <p className="text-sm text-bambu-gray">{t('wled.noPrinters')}</p>
-          </CardContent>
-        </Card>
+    <SettingsDashboardCard id="card-wled" title={t('wled.title')} icon={Lightbulb}>
+      <p>{t('wled.description')}</p>
+      {isLoading ? (
+        <p role="status">{t('common.loading')}</p>
+      ) : !printers.length ? (
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 text-white">
+            <Checkbox ariaLabel={t('wled.enabled')} checked={false} disabled />
+            {t('wled.enabled')}
+          </label>
+          <p>{t('wled.noPrinters')}</p>
+        </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-5 items-start">
-            <Card>
-              <CardHeader>
-                <h3 className="font-semibold text-white">{t('wled.connectionSection')}</h3>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <section className="min-w-0 space-y-4 rounded-lg border border-bambu-dark-tertiary p-3 sm:p-4">
+              <h3 className={dashboardStyles.cardTitle}>{t('wled.connectionSection')}</h3>
+              <label className="block">
+                <span className="block text-sm text-table-secondary mb-1">{t('wled.printer')}</span>
+                <LegacySelect
+                  aria-label={t('wled.printer')}
+                  value={printerId ?? ''}
+                  onChange={(event) => {
+                    contextGeneration.current += 1;
+                    selectedPrinterId.current = Number(event.target.value);
+                    setPrinterId(selectedPrinterId.current);
+                  }}
+                  className="min-w-0 text-sm"
+                >
+                  {printers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </LegacySelect>
+              </label>
+
+              <label className="flex items-center gap-3 text-white">
+                <Checkbox
+                  ariaLabel={t('wled.enabled')}
+                  checked={config.enabled}
+                  onChange={(event) => setConfig((current) => ({ ...current, enabled: event.target.checked }))}
+                />
+                {t('wled.enabled')}
+              </label>
+
+              <fieldset
+                disabled={!config.enabled}
+                className="min-w-0 space-y-4"
+              >
                 <label className="block">
-                  <span className="block text-sm text-bambu-gray mb-1">{t('wled.printer')}</span>
-                  <LegacySelect
-                    aria-label={t('wled.printer')}
-                    value={printerId ?? ''}
+                  <span className="block text-sm text-table-secondary mb-1">{t('wled.baseUrl')}</span>
+                  <TextField
+                    type="url"
+                    aria-label={t('wled.baseUrl')}
+                    value={config.base_url ?? ''}
                     onChange={(event) => {
                       contextGeneration.current += 1;
-                      selectedPrinterId.current = Number(event.target.value);
-                      setPrinterId(selectedPrinterId.current);
+                      currentUrl.current = event.target.value.trim();
+                      setConfig((current) => ({ ...current, base_url: event.target.value }));
+                      setConnection({ state: 'idle' });
                     }}
-                    className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white"
-                  >
-                    {printers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </LegacySelect>
-                </label>
-
-                <label className="flex items-center gap-3 text-white">
-                  <Checkbox
-                    ariaLabel={t('wled.enabled')}
-                    checked={config.enabled}
-                    onChange={(event) => setConfig((current) => ({ ...current, enabled: event.target.checked }))}
-                    className="h-5 w-5 accent-bambu-green"
+                    placeholder="http://wled.local"
+                    className="min-w-0 text-sm"
                   />
-                  {t('wled.enabled')}
                 </label>
-
-                <fieldset
-                  disabled={!config.enabled}
-                  className={`space-y-3 transition-opacity ${config.enabled ? '' : 'opacity-60'}`}
-                >
-                  <label className="block">
-                    <span className="block text-sm text-bambu-gray mb-1">{t('wled.baseUrl')}</span>
-                    <TextField
-                      type="url"
-                      aria-label={t('wled.baseUrl')}
-                      value={config.base_url ?? ''}
-                      onChange={(event) => {
-                        contextGeneration.current += 1;
-                        currentUrl.current = event.target.value.trim();
-                        setConfig((current) => ({ ...current, base_url: event.target.value }));
-                        setConnection({ state: 'idle' });
-                      }}
-                      placeholder="http://wled.local"
-                      className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white"
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={() => connectionMutation.mutate(nextRequest('connection', config.base_url?.trim() ?? ''))}
-                      disabled={!config.base_url?.trim() || connectionMutation.isPending}
-                    >
-                      {connectionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      {t('wled.testConnection')}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => presetsMutation.mutate(nextRequest('presets', config.base_url?.trim() ?? ''))}
-                      disabled={!config.base_url?.trim() || presetsMutation.isPending}
-                    >
-                      {presetsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      {t('wled.loadPresets')}
-                    </Button>
-                  </div>
-
-                  <div aria-live="polite" className="flex items-center gap-2 text-sm">
-                    {connection.state === 'idle' && <><Circle className="w-3 h-3 text-bambu-gray" /><span className="text-bambu-gray">{t('wled.notTested')}</span></>}
-                    {connection.state === 'online' && <><CheckCircle2 className="w-4 h-4 text-green-400" /><span className="text-green-400">{t('wled.connected', { name: connection.name ? ` (${connection.name})` : '', version: connection.version ? ` · v${connection.version}` : '' })}</span></>}
-                    {connection.state === 'offline' && <><XCircle className="w-4 h-4 text-red-400" /><span className="text-red-400">{t('wled.notReachable')}</span></>}
-                  </div>
-
-                  <div aria-live="polite" className="text-sm">
-                    {presetState === 'online' && <span className="text-green-400">{t('wled.online', { count: presets.length })}</span>}
-                    {presetState === 'offline' && <span className="text-red-400">{t('wled.offlineHint')}</span>}
-                  </div>
-                </fieldset>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <h3 className="font-semibold text-white">{t('wled.mappingSection')}</h3>
-                  <p className="text-xs text-bambu-gray">
-                    {t('wled.mappingSummary', { configured: configuredCount, disabled: mappingKeys.length - configuredCount })}
-                  </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => connectionMutation.mutate(nextRequest('connection', config.base_url?.trim() ?? ''))}
+                    disabled={!config.base_url?.trim() || connectionMutation.isPending}
+                  >
+                    {connectionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    {t('wled.testConnection')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => presetsMutation.mutate(nextRequest('presets', config.base_url?.trim() ?? ''))}
+                    disabled={!config.base_url?.trim() || presetsMutation.isPending}
+                  >
+                    {presetsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    {t('wled.loadPresets')}
+                  </Button>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-4 text-xs text-bambu-gray">{t('wled.presetSegmentHint')}</p>
-                <fieldset
-                  disabled={!config.enabled}
-                  className={`space-y-5 transition-opacity ${config.enabled ? '' : 'opacity-60'}`}
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {mappingKeys.map((key) => {
-                      const selected = config.presets[key];
-                      const missing = selected !== null && !presets.some((preset) => preset.id === selected);
-                      return (
-                        <div key={key}>
-                          <span className="block text-sm text-bambu-gray mb-1">{t(`wled.status.${key}`)}</span>
-                          <div className="flex gap-2">
-                            <LegacySelect
-                              aria-label={t(`wled.status.${key}`)}
-                              value={selected ?? ''}
-                              onChange={(event) => setPreset(key, event.target.value)}
-                              className="min-w-0 flex-1 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white"
-                            >
-                              <option value="">{t('wled.noPreset')}</option>
-                              {missing && <option value={selected!}>{t('wled.savedUnavailable', { id: selected })}</option>}
-                              {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name} ({preset.id})</option>)}
-                            </LegacySelect>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              aria-label={`${t('wled.testPreset')} ${t(`wled.status.${key}`)}`}
-                              onClick={() => selected !== null && presetTestMutation.mutate({
-                                ...nextRequest('presetTest', config.base_url?.trim() ?? ''), presetId: selected,
-                              })}
-                              disabled={selected === null || presetTestMutation.isPending}
-                            >
-                              <Play className="w-3 h-3" />
-                              {t('wled.testPreset')}
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
 
-                  <label className="block max-w-xs">
-                    <span className="block text-sm text-bambu-gray mb-1">{t('wled.finishedTimeout')}</span>
-                    <NumberField
-                      aria-label={t('wled.finishedTimeout')}
-                      min="0"
-                      max="86400"
-                      placeholder="0"
-                      value={config.finished_timeout_seconds ?? 0}
-                      onChange={(event) => setConfig((current) => ({
-                        ...current,
-                        finished_timeout_seconds: Number(event.target.value),
-                      }))}
-                      className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white"
-                    />
-                    <span className="block text-xs text-bambu-gray mt-1">{t('wled.finishedTimeoutHint')}</span>
-                  </label>
-                </fieldset>
-              </CardContent>
-            </Card>
+                <div aria-live="polite" className="flex flex-wrap items-center gap-2 text-sm">
+                  {connection.state === 'idle' && <><Circle className="w-3 h-3 text-table-secondary" /><span className="text-table-secondary">{t('wled.notTested')}</span></>}
+                  {connection.state === 'online' && <><CheckCircle2 className="w-4 h-4 text-green-800 dark:text-green-300" /><span className="text-green-800 dark:text-green-300">{t('wled.connected', { name: connection.name ? ` (${connection.name})` : '', version: connection.version ? ` · v${connection.version}` : '' })}</span></>}
+                  {connection.state === 'offline' && <><XCircle className="w-4 h-4 text-red-700 dark:text-red-300" /><span className="text-red-700 dark:text-red-300">{t('wled.notReachable')}</span></>}
+                </div>
+
+                <div aria-live="polite" className="text-sm">
+                  {presetState === 'online' && <span className="text-green-800 dark:text-green-300">{t('wled.online', { count: presets.length })}</span>}
+                  {presetState === 'offline' && <span className="text-red-700 dark:text-red-300">{t('wled.offlineHint')}</span>}
+                </div>
+              </fieldset>
+            </section>
+
+            <section className="min-w-0 space-y-4 rounded-lg border border-bambu-dark-tertiary p-3 sm:p-4">
+              <h3 className={dashboardStyles.cardTitle}>{t('wled.mappingSection')}</h3>
+              <p className="text-xs">
+                {t('wled.mappingSummary', { configured: configuredCount, disabled: mappingKeys.length - configuredCount })}
+              </p>
+              <p className="text-xs">{t('wled.presetSegmentHint')}</p>
+              <fieldset
+                disabled={!config.enabled}
+                className="min-w-0 space-y-4"
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {mappingKeys.map((key) => {
+                    const selected = config.presets[key];
+                    const missing = selected !== null && !presets.some((preset) => preset.id === selected);
+                    return (
+                      <div key={key} className="min-w-0">
+                        <span className="block text-sm text-table-secondary mb-1">{t(`wled.status.${key}`)}</span>
+                        <div className="flex gap-2">
+                          <LegacySelect
+                            aria-label={t(`wled.status.${key}`)}
+                            value={selected ?? ''}
+                            onChange={(event) => setPreset(key, event.target.value)}
+                            className="min-w-0 flex-1 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white"
+                          >
+                            <option value="">{t('wled.noPreset')}</option>
+                            {missing && <option value={selected!}>{t('wled.savedUnavailable', { id: selected })}</option>}
+                            {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name} ({preset.id})</option>)}
+                          </LegacySelect>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            aria-label={`${t('wled.testPreset')} ${t(`wled.status.${key}`)}`}
+                            onClick={() => selected !== null && presetTestMutation.mutate({
+                              ...nextRequest('presetTest', config.base_url?.trim() ?? ''), presetId: selected,
+                            })}
+                            disabled={selected === null || presetTestMutation.isPending}
+                          >
+                            <Play className="w-3 h-3" />
+                            {t('wled.testPreset')}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <label className="block max-w-xs">
+                  <span className="block text-sm text-table-secondary mb-1">{t('wled.finishedTimeout')}</span>
+                  <NumberField
+                    aria-label={t('wled.finishedTimeout')}
+                    min="0"
+                    max="86400"
+                    placeholder="0"
+                    value={config.finished_timeout_seconds ?? 0}
+                    onChange={(event) => setConfig((current) => ({
+                      ...current,
+                      finished_timeout_seconds: Number(event.target.value),
+                    }))}
+                    className="min-w-0 text-sm"
+                  />
+                  <span className="block text-xs text-table-secondary mt-1">{t('wled.finishedTimeoutHint')}</span>
+                </label>
+              </fieldset>
+            </section>
           </div>
 
           <div className="flex justify-end">
             <Button
+              className="text-black!"
               onClick={() => saveMutation.mutate({
                 ...nextRequest('save', config.base_url?.trim() ?? ''), config,
               })}
@@ -388,6 +370,6 @@ export function WLEDSettings() {
           </div>
         </>
       )}
-    </div>
+    </SettingsDashboardCard>
   );
 }

@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -114,6 +116,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
     saveMutation.mutate();
   };
 
+  const pagination = useTablePagination(locations, '', 15);
   if (!open) return null;
 
   const modalTitleId = 'locations-modal-title';
@@ -169,7 +172,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-bambu-dark-tertiary text-left text-bambu-gray">
+                <tr className="border-b border-bambu-dark-tertiary text-left text-table-secondary">
                   <th className="px-4 py-3 font-medium">{t('locations.name')}</th>
                   <th className="px-4 py-3 font-medium text-right">{t('locations.spools')}</th>
                   <th className="px-4 py-3 font-medium">{t('storageSensors.environment')}</th>
@@ -177,7 +180,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
                 </tr>
               </thead>
               <tbody>
-                {locations.map((loc) => (
+                {pagination.rows.map((loc) => (
                   <tr
                     key={loc.id}
                     className="border-b border-bambu-dark-tertiary/60 hover:bg-bambu-dark-tertiary/30 cursor-pointer"
@@ -189,13 +192,13 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
                     }}
                   >
                     <td className="px-4 py-3 text-white font-medium">{loc.name}</td>
-                    <td className="px-4 py-3 text-right text-bambu-gray">{loc.spool_count}</td>
+                    <td className="px-4 py-3 text-right text-table-secondary">{loc.spool_count}</td>
                     <td className="px-4 py-3"><StorageLocationSensors locationId={loc.id} locationName={loc.name} /></td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          className="p-1.5 text-bambu-gray hover:text-bambu-green rounded"
+                          className="p-1.5 text-table-secondary hover:text-accent-foreground rounded"
                           onClick={() => openEdit(loc)}
                           title={t('common.edit')}
                           aria-label={t('locations.editAria', { name: loc.name, defaultValue: `Edit ${loc.name}` })}
@@ -204,7 +207,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
                         </button>
                         <button
                           type="button"
-                          className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-40"
+                          className="p-1.5 text-table-secondary hover:text-red-700 dark:hover:text-red-300 rounded disabled:opacity-40"
                           disabled={loc.spool_count > 0}
                           onClick={() => setDeleteTarget(loc)}
                           title={loc.spool_count > 0 ? t('locations.deleteBlocked') : t('common.delete')}
@@ -220,6 +223,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
             </table>
           )}
         </div>
+        <TablePagination {...pagination.footer} />
       </div>
 
       {editorOpen && (

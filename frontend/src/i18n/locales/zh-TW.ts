@@ -220,10 +220,28 @@ export default {
       calculation: '計算',
       customers: '客戶',
       invoice: '發票',
+      "reorder": "補貨",
     },
   },
 
   orders: {
+    documentDetails: {
+      invoicePositions: "發票明細",
+      positions: "單據明細",
+      orderPositions: "訂單明細",
+      offerPositions: "報價明細",
+      noPositions: "沒有可顯示的單據明細。",
+      unitPriceNet: "未稅單價",
+      lineTotalNet: "未稅明細金額",
+    },
+    rowActions: {
+      openOrder: "開啟訂單",
+      openOffer: "開啟報價",
+      openDocument: "開啟單據",
+      cancelOrder: "取消訂單",
+      showOffers: "查看報價",
+      showInvoices: "查看發票",
+    },
     default: 'Default',
     businessProfile: { title: 'Business Profile', loading: 'Loading business profiles...', error: 'Unable to load business profiles.', empty: 'No business profiles yet.', permissionDenied: 'You do not have permission to view business profiles.', add: 'Add business profile', includeInactive: 'Include inactive profiles', profile: 'Profile', country: 'Country', currency: 'Currency', timezone: 'Timezone', billingMode: 'Billing mode', status: 'Status', actions: 'Actions', active: 'Active', inactive: 'Inactive', edit: 'Edit {{name}}', setDefault: 'Set {{name}} as default', activate: 'Activate {{name}}', deactivate: 'Deactivate {{name}}', delete: 'Delete {{name}}', deleteConfirm: 'Delete {{name}}? This cannot be undone.', dismiss: 'Dismiss', createTitle: 'Add business profile', editTitle: 'Edit business profile', identity: 'Identity', address: 'Address', taxAndBank: 'Tax and bank', localeSection: 'Locale', profileName: 'Profile name', legalName: 'Legal name', tradingName: 'Trading name', profileCountry: 'Profile country', street: 'Street', city: 'City', postalCode: 'Postal code', addAddress: 'Add address', removeAddress: 'Remove address {{number}}', defaultAddress: 'Default address {{number}}', taxIdKind: 'Tax ID kind', taxIdValue: 'Tax ID value', addTaxId: 'Add tax ID', removeTaxId: 'Remove tax ID {{number}}', primaryTaxId: 'Primary tax ID {{number}}', bankAccountLabel: 'Bank account label', accountHolder: 'Account holder', bankName: 'Bank name', bankCountry: 'Bank country', bankCurrency: 'Bank currency', iban: 'IBAN', bic: 'BIC', accountNumber: 'Account number', routingNumber: 'Routing number', defaultBankAccount: 'Default bank account {{number}}', addBankAccount: 'Add bank account', removeBankAccount: 'Remove bank account {{number}}', locale: 'Locale', save: 'Save business profile' },
     customers: { title: 'Customers', subtitle: 'Customer master data for the selected business profile.', businessProfile: 'Business profile', loading: 'Loading customers...', error: 'Unable to load customers.', noBusinessProfile: 'No active business profile is available.', empty: 'No customers yet.', customer: 'Customer', discount: 'Discount', permissionDenied: 'You do not have permission to view customers.', configureProfiles: 'Configure business profiles', add: 'Add customer', search: 'Search customers', statusFilter: 'Customer status', kindFilter: 'Customer kind', emptyFiltered: 'No customers match the current filters.', number: 'Number', name: 'Name', primaryContact: 'Primary contact', billingAddress: 'Billing address', actions: 'Actions', view: 'View details', viewAria: 'View {{name}}', editCustomer: 'Edit customer', editAria: 'Edit {{name}}', deleteCustomer: 'Delete customer', deleteAria: 'Delete {{name}}', deleteTitle: 'Delete {{name}}?', deleteConfirm: 'This customer will be permanently deleted.', pagination: '{{start}}-{{end}} of {{total}}', previous: 'Previous page', next: 'Next page' ,
@@ -554,7 +572,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -692,10 +715,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -708,42 +727,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -788,6 +788,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "根據過去 {{days}} 天記錄的庫存用量預測。",
+        "forecastDailyUsage": "平均每日用量",
+        "forecastProjectedStock": "{{days}} 天後的庫存",
+        "forecastDaysToMinimum": "距離最低庫存的天數",
+        "forecastMinimumReached": "已達最低庫存",
+        "forecastNoConsumption": "此期間無用量",
+        "forecastEmpty": "沒有啟用庫存追蹤的有效商品。",
+        "quickBookingSaved": "已儲存庫存異動。",
+        "articleCount": "{{count}} 件商品",
+        "articleCount_one": "{{count}} 件商品",
+        "articleCount_other": "{{count}} 件商品",
         "title": "Warehouse goods",
         "subtitle": "Sales articles, physical stock and reservations managed in PrintOps.",
         "search": "Search articles",
@@ -1597,6 +1608,31 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "reproduce": "追加生產",
+        "prepareProduction": "準備生產工單",
+        "productionProjectName": "補充生產 · {{name}}",
+        "productionProjectDescription": "商品 {{sku}}\n建議生產數量 {{quantity}}",
+        "colProduce": "待生產數量",
+        "purchasingTitle": "物料採購需求",
+        "productionTitle": "生產補充需求",
+        "shoppingList": "採購清單",
+        "shoppingListEmpty": "採購清單是空的。",
+        "addToShoppingList": "將 {{name}} 加入採購清單",
+        "onShoppingList": "{{name}} 已在採購清單中",
+        "addedToShoppingList": "已將 {{name}} 加入採購清單。",
+        "removeFromShoppingList": "從採購清單移除 {{name}}",
+        "shoppingListLoadError": "無法載入採購清單。",
+        "shoppingListSaveError": "無法更新採購清單。",
+        "title": "Reorder needs",
+        "subtitle": "透過追加生產補充成品庫存，並採購所需物料。",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "待生產成品",
+        "summaryMaterial": "待採購物料",
+        "summaryTotal": "Total",
+        "colSuggested": "建議採購數量"
       }
     },
 
@@ -2338,6 +2374,12 @@ export default {
   },
   // Common
   common: {
+    stockChecked: "已盤點",
+    confirmStockCheck: "確認盤點",
+    stockCheckDescription: "確認所選庫存已計數或秤重。",
+    stockCheckFailed: "無法確認盤點。請檢查所選庫存是否仍處於啟用狀態。",
+    unitShortPiece: "件",
+    scrollTableHorizontally: '水平捲動{{table}}表格',
     secretKept: '將保留已儲存的值。',
     secretReenter: '目的地已變更，請重新輸入認證資訊。',
     plusNMore: '另 {{count}} 個',
@@ -4765,6 +4807,7 @@ export default {
     messageTemplatesDescription: '自訂每個事件的通知訊息。',
     // API Keys section
     apiKeys: 'API 金鑰',
+    apiMetricsNoAccess: "你的帳戶沒有存取這些整合設定的權限。",
     apiKeysDescription: '建立 API 金鑰用於外部整合和 Webhook。',
     createKey: '建立金鑰',
     apiKeyCreated: 'API 金鑰建立成功',
@@ -5312,7 +5355,7 @@ export default {
     prometheusMetrics: 'Prometheus 指標',
     prometheusEndpointDescription: '在 <code>/api/v1/metrics</code> 公開印表機指標，用於Prometheus/Grafana監控。',
     bearerTokenOptional: 'Bearer權杖（可選）',
-    bearerTokenHint: '設定後，請求必須包含 <code>Authorization: Bearer <token></code>',
+    bearerTokenHint: '設定後，請求必須包含 <code>Authorization: Bearer &lt;token&gt;</code>',
     metricsConnectionStatus: '連線狀態',
     metricsPrinterState: '印表機狀態（空閒/列印中等）',
     metricsPrintProgress: '列印進度 0-100%',
@@ -10460,7 +10503,12 @@ useEmbedded: '使用檔案內建設定',
     noReadAccess: '您沒有查看庫存預測的權限。',
     noWriteAccess: '您沒有修改預測設定的權限。',
   },
-  suppliers: { navTitle: '供應商', title: '供應商', subtitle: '管理採購聯絡人和採購條款。', createTitle: '新增供應商', editTitle: '編輯供應商', searchLabel: '搜尋供應商', searchPlaceholder: '公司、聯絡人、電子郵件、客戶編號 …', activeFilter: '狀態', loading: '正在載入供應商 …', empty: '找不到相符的供應商。', noContact: '無聯絡資訊', leadTime: '預設交貨期：{{count}} 天', sections: { masterData: '基本資料', contactAddress: '聯絡方式與地址', procurement: '採購', internalNotes: '內部備註' }, fields: { name: '公司名稱', customerNumber: '客戶編號', active: '啟用供應商', contactName: '聯絡人', email: '電子郵件', phone: '電話', website: '網站', addressLine1: '地址行 1', addressLine2: '地址行 2', postalCode: '郵遞區號', city: '城市', countryCode: '國家代碼', paymentTerms: '付款條件', defaultLeadTime: '預設交貨期', internalNotes: '內部備註' }, filters: { active: '已啟用', inactive: '已停用', all: '全部供應商' }, actions: { create: '新增供應商', save: '儲存供應商', edit: '編輯 {{name}}', delete: '刪除供應商' }, validation: { nameRequired: '公司名稱為必填欄位。' }, errors: { load: '無法載入供應商。', save: '無法儲存供應商。', delete: '無法刪除供應商。', noReadPermission: '您沒有檢視供應商的權限。' } },
+  suppliers: { navTitle: '供應商', title: '供應商', subtitle: '管理採購聯絡人和採購條款。', createTitle: '新增供應商', editTitle: '編輯供應商', searchLabel: '搜尋供應商', searchPlaceholder: '公司、聯絡人、電子郵件、客戶編號 …', activeFilter: '狀態', loading: '正在載入供應商 …', empty: '找不到相符的供應商。', noContact: '無聯絡資訊', leadTime: '預設交貨期：{{count}} 天', sections: { masterData: '基本資料', contactAddress: '聯絡方式與地址', procurement: '採購', internalNotes: '內部備註' }, fields: { name: '公司名稱', customerNumber: '客戶編號', active: '啟用供應商', contactName: '聯絡人', email: '電子郵件', phone: '電話', website: '網站', addressLine1: '地址行 1', addressLine2: '地址行 2', postalCode: '郵遞區號', city: '城市', countryCode: '國家代碼', paymentTerms: '付款條件', defaultLeadTime: '預設交貨期', internalNotes: '內部備註' }, filters: { active: '已啟用', inactive: '已停用', all: '全部供應商' }, actions: { create: '新增供應商', save: '儲存供應商', edit: '編輯 {{name}}', delete: '刪除供應商' }, validation: { nameRequired: '公司名稱為必填欄位。' }, errors: { load: '無法載入供應商。', save: '無法儲存供應商。', delete: '無法刪除供應商。', noReadPermission: '您沒有檢視供應商的權限。' },
+  "pagination": "共 {{total}} 條，第 {{start}}–{{end}} 條",
+  "previous": "上一頁",
+  "next": "下一頁",
+  "emptyFiltered": "沒有符合目前篩選條件的供應商。",
+  "clearSearch": "清除搜尋" },
   storageSensors: {
     environment: "環境",
     manage: "感測器",

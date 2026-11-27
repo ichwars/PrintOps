@@ -111,7 +111,7 @@ class PreviewBoundary extends Component<{ resetKey: string; failureMessage: stri
 
   render() {
     if (this.state.error) {
-      return <div role="alert" className="flex min-h-[520px] items-center justify-center rounded-xl border border-red-500/40 bg-bambu-dark-secondary p-6 text-center text-sm text-red-300">
+      return <div role="alert" className="flex min-h-[520px] items-center justify-center rounded-xl border border-red-500/40 bg-bambu-dark-secondary p-6 text-center text-sm text-red-700 dark:text-red-300">
         {this.props.failureMessage}
       </div>;
     }
@@ -317,10 +317,10 @@ export function DocumentLayoutSettings() {
   };
 
   if (authLoading) return <LoadingState />;
-  if (!canRead) return <div role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-5 text-amber-200">{t('settings.documentLayout.access.unavailable', 'Layout settings are unavailable without read permission.')}</div>;
+  if (!canRead) return <div role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-5 text-amber-900 dark:text-amber-200">{t('settings.documentLayout.access.unavailable', 'Layout settings are unavailable without read permission.')}</div>;
   if (profilesQuery.isLoading || catalogQuery.isLoading || samplesQuery.isLoading) return <LoadingState />;
   if (profilesQuery.isError || catalogQuery.isError || samplesQuery.isError || layoutsQuery.isError || detailQuery.isError) {
-    return <div role="alert" className="rounded-xl border border-red-500/40 bg-red-500/10 p-5 text-red-200">
+    return <div role="alert" className="rounded-xl border border-red-500/40 bg-red-500/10 p-5 text-red-800 dark:text-red-200">
       <p>{t('settings.documentLayout.errors.load', 'The layout workspace could not be loaded.')}</p>
       <Button className="mt-3" variant="secondary" onClick={() => void Promise.all([profilesQuery.refetch(), catalogQuery.refetch(), samplesQuery.refetch(), layoutsQuery.refetch(), detailQuery.refetch()])}><RefreshCw className="h-4 w-4" />{t('settings.documentLayout.actions.retry', 'Retry')}</Button>
     </div>;
@@ -351,7 +351,7 @@ export function DocumentLayoutSettings() {
       onSourceChange={setSource}
     />
 
-    {!canManage ? <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-200"><strong>{t('settings.documentLayout.access.readOnly', 'Read only')}</strong> - {t('settings.documentLayout.access.readOnlyHint', 'Layouts and previews can be inspected. Changes and publication require management permission.')}</div> : null}
+    {!canManage ? <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-900 dark:text-blue-200"><strong>{t('settings.documentLayout.access.readOnly', 'Read only')}</strong> - {t('settings.documentLayout.access.readOnlyHint', 'Layouts and previews can be inspected. Changes and publication require management permission.')}</div> : null}
 
     {!detail && selectedLayout ? <LoadingState /> : !detail ? <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
       <h2 className="font-semibold text-white">{t('orders.runtimeDomain.documentLayoutExtras.noLayout')}</h2>
@@ -376,8 +376,8 @@ export function DocumentLayoutSettings() {
         onOpenHistory={() => setHistoryOpen(true)}
       />
 
-      {conflict ? <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200"><AlertTriangle className="h-4 w-4" /><span className="min-w-0 flex-1">{t('settings.documentLayout.errors.conflict', 'This draft was changed in another session.')}</span><Button size="sm" variant="secondary" onClick={() => void refreshDetail()}>{t('settings.documentLayout.errors.reload', 'Load latest version')}</Button></div> : null}
-      {actionError && !conflict ? <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{actionError}</div> : null}
+      {conflict ? <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"><AlertTriangle className="h-4 w-4" /><span className="min-w-0 flex-1">{t('settings.documentLayout.errors.conflict', 'This draft was changed in another session.')}</span><Button size="sm" variant="secondary" onClick={() => void refreshDetail()}>{t('settings.documentLayout.errors.reload', 'Load latest version')}</Button></div> : null}
+      {actionError && !conflict ? <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">{actionError}</div> : null}
 
       <main className="grid min-w-0 gap-4 min-[900px]:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <div className="min-w-0 min-[900px]:min-w-[680px]">

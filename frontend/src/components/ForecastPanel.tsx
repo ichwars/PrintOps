@@ -1,3 +1,5 @@
+import { TablePagination } from './ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useState, useMemo, useEffect, useId } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +29,7 @@ import {
 import { ProcurementOffersEditor } from './warehouse/ProcurementOffersEditor';
 import { MeasuredResponsiveContainer } from './charts/MeasuredResponsiveContainer';
 import { ShoppingListClearButton } from './ShoppingListClearButton';
+import { GlobalLeadTimeSetting } from './forecast/GlobalLeadTimeSetting';
 import { groupStockSpools, skuKey, skuLabel, type SkuGroup } from '../utils/forecastStock';
 import { parseUTCDate } from '../utils/date';
 
@@ -283,6 +286,7 @@ export function ForecastPanel({ spools, spoolmanMode = false }: { spools: Invent
     });
     return arr;
   }, [forecasts, sortKey, sortDir, materialFilter, brandFilter]);
+  const forecastPage = useTablePagination(sortedForecasts, JSON.stringify([sortKey, sortDir]));
 
   const alerts = useMemo(() => forecasts.filter((f) => !f.settings?.alerts_snoozed && (f.stockBreakAlert || f.reorderAlert)), [forecasts]);
 
@@ -456,7 +460,7 @@ export function ForecastPanel({ spools, spoolmanMode = false }: { spools: Invent
                 </tr>
               </thead>
               <tbody className="divide-y divide-bambu-dark-tertiary">
-                {sortedForecasts.map((f) => (
+                {forecastPage.rows.map((f) => (
                   <ForecastRow
                     key={f.group.key}
                     forecast={f}
@@ -476,6 +480,7 @@ export function ForecastPanel({ spools, spoolmanMode = false }: { spools: Invent
               </tbody>
             </table>
           </div>
+          <TablePagination {...forecastPage.footer} />
 
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-4 px-4 py-3 text-xs text-bambu-gray border-t border-bambu-dark-tertiary bg-bambu-dark-tertiary/20">
@@ -722,49 +727,6 @@ function UsageChart({ forecasts, days: maxDays, onDaysChange }: {
   );
 }
 
-// ── Global lead time setting (compact inline) ─────────────────────────────────
-
-function GlobalLeadTimeSetting({ value, onSave }: { value: number; onSave: (v: number) => void }) {
-  const { t } = useTranslation();
-  const [editing, setEditing] = useState(false);
-  const [input, setInput] = useState(String(value));
-
-  function save() {
-    const v = parseInt(input, 10);
-    if (isNaN(v) || v < 0) return;
-    onSave(v);
-    setEditing(false);
-  }
-
-  return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-bambu-dark-tertiary/40 rounded-lg border border-bambu-dark-tertiary text-xs text-bambu-gray">
-      <Info className="w-3.5 h-3.5 flex-shrink-0" aria-label={t('forecast.globalLeadTimeHint')} />
-      <span className="hidden sm:inline">{t('forecast.globalLeadTime')}:</span>
-      {editing ? (
-        <form className="flex items-center gap-1.5" onSubmit={(e) => { e.preventDefault(); save(); }}>
-          <NumberField
-            min={0} max={365}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="w-14 px-1.5 py-0.5 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-sm text-white focus:outline-none focus:border-bambu-green"
-            autoFocus
-          />
-          <span className="text-bambu-gray">d</span>
-          <button type="submit" className="px-2 py-0.5 bg-bambu-green text-white text-xs rounded hover:bg-bambu-green/80">{t('forecast.save')}</button>
-          <button type="button" onClick={() => setEditing(false)} className="text-xs text-bambu-gray hover:text-white">✕</button>
-        </form>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-white">{value}d</span>
-          <button onClick={() => { setInput(String(value)); setEditing(true); }} className="p-0.5 text-bambu-gray hover:text-white rounded transition-colors">
-            <Edit2 className="w-3 h-3" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Forecast Row ──────────────────────────────────────────────────────────────
 
 function ForecastRow({
@@ -819,6 +781,7 @@ function ForecastRow({
   };
   // Use getSwatchStyle so a Clear (alpha=00) lead spool renders as a
   // checkerboard rather than collapsing to solid black (#1545).
+  const spoolPage = useTablePagination(f.group.spools, f.group.key);
   const colorStyle = f.group.spools[0]?.rgba ? getSwatchStyle(f.group.spools[0].rgba) : { backgroundColor: '#4B5563' };
   const remainPct = f.totalLabelG > 0 ? Math.round((f.totalRemainingG / f.totalLabelG) * 100) : 0;
 
@@ -1062,7 +1025,7 @@ function ForecastRow({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-bambu-dark-tertiary">
-                        {f.group.spools.map((s) => {
+                        {spoolPage.rows.map((s) => {
                           const remaining = Math.max(0, s.label_weight - s.weight_used);
                           const pct = s.label_weight > 0 ? (remaining / s.label_weight) * 100 : 0;
                           return (
@@ -1093,6 +1056,7 @@ function ForecastRow({
                       </tbody>
                     </table>
                   </div>
+                  <TablePagination {...spoolPage.footer} />
                 </div>
               )}
             </div>
@@ -1376,6 +1340,7 @@ function ShoppingListPanel({
   }, [forecasts]);
 
   // Resolve a forecast for each cart item
+  const shoppingPage = useTablePagination(items);
   const cartForecasts = useMemo(() =>
     items.map((item) => ({
       item,
@@ -1478,6 +1443,7 @@ function ShoppingListPanel({
           <p className="text-sm">{t('forecast.shoppingListEmpty')}</p>
         </div>
       ) : view === 'list' ? (
+        <div className="min-w-0">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -1493,7 +1459,7 @@ function ShoppingListPanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-bambu-dark-tertiary">
-              {items.map((item) => {
+              {shoppingPage.rows.map((item) => {
                 const lbl = skuLabel(item.brand, item.material, item.subtype, item.color_name);
                 const hasBreak = breakAlerts.some((a) => a.item.id === item.id);
                 const f = forecastMap.get(skuKey(item.material, item.subtype, item.brand, item.color_name)) ?? null;
@@ -1594,6 +1560,8 @@ function ShoppingListPanel({
               })}
             </tbody>
           </table>
+        </div>
+        <TablePagination {...shoppingPage.footer} />
         </div>
       ) : (
         /* Logistics view — exclude received items */

@@ -5,6 +5,7 @@ import { api } from '../../api/client';
 import { lexwareApi } from '../../api/client/lexware';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Select } from '../ui';
+import { SettingsDashboardCard } from './SettingsDashboardCard';
 import { LexwareConnectionDialog } from './lexware/LexwareConnectionDialog';
 import { LexwareConnectionCard } from './lexware/LexwareConnectionCard';
 import { LexwareResources } from './lexware/LexwareResources';
@@ -46,13 +47,11 @@ export function LexwareSettings() {
       {canReadProfiles && profiles.isPending && <p role="status">{text.loading}</p>}
       {profiles.isError && <div role="alert"><p>{lexwareError(profiles.error, text)}</p><Button variant="secondary" onClick={() => void profiles.refetch()}>{text.retry}</Button></div>}
       {profiles.isSuccess && profiles.data.length === 0 && <p>{text.emptyProfiles}</p>}
-      {connections.isSuccess && !selected && <section className="space-y-4 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary/40 px-6 py-8">
-        <Unplug className="h-8 w-8 text-bambu-green" aria-hidden />
-        <h2 className="text-lg font-semibold">{text.noConnections}</h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-bambu-gray">{text.intro}</p>
+      {connections.isSuccess && !selected && <SettingsDashboardCard id="card-lexware-empty" title={text.noConnections} icon={Unplug}>
+        <p className="max-w-2xl">{text.intro}</p>
         {availableProfiles.length > 0 && <Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden />{text.setupConnection}</Button>}
         <p className="flex items-center gap-2 text-xs text-bambu-gray"><ShieldCheck className="h-4 w-4" aria-hidden />{text.readonly}</p>
-      </section>}
+      </SettingsDashboardCard>}
       {selected && <>
         {((connections.data?.length ?? 0) > 1 || availableProfiles.length > 0) && <div className="flex flex-wrap items-end justify-between gap-3">
           {(connections.data?.length ?? 0) > 1 && <div className="w-full max-w-lg"><Select label={text.connectedProfiles} value={selected.id} onValueChange={setConnectionId}

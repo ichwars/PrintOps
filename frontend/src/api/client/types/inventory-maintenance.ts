@@ -102,6 +102,7 @@ export interface InventorySpool {
   note: string | null;
   added_full: boolean | null;
   last_used: string | null;
+  stock_checked_at?: string | null;
   last_dried_at?: string | null;
   last_dried_temp?: number | null;
   last_dried_hours?: number | null;

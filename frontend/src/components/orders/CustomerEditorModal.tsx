@@ -335,22 +335,22 @@ export function CustomerEditorModal({ customer, profiles, selectedProfileId, isS
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3" role="presentation">
-      <form ref={dialogRef} onKeyDown={onKeyDown} noValidate onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="customer-editor-title" tabIndex={-1} className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
+      <form ref={dialogRef} onKeyDown={onKeyDown} noValidate onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="customer-editor-title" tabIndex={-1} className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-xl">
         <header className="flex items-center justify-between border-b border-bambu-dark-tertiary px-5 py-4">
           <h2 id="customer-editor-title" className="text-lg font-semibold text-white">{editing ? t('orders.customerEditor.editTitle') : t('orders.customerEditor.createTitle')}</h2>
-          <button type="button" disabled={pending} onClick={onClose} title={t('common.close')} aria-label={t('common.close')} className="rounded p-2 text-bambu-gray hover:bg-bambu-dark hover:text-white disabled:opacity-50"><X className="h-5 w-5" /></button>
+          <button type="button" disabled={pending} onClick={onClose} title={t('common.close')} aria-label={t('common.close')} className="rounded p-2 text-table-secondary hover:bg-bambu-dark hover:text-white disabled:opacity-50"><X className="h-5 w-5" /></button>
         </header>
         <div data-testid="customer-editor-scroll-viewport" className="min-h-0 flex-1 overflow-y-auto">
           <fieldset disabled={pending} className="space-y-6 px-5 py-4">
-          {loadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadErrorMessage}</span>{onRetryLoad && <Button type="button" size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
-          {reloadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{reloadErrorMessage}</span><Button type="button" size="sm" variant="secondary" onClick={reload}>{t('common.retry')}</Button></div>}
-          {mapped.message && <div role="alert" className={`flex items-start gap-2 border p-3 text-sm ${mapped.conflict ? 'border-amber-500/40 bg-amber-500/10 text-amber-100' : 'border-red-500/40 bg-red-500/10 text-red-200'}`}><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{mapped.message}</span>{mapped.conflict && <Button type="button" size="sm" variant="secondary" onClick={reload}>{t('orders.customerEditor.reload')}</Button>}</div>}
+          {loadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{loadErrorMessage}</span>{onRetryLoad && <Button type="button" size="sm" variant="secondary" onClick={onRetryLoad}>{t('common.retry')}</Button>}</div>}
+          {reloadErrorMessage && <div role="alert" className="flex items-start gap-2 border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{reloadErrorMessage}</span><Button type="button" size="sm" variant="secondary" onClick={reload}>{t('common.retry')}</Button></div>}
+          {mapped.message && <div role="alert" className={`flex items-start gap-2 border p-3 text-sm ${mapped.conflict ? 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-100' : 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-200'}`}><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span className="flex-1">{mapped.message}</span>{mapped.conflict && <Button type="button" size="sm" variant="secondary" onClick={reload}>{t('orders.customerEditor.reload')}</Button>}</div>}
 
           <Section title={t('orders.customerEditor.identity')}>
             <div className="inline-flex rounded-md border border-bambu-dark-tertiary p-1" aria-label={t('orders.customerEditor.kind')}>
-              {(['company', 'person'] as const).map((kind) => <button key={kind} type="button" aria-pressed={draft.kind === kind} onClick={() => setDraft({ ...draft, kind })} className={`rounded px-3 py-1.5 text-sm ${draft.kind === kind ? 'bg-bambu-green text-black' : 'text-bambu-gray hover:text-white'}`}>{t(`orders.customerEditor.${kind}`)}</button>)}
+              {(['company', 'person'] as const).map((kind) => <button key={kind} type="button" aria-pressed={draft.kind === kind} onClick={() => setDraft({ ...draft, kind })} className={`rounded px-3 py-1.5 text-sm ${draft.kind === kind ? 'bg-bambu-green text-black' : 'text-table-secondary hover:text-white'}`}>{t(`orders.customerEditor.${kind}`)}</button>)}
             </div>
-            {errors.kind && <span role="alert" className="block text-xs text-red-300">{errors.kind}</span>}
+            {errors.kind && <span role="alert" className="block text-xs text-red-700 dark:text-red-300">{errors.kind}</span>}
             <div className="grid gap-3 md:grid-cols-2">
               <Field label={t('orders.customerEditor.displayName')} error={errors.display_name}><TextField ref={initialFocusRef} aria-label={t('orders.customerEditor.displayName')} value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} className={inputClass} /></Field>
               {draft.kind === 'company' && <Field label={t('orders.customerEditor.companyName')} error={errors.company_name}><TextField aria-label={t('orders.customerEditor.companyName')} value={draft.company_name ?? ''} onChange={(e) => setDraft({ ...draft, company_name: e.target.value })} className={inputClass} /></Field>}
@@ -443,7 +443,7 @@ function Section({ title, action, children }: { title: string; action?: React.Re
 }
 
 function Row({ remove, removeLabel, children }: { remove?: () => void; removeLabel: string; children: React.ReactNode }) {
-  return <div className="relative border-t border-bambu-dark-tertiary py-3 first:border-t-0">{remove && <button type="button" onClick={remove} title={removeLabel} aria-label={removeLabel} className="absolute right-0 top-2 rounded p-1.5 text-bambu-gray hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></button>}<div className={remove ? 'pr-9' : ''}>{children}</div></div>;
+  return <div className="relative border-t border-bambu-dark-tertiary py-3 first:border-t-0">{remove && <button type="button" onClick={remove} title={removeLabel} aria-label={removeLabel} className="absolute right-0 top-2 rounded p-1.5 text-table-secondary hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /></button>}<div className={remove ? 'pr-9' : ''}>{children}</div></div>;
 }
 
 function Add({ label, onClick }: { label: string; onClick: () => void }) {
@@ -455,7 +455,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   const control = isValidElement<{ 'aria-describedby'?: string; 'aria-invalid'?: boolean }>(children) && error
     ? cloneElement(children, { 'aria-describedby': errorId, 'aria-invalid': true })
     : children;
-  return <label className="block text-sm text-bambu-gray-light">{label}{control}{error && <span id={errorId} role="alert" className="mt-1 block text-xs text-red-300">{error}</span>}</label>;
+  return <label className="block text-sm text-table-secondary">{label}{control}{error && <span id={errorId} role="alert" className="mt-1 block text-xs text-red-700 dark:text-red-300">{error}</span>}</label>;
 }
 
 function Text({ path, label, number, value, onChange, errors, type = 'text' }: { path: string; label: string; number: number; value: string | null | undefined; onChange: (value: string) => void; errors: FieldErrors; type?: string }) {
@@ -464,5 +464,5 @@ function Text({ path, label, number, value, onChange, errors, type = 'text' }: {
 
 function Check({ label, checked, onChange, error }: { label: string; checked: boolean; onChange: (checked: boolean) => void; error?: string }) {
   const errorId = useId();
-  return <label className="flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light"><Checkbox aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} aria-describedby={error ? errorId : undefined} aria-invalid={error ? true : undefined} />{label}{error && <span id={errorId} role="alert" className="text-xs text-red-300">{error}</span>}</label>;
+  return <label className="flex min-h-10 items-center gap-2 text-sm text-table-secondary"><Checkbox aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} aria-describedby={error ? errorId : undefined} aria-invalid={error ? true : undefined} />{label}{error && <span id={errorId} role="alert" className="text-xs text-red-700 dark:text-red-300">{error}</span>}</label>;
 }

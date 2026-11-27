@@ -222,10 +222,28 @@ export default {
       calculation: "Calculatie",
       customers: "Klanten",
       invoice: "Factuur",
+      "reorder": "Bijbestellen",
     },
   },
 
   orders: {
+    documentDetails: {
+      invoicePositions: "Factuurregels",
+      positions: "Documentregels",
+      orderPositions: "Orderregels",
+      offerPositions: "Offerteregels",
+      noPositions: "Geen documentregels beschikbaar.",
+      unitPriceNet: "Nettoprijs per eenheid",
+      lineTotalNet: "Netto regelbedrag",
+    },
+    rowActions: {
+      openOrder: "Order openen",
+      openOffer: "Offerte openen",
+      openDocument: "Document openen",
+      cancelOrder: "Order annuleren",
+      showOffers: "Offertes tonen",
+      showInvoices: "Facturen tonen",
+    },
     default: "Standaard",
     businessProfile: {
       title: "Bedrijfsprofiel",
@@ -592,7 +610,12 @@ export default {
       "blockerSellableLine": "Voeg een verkoopbare regel of projectplaat toe.",
       "blockerProductionOperation": "Voeg een productiebewerking of projectplaat toe.",
       "blockerInvalidProvenance": "De brongegevens van een productiebewerking zijn ongeldig.",
-      "shippingCost": "Verzendkosten"
+      "shippingCost": "Verzendkosten",
+      "acceptOfferConfirmTitle": "Aanbod accepteren?",
+      "searchOffers": "Aanbiedingen zoeken",
+      "searchOffersPlaceholder": "Nummer, calculatie of klant …",
+      "clearSearch": "Zoekopdracht wissen",
+      "noOffersMatchSearch": "Geen aanbiedingen komen overeen met de zoekopdracht."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -730,10 +753,6 @@ export default {
         "subtitle": "Voorraadoverzicht van filament, materialen en magazijngoederen.",
         "openFilament": "Filament openen",
         "open": "Openen",
-        "planned": "Gepland",
-        "dataModelNext": "Het gegevensmodel volgt in de volgende stap",
-        "empty": "Nog geen gegevens",
-        "foundation": "Basis",
         "metrics": {
           "activeSpools": "Actieve spoelen",
           "lowStock": "Lage voorraad",
@@ -746,42 +765,23 @@ export default {
           },
           "parts": {
             "title": "Materiaal",
-            "body": "Bedoeld voor ingekochte onderdelen, verpakking, bevestigingsmateriaal en verbruiksartikelen."
+            "body": "Inkoopdelen, hardware, verpakking en verbruiksmateriaal — met live voorraad, reserveringen en bestelpunten."
           },
           "stock": {
             "title": "Magazijnvoorraad",
-            "body": "Bedoeld voor voorraadmutaties, nabestellingen en goederen die kunnen worden verzonden."
+            "body": "Afgewerkte en handelsgoederen met voorraadbewegingen, reserveringen en bijbestellingsbehoefte."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Magazijnoverzicht",
-            "subtitle": "Actuele filamentvoorraad en de volgende magazijnonderdelen.",
-            "columns": [
-              "Onderdeel",
-              "Status",
-              "Volgende stap"
-            ]
-          },
-          "parts": {
-            "title": "Materiaal",
-            "subtitle": "Bevestigingsmateriaal, verpakking, magneten, inzetstukken en verbruiksartikelen.",
-            "columns": [
-              "Artikel",
-              "Locatie",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Magazijnvoorraad",
-            "subtitle": "Inkomende, gereserveerde, beschikbare en na te bestellen voorraad.",
-            "columns": [
-              "Artikel",
-              "Beschikbaar",
-              "Bestelpunt"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Actieve artikelen",
+          "reserved": "Gereserveerd",
+          "stockValue": "Voorraadwaarde"
+        },
+        "reorder": {
+          "title": "Bijbestellingsbehoefte",
+          "items": "artikelen onder het bestelpunt",
+          "open": "Bijbestellijst openen"
+        },
       },
       "orderPage": {
         "empty": "Nog geen gegevens",
@@ -826,6 +826,17 @@ export default {
         }
       },
       "warehouseGoods": {
+        "forecastPeriod": "Gebaseerd op het geboekte verbruik van de afgelopen {{days}} dagen.",
+        "forecastDailyUsage": "Gem. verbruik per dag",
+        "forecastProjectedStock": "Voorraad over {{days}} dagen",
+        "forecastDaysToMinimum": "Dagen tot minimumvoorraad",
+        "forecastMinimumReached": "Minimumvoorraad bereikt",
+        "forecastNoConsumption": "Geen verbruik in deze periode",
+        "forecastEmpty": "Geen actieve artikelen met voorraadbeheer.",
+        "quickBookingSaved": "Voorraadmutatie opgeslagen.",
+        "articleCount": "{{count}} artikelen",
+        "articleCount_one": "{{count}} artikel",
+        "articleCount_other": "{{count}} artikelen",
         "title": "Magazijngoederen",
         "subtitle": "Verkoopartikelen, fysieke voorraad en reserveringen in PrintOps.",
         "search": "Artikelen zoeken",
@@ -1635,6 +1646,31 @@ export default {
         "loadSuppliersFailed": "Leveranciers konden niet worden geladen. De spoel kan nog steeds worden opgeslagen zonder de inkoopbronnen te wijzigen.",
         "offersNotReady": "Inkoopbronnen zijn nog niet volledig geladen.",
         "saveOffersFailed": "Inkoopbronnen konden niet worden opgeslagen."
+      },
+      "warehouseReorder": {
+        "reproduce": "Bijproduceren",
+        "prepareProduction": "Productieorder voorbereiden",
+        "productionProjectName": "Aanvulproductie · {{name}}",
+        "productionProjectDescription": "Artikel {{sku}}\nVoorgestelde productiehoeveelheid {{quantity}}",
+        "colProduce": "Te produceren hoeveelheid",
+        "purchasingTitle": "Inkoopbehoefte",
+        "productionTitle": "Productiebehoefte",
+        "shoppingList": "Inkooplijst",
+        "shoppingListEmpty": "De inkooplijst is leeg.",
+        "addToShoppingList": "{{name}} aan de inkooplijst toevoegen",
+        "onShoppingList": "{{name}} staat op de inkooplijst",
+        "addedToShoppingList": "{{name}} is toegevoegd aan de inkooplijst.",
+        "removeFromShoppingList": "{{name}} van de inkooplijst verwijderen",
+        "shoppingListLoadError": "De inkooplijst kon niet worden geladen.",
+        "shoppingListSaveError": "De inkooplijst kon niet worden bijgewerkt.",
+        "title": "Bijbestellingsbehoefte",
+        "subtitle": "Vul de voorraad eindproducten aan via productie en koop materialen in.",
+        "empty": "Geen bijbestellingsbehoefte.",
+        "open": "Openen",
+        "summaryWarehouse": "Te produceren eindproducten",
+        "summaryMaterial": "In te kopen materialen",
+        "summaryTotal": "Totaal",
+        "colSuggested": "Aanbevolen inkoophoeveelheid"
       }
     },
 
@@ -2377,6 +2413,12 @@ export default {
 
   // Common
   common: {
+    stockChecked: "Gecontroleerd",
+    confirmStockCheck: "Inventarisatie bevestigen",
+    stockCheckDescription: "Bevestig dat de geselecteerde voorraad is geteld of gewogen.",
+    stockCheckFailed: "De inventarisatie kon niet worden bevestigd. Controleer of de selectie nog actief is.",
+    unitShortPiece: "st.",
+    scrollTableHorizontally: 'Tabel {{table}} horizontaal scrollen',
     secretKept: 'De opgeslagen waarde blijft behouden.',
     secretReenter: 'Voer de inloggegevens opnieuw in voor de gewijzigde bestemming.',
     plusNMore: "+{{count}} meer",
@@ -4827,6 +4869,7 @@ export default {
     messageTemplatesDescription: "Meldingsberichten voor elke gebeurtenis aanpassen.",
     // API Keys section
     apiKeys: "API-sleutels",
+    apiMetricsNoAccess: "Je account heeft geen toegang tot deze integratie-instellingen.",
     apiKeysDescription: "API-sleutels maken voor externe integraties en webhooks.",
     createKey: "Sleutel maken",
     apiKeyCreated: "API-sleutel succesvol gemaakt",
@@ -5381,7 +5424,7 @@ export default {
     prometheusMetrics: "Prometheus-metrics",
     prometheusEndpointDescription: "Printermetrics beschikbaar stellen op <code>/api/v1/metrics</code> voor bewaking met Prometheus/Grafana.",
     bearerTokenOptional: "Bearer-token (optioneel)",
-    bearerTokenHint: "Indien ingesteld moeten verzoeken <code>Authorization: Bearer <token></code> bevatten",
+    bearerTokenHint: "Indien ingesteld moeten verzoeken <code>Authorization: Bearer &lt;token&gt;</code> bevatten",
     metricsConnectionStatus: "Verbindingsstatus",
     metricsPrinterState: "Printerstatus (inactief/afdrukken/enz.)",
     metricsPrintProgress: "Afdrukvoortgang 0-100%",
@@ -10570,6 +10613,11 @@ export default {
     fields: { name: "Bedrijf", customerNumber: "Klantnummer", active: "Actieve leverancier", contactName: "Naam contactpersoon", email: "E-mail", phone: "Telefoon", website: "Website", addressLine1: "Adresregel 1", addressLine2: "Adresregel 2", postalCode: "Postcode", city: "Plaats", countryCode: "Landcode", paymentTerms: "Betalingsvoorwaarden", defaultLeadTime: "Standaardlevertijd", internalNotes: "Interne notities" },
     filters: { active: "Actief", inactive: "Inactief", all: "Alle leveranciers" }, actions: { create: "Leverancier toevoegen", save: "Leverancier opslaan", edit: "{{name}} bewerken", delete: "Leverancier verwijderen" }, validation: { nameRequired: "Bedrijfsnaam is verplicht." },
     errors: { load: "Leveranciers konden niet worden geladen.", save: "De leverancier kon niet worden opgeslagen.", delete: "De leverancier kon niet worden verwijderd.", noReadPermission: "Je hebt geen toestemming om leveranciers te bekijken." },
+    "pagination": "{{start}}–{{end}} van {{total}}",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "emptyFiltered": "Geen leveranciers voldoen aan de huidige filters.",
+    "clearSearch": "Zoekopdracht wissen",
   },
   storageSensors: {
     environment: "Omgeving",

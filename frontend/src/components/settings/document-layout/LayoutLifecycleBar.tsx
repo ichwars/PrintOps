@@ -16,7 +16,7 @@ function Axis({ label, value, state }: { label: string; value: string; state: 'o
   const Icon = state === 'ok' ? CheckCircle2 : state === 'bad' ? AlertTriangle : state === 'wait' ? Clock3 : ShieldCheck;
   return <div className="min-w-[132px] flex-1 rounded-lg bg-bambu-dark px-3 py-2">
     <p className="text-[10px] uppercase tracking-wide text-bambu-gray">{label}</p>
-    <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${state === 'ok' ? 'text-emerald-300' : state === 'bad' ? 'text-red-300' : state === 'wait' ? 'text-amber-300' : 'text-bambu-gray-light'}`}><Icon className="h-3.5 w-3.5" />{value}</p>
+    <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${state === 'ok' ? 'text-emerald-800 dark:text-emerald-300' : state === 'bad' ? 'text-red-700 dark:text-red-300' : state === 'wait' ? 'text-amber-800 dark:text-amber-300' : 'text-bambu-gray-light'}`}><Icon className="h-3.5 w-3.5" />{value}</p>
   </div>;
 }
 
@@ -96,7 +96,7 @@ export function LayoutLifecycleBar({
         <Axis label={t('settings.documentLayout.lifecycle.pdfa', 'PDF/A evidence')} value={detail.validation_status === 'valid' ? t('orders.runtimeDomain.documentLayoutExtras.pdfaValid') : detail.validation_status === 'invalid' ? t('orders.runtimeDomain.documentLayoutExtras.invalid') : t('settings.documentLayout.lifecycle.unchecked', 'Unchecked')} state={detail.validation_status === 'valid' ? 'ok' : detail.validation_status === 'invalid' ? 'bad' : 'neutral'} />
         <Axis label={t('settings.documentLayout.lifecycle.einvoice', 'E-invoice')} value={invoiceRelevant ? (readiness?.ready ? t('orders.runtimeDomain.documentLayoutExtras.einvoiceReady') : t('settings.documentLayout.lifecycle.unchecked', 'Unchecked')) : t('settings.documentLayout.compliance.notApplicable', 'Not applicable')} state={invoiceRelevant ? readiness?.ready ? 'ok' : 'wait' : 'neutral'} />
       </div>
-      {autosaveStatus === 'error' ? <button type="button" className="mt-2 text-xs text-red-300 underline" onClick={onRetrySave}>{t('settings.documentLayout.actions.retry', 'Retry')}</button> : null}
+      {autosaveStatus === 'error' ? <button type="button" className="mt-2 text-xs text-red-700 dark:text-red-300 underline" onClick={onRetrySave}>{t('settings.documentLayout.actions.retry', 'Retry')}</button> : null}
     </section>
 
     <Modal open={dialog !== null} onClose={close} title={dialog === 'clone' ? t('settings.documentLayout.dialogs.cloneTitle', 'Clone layout') : dialog === 'withdraw' ? t('settings.documentLayout.dialogs.withdrawTitle', 'Withdraw publication') : t('settings.documentLayout.dialogs.publishTitle', 'Publish layout')}>
@@ -118,7 +118,7 @@ export function LayoutLifecycleBar({
             timeLabel="Time"
           /> : null}
         </> : null}
-        {dialogError ? <p role="alert" className="text-sm text-red-400">{dialogError}</p> : null}
+        {dialogError ? <p role="alert" className="text-sm text-red-700 dark:text-red-400">{dialogError}</p> : null}
         <div className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>{t('settings.documentLayout.actions.cancel', 'Cancel')}</Button><Button loading={actionBusy} onClick={() => void submit()}>{t('settings.documentLayout.actions.confirm', 'Confirm')}</Button></div>
       </div>
     </Modal>

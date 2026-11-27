@@ -57,6 +57,8 @@ export const inventoryMaintenanceMethods = {
   getSpools: (includeArchived = false) =>
     request<InventorySpool[]>(`/inventory/spools?include_archived=${includeArchived}`),
 
+  confirmSpoolStockCheck: (ids: number[]) => request<{ stock_checked_at: string }>('/inventory/spools/stock-check', { method: 'POST', body: JSON.stringify({ ids }) }),
+
   getSpool: (id: number) => request<InventorySpool>(`/inventory/spools/${id}`),
 
   createSpool: (data: Omit<InventorySpool, 'id' | 'archived_at' | 'created_at' | 'updated_at' | 'k_profiles'>) =>

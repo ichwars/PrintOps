@@ -35,6 +35,15 @@ describe('FolderReadmePanel', () => {
     expect(container.querySelector('[data-footnotes]')).toHaveTextContent('Use PETG.');
   });
 
+  it('paginates the body of a readme table and keeps the column headers', async () => {
+    await renderReadme(['| Part |', '| --- |', ...Array.from({ length: 17 }, (_, i) => `| Item ${i + 1} |`)].join('\n'));
+    expect(screen.getByRole('table')).not.toHaveTextContent('Item 17');
+    fireEvent.click(screen.getByRole('button', { name: 'Last page' }));
+    expect(screen.getByRole('columnheader', { name: 'Part' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toHaveTextContent('Item 17');
+    expect(screen.getByText('Page 2 of 2')).toBeVisible();
+  });
+
   it('preserves explicit and angle links with URL filtering and opener protection', async () => {
     await renderReadme('[Docs](https://example.com/docs)\n\n<https://example.com>\n\n<print@example.com>');
     const links = screen.getAllByRole('link');

@@ -1,3 +1,5 @@
+import { TablePagination } from '../components/ui/TablePagination';
+import { useTablePagination } from '../hooks/useTablePagination';
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -1033,7 +1035,6 @@ function DiffModal({
     });
   }, [leftPreset, rightPreset]);
 
-  // Filter entries
   const filteredEntries = useMemo(() => {
     let entries = [...diffEntries];
     if (filterMode === 'changes') {
@@ -1050,15 +1051,13 @@ function DiffModal({
     return entries;
   }, [diffEntries, filterMode, searchQuery]);
 
-  // Stats
-  const stats = useMemo(() => {
-    return {
-      added: diffEntries.filter(e => e.status === 'added').length,
-      removed: diffEntries.filter(e => e.status === 'removed').length,
-      changed: diffEntries.filter(e => e.status === 'changed').length,
-      same: diffEntries.filter(e => e.status === 'same').length,
-    };
-  }, [diffEntries]);
+  const pagination = useTablePagination(filteredEntries, JSON.stringify([filterMode, searchQuery, leftLabel, rightLabel]), 15);
+  const stats = useMemo(() => ({
+    added: diffEntries.filter(e => e.status === 'added').length,
+    removed: diffEntries.filter(e => e.status === 'removed').length,
+    changed: diffEntries.filter(e => e.status === 'changed').length,
+    same: diffEntries.filter(e => e.status === 'same').length,
+  }), [diffEntries]);
 
   const formatValue = (val: unknown): string => {
     if (val === undefined) return '—';
@@ -1197,7 +1196,7 @@ function DiffModal({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredEntries.map((entry) => {
+                  {pagination.rows.map((entry) => {
                     const bgClass = {
                       added: 'bg-green-500/10',
                       removed: 'bg-red-500/10',
@@ -1243,6 +1242,7 @@ function DiffModal({
               </table>
             )}
           </div>
+          <TablePagination {...pagination.footer} />
         </CardContent>
       </Card>
     </div>

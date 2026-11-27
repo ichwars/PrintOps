@@ -1,18 +1,30 @@
-import { useState } from 'react';
+import { TablePagination } from '../components/ui/TablePagination';
+import { TableActionHeader, TableRowActions, type TableAction } from '../components/ui/TableRowActions';
+import { CommercialDocumentDialog } from '../components/orders/CommercialDocumentDialog';
+import { downloadBlob } from '../utils/clipboard';
+import { useTranslation } from 'react-i18next';
+import { OrderSortHeader } from '../components/orders/OrderSortHeader';
+import { nextOrderSort, type OrderSort } from '../utils/orderSorting';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
+import { Download, Eye, FileText, Receipt, RefreshCw } from 'lucide-react';
 import { api } from '../api/client';
-import { lexwareDocumentsApi } from '../api/client/lexware-documents';
+import { lexwareDocumentsApi, type LexwareDocument, type LexwareDocumentSortKey } from '../api/client/lexware-documents';
 import { Button } from '../components/Button';
+import { dashboardStyles } from '../components/dashboardStyles';
+import { OrderHeader, OrderStatus, OrderTable, OrderTableRow, orderControlClass, orderPageClass, orderPanelClass } from '../components/orders/OrderLayout';
+import { tableBodyCellClass, tableHeaderClass, tableHeaderRowClass, tableIdentifierClass } from '../components/ui/tableStyles';
 import { LexwareDocumentDetail } from '../components/lexware-documents/LexwareDocumentDetail';
 import { displayMoney, documentCodeLabel, useLexwareDocumentLabels } from '../components/lexware-documents/labels';
-import { Select, TextField } from '../components/ui';
+import { Select } from '../components/ui';
+import { WarehouseToolbar } from '../components/warehouse/WarehouseLayout';
 import { useAuth } from '../contexts/AuthContext';
 
 const types = ['invoice', 'creditnote', 'quotation', 'orderconfirmation', 'salesinvoice', 'salescreditnote', 'purchaseinvoice', 'purchasecreditnote', 'downpaymentinvoice', 'deliverynote'];
 
 export default function LexwareDocumentsPage() {
   const labels = useLexwareDocumentLabels();
+  const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const canRead = hasPermission('commercial_documents:read');
   const canFinance = hasPermission('payments:read');
@@ -20,22 +32,73 @@ export default function LexwareDocumentsPage() {
   const [search, setSearch] = useState('');
   const [voucherType, setVoucherType] = useState('');
   const [profile, setProfile] = useState('');
+  const [sort, setSort] = useState<OrderSort<LexwareDocumentSortKey>>({ key: 'date', direction: 'desc' });
+  const activeSort = !canFinance && sort.key === 'open' ? { key: 'date', direction: 'desc' } as const : sort;
   const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState<number | null>(null);
-  const filters = { search, voucher_type: voucherType, business_profile_id: profile ? Number(profile) : undefined, offset, limit: 25 };
+  const [localDocument, setLocalDocument] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState(false);
+  const [downloading, setDownloading] = useState<number | null>(null);
+  const filters = { search, voucher_type: voucherType, business_profile_id: profile ? Number(profile) : undefined, offset, limit: pageSize, sort: activeSort.key, direction: activeSort.direction };
   const profiles = useQuery({ queryKey: ['business-profile-options'], queryFn: () => api.getBusinessProfileOptions(), enabled: canRead });
-  const listing = useQuery({ queryKey: ['lexware-documents', 'list', filters, canFinance], queryFn: () => lexwareDocumentsApi.list(filters), enabled: canRead });
+  const documentFilters = [search, voucherType, profile, canFinance] as const;
+  const listing = useQuery({
+    queryKey: ['lexware-documents', 'list', ...documentFilters, offset, pageSize, activeSort],
+    queryFn: () => lexwareDocumentsApi.list(filters),
+    enabled: canRead,
+    placeholderData: (previous, query) =>
+      documentFilters.every((value, index) => query?.queryKey[index + 2] === value) ? previous : undefined,
+  });
+  const total = listing.data?.total;
+  useEffect(() => {
+    if (!listing.isPlaceholderData && total !== undefined && offset > 0 && offset >= total) {
+      setOffset(Math.max(0, Math.ceil(total / pageSize) - 1) * pageSize);
+    }
+  }, [listing.isPlaceholderData, offset, pageSize, total]);
   const finance = useQuery({ queryKey: ['lexware-finance', profile], queryFn: () => lexwareDocumentsApi.finance({ business_profile_id: filters.business_profile_id }), enabled: canRead && canFinance });
   const detail = useQuery({ queryKey: ['lexware-documents', 'detail', selected, canFinance], queryFn: () => lexwareDocumentsApi.detail(selected!), enabled: canRead && selected !== null });
   function resetFilter(action: () => void) { action(); setOffset(0); setSelected(null); }
+  const sortHeader = (key: LexwareDocumentSortKey, label: string, align?: 'center') => (
+    <OrderSortHeader label={label} align={align} direction={activeSort.key === key ? activeSort.direction : undefined}
+      onSort={() => resetFilter(() => setSort(nextOrderSort(activeSort, key, key === 'date' || key === 'open' ? 'desc' : 'asc')))} />
+  );
   async function reload() { await Promise.all([listing.refetch(), ...(canFinance ? [finance.refetch()] : []), ...(selected !== null ? [detail.refetch()] : [])]); }
+  async function downloadOriginal(document: LexwareDocument, fileId: string) {
+    if (!canFinance || downloading !== null) return;
+    setDownloading(document.id);
+    setDownloadError(false);
+    try {
+      const file = await lexwareDocumentsApi.download(document.id, fileId);
+      downloadBlob(file.blob, file.filename);
+    } catch {
+      setDownloadError(true);
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  function rowActions(document: LexwareDocument): TableAction[] {
+    const files = document.files?.filter(file => file.cached || document.connection_enabled) ?? [];
+    return [
+      { icon: Eye, label: labels.details, onSelect: () => setSelected(document.id) },
+      ...(document.local_document_id !== null ? [{
+        icon: FileText, label: t('orders.rowActions.openDocument'), onSelect: () => setLocalDocument(document.local_document_id),
+      }] : []),
+      ...(canFinance && files.length === 1 ? [{
+        icon: Download, label: labels.download, disabled: downloading !== null,
+        onSelect: () => void downloadOriginal(document, files[0]!.file_id),
+      }] : []),
+    ];
+  }
   if (!canRead) return <p className="p-6">{labels.denied}</p>;
-  return <div className="p-4 md:p-6 space-y-6 text-white">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">{labels.title}</h1><p className="mt-1 text-bambu-gray-light">{labels.description}</p></div>
-      <Button variant="secondary" onClick={() => void reload()} loading={listing.isFetching}><RefreshCw size={16} />{labels.refresh}</Button>
-    </div>
+  return <div className={orderPageClass}>
+    <OrderHeader icon={Receipt} title={labels.title} description={labels.description}>
+      <Button variant="secondary" className="max-[768px]:min-h-[44px]!" onClick={() => void reload()} loading={listing.isFetching}><RefreshCw aria-hidden="true" size={16} />{labels.refresh}</Button>
+    </OrderHeader>
     <Select
       className="max-w-sm"
+      controlClassName={orderControlClass}
       label={labels.profile}
       value={profile}
       options={[
@@ -44,24 +107,24 @@ export default function LexwareDocumentsPage() {
       ]}
       onValueChange={value => resetFilter(() => setProfile(value))}
     />
-    {canFinance && <section className="rounded-xl border border-bambu-gray/30 bg-bambu-dark-secondary p-5 space-y-3" aria-label={labels.financeTitle}>
-      <h2 className="font-semibold text-lg">{labels.financeTitle}</h2><p className="text-sm text-bambu-gray-light">{labels.financeNote}</p>
+    {canFinance && <section className={`${orderPanelClass} space-y-3`} aria-label={labels.financeTitle}>
+      <h2 className={dashboardStyles.cardTitle}>{labels.financeTitle}</h2><p className="text-sm text-table-secondary">{labels.financeNote}</p>
       {finance.isLoading && <p role="status">{labels.loading}</p>}
       {finance.isError && <p role="alert">{labels.error} <Button variant="ghost" onClick={() => void finance.refetch()}>{labels.retry}</Button></p>}
       {finance.data && <>
         {finance.data.totals.map(total => <div key={total.currency} className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg bg-bambu-dark p-4"><p>{labels.receivables}</p><p className="text-2xl">{total.receivables} {total.currency}</p><p className="text-sm text-amber-300">{labels.overdue}: {total.overdue_receivables} {total.currency}</p></div>
-          <div className="rounded-lg bg-bambu-dark p-4"><p>{labels.payables}</p><p className="text-2xl">{total.payables} {total.currency}</p><p className="text-sm text-amber-300">{labels.overdue}: {total.overdue_payables} {total.currency}</p></div>
+          <div className="rounded-lg bg-bambu-dark p-4"><p>{labels.receivables}</p><p className={dashboardStyles.metricValue}>{total.receivables} {total.currency}</p><p className="text-xs text-amber-800 dark:text-amber-300">{labels.overdue}: {total.overdue_receivables} {total.currency}</p></div>
+          <div className="rounded-lg bg-bambu-dark p-4"><p>{labels.payables}</p><p className={dashboardStyles.metricValue}>{total.payables} {total.currency}</p><p className="text-xs text-amber-800 dark:text-amber-300">{labels.overdue}: {total.overdue_payables} {total.currency}</p></div>
         </div>)}
         <p className="text-sm">{labels.linked}: {finance.data.linked_count} · {labels.unknownCount}: {finance.data.unknown_count} · {labels.excluded}: {finance.data.excluded_count}</p>
-        <p className="text-sm text-bambu-gray-light">{labels.credits}</p>
-        {finance.data.stale_connection_count > 0 && <p className="text-amber-300" role="status">{labels.stale}</p>}
+        <p className="text-sm text-table-secondary">{labels.credits}</p>
+        {finance.data.stale_connection_count > 0 && <p className="text-amber-800 dark:text-amber-300" role="status">{labels.stale}</p>}
       </>}
     </section>}
-    <div className="flex flex-wrap items-end gap-3">
-      <TextField aria-label={labels.search} className="min-w-48" placeholder={labels.search} value={search} onValueChange={value => resetFilter(() => setSearch(value))} />
+    <WarehouseToolbar searchLabel={labels.search} value={search} onSearch={value => resetFilter(() => setSearch(value))}>
       <Select
         className="w-full sm:w-64"
+        controlClassName={orderControlClass}
         ariaLabel={labels.type}
         value={voucherType}
         options={[
@@ -70,22 +133,58 @@ export default function LexwareDocumentsPage() {
         ]}
         onValueChange={value => resetFilter(() => setVoucherType(value))}
       />
-    </div>
+    </WarehouseToolbar>
+    {downloadError && <p role="alert" className="text-red-700 dark:text-red-300">{labels.actionError}</p>}
     {listing.isLoading && <p role="status">{labels.loading}</p>}
     {listing.isError && <p role="alert">{labels.error} <Button variant="ghost" onClick={() => void listing.refetch()}>{labels.retry}</Button></p>}
-    {listing.data?.items.length === 0 && <p className="rounded-lg bg-bambu-dark-secondary p-6">{labels.empty}</p>}
-    {!!listing.data?.items.length && <div className="overflow-x-auto rounded-xl border border-bambu-gray/30"><table className="w-full text-left text-sm">
-      <thead className="bg-bambu-dark-secondary"><tr>{[labels.number, labels.type, labels.contact, labels.date, labels.status, ...(canFinance ? [labels.open] : []), labels.details].map(label => <th className="p-3" key={label}>{label}</th>)}</tr></thead>
-      <tbody>{listing.data.items.map(document => <tr className="border-t border-bambu-gray/20" key={document.id}>
-        <td className="p-3">{document.voucher_number || '—'}<small className="block text-bambu-gray-light">Lexware · {document.company_name}</small>{document.local_document_id && <small>PrintOps #{document.local_document_id}</small>}</td>
-        <td className="p-3">{documentCodeLabel(labels, 'type', document.voucher_type)}{!document.supported && <small className="block text-amber-300">{labels.unsupported}</small>}</td>
-        <td className="p-3">{document.contact_name || '—'}</td><td className="p-3 whitespace-nowrap">{document.voucher_date || '—'}</td>
-        <td className="p-3">{documentCodeLabel(labels, 'status', document.voucher_status)}{document.archived && <small className="block">{labels.archived}</small>}{!document.connection_enabled && <small className="block text-amber-300">{labels.stale}</small>}{!document.in_latest_sync && <small className="block text-amber-300">{labels.missing}</small>}</td>
-        {canFinance && <td className="p-3 whitespace-nowrap">{document.finance?.payment_state === 'not_applicable' ? labels.notApplicable : displayMoney(document.finance?.open_amount, document.finance?.currency || '', labels.unknown)}</td>}
-        <td className="p-3"><Button variant="secondary" size="sm" onClick={() => setSelected(document.id)}>{labels.details}</Button></td>
-      </tr>)}</tbody>
-    </table></div>}
-    {listing.data && <div className="flex gap-3 items-center"><Button variant="secondary" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 25))}>{labels.previous}</Button><span>{labels.count}: {listing.data.total}</span><Button variant="secondary" disabled={offset + 25 >= listing.data.total} onClick={() => setOffset(offset + 25)}>{labels.next}</Button></div>}
+    {listing.data?.items.length === 0 && <p className={orderPanelClass}>{labels.empty}</p>}
+    {!!listing.data?.items.length && (
+      <OrderTable label={labels.title} footer={<TablePagination total={listing.data.total} offset={offset} pageSize={pageSize}
+        sizes={[15, 25, 30, 50, 100]} busy={listing.isPlaceholderData}
+        onOffsetChange={setOffset} onPageSizeChange={value => resetFilter(() => setPageSize(value))} />}>
+        <table aria-busy={listing.isPlaceholderData || undefined} className="w-full min-w-[800px] text-sm">
+          <thead className={tableHeaderClass}>
+            <tr className={tableHeaderRowClass}>
+              {sortHeader('number', labels.number)}
+              {sortHeader('type', labels.type)}
+              {sortHeader('contact', labels.contact)}
+              {sortHeader('date', labels.date, 'center')}
+              {sortHeader('status', labels.status, 'center')}
+              {canFinance && sortHeader('open', labels.open, 'center')}
+              <TableActionHeader />
+            </tr>
+          </thead>
+          <tbody>
+            {listing.data.items.map(document => (
+              <OrderTableRow key={document.id} onOpen={() => setSelected(document.id)}>
+                <td className={tableBodyCellClass}>
+                  <span className={`${tableIdentifierClass} text-white`}>{document.voucher_number || '—'}</span>
+                  <small className="block text-xs text-table-secondary">Lexware · {document.company_name}</small>
+                  {document.local_document_id && <small className="block text-xs text-table-secondary">PrintOps #{document.local_document_id}</small>}
+                </td>
+                <td className={tableBodyCellClass}>
+                  {documentCodeLabel(labels, 'type', document.voucher_type)}
+                  {!document.supported && <div className="mt-1"><OrderStatus tone="warning">{labels.unsupported}</OrderStatus></div>}
+                </td>
+                <td className={tableBodyCellClass}>{document.contact_name || '—'}</td>
+                <td className={`${tableBodyCellClass} whitespace-nowrap text-center tabular-nums`}>{document.voucher_date || '—'}</td>
+                <td className={`${tableBodyCellClass} text-center`}>
+                  <OrderStatus tone={document.finance?.overdue ? 'danger' : document.finance?.payment_status === 'balanced' ? 'positive' : 'neutral'}>
+                    {documentCodeLabel(labels, 'status', document.voucher_status)}
+                  </OrderStatus>
+                  {document.archived && <small className="mt-1 block text-xs">{labels.archived}</small>}
+                  {!document.connection_enabled && <small className="mt-1 block text-xs text-amber-800 dark:text-amber-300">{labels.stale}</small>}
+                  {!document.in_latest_sync && <small className="mt-1 block text-xs text-amber-800 dark:text-amber-300">{labels.missing}</small>}
+                </td>
+                {canFinance && <td className={`${tableBodyCellClass} whitespace-nowrap text-center tabular-nums`}>{document.finance?.payment_state === 'not_applicable' ? labels.notApplicable : displayMoney(document.finance?.open_amount, document.finance?.currency || '', labels.unknown)}</td>}
+                <TableRowActions subject={document.voucher_number || document.external_id} actions={rowActions(document)} />
+              </OrderTableRow>
+            ))}
+          </tbody>
+        </table>
+      </OrderTable>
+    )}
+    {localDocument !== null && <CommercialDocumentDialog key={localDocument} id={localDocument} onClose={() => setLocalDocument(null)} />}
     {selected !== null && detail.isLoading && <p role="status">{labels.loading}</p>}
     {selected !== null && detail.isError && <p role="alert">{labels.error} <Button variant="ghost" onClick={() => void detail.refetch()}>{labels.retry}</Button></p>}
     {selected !== null && detail.data && <LexwareDocumentDetail key={detail.data.id} document={detail.data} canFinance={canFinance} canLink={canLink} onClose={() => setSelected(null)} />}

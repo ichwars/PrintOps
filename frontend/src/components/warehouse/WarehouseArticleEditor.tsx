@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { smallPartsApi } from '../../api/smallParts';
 import { warehouseArticlesApi, type WarehouseArticle, type WarehouseArticleInput, type WarehouseArticleKind, type WarehouseStockSource } from '../../api/client/warehouse-articles';
 import { Button, Modal, NumberField, Select, TextArea, TextField } from '../ui';
@@ -15,17 +16,20 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
   </section>;
 }
 
-export function WarehouseArticleEditor({ article, onClose }: { article: WarehouseArticle | null; onClose: () => void }) {
+export function WarehouseArticleEditor({ article, copyFrom, onClose }: { article: WarehouseArticle | null; copyFrom?: WarehouseArticle; onClose: () => void }) {
+  const { t } = useTranslation();
   const copy = useWarehouseCopy();
+  const formId = useId();
   const cache = useQueryClient();
   const pendingRef = useRef(false);
   const [reviewedVersion] = useState(article?.version);
+  const source = article ?? copyFrom;
   const [form, setForm] = useState<WarehouseArticleInput>(() => ({
-    sku: article?.sku ?? '', name: article?.name ?? '', description: article?.description ?? '',
-    kind: article?.kind ?? 'finished', unit_code: article?.unit_code ?? '',
-    stock_source: article?.stock_source ?? 'own', small_part_id: article?.small_part_id ?? null,
-    sale_price: article?.sale_price ?? '0', tax_rate: article?.tax_rate ?? '19',
-    unit_cost: article?.unit_cost ?? '0', minimum_stock: article?.minimum_stock ?? '0',
+    sku: article?.sku ?? '', name: source?.name ?? '', description: source?.description ?? '',
+    kind: source?.kind ?? 'finished', unit_code: source?.unit_code ?? '',
+    stock_source: source?.stock_source ?? 'own', small_part_id: article?.small_part_id ?? null,
+    sale_price: source?.sale_price ?? '0', tax_rate: source?.tax_rate ?? '19',
+    unit_cost: source?.unit_cost ?? '0', minimum_stock: source?.minimum_stock ?? '0',
     project_id: article?.project_id ?? null, calculation_revision_id: article?.calculation_revision_id ?? null,
   }));
   const [materialSearch, setMaterialSearch] = useState('');
@@ -51,8 +55,12 @@ export function WarehouseArticleEditor({ article, onClose }: { article: Warehous
   const frozen = article?.has_history ?? false;
   const moneyFields = [['sale_price', copy.sale], ['unit_cost', copy.cost], ['tax_rate', copy.tax]] as const;
   const close = () => { if (!pendingRef.current) onClose(); };
-  return <Modal open onClose={close} closeOnBackdrop={!mutation.isPending} closeDisabled={mutation.isPending} title={article ? copy.edit : copy.create} closeLabel={copy.close} className="max-w-3xl">
-    <form className="space-y-6 text-sm" onSubmit={(event) => {
+  return <Modal open onClose={close} closeOnBackdrop={!mutation.isPending} closeDisabled={mutation.isPending} title={copyFrom ? t('common.duplicate') : article ? copy.edit : copy.create} closeLabel={copy.close} className="max-w-3xl"
+    footer={<>
+      <Button type="button" variant="secondary" disabled={mutation.isPending} onClick={close}>{copy.cancel}</Button>
+      <Button type="submit" form={formId} loading={mutation.isPending} disabled={!form.unit_code || !form.sku.trim() || !form.name.trim() || (form.stock_source === 'material' && !form.small_part_id)}>{copy.save}</Button>
+    </>}>
+    <form id={formId} className="space-y-6 text-sm" onSubmit={(event) => {
       event.preventDefault();
       if (pendingRef.current) return;
       pendingRef.current = true;
@@ -106,10 +114,6 @@ export function WarehouseArticleEditor({ article, onClose }: { article: Warehous
         </div>
       </FormSection>}
       {mutation.isError && <p role="alert" className="rounded-lg bg-red-950/50 p-3 text-red-300">{mutation.error.message}</p>}
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary pt-4">
-        <Button type="button" variant="secondary" disabled={mutation.isPending} onClick={onClose}>{copy.cancel}</Button>
-        <Button type="submit" loading={mutation.isPending} disabled={!form.unit_code || !form.sku.trim() || !form.name.trim() || (form.stock_source === 'material' && !form.small_part_id)}>{copy.save}</Button>
-      </div>
       </fieldset>
     </form>
   </Modal>;

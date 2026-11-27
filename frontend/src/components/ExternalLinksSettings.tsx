@@ -4,7 +4,8 @@ import { Eye, EyeOff, Link2, Plus, Pencil, Trash2, GripVertical, Loader2, Extern
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { ExternalLink } from '../api/client';
-import { Card, CardContent, CardHeader } from './Card';
+import { SettingsDashboardCard } from './settings/SettingsDashboardCard';
+import { IconButton } from './ui';
 import { Button } from './Button';
 import { Toggle } from './Toggle';
 import { AddExternalLinkModal } from './AddExternalLinkModal';
@@ -241,121 +242,68 @@ export function ExternalLinksSettings() {
 
   return (
     <>
-      <Card id="card-sidebar-links">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
+      <SettingsDashboardCard id="card-sidebar-links" title={t('externalLinks.sidebarLayout')} icon={Link2}>
+        <p>{t('externalLinks.sidebarLayoutDescription')}</p>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {canSetDefaultSidebarOrder && (
             <div className="flex items-center gap-2">
-              <Link2 className="w-5 h-5 text-bambu-green" />
-              <h2 className="text-lg font-semibold text-white">{t('externalLinks.sidebarLayout')}</h2>
+              <span>{t('settings.setDefault')}</span>
+              <Toggle
+                checked={isDefaultSidebarEnabled}
+                onChange={handleToggleDefaultSidebarOrder}
+                disabled={updateDefaultSidebarMutation.isPending}
+                ariaLabel={t('settings.setDefault')}
+              />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {canSetDefaultSidebarOrder && (
-                <label className="flex items-center gap-2 text-sm text-bambu-gray">
-                  <span>{t('settings.setDefault')}</span>
-                  <Toggle
-                    checked={isDefaultSidebarEnabled}
-                    onChange={handleToggleDefaultSidebarOrder}
-                    disabled={updateDefaultSidebarMutation.isPending}
-                    ariaLabel={t('settings.setDefault')}
-                  />
-                </label>
-              )}
-              <Button variant="secondary" size="sm" onClick={resetSidebarLayout} className="whitespace-nowrap">
-                <RotateCcw className="w-4 h-4" />
-                {t('settings.reset')}
-              </Button>
-              <Button size="sm" onClick={() => setShowAddModal(true)} className="whitespace-nowrap">
-                <Plus className="w-4 h-4" />
-                {t('externalLinks.addLink')}
-              </Button>
-            </div>
+          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={resetSidebarLayout}>
+              <RotateCcw className="h-4 w-4 shrink-0" />
+              {t('settings.reset')}
+            </Button>
+            <Button size="sm" onClick={() => setShowAddModal(true)} className="text-black!">
+              <Plus className="h-4 w-4 shrink-0" />
+              {t('externalLinks.addLink')}
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-bambu-gray mb-4">
-            {t('externalLinks.sidebarLayoutDescription')}
-          </p>
+        </div>
 
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {layoutItems.map((item) => {
-                const isDirectlyHidden = item.type === 'system' && hiddenSystemItemIds.includes(item.id);
-                const isSettings = item.id === 'settings';
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {layoutItems.map((item) => {
+              const isDirectlyHidden = item.type === 'system' && hiddenSystemItemIds.includes(item.id);
+              const isSettings = item.id === 'settings';
 
-                if (item.type === 'system') {
-                  const Icon = item.navItem.icon;
-                  const parentItem = item.navItem.parentId ? navItemsMap.get(item.navItem.parentId) : undefined;
-                  const parentLabel = parentItem ? getNavItemLabel(parentItem) : '';
-                  const isChildItem = Boolean(parentItem);
-                  const isHiddenByParent = Boolean(parentItem && hiddenSystemItemIds.includes(parentItem.id));
-                  const isEffectivelyHidden = isDirectlyHidden || isHiddenByParent;
-                  const canToggleVisibility = !isSettings && !isHiddenByParent;
-                  const statusLabel = isSettings
-                    ? t('externalLinks.requiredInSidebar')
-                    : isHiddenByParent
-                      ? t('externalLinks.hiddenByParent', { parent: parentLabel })
-                      : isDirectlyHidden
-                        ? t('externalLinks.hiddenFromSidebar')
-                        : t('externalLinks.visibleInSidebar');
-                  const contextLabel = isChildItem
-                    ? t('externalLinks.childPageOf', { parent: parentLabel })
-                    : t('externalLinks.mainPage');
-                  const visibilityTitle = isSettings
-                    ? t('externalLinks.settingsCannotBeHidden')
-                    : isHiddenByParent
-                      ? t('externalLinks.showParentFirst', { parent: parentLabel })
-                      : isDirectlyHidden
-                        ? t('externalLinks.showPage')
-                        : t('externalLinks.hidePage');
+              if (item.type === 'system') {
+                const Icon = item.navItem.icon;
+                const parentItem = item.navItem.parentId ? navItemsMap.get(item.navItem.parentId) : undefined;
+                const parentLabel = parentItem ? getNavItemLabel(parentItem) : '';
+                const isChildItem = Boolean(parentItem);
+                const isHiddenByParent = Boolean(parentItem && hiddenSystemItemIds.includes(parentItem.id));
+                const isEffectivelyHidden = isDirectlyHidden || isHiddenByParent;
+                const canToggleVisibility = !isSettings && !isHiddenByParent;
+                const statusLabel = isSettings
+                  ? t('externalLinks.requiredInSidebar')
+                  : isHiddenByParent
+                    ? t('externalLinks.hiddenByParent', { parent: parentLabel })
+                    : isDirectlyHidden
+                      ? t('externalLinks.hiddenFromSidebar')
+                      : t('externalLinks.visibleInSidebar');
+                const contextLabel = isChildItem
+                  ? t('externalLinks.childPageOf', { parent: parentLabel })
+                  : t('externalLinks.mainPage');
+                const visibilityTitle = isSettings
+                  ? t('externalLinks.settingsCannotBeHidden')
+                  : isHiddenByParent
+                    ? t('externalLinks.showParentFirst', { parent: parentLabel })
+                    : isDirectlyHidden
+                      ? t('externalLinks.showPage')
+                      : t('externalLinks.hidePage');
 
-                  return (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, item.id)}
-                      onDragOver={(e) => handleDragOver(e, item.id)}
-                      onDragLeave={() => setDragOverId(null)}
-                      onDrop={(e) => handleDrop(e, item.id)}
-                      onDragEnd={handleDragEnd}
-                      className={`relative flex items-center gap-3 p-3 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary transition-colors ${
-                        isChildItem ? 'ml-5 border-l-bambu-green/40' : ''
-                      } ${
-                        draggedId === item.id ? 'opacity-50' : isEffectivelyHidden ? 'opacity-60' : ''
-                      } ${
-                        dragOverId === item.id && draggedId !== item.id
-                          ? 'before:absolute before:left-3 before:right-3 before:top-0 before:h-0.5 before:bg-bambu-green'
-                          : ''
-                      }`}
-                    >
-                      <GripVertical className="w-6 h-6 md:w-4 md:h-4 text-bambu-gray cursor-grab flex-shrink-0" />
-                      <div className="p-2 rounded-lg bg-bambu-dark-tertiary text-bambu-gray">
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-white font-medium truncate block">{getNavItemLabel(item.navItem)}</span>
-                        <span className="text-sm text-bambu-gray truncate block">
-                          {contextLabel} · {statusLabel}
-                        </span>
-                      </div>
-                      <Button variant="unstyled"
-                        onClick={() => toggleSystemItemVisibility(item.id)}
-                        disabled={!canToggleVisibility}
-                        className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-bambu-gray"
-                        title={visibilityTitle}
-                        aria-label={visibilityTitle}
-                      >
-                        {isEffectivelyHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </Button>
-                    </div>
-                  );
-                }
-
-                const link = item.link;
-                const Icon = getIconByName(link.icon);
                 return (
                   <div
                     key={item.id}
@@ -365,7 +313,9 @@ export function ExternalLinksSettings() {
                     onDragLeave={() => setDragOverId(null)}
                     onDrop={(e) => handleDrop(e, item.id)}
                     onDragEnd={handleDragEnd}
-                    className={`relative flex items-center gap-3 p-3 rounded-lg bg-bambu-dark border border-bambu-dark-tertiary transition-colors ${
+                    className={`relative flex items-center gap-2 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-2 transition-colors hover:bg-bambu-dark-tertiary/30 sm:gap-3 sm:px-3 ${
+                      isChildItem ? 'ml-3 border-l-bambu-green/40 sm:ml-5' : ''
+                    } ${
                       draggedId === item.id ? 'opacity-50' : ''
                     } ${
                       dragOverId === item.id && draggedId !== item.id
@@ -373,49 +323,91 @@ export function ExternalLinksSettings() {
                         : ''
                     }`}
                   >
-                    <GripVertical className="w-6 h-6 md:w-4 md:h-4 text-bambu-gray cursor-grab flex-shrink-0" />
-                    <div className="p-2 rounded-lg bg-bambu-dark-tertiary text-bambu-gray">
-                      {link.custom_icon ? (
-                        <img
-                          src={api.getExternalLinkIconUrl(link.id)}
-                          alt=""
-                          className="w-4 h-4"
-                        />
-                      ) : (
-                        <Icon className="w-4 h-4" />
-                      )}
+                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-table-secondary" />
+                    <div className="hidden shrink-0 rounded-lg bg-bambu-dark-tertiary p-2 text-table-secondary min-[400px]:block">
+                      <Icon className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-medium truncate">{link.name}</span>
-                        <ExternalLinkIcon className="w-3 h-3 text-bambu-gray flex-shrink-0" />
-                      </div>
-                      <span className="text-sm text-bambu-gray truncate block">{link.url}</span>
+                      <span className="block wrap-anywhere font-medium text-white">{getNavItemLabel(item.navItem)}</span>
+                      <span className="block text-xs text-table-secondary">
+                        {contextLabel} · {statusLabel}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button variant="unstyled"
-                        onClick={() => setEditingLink(link)}
-                        className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
-                        title={t('common.edit')}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="unstyled"
-                        onClick={() => handleDelete(link)}
-                        disabled={deleteMutation.isPending}
-                        className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 text-bambu-gray hover:text-red-900 dark:hover:text-red-400 transition-colors disabled:opacity-50"
-                        title={t('externalLinks.deleteLink')}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <IconButton
+                      size="sm"
+                      icon={isEffectivelyHidden ? EyeOff : Eye}
+                      label={visibilityTitle}
+                      title={visibilityTitle}
+                      onClick={() => toggleSystemItemVisibility(item.id)}
+                      disabled={!canToggleVisibility}
+                      className="disabled:hover:bg-transparent"
+                    />
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              }
+
+              const link = item.link;
+              const Icon = getIconByName(link.icon);
+              return (
+                <div
+                  key={item.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, item.id)}
+                  onDragOver={(e) => handleDragOver(e, item.id)}
+                  onDragLeave={() => setDragOverId(null)}
+                  onDrop={(e) => handleDrop(e, item.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`relative flex items-center gap-2 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-2 transition-colors hover:bg-bambu-dark-tertiary/30 sm:gap-3 sm:px-3 ${
+                    draggedId === item.id ? 'opacity-50' : ''
+                  } ${
+                    dragOverId === item.id && draggedId !== item.id
+                      ? 'before:absolute before:left-3 before:right-3 before:top-0 before:h-0.5 before:bg-bambu-green'
+                      : ''
+                  }`}
+                >
+                  <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-table-secondary" />
+                  <div className="hidden shrink-0 rounded-lg bg-bambu-dark-tertiary p-2 text-table-secondary min-[400px]:block">
+                    {link.custom_icon ? (
+                      <img
+                        src={api.getExternalLinkIconUrl(link.id)}
+                        alt=""
+                        className="w-4 h-4"
+                      />
+                    ) : (
+                      <Icon className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 wrap-anywhere font-medium text-white">{link.name}</span>
+                      <ExternalLinkIcon className="h-3 w-3 shrink-0 text-table-secondary" />
+                    </div>
+                    <span className="block truncate text-xs text-table-secondary" title={link.url}>{link.url}</span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <IconButton
+                      size="sm"
+                      icon={Pencil}
+                      label={t('common.edit')}
+                      title={t('common.edit')}
+                      onClick={() => setEditingLink(link)}
+                    />
+                    <IconButton
+                      size="sm"
+                      icon={Trash2}
+                      label={t('externalLinks.deleteLink')}
+                      title={t('externalLinks.deleteLink')}
+                      onClick={() => handleDelete(link)}
+                      disabled={deleteMutation.isPending}
+                      className="hover:bg-red-100! hover:text-red-900! dark:hover:bg-red-500/20! dark:hover:text-red-300!"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SettingsDashboardCard>
 
       {(showAddModal || editingLink) && (
         <AddExternalLinkModal
