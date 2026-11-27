@@ -268,7 +268,7 @@ export function PipelineRunsView() {
             type="button"
             onClick={() => setShowClearConfirm(true)}
             disabled={total === 0}
-            className="flex items-center gap-1 px-2 py-1 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-2 py-1 text-red-700 dark:text-red-400 hover:bg-red-500/10 rounded disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3 h-3" />
             {t('pipelineRuns.clearLog', 'Clear log')}
@@ -287,7 +287,7 @@ export function PipelineRunsView() {
           aria-modal="true"
         >
           <div
-            className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-2xl w-full max-w-md p-4"
+            className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg w-full max-w-md p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-semibold text-white flex items-center gap-2">
@@ -506,7 +506,7 @@ function RunRow({
               onClick={onCancel}
               disabled={cancelling}
               aria-label={t('common.cancel', 'Cancel')}
-              className="text-xs px-2 py-1 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded disabled:opacity-50 flex items-center gap-1"
+              className="text-xs px-2 py-1 text-red-700 dark:text-red-400 hover:bg-red-500/10 rounded disabled:opacity-50 flex items-center gap-1"
             >
               <X className="w-3 h-3" />
               {t('common.cancel', 'Cancel')}

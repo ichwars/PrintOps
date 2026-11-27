@@ -211,7 +211,7 @@ export function SpoolBuddyLayout() {
           className="w-full h-1.5 bg-bambu-dark-secondary flex justify-center items-center shrink-0 touch-none"
           aria-label="Open quick menu"
         >
-          <div className="w-8 h-0.5 rounded-full bg-zinc-600" />
+          <div className="w-8 h-0.5 rounded-full bg-bambu-dark-tertiary" />
         </button>
 
         <SpoolBuddyTopBar

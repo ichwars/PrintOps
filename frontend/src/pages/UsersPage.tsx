@@ -345,7 +345,7 @@ export function UsersPage() {
                     <td className="px-6 py-4 text-sm">
                       <div className="flex flex-wrap gap-1">
                         {user.is_admin && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-600 dark:text-purple-400">
                             {t('users.admin')}
                           </span>
                         )}
@@ -354,12 +354,12 @@ export function UsersPage() {
                             key={group.id}
                             className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                               group.name === 'Administrators'
-                                ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                                ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
                                 : group.name === 'Operators'
-                                ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
                                 : group.name === 'Viewers'
-                                ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
-                                : 'bg-gray-500/20 text-gray-300'
+                                ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                                : 'bg-bambu-dark-tertiary text-bambu-gray'
                             }`}
                           >
                             {group.name}

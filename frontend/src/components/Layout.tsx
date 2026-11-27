@@ -1242,13 +1242,11 @@ export function Layout() {
       {/* Plate Detection Alert Modal */}
       {plateDetectionAlert && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
-          <div className="bg-bambu-dark-secondary border-2 border-yellow-500 rounded-xl shadow-2xl max-w-md w-full animate-in fade-in zoom-in duration-200">
+          <div className="bg-bambu-dark-secondary border-2 border-yellow-500 rounded-xl shadow-lg max-w-md w-full animate-in fade-in zoom-in duration-200">
             <div className="p-6 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                <svg className="w-10 h-10 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
+              <svg className="w-10 h-10 mx-auto mb-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
               <h2 className="text-xl font-bold text-yellow-700 dark:text-yellow-400 mb-2">
                 {t('plateAlert.title')}
               </h2>

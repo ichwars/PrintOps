@@ -606,8 +606,8 @@ export function SpoolBuddyAmsPage() {
                       {/* Spool */}
                       <div className="relative w-10 h-10 flex-shrink-0">
                         {isEmpty ? (
-                          <div className="w-full h-full rounded-full border-2 border-dashed border-gray-500 flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+                          <div className="w-full h-full rounded-full border-2 border-dashed border-bambu-dark-tertiary flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-bambu-dark-tertiary" />
                           </div>
                         ) : (
                           <svg viewBox="0 0 56 56" className="w-full h-full">
@@ -709,10 +709,10 @@ export function SpoolBuddyAmsPage() {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/60"
               onClick={() => setSlotActionPicker(null)}
             />
-            <div className="relative w-full max-w-sm mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl">
+            <div className="relative w-full max-w-sm mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-lg">
               <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary">
                 <div className="flex items-center gap-2">
                   {slotActionPicker.trayColor && (
@@ -749,7 +749,7 @@ export function SpoolBuddyAmsPage() {
                         {assignment.spool.brand ? `${assignment.spool.brand} ` : ''}{assignment.spool.material}
                         {assignment.spool.color_name ? ` - ${assignment.spool.color_name}` : ''}
                       </span>
-                      <span className="text-[10px] font-mono text-zinc-500 shrink-0 ml-auto">#{assignment.spool.id}</span>
+                      <span className="text-[10px] font-mono text-bambu-gray shrink-0 ml-auto">#{assignment.spool.id}</span>
                     </div>
                   </div>
                 )}

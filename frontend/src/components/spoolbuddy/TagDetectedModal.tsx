@@ -92,7 +92,7 @@ export function TagDetectedModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 animate-fade-in" onClick={onClose}>
       <div
-        className="bg-zinc-800 rounded-2xl shadow-2xl w-full max-w-xl mx-4 animate-slide-up"
+        className="bg-bambu-dark-secondary rounded-2xl shadow-lg w-full max-w-xl mx-4 animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {spool ? (
@@ -166,10 +166,10 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-lg font-semibold text-zinc-100">
+        <h2 className="text-lg font-semibold text-white">
           {t('spoolbuddy.modal.spoolDetected', 'Spool Detected')}
         </h2>
-        <button onClick={onClose} className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors">
+        <button onClick={onClose} className="p-2 rounded-lg text-bambu-gray hover:text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -190,12 +190,12 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
 
         <div className="flex-1 min-w-0 pt-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-zinc-100">
+            <h3 className="text-lg font-semibold text-white">
               {spool.color_name || translateInterface("orders.runtimeInterface.unknownColor")}
             </h3>
-            <span className="text-xs font-mono text-zinc-500 shrink-0">#{spool.id}</span>
+            <span className="text-xs font-mono text-bambu-gray shrink-0">#{spool.id}</span>
           </div>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-bambu-gray">
             {spool.brand} &bull; {spool.material}
             {spool.subtype && ` ${spool.subtype}`}
           </p>
@@ -203,13 +203,13 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
           {remaining !== null && (
             <div className="mt-3">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold font-mono text-zinc-100">{remaining}g</span>
-                <span className="text-sm text-zinc-500">/ {labelWeight}g</span>
+                <span className="text-3xl font-bold font-mono text-white">{remaining}g</span>
+                <span className="text-sm text-bambu-gray">/ {labelWeight}g</span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5">{t('spoolbuddy.spool.remaining', 'Remaining')}</p>
+              <p className="text-xs text-bambu-gray mt-0.5">{t('spoolbuddy.spool.remaining', 'Remaining')}</p>
 
               <div className="mt-2 max-w-xs">
-                <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div className="h-2 bg-bambu-dark-tertiary rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${fillPercent}%`, backgroundColor: fillColor }}
@@ -222,33 +222,33 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
       </div>
 
       {/* Details grid */}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm bg-zinc-900/50 rounded-lg p-4 mb-5">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm bg-bambu-dark rounded-lg p-4 mb-5">
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.grossWeight', 'Gross weight')}</span>
-          <span className="font-mono text-zinc-300">{grossWeight !== null ? `${grossWeight}g` : '\u2014'}</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.grossWeight', 'Gross weight')}</span>
+          <span className="font-mono text-bambu-gray-light">{grossWeight !== null ? `${grossWeight}g` : '\u2014'}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.spool.coreWeight', 'Core')}</span>
-          <span className="font-mono text-zinc-300">{coreWeight}g</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.spool.coreWeight', 'Core')}</span>
+          <span className="font-mono text-bambu-gray-light">{coreWeight}g</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.spoolSize', 'Spool size')}</span>
-          <span className="font-mono text-zinc-300">{labelWeight}g</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.spoolSize', 'Spool size')}</span>
+          <span className="font-mono text-bambu-gray-light">{labelWeight}g</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-zinc-500">{t('spoolbuddy.spool.scaleWeight', 'Scale')}</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.spool.scaleWeight', 'Scale')}</span>
           {grossWeight !== null ? (
             <span className={`flex items-center gap-1 font-mono ${isMatch ? 'text-green-500' : 'text-yellow-500'}`}>
               {grossWeight}g
               {isMatch ? <Check className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
             </span>
           ) : (
-            <span className="text-zinc-500">{'\u2014'}</span>
+            <span className="text-bambu-gray">{'\u2014'}</span>
           )}
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.tagId', 'Tag')}</span>
-          <span className="font-mono text-xs text-zinc-400 truncate max-w-[120px]" title={spool.tag_uid || ''}>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.tagId', 'Tag')}</span>
+          <span className="font-mono text-xs text-bambu-gray truncate max-w-[120px]" title={spool.tag_uid || ''}>
             {spool.tag_uid ? spool.tag_uid.slice(-8) : '\u2014'}
           </span>
         </div>
@@ -268,7 +268,7 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
           className={`flex-1 px-5 py-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] ${
             synced
               ? 'bg-green-600/20 text-green-400'
-              : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed'
+              : 'bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary disabled:opacity-40 disabled:cursor-not-allowed'
           }`}
         >
           {syncing ? (
@@ -284,7 +284,7 @@ function KnownSpoolView({ spool, scaleWeight, weightStable, syncing, synced, onS
         </button>
         <button
           onClick={onClose}
-          className="px-5 py-3 rounded-xl text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+          className="px-5 py-3 rounded-xl text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
         >
           {t('spoolbuddy.dashboard.close', 'Close')}
         </button>
@@ -313,10 +313,10 @@ function UnknownTagView({ tagUid, scaleWeight, onAddToInventory, onLinkSpool, on
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-lg font-semibold text-zinc-100">
+        <h2 className="text-lg font-semibold text-white">
           {t('spoolbuddy.modal.newTagDetected', 'New Tag Detected')}
         </h2>
-        <button onClick={onClose} className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors">
+        <button onClick={onClose} className="p-2 rounded-lg text-bambu-gray hover:text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -329,11 +329,11 @@ function UnknownTagView({ tagUid, scaleWeight, onAddToInventory, onLinkSpool, on
           </svg>
         </div>
 
-        <p className="text-sm text-zinc-500 font-mono mb-3">{tagUid}</p>
+        <p className="text-sm text-bambu-gray font-mono mb-3">{tagUid}</p>
 
         {grossWeight !== null && (
-          <div className="text-sm text-zinc-400">
-            <span className="font-mono font-semibold text-zinc-200 text-lg">{grossWeight}g</span>
+          <div className="text-sm text-bambu-gray">
+            <span className="font-mono font-semibold text-bambu-gray-light text-lg">{grossWeight}g</span>
             <span className="ml-2">{t('spoolbuddy.dashboard.onScale', 'on scale')}</span>
           </div>
         )}
@@ -350,14 +350,14 @@ function UnknownTagView({ tagUid, scaleWeight, onAddToInventory, onLinkSpool, on
         {onLinkSpool && (
           <button
             onClick={onLinkSpool}
-            className="flex-1 px-5 py-3 rounded-xl text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+            className="flex-1 px-5 py-3 rounded-xl text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
           >
             {t('inventory.assignSpool', 'Assign Spool')}
           </button>
         )}
         <button
           onClick={onClose}
-          className="px-5 py-3 rounded-xl text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+          className="px-5 py-3 rounded-xl text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
         >
           {t('spoolbuddy.dashboard.close', 'Close')}
         </button>

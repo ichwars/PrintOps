@@ -103,31 +103,31 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
       {/* NFC Reader + Device Info side by side */}
       <div className="grid grid-cols-2 gap-2">
         {/* NFC Reader */}
-        <div className="bg-zinc-800 rounded-lg p-3">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-2">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3">
+          <h3 className="text-sm font-semibold text-bambu-gray-light mb-2">
             {t('spoolbuddy.settings.nfcReader', 'NFC Reader')}
           </h3>
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between">
-              <span className="text-zinc-500">{t('spoolbuddy.settings.type', 'Type')}</span>
-              <span className="text-zinc-300 font-mono">
+              <span className="text-bambu-gray">{t('spoolbuddy.settings.type', 'Type')}</span>
+              <span className="text-bambu-gray-light font-mono">
                 {device.nfc_reader_type || 'N/A'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">{t('spoolbuddy.settings.connection', 'Connection')}</span>
-              <span className="text-zinc-300 font-mono">
+              <span className="text-bambu-gray">{t('spoolbuddy.settings.connection', 'Connection')}</span>
+              <span className="text-bambu-gray-light font-mono">
                 {device.nfc_connection || 'N/A'}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-zinc-500">{t('spoolbuddy.status.status', 'Status')}</span>
+              <span className="text-bambu-gray">{t('spoolbuddy.status.status', 'Status')}</span>
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${
-                  device.nfc_ok ? 'bg-green-500' : device.nfc_reader_type ? 'bg-red-500' : 'bg-zinc-600'
+                  device.nfc_ok ? 'bg-green-500' : device.nfc_reader_type ? 'bg-red-500' : 'bg-bambu-dark-tertiary'
                 }`} />
                 <span className={
-                  device.nfc_ok ? 'text-green-400' : device.nfc_reader_type ? 'text-red-400' : 'text-zinc-500'
+                  device.nfc_ok ? 'text-green-400' : device.nfc_reader_type ? 'text-red-400' : 'text-bambu-gray'
                 }>
                   {device.nfc_ok
                     ? t('spoolbuddy.status.nfcReady', 'Ready')
@@ -141,26 +141,26 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
         </div>
 
         {/* Device Info */}
-        <div className="bg-zinc-800 rounded-lg p-3">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-2">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3">
+          <h3 className="text-sm font-semibold text-bambu-gray-light mb-2">
             {t('spoolbuddy.settings.deviceInfo', 'Device Info')}
           </h3>
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between">
-              <span className="text-zinc-500">{t('spoolbuddy.settings.hostname', 'Host')}</span>
-              <span className="text-zinc-300 truncate ml-2">{device.hostname}</span>
+              <span className="text-bambu-gray">{t('spoolbuddy.settings.hostname', 'Host')}</span>
+              <span className="text-bambu-gray-light truncate ml-2">{device.hostname}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">IP</span>
-              <span className="text-zinc-300">{device.ip_address}</span>
+              <span className="text-bambu-gray">IP</span>
+              <span className="text-bambu-gray-light">{device.ip_address}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">{t('spoolbuddy.settings.uptime', 'Uptime')}</span>
-              <span className="text-zinc-300">{formatUptime(device.uptime_s)}</span>
+              <span className="text-bambu-gray">{t('spoolbuddy.settings.uptime', 'Uptime')}</span>
+              <span className="text-bambu-gray-light">{formatUptime(device.uptime_s)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">ID</span>
-              <span className="text-zinc-400 font-mono truncate ml-2">{device.device_id}</span>
+              <span className="text-bambu-gray">ID</span>
+              <span className="text-bambu-gray font-mono truncate ml-2">{device.device_id}</span>
             </div>
           </div>
         </div>
@@ -169,15 +169,15 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
       {/* Backend/Auth + Diagnostics side by side */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {/* Backend/Auth Config */}
-        <div className="bg-zinc-800 rounded-lg p-3 space-y-2">
-          <h3 className="text-sm font-semibold text-zinc-300">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3 space-y-2">
+          <h3 className="text-sm font-semibold text-bambu-gray-light">
             {t('spoolbuddy.settings.systemConfig', 'Backend & Auth')}
           </h3>
           <TextField
             value={backendUrl}
             onChange={(e) => setBackendUrl(e.target.value)}
             placeholder="http://192.168.1.100:5000"
-            className="w-full px-2 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-100 text-xs"
+            className="w-full px-2 py-1.5 rounded bg-bambu-dark border border-bambu-dark-tertiary text-white text-xs"
           />
           <div className="flex flex-col gap-2 sm:flex-row">
             <TextField
@@ -185,12 +185,12 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
               value={apiToken}
               onChange={(e) => setApiToken(e.target.value)}
               placeholder={t('spoolbuddy.settings.apiTokenPlaceholder', 'API token')}
-              className="min-w-0 flex-1 px-2 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-100 text-xs"
+              className="min-w-0 flex-1 px-2 py-1.5 rounded bg-bambu-dark border border-bambu-dark-tertiary text-white text-xs"
             />
             <button
               onClick={saveConfig}
               disabled={systemBusy}
-              className="px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 disabled:bg-zinc-700 text-xs font-medium text-zinc-100"
+              className="px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 disabled:bg-bambu-dark-tertiary text-xs font-medium text-white"
             >
               {t('spoolbuddy.settings.saveConfig', 'Save')}
             </button>
@@ -204,7 +204,7 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
             <button
               onClick={restartDaemon}
               disabled={systemBusy || configPending}
-              className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-xs font-medium text-zinc-100"
+              className="px-3 py-1.5 rounded bg-bambu-dark-tertiary hover:bg-bambu-dark-tertiary disabled:opacity-50 text-xs font-medium text-white"
             >
               {t('spoolbuddy.quickMenu.restartDaemon', 'Restart Daemon')}
             </button>
@@ -212,7 +212,7 @@ function DeviceTab({ device }: { device: SpoolBuddyDevice }) {
         </div>
 
         {/* Diagnostic Buttons */}
-        <div className="bg-zinc-800 rounded-lg p-3 flex flex-col gap-2">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3 flex flex-col gap-2">
           <button
             onClick={() => setDiagnosticOpen('nfc')}
             className="flex-1 bg-blue-700 hover:bg-blue-600 transition-colors rounded-lg p-2 flex items-center gap-2"
@@ -303,9 +303,9 @@ function DisplayTab({ device, onBrightnessChange }: {
   return (
     <div className="space-y-4">
       {/* Brightness */}
-      <div className="bg-zinc-800 rounded-lg p-4">
+      <div className="bg-bambu-dark-secondary rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-zinc-300">
+          <h3 className="text-sm font-semibold text-bambu-gray-light">
             {t('spoolbuddy.settings.brightness', 'Brightness')}
           </h3>
           {saved && (
@@ -318,7 +318,7 @@ function DisplayTab({ device, onBrightnessChange }: {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <svg className="w-4 h-4 text-zinc-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4 text-bambu-gray flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
           <Slider
@@ -326,23 +326,23 @@ function DisplayTab({ device, onBrightnessChange }: {
             max={100}
             value={brightness}
             onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
-            className="flex-1 h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+            className="flex-1 h-2 bg-bambu-dark-tertiary rounded-lg appearance-none cursor-pointer accent-green-500"
           />
-          <span className="text-sm font-mono text-zinc-400 w-10 text-right">{brightness}%</span>
+          <span className="text-sm font-mono text-bambu-gray w-10 text-right">{brightness}%</span>
         </div>
         {!device.has_backlight && (
-          <p className="text-xs text-zinc-600 mt-2">
+          <p className="text-xs text-bambu-gray-dark mt-2">
             {t('spoolbuddy.settings.noBacklight', 'No DSI backlight detected. Brightness control requires a DSI display.')}
           </p>
         )}
       </div>
 
       {/* Screen blank timeout */}
-      <div className="bg-zinc-800 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-zinc-300 mb-1">
+      <div className="bg-bambu-dark-secondary rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-bambu-gray-light mb-1">
           {t('spoolbuddy.settings.screenBlank', 'Screen Blank Timeout')}
         </h3>
-        <p className="text-xs text-zinc-500 mb-3">
+        <p className="text-xs text-bambu-gray mb-3">
           {t('spoolbuddy.settings.screenBlankDesc', 'Screen turns off after inactivity. Touch to wake.')}
         </p>
         <div className="grid grid-cols-3 gap-2">
@@ -353,7 +353,7 @@ function DisplayTab({ device, onBrightnessChange }: {
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[40px] ${
                 blankTimeout === opt.value
                   ? 'bg-green-600 text-white'
-                  : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                  : 'bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary'
               }`}
             >
               {opt.label}
@@ -362,7 +362,7 @@ function DisplayTab({ device, onBrightnessChange }: {
         </div>
       </div>
 
-      <p className="text-xs text-zinc-600 text-center">
+      <p className="text-xs text-bambu-gray-dark text-center">
         {t('spoolbuddy.settings.displayNote', 'Brightness is applied as a software filter.')}
       </p>
     </div>
@@ -391,17 +391,17 @@ function StepIndicator({ step, labels }: { step: 'tare' | 'weight'; labels: { ta
       </span>
 
       {/* Connector line */}
-      <div className={`w-px h-5 my-1 ${step === 'weight' ? 'bg-green-600/40' : 'bg-zinc-700'}`} />
+      <div className={`w-px h-5 my-1 ${step === 'weight' ? 'bg-green-600/40' : 'bg-bambu-dark-tertiary'}`} />
 
       {/* Step 2 circle */}
       <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
         step === 'weight'
           ? 'bg-green-600 text-white'
-          : 'bg-zinc-700 text-zinc-500'
+          : 'bg-bambu-dark-tertiary text-bambu-gray'
       }`}>
         2
       </div>
-      <span className={`text-[10px] mt-0.5 ${step === 'weight' ? 'text-green-400 font-medium' : 'text-zinc-600'}`}>
+      <span className={`text-[10px] mt-0.5 ${step === 'weight' ? 'text-green-400 font-medium' : 'text-bambu-gray-dark'}`}>
         {labels.weight}
       </span>
     </div>
@@ -548,22 +548,22 @@ function ScaleTab({ device, weight, weightStable, rawAdc }: {
     return (
       <div className="flex flex-col h-full">
         {/* Weight + info card */}
-        <div className="bg-zinc-800 rounded-lg p-3 mb-3">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3 mb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${weightStable ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
-              <span className="text-lg font-mono text-zinc-200">
+              <span className="text-lg font-mono text-bambu-gray-light">
                 {weight !== null ? `${weight.toFixed(1)} g` : '-- g'}
               </span>
             </div>
-            <div className="text-xs text-zinc-500 text-right">
+            <div className="text-xs text-bambu-gray text-right">
               <span>{t('spoolbuddy.settings.tareOffset', 'Tare')}: {device.tare_offset}</span>
               <span className="mx-1.5">&middot;</span>
               <span>{t('spoolbuddy.settings.calFactor', 'Factor')}: {device.calibration_factor.toFixed(2)}</span>
             </div>
           </div>
           {device.last_calibrated_at && (
-            <div className="text-xs text-zinc-600 mt-1">
+            <div className="text-xs text-bambu-gray-dark mt-1">
               {t('spoolbuddy.settings.lastCalibrated', 'Last calibrated')}: {formatDateTime(device.last_calibrated_at)}
             </div>
           )}
@@ -583,7 +583,7 @@ function ScaleTab({ device, weight, weightStable, rawAdc }: {
           <button
             onClick={handleTare}
             disabled={busy}
-            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-zinc-700 text-zinc-200 hover:bg-zinc-600 disabled:opacity-40 transition-colors min-h-[44px] flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary disabled:opacity-40 transition-colors min-h-[44px] flex items-center justify-center gap-2"
           >
             {busy && (
               <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -613,9 +613,9 @@ function ScaleTab({ device, weight, weightStable, rawAdc }: {
       {/* Right: content */}
       <div className="flex-1 min-w-0">
         {/* Live weight bar */}
-        <div className="flex items-center gap-2 bg-zinc-800 rounded-lg px-3 py-1.5 mb-1.5">
+        <div className="flex items-center gap-2 bg-bambu-dark-secondary rounded-lg px-3 py-1.5 mb-1.5">
           <div className={`w-2 h-2 rounded-full shrink-0 ${weightStable ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
-          <span className="text-sm font-mono text-zinc-200">
+          <span className="text-sm font-mono text-bambu-gray-light">
             {weight !== null ? `${weight.toFixed(1)} g` : '-- g'}
           </span>
           <span className={`text-xs ml-auto ${weightStable ? 'text-green-400' : 'text-amber-400'}`}>
@@ -634,15 +634,15 @@ function ScaleTab({ device, weight, weightStable, rawAdc }: {
 
         {/* Step content */}
         {calStep === 'tare' ? (
-          <p className="text-sm text-zinc-300 mb-3">
+          <p className="text-sm text-bambu-gray-light mb-3">
             {t('spoolbuddy.settings.calStep1', 'Remove all items from the scale and press Set Zero.')}
           </p>
         ) : (
           <>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs text-zinc-400 shrink-0">{t('spoolbuddy.settings.knownWeight', 'Known weight')}</span>
-              <div className="flex-1 bg-zinc-900 border border-zinc-600 rounded px-3 py-1 text-right text-lg font-mono text-zinc-100">
-                {knownWeight || '0'}<span className="text-zinc-500 ml-1">g</span>
+              <span className="text-xs text-bambu-gray shrink-0">{t('spoolbuddy.settings.knownWeight', 'Known weight')}</span>
+              <div className="flex-1 bg-bambu-dark border border-bambu-dark-tertiary rounded px-3 py-1 text-right text-lg font-mono text-white">
+                {knownWeight || '0'}<span className="text-bambu-gray ml-1">g</span>
               </div>
             </div>
             <div className="grid grid-cols-4 gap-1 mb-1.5">
@@ -652,8 +652,8 @@ function ScaleTab({ device, weight, weightStable, rawAdc }: {
                   onClick={() => numpadPress(key)}
                   className={`rounded text-lg font-medium transition-colors h-[48px] active:scale-95 ${
                     key === 'backspace'
-                      ? 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-                      : 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700'
+                      ? 'bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary'
+                      : 'bg-bambu-dark-secondary text-white hover:bg-bambu-dark-tertiary border border-bambu-dark-tertiary'
                   }`}
                 >
                   {key === 'backspace' ? '\u232B' : key}
@@ -667,7 +667,7 @@ function ScaleTab({ device, weight, weightStable, rawAdc }: {
         <div className="flex gap-2">
           <button
             onClick={() => { setCalStep('idle'); setStatus(null); }}
-            className="flex-1 px-4 py-2 rounded-lg text-sm bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors h-[40px]"
+            className="flex-1 px-4 py-2 rounded-lg text-sm bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors h-[40px]"
           >
             {t('common.cancel', 'Cancel')}
           </button>
@@ -771,13 +771,13 @@ function UpdatesTab({ device }: { device: SpoolBuddyDevice }) {
   return (
     <div className="space-y-3">
       {/* Version + Update status + Check — single card */}
-      <div className="bg-zinc-800 rounded-lg p-3 space-y-3">
+      <div className="bg-bambu-dark-secondary rounded-lg p-3 space-y-3">
         {/* Version row */}
         <div className="flex justify-between items-center text-sm">
-          <span className="text-zinc-500">{t('spoolbuddy.settings.currentVersion', 'Current Version')}</span>
-          <span className="text-zinc-200 font-mono">
+          <span className="text-bambu-gray">{t('spoolbuddy.settings.currentVersion', 'Current Version')}</span>
+          <span className="text-bambu-gray-light font-mono">
             {displayVersion || (
-              <span className="text-zinc-500 italic text-xs">{t('spoolbuddy.settings.versionPending', 'Waiting for daemon...')}</span>
+              <span className="text-bambu-gray italic text-xs">{t('spoolbuddy.settings.versionPending', 'Waiting for daemon...')}</span>
             )}
           </span>
         </div>
@@ -820,14 +820,14 @@ function UpdatesTab({ device }: { device: SpoolBuddyDevice }) {
             <div className="flex gap-2">
               <button
                 onClick={checkForUpdates}
-                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors"
+                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors"
               >
                 {t('spoolbuddy.settings.checkUpdates', 'Check for Updates')}
               </button>
               <button
                 onClick={applyUpdate}
                 disabled={!device.online}
-                className="px-3 py-2 rounded-lg text-xs font-medium bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-200 disabled:opacity-40 transition-colors"
+                className="px-3 py-2 rounded-lg text-xs font-medium bg-bambu-dark-tertiary text-bambu-gray hover:bg-bambu-dark-tertiary hover:text-bambu-gray-light disabled:opacity-40 transition-colors"
               >
                 {t('spoolbuddy.settings.forceUpdate', 'Force Update')}
               </button>
@@ -837,16 +837,16 @@ function UpdatesTab({ device }: { device: SpoolBuddyDevice }) {
       </div>
 
       {/* SSH Setup — collapsible */}
-      <div className="bg-zinc-800 rounded-lg p-3">
+      <div className="bg-bambu-dark-secondary rounded-lg p-3">
         <button
           onClick={() => setSSHExpanded(!sshExpanded)}
           className="w-full flex justify-between items-center text-xs"
         >
-          <span className="font-medium text-zinc-400">
+          <span className="font-medium text-bambu-gray">
             {t('spoolbuddy.settings.sshSetup', 'SSH Setup')}
           </span>
           <svg
-            className={`w-3 h-3 text-zinc-500 transition-transform ${sshExpanded ? 'rotate-180' : ''}`}
+            className={`w-3 h-3 text-bambu-gray transition-transform ${sshExpanded ? 'rotate-180' : ''}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -855,23 +855,23 @@ function UpdatesTab({ device }: { device: SpoolBuddyDevice }) {
 
         {sshExpanded && (
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-bambu-gray">
               {t('spoolbuddy.settings.sshDescription', 'SSH key is deployed automatically. For manual setup, add this key to ~/.ssh/authorized_keys on the device.')}
             </p>
             {sshKeyData?.public_key ? (
               <div className="relative">
-                <pre className="bg-zinc-900 rounded p-2 text-[10px] text-zinc-400 font-mono break-all whitespace-pre-wrap">
+                <pre className="bg-bambu-dark rounded p-2 text-[10px] text-bambu-gray font-mono break-all whitespace-pre-wrap">
                   {sshKeyData.public_key}
                 </pre>
                 <button
                   onClick={copyKey}
-                  className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors"
+                  className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors"
                 >
                   {copied ? t('common.copied', 'Copied!') : t('common.copy', 'Copy')}
                 </button>
               </div>
             ) : (
-              <span className="text-[10px] text-zinc-500 italic">
+              <span className="text-[10px] text-bambu-gray italic">
                 {t('spoolbuddy.settings.sshKeyLoading', 'Loading...')}
               </span>
             )}
@@ -886,7 +886,7 @@ function UpdatesTab({ device }: { device: SpoolBuddyDevice }) {
 
 function UsageBar({ percent, color }: { percent: number; color: string }) {
   return (
-    <div className="w-full h-2 bg-zinc-700 rounded-full overflow-hidden">
+    <div className="w-full h-2 bg-bambu-dark-tertiary rounded-full overflow-hidden">
       <div
         className={`h-full rounded-full transition-all ${color}`}
         style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
@@ -911,7 +911,7 @@ function SystemTab({ device }: { device: SpoolBuddyDevice }) {
   if (!stats) {
     return (
       <div className="flex items-center justify-center h-32">
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-bambu-gray">
           {t('spoolbuddy.settings.systemStatsWaiting', 'Waiting for system stats...')}
         </p>
       </div>
@@ -928,21 +928,21 @@ function SystemTab({ device }: { device: SpoolBuddyDevice }) {
     <div className="space-y-2">
       {/* CPU + Memory side by side */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-zinc-800 rounded-lg p-3">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-2">CPU</h3>
+        <div className="bg-bambu-dark-secondary rounded-lg p-3">
+          <h3 className="text-sm font-semibold text-bambu-gray-light mb-2">CPU</h3>
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between">
-              <span className="text-zinc-500">{t('spoolbuddy.settings.cores', 'Cores')}</span>
-              <span className="text-zinc-300 font-mono">{stats.cpu_count ?? '-'}</span>
+              <span className="text-bambu-gray">{t('spoolbuddy.settings.cores', 'Cores')}</span>
+              <span className="text-bambu-gray-light font-mono">{stats.cpu_count ?? '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">{t('spoolbuddy.settings.loadAvg', 'Load Avg')}</span>
-              <span className="text-zinc-300 font-mono">
+              <span className="text-bambu-gray">{t('spoolbuddy.settings.loadAvg', 'Load Avg')}</span>
+              <span className="text-bambu-gray-light font-mono">
                 {stats.load_avg ? stats.load_avg.join(' / ') : '-'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500">{t('spoolbuddy.settings.temp', 'Temp')}</span>
+              <span className="text-bambu-gray">{t('spoolbuddy.settings.temp', 'Temp')}</span>
               <span className={`font-mono font-medium ${tempColor}`}>
                 {stats.cpu_temp_c != null ? `${stats.cpu_temp_c}\u00B0C` : '-'}
               </span>
@@ -951,8 +951,8 @@ function SystemTab({ device }: { device: SpoolBuddyDevice }) {
         </div>
 
         {/* Memory */}
-        <div className="bg-zinc-800 rounded-lg p-3">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-2">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3">
+          <h3 className="text-sm font-semibold text-bambu-gray-light mb-2">
             {t('spoolbuddy.settings.memory', 'Memory')}
           </h3>
           {mem ? (
@@ -960,80 +960,80 @@ function SystemTab({ device }: { device: SpoolBuddyDevice }) {
               <UsageBar percent={mem.percent ?? 0} color={memColor} />
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">{t('spoolbuddy.settings.used', 'Used')}</span>
-                  <span className="text-zinc-300 font-mono">{mem.used_mb} / {mem.total_mb} MB</span>
+                  <span className="text-bambu-gray">{t('spoolbuddy.settings.used', 'Used')}</span>
+                  <span className="text-bambu-gray-light font-mono">{mem.used_mb} / {mem.total_mb} MB</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">{t('spoolbuddy.settings.available', 'Free')}</span>
-                  <span className="text-zinc-300 font-mono">{mem.available_mb} MB</span>
+                  <span className="text-bambu-gray">{t('spoolbuddy.settings.available', 'Free')}</span>
+                  <span className="text-bambu-gray-light font-mono">{mem.available_mb} MB</span>
                 </div>
               </div>
             </div>
           ) : (
-            <span className="text-xs text-zinc-500">-</span>
+            <span className="text-xs text-bambu-gray">-</span>
           )}
         </div>
       </div>
 
       {/* Disk — compact single row */}
-      <div className="bg-zinc-800 rounded-lg px-3 py-2">
+      <div className="bg-bambu-dark-secondary rounded-lg px-3 py-2">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-zinc-300 shrink-0">
+          <h3 className="text-sm font-semibold text-bambu-gray-light shrink-0">
             {t('spoolbuddy.settings.disk', 'Disk')}
           </h3>
           {disk ? (
             <>
               <div className="flex-1"><UsageBar percent={disk.percent ?? 0} color={diskColor} /></div>
-              <span className="text-xs text-zinc-300 font-mono shrink-0">{disk.used_gb} / {disk.total_gb} GB</span>
+              <span className="text-xs text-bambu-gray-light font-mono shrink-0">{disk.used_gb} / {disk.total_gb} GB</span>
             </>
           ) : (
-            <span className="text-xs text-zinc-500">-</span>
+            <span className="text-xs text-bambu-gray">-</span>
           )}
         </div>
       </div>
 
       {/* OS + Runtime side by side */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-zinc-800 rounded-lg p-3">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-1.5">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3">
+          <h3 className="text-sm font-semibold text-bambu-gray-light mb-1.5">
             {t('spoolbuddy.settings.osInfo', 'OS')}
           </h3>
           <div className="space-y-1 text-xs">
             {stats.os?.os && (
               <div className="flex justify-between">
-                <span className="text-zinc-500">{t('spoolbuddy.settings.distro', 'Distro')}</span>
-                <span className="text-zinc-300 truncate ml-2">{stats.os.os}</span>
+                <span className="text-bambu-gray">{t('spoolbuddy.settings.distro', 'Distro')}</span>
+                <span className="text-bambu-gray-light truncate ml-2">{stats.os.os}</span>
               </div>
             )}
             {stats.os?.kernel && (
               <div className="flex justify-between">
-                <span className="text-zinc-500">{t('spoolbuddy.settings.kernel', 'Kernel')}</span>
-                <span className="text-zinc-300 font-mono truncate ml-2">{stats.os.kernel}</span>
+                <span className="text-bambu-gray">{t('spoolbuddy.settings.kernel', 'Kernel')}</span>
+                <span className="text-bambu-gray-light font-mono truncate ml-2">{stats.os.kernel}</span>
               </div>
             )}
             {stats.os?.arch && (
               <div className="flex justify-between">
-                <span className="text-zinc-500">{t('spoolbuddy.settings.arch', 'Arch')}</span>
-                <span className="text-zinc-300 font-mono">{stats.os.arch}</span>
+                <span className="text-bambu-gray">{t('spoolbuddy.settings.arch', 'Arch')}</span>
+                <span className="text-bambu-gray-light font-mono">{stats.os.arch}</span>
               </div>
             )}
           </div>
         </div>
-        <div className="bg-zinc-800 rounded-lg p-3">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-1.5">
+        <div className="bg-bambu-dark-secondary rounded-lg p-3">
+          <h3 className="text-sm font-semibold text-bambu-gray-light mb-1.5">
             {t('spoolbuddy.settings.runtime', 'Runtime')}
           </h3>
           <div className="space-y-1 text-xs">
             {stats.os?.python && (
               <div className="flex justify-between">
-                <span className="text-zinc-500">Python</span>
-                <span className="text-zinc-300 font-mono">{stats.os.python}</span>
+                <span className="text-bambu-gray">Python</span>
+                <span className="text-bambu-gray-light font-mono">{stats.os.python}</span>
               </div>
             )}
             {stats.system_uptime_s != null && (
               <div className="flex justify-between">
-                <span className="text-zinc-500">{t('spoolbuddy.settings.systemUptime', 'Uptime')}</span>
-                <span className="text-zinc-300">{formatSystemUptime(stats.system_uptime_s)}</span>
+                <span className="text-bambu-gray">{t('spoolbuddy.settings.systemUptime', 'Uptime')}</span>
+                <span className="text-bambu-gray-light">{formatSystemUptime(stats.system_uptime_s)}</span>
               </div>
             )}
           </div>
@@ -1067,20 +1067,20 @@ export function SpoolBuddySettingsPage() {
 
   return (
     <div className="h-full flex flex-col p-4">
-      <h1 className="text-xl font-semibold text-zinc-100 mb-3">
+      <h1 className="text-xl font-semibold text-white mb-3">
         {t('spoolbuddy.nav.settings', 'Settings')}
       </h1>
 
       {/* Tab bar */}
-      <div className="flex flex-wrap gap-1 bg-zinc-800/50 rounded-lg p-1 mb-4">
+      <div className="flex flex-wrap gap-1 bg-bambu-dark-secondary rounded-lg p-1 mb-4">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 px-2 py-2 rounded-md text-sm font-medium transition-colors min-h-[36px] ${
               activeTab === tab.id
-                ? 'bg-zinc-700 text-zinc-100'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-bambu-dark-tertiary text-white'
+                : 'text-bambu-gray hover:text-bambu-gray-light'
             }`}
           >
             {tab.label}
@@ -1092,7 +1092,7 @@ export function SpoolBuddySettingsPage() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {!device ? (
           <div className="flex items-center justify-center h-32">
-            <div className="text-center text-zinc-500">
+            <div className="text-center text-bambu-gray">
               <p className="text-sm">{t('spoolbuddy.settings.noDevice', 'No SpoolBuddy device found')}</p>
             </div>
           </div>

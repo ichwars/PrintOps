@@ -107,7 +107,7 @@ FILE_ALLOWLIST = {
     "frontend/src/pages/printers/PrinterCard.tsx": 2817,
     "frontend/src/pages/ProfilesPage.tsx": 2985,
     "frontend/src/pages/QueuePage.tsx": 2826,
-    "frontend/src/pages/SettingsPage.tsx": 6824,
+    "frontend/src/pages/SettingsPage.tsx": 6822,
     "install/install.sh": 1031,
     "spoolbuddy/install/install.sh": 1654,
 }

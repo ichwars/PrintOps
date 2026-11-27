@@ -1217,7 +1217,7 @@ return (
                             {showBedJogMenu === printer.id && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowBedJogMenu(null)} />
-                                <div className="absolute bottom-full left-0 mb-1 z-50 flex w-[216px] flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-2xl">
+                                <div className="absolute bottom-full left-0 mb-1 z-50 flex w-[216px] flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-lg">
                                   <div className="shrink-0 px-3 py-2.5 text-center text-sm font-medium text-white">
                                     {t('printers.bedJog.title')}
                                   </div>

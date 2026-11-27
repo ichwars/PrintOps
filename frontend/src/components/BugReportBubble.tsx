@@ -323,7 +323,7 @@ export function BugReportBubble() {
         >
           <div
             ref={modalRef}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[80vh] overflow-y-auto"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-[80vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">

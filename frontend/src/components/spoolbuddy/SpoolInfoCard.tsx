@@ -104,12 +104,12 @@ export function SpoolInfoCard({ spool, scaleWeight, onClose, onSyncWeight, onAss
         {/* Main info */}
         <div className="flex-1 min-w-0 pt-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-zinc-100">
+            <h3 className="text-lg font-semibold text-white">
               {spool.color_name || translateInterface("orders.runtimeInterface.unknownColor")}
             </h3>
-            <span className="text-xs font-mono text-zinc-500 shrink-0">#{spool.id}</span>
+            <span className="text-xs font-mono text-bambu-gray shrink-0">#{spool.id}</span>
           </div>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-bambu-gray">
             {spool.brand} &bull; {spool.material}
             {spool.subtype && ` ${spool.subtype}`}
           </p>
@@ -118,14 +118,14 @@ export function SpoolInfoCard({ spool, scaleWeight, onClose, onSyncWeight, onAss
           {remaining !== null && (
             <div className="mt-3">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold font-mono text-zinc-100">{remaining}g</span>
-                <span className="text-sm text-zinc-500">/ {labelWeight}g</span>
+                <span className="text-3xl font-bold font-mono text-white">{remaining}g</span>
+                <span className="text-sm text-bambu-gray">/ {labelWeight}g</span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5">{t('spoolbuddy.spool.remaining', 'Remaining')}</p>
+              <p className="text-xs text-bambu-gray mt-0.5">{t('spoolbuddy.spool.remaining', 'Remaining')}</p>
 
               {/* Fill bar */}
               <div className="mt-2 max-w-xs">
-                <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div className="h-2 bg-bambu-dark-tertiary rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${fillPercent}%`, backgroundColor: fillColor }}
@@ -138,21 +138,21 @@ export function SpoolInfoCard({ spool, scaleWeight, onClose, onSyncWeight, onAss
       </div>
 
       {/* Details grid */}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm bg-zinc-800 rounded-lg p-4 w-full">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm bg-bambu-dark-secondary rounded-lg p-4 w-full">
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.grossWeight', 'Gross weight')}</span>
-          <span className="font-mono text-zinc-300">{grossWeight !== null ? `${grossWeight}g` : '\u2014'}</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.grossWeight', 'Gross weight')}</span>
+          <span className="font-mono text-bambu-gray-light">{grossWeight !== null ? `${grossWeight}g` : '\u2014'}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.spool.coreWeight', 'Core')}</span>
-          <span className="font-mono text-zinc-300">{coreWeight}g</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.spool.coreWeight', 'Core')}</span>
+          <span className="font-mono text-bambu-gray-light">{coreWeight}g</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.spoolSize', 'Spool size')}</span>
-          <span className="font-mono text-zinc-300">{labelWeight}g</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.spoolSize', 'Spool size')}</span>
+          <span className="font-mono text-bambu-gray-light">{labelWeight}g</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-zinc-500">{t('spoolbuddy.spool.scaleWeight', 'Scale')}</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.spool.scaleWeight', 'Scale')}</span>
           {grossWeight !== null ? (
             <span className={`flex items-center gap-1 font-mono ${isMatch ? 'text-green-500' : 'text-yellow-500'}`}>
               {grossWeight}g
@@ -172,12 +172,12 @@ export function SpoolInfoCard({ spool, scaleWeight, onClose, onSyncWeight, onAss
               )}
             </span>
           ) : (
-            <span className="text-zinc-500">{'\u2014'}</span>
+            <span className="text-bambu-gray">{'\u2014'}</span>
           )}
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.tagId', 'Tag')}</span>
-          <span className="font-mono text-xs text-zinc-400 truncate max-w-[120px]" title={spool.tag_uid || ''}>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.tagId', 'Tag')}</span>
+          <span className="font-mono text-xs text-bambu-gray truncate max-w-[120px]" title={spool.tag_uid || ''}>
             {spool.tag_uid ? spool.tag_uid.slice(-8) : '\u2014'}
           </span>
         </div>
@@ -210,7 +210,7 @@ export function SpoolInfoCard({ spool, scaleWeight, onClose, onSyncWeight, onAss
             synced
               ? 'bg-green-600/20 text-green-400'
               : onAssignToAms
-                ? 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed'
+                ? 'bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary disabled:opacity-40 disabled:cursor-not-allowed'
                 : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed'
           }`}
         >
@@ -219,7 +219,7 @@ export function SpoolInfoCard({ spool, scaleWeight, onClose, onSyncWeight, onAss
         {onClose && (
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
           >
             {t('spoolbuddy.dashboard.close', 'Close')}
           </button>
@@ -256,14 +256,14 @@ export function UnknownTagCard({ tagUid, scaleWeight, coreWeight, onLinkSpool, o
         </svg>
       </div>
       <div>
-        <h3 className="text-lg font-semibold text-zinc-100">{t('spoolbuddy.dashboard.newTag', 'New Tag Detected')}</h3>
-        <p className="text-sm text-zinc-500 font-mono mt-1">{tagUid}</p>
+        <h3 className="text-lg font-semibold text-white">{t('spoolbuddy.dashboard.newTag', 'New Tag Detected')}</h3>
+        <p className="text-sm text-bambu-gray font-mono mt-1">{tagUid}</p>
       </div>
       {grossWeight !== null && (
-        <div className="text-sm text-zinc-400">
+        <div className="text-sm text-bambu-gray">
           <span className="font-mono font-semibold">{grossWeight}g</span> {t('spoolbuddy.dashboard.onScale', 'on scale')}
           {estimatedRemaining !== null && estimatedRemaining > 0 && (
-            <span className="text-zinc-500"> &bull; ~{estimatedRemaining}g filament</span>
+            <span className="text-bambu-gray"> &bull; ~{estimatedRemaining}g filament</span>
           )}
         </div>
       )}
@@ -279,7 +279,7 @@ export function UnknownTagCard({ tagUid, scaleWeight, coreWeight, onLinkSpool, o
         {onLinkSpool && (
           <button
             onClick={onLinkSpool}
-            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
           >
             <svg className="w-4 h-4 inline-block mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -290,7 +290,7 @@ export function UnknownTagCard({ tagUid, scaleWeight, coreWeight, onLinkSpool, o
         {onClose && (
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
           >
             {t('spoolbuddy.dashboard.close', 'Close')}
           </button>

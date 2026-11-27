@@ -365,23 +365,23 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
     <>
     <div className="fixed inset-0 z-[60] bg-bambu-dark flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-bambu-dark-tertiary shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-7 h-7 rounded-full shrink-0" style={colorStyle} />
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-zinc-100 truncate">
+            <h2 className="text-sm font-semibold text-white truncate">
               {t('spoolbuddy.modal.assignToAmsTitle', 'Assign to AMS')}
-              <span className="font-normal text-zinc-500 ml-2">
+              <span className="font-normal text-bambu-gray ml-2">
                 {spool.color_name || 'Unknown'} &bull; {spool.brand} {spool.material}{spool.subtype && ` ${spool.subtype}`}
               </span>
-              <span className="text-[10px] font-mono text-zinc-500 ml-2 shrink-0">#{spool.id}</span>
+              <span className="text-[10px] font-mono text-bambu-gray ml-2 shrink-0">#{spool.id}</span>
             </h2>
           </div>
         </div>
         <button
           onClick={onClose}
           disabled={isWaiting}
-          className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors shrink-0 disabled:opacity-50"
+          className="p-2 rounded-lg text-bambu-gray hover:text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors shrink-0 disabled:opacity-50"
         >
           <X className="w-5 h-5" />
         </button>
@@ -464,8 +464,8 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
                     >
                       <div className="relative w-10 h-10 shrink-0">
                         {isEmpty ? (
-                          <div className="w-full h-full rounded-full border-2 border-dashed border-gray-500 flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+                          <div className="w-full h-full rounded-full border-2 border-dashed border-bambu-dark-tertiary flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-bambu-dark-tertiary" />
                           </div>
                         ) : (
                           <svg viewBox="0 0 56 56" className="w-full h-full">
@@ -507,11 +507,11 @@ export function AssignToAmsModal({ isOpen, onClose, spool, printerId, spoolmanMo
       </div>
 
       {/* Footer */}
-      <div className="flex justify-end gap-3 px-5 py-3 border-t border-zinc-800 shrink-0">
+      <div className="flex justify-end gap-3 px-5 py-3 border-t border-bambu-dark-tertiary shrink-0">
         <button
           onClick={onClose}
           disabled={isWaiting}
-          className="px-5 py-2.5 rounded-lg text-sm font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors min-h-[44px] disabled:opacity-50"
+          className="px-5 py-2.5 rounded-lg text-sm font-medium bg-bambu-dark-secondary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px] disabled:opacity-50"
         >
           {statusType === 'success' ? t('spoolbuddy.dashboard.close', 'Close') : t('spoolbuddy.modal.cancel', 'Cancel')}
         </button>

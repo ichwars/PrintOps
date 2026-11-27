@@ -333,7 +333,7 @@ export function OrdersPage() {
                 </p>
               </div>
             </div>
-            {activeSection === 'invoices' ? (
+            {activeSection === 'invoices' && (
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <span className="rounded border border-bambu-dark-tertiary bg-bambu-dark px-2.5 py-1.5 text-xs font-medium text-bambu-gray">
                   {invoiceText('openCount', { count: invoiceSummary.openCount })} · {formatMoney(invoiceSummary.openAmount, locale, invoiceSummary.currency)}
@@ -370,10 +370,6 @@ export function OrdersPage() {
                   ))}
                 </div>
               </div>
-            ) : (
-              <span className="text-xs px-2 py-1 rounded-full bg-bambu-dark-tertiary text-bambu-gray">
-                {copy.foundation}
-              </span>
             )}
           </div>
         </CardHeader>

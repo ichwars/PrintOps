@@ -29,22 +29,22 @@ export function WeightDisplay({ weight, weightStable, deviceOnline, deviceId }: 
     <div className="flex flex-col items-center gap-3">
       {/* Weight readout */}
       <div className="flex items-baseline gap-2">
-        <span className="text-5xl font-light tabular-nums text-zinc-100">
+        <span className="text-5xl font-light tabular-nums text-white">
           {formatWeight(weight)}
         </span>
-        <span className="text-xl text-zinc-400">g</span>
+        <span className="text-xl text-bambu-gray">g</span>
       </div>
 
       {/* Stability indicator */}
       <div className="flex items-center gap-2">
         <div className={`w-2 h-2 rounded-full ${
           !deviceOnline
-            ? 'bg-zinc-600'
+            ? 'bg-bambu-dark-tertiary'
             : weightStable
-            ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.5)]'
+            ? 'bg-green-500'
             : 'bg-amber-500 animate-pulse'
         }`} />
-        <span className="text-xs text-zinc-400">
+        <span className="text-xs text-bambu-gray">
           {!deviceOnline
             ? t('spoolbuddy.weight.noReading', 'No reading')
             : weightStable
@@ -57,7 +57,7 @@ export function WeightDisplay({ weight, weightStable, deviceOnline, deviceId }: 
       <button
         onClick={handleTare}
         disabled={!deviceOnline || !deviceId}
-        className="px-4 py-2 text-sm font-medium rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[40px]"
+        className="px-4 py-2 text-sm font-medium rounded-lg bg-bambu-dark-secondary text-bambu-gray-light hover:bg-bambu-dark-tertiary disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[40px]"
       >
         {t('spoolbuddy.weight.tare', 'Tare')}
       </button>

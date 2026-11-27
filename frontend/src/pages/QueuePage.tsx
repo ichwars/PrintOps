@@ -188,7 +188,7 @@ function BulkEditModal({
     nozzleOffsetCali !== 'unchanged';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary">
           <h2 className="text-lg font-semibold text-white">
@@ -2584,8 +2584,8 @@ export function QueuePage() {
                       if (siblings.length === 0) return null;
                       const name = siblings[0].batch_name || t('queue.batch.defaultName');
                       return (
-                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border-2 border-cyan-400 rounded-lg shadow-2xl">
-                          <Package className="w-4 h-4 text-cyan-700 dark:text-cyan-300" />
+                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg">
+                          <Package className="w-4 h-4 text-bambu-gray" />
                           <span className="text-sm text-white font-medium">
                             {t('queue.dragGhost.batch', {
                               defaultValue: '{{name}} ({{count}} copies)',
@@ -2599,8 +2599,8 @@ export function QueuePage() {
                     // Multi-row drag — show the N-item ghost.
                     if (typeof activeDragId === 'number' && selectedItems.includes(activeDragId) && selectedItems.length > 1) {
                       return (
-                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border-2 border-cyan-400 rounded-lg shadow-2xl">
-                          <Package className="w-4 h-4 text-cyan-700 dark:text-cyan-300" />
+                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg">
+                          <Package className="w-4 h-4 text-bambu-gray" />
                           <span className="text-sm text-white font-medium">
                             {t('queue.dragGhost.multiCount', { count: selectedItems.length })}
                           </span>

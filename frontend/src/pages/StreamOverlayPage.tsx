@@ -224,15 +224,6 @@ export function StreamOverlayPage() {
 
   return (
     <div ref={viewportRef} className="min-h-screen bg-black relative overflow-hidden">
-      {config.artwork !== 'none' && (
-        <div data-testid="overlay-artwork" data-layout={config.artwork} aria-hidden="true"
-          className="absolute inset-0 z-10 pointer-events-none border-8 border-bambu-green/40"
-          style={{ background: config.artwork === 'portrait'
-            ? 'linear-gradient(155deg, rgba(0,174,66,.28), transparent 40%, rgba(0,174,66,.15))'
-            : 'linear-gradient(100deg, rgba(0,174,66,.25), transparent 55%, rgba(0,174,66,.15))' }}>
-          <div className="absolute top-6 left-6 text-white/70 font-semibold tracking-widest text-sm">PrintOps</div>
-        </div>
-      )}
       {/* Camera feed - fullscreen background (optional) */}
       {config.showCamera && access.enabled && !recovery.failed && (
         <img

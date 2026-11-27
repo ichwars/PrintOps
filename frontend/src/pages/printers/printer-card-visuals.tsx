@@ -107,7 +107,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
           `}
           style={{ maxWidth: 'calc(100vw - 24px)' }}
         >
-          <div className="w-44 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
+          <div className="w-44 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden">
             {isEmpty ? (
               <div className="px-3 py-2 text-xs text-bambu-gray text-center whitespace-nowrap">
                 Slot {index + 1} {translateInterface("orders.runtimeInterface.empty")}
@@ -359,7 +359,7 @@ export function DualNozzleHoverCard({ leftSlot, rightSlot, activeNozzle, filamen
           `}
           style={{ maxWidth: 'calc(100vw - 24px)' }}
         >
-          <div className="w-96 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
+          <div className="w-96 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden">
             <div className="p-2.5 flex gap-3">
               {leftSlot && renderColumn(leftSlot, 'L')}
               {leftSlot && rightSlot && <div className="w-px bg-bambu-dark-tertiary/50" />}
@@ -537,15 +537,10 @@ export function HeaterThermometer({ className, color, isHeating }: HeaterThermom
   };
   const fillColor = colorMap[color] || '#888';
 
-  // Glow style when heating
-  const glowStyle = isHeating ? {
-    filter: `drop-shadow(0 0 4px ${fillColor}) drop-shadow(0 0 8px ${fillColor})`,
-  } : {};
-
   if (isHeating) {
-    // Filled thermometer with glow - heater is ON
+    // Filled thermometer - heater is ON
     return (
-      <svg className={className} style={glowStyle} viewBox="0 0 12 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg className={className} viewBox="0 0 12 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="4.5" y="3" width="3" height="9.5" fill={fillColor} rx="0.5"/>
         <circle cx="6" cy="15" r="2" fill={fillColor}/>
         <path d="M6 0.5C4.6 0.5 3.5 1.6 3.5 3V12.1C2.6 12.8 2 13.9 2 15C2 17.2 3.8 19 6 19C8.2 19 10 17.2 10 15C10 13.9 9.4 12.8 8.5 12.1V3C8.5 1.6 7.4 0.5 6 0.5Z" stroke={fillColor} strokeWidth="1" fill="none"/>
@@ -774,7 +769,7 @@ export function CoverImage({
             <img
               src={cacheBustedUrl}
               alt={t('printers.printPreview')}
-              className="max-w-full max-h-[80vh] rounded-lg shadow-2xl"
+              className="max-w-full max-h-[80vh] rounded-lg shadow-lg"
             />
             {printName && (
               <p className="text-white text-center mt-4 text-lg">{printName}</p>

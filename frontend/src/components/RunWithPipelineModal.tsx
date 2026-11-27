@@ -130,7 +130,7 @@ export function RunWithPipelineModal({ source, onClose }: RunWithPipelineModalPr
       aria-label={t('library.runWithPipeline.modalTitle', 'Run with pipeline')}
     >
       <div
-        className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+        className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-bambu-dark-tertiary">

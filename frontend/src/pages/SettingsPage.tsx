@@ -5633,13 +5633,11 @@ export function SettingsPage() {
             <CardContent className="py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${authEnabled ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
-                    {authEnabled ? (
-                      <Lock className="w-5 h-5 text-green-600 dark:text-green-400" />
-                    ) : (
-                      <Unlock className="w-5 h-5 text-gray-400" />
-                    )}
-                  </div>
+                  {authEnabled ? (
+                    <Lock className="w-5 h-5 text-bambu-green" />
+                  ) : (
+                    <Unlock className="w-5 h-5 text-bambu-gray" />
+                  )}
                   <div>
                     <h3 className="text-white font-medium">{t('settings.authentication')}</h3>
                     <p className="text-sm text-bambu-gray">
@@ -5774,7 +5772,7 @@ export function SettingsPage() {
                           <p className="text-white font-medium text-lg">{user.username}</p>
                           <div className="flex flex-wrap gap-1 mt-2">
                             {user.is_admin && (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-600 dark:text-purple-400">
                                 {t('settings.admin')}
                               </span>
                             )}
@@ -5783,12 +5781,12 @@ export function SettingsPage() {
                                 key={group.id}
                                 className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                   group.name === 'Administrators'
-                                    ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                                    ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
                                     : group.name === 'Operators'
-                                    ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
                                     : group.name === 'Viewers'
-                                    ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
-                                    : 'bg-gray-500/20 text-gray-300'
+                                    ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                                    : 'bg-bambu-dark-tertiary text-bambu-gray'
                                 }`}
                               >
                                 {group.name}
@@ -5838,12 +5836,12 @@ export function SettingsPage() {
                               <p className="text-white font-medium truncate">{userItem.username}</p>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {userItem.auth_source === 'ldap' && (
-                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
                                     LDAP
                                   </span>
                                 )}
                                 {userItem.is_admin && (
-                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-600 dark:text-purple-400">
                                     {t('settings.admin')}
                                   </span>
                                 )}
@@ -5852,12 +5850,12 @@ export function SettingsPage() {
                                     key={group.id}
                                     className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                       group.name === 'Administrators'
-                                        ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                                        ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
                                         : group.name === 'Operators'
-                                        ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                                        ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
                                         : group.name === 'Viewers'
-                                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300'
-                                        : 'bg-gray-500/20 text-gray-300'
+                                        ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                                        : 'bg-bambu-dark-tertiary text-bambu-gray'
                                     }`}
                                   >
                                     {group.name}

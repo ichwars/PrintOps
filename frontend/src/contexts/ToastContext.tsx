@@ -358,7 +358,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             onBlur={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget)) setInteraction(toast, 'focused', false);
             }}
-            className={`rounded-lg border shadow-lg backdrop-blur-sm animate-slide-in ${bgColors[toast.type]} ${
+            className={`rounded-lg border shadow-lg animate-slide-in ${bgColors[toast.type]} ${
               toast.dispatchData ? 'w-[420px] p-3' : 'flex items-center gap-3 px-4 py-3'
             }`}
             style={{

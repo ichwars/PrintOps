@@ -177,8 +177,8 @@ function SpoolSlot({ tray, slotIndex, slotLabel, isActive, fillOverride, spoolma
       {/* Spool visualization */}
       <div className="relative w-16 h-16 mb-1">
         {isEmpty ? (
-          <div className="w-full h-full rounded-full border-2 border-dashed border-gray-500 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-gray-600" />
+          <div className="w-full h-full rounded-full border-2 border-dashed border-bambu-dark-tertiary flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-bambu-dark-tertiary" />
           </div>
         ) : (
           <svg viewBox="0 0 56 56" className="w-full h-full">

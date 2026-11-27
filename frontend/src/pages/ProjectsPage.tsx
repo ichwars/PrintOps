@@ -504,7 +504,7 @@ function ProjectCoverThumbnail({
       {hovered && pos &&
         createPortal(
           <div
-            className="fixed z-[100] w-96 h-96 rounded-lg overflow-hidden border border-bambu-dark-tertiary shadow-2xl bg-bambu-dark pointer-events-none"
+            className="fixed z-[100] w-96 h-96 rounded-lg overflow-hidden border border-bambu-dark-tertiary shadow-lg bg-bambu-dark pointer-events-none"
             style={{ left: pos.left, top: pos.top }}
             aria-hidden="true"
           >
