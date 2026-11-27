@@ -17,8 +17,8 @@ def production_receipt(run_id: int | InstrumentedAttribute[int]):
 
 async def lock_print_run(db: AsyncSession, run_id: int) -> bool:
     # A write lock also serializes stock receipts and run updates on SQLite.
-    result = await db.execute(update(PrintLogEntry).where(PrintLogEntry.id == run_id).values(id=PrintLogEntry.id))
-    return result.rowcount == 1
+    statement = update(PrintLogEntry).where(PrintLogEntry.id == run_id).values(id=PrintLogEntry.id)
+    return await db.scalar(statement.returning(PrintLogEntry.id)) is not None
 
 
 SNAPSHOT_FIELDS = frozenset({"project_id", "quantity", "confirm_requested"})

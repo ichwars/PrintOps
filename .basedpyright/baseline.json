@@ -1176,50 +1176,10 @@
         ],
         "./backend/app/api/routes/orders.py": [
             {
-                "code": "reportReturnType",
-                "range": {
-                    "startColumn": 5,
-                    "endColumn": 14,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportPossiblyUnboundVariable",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 17,
-                    "lineCount": 1
-                }
-            },
-            {
                 "code": "reportArgumentType",
                 "range": {
                     "startColumn": 42,
                     "endColumn": 112,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportPossiblyUnboundVariable",
-                "range": {
-                    "startColumn": 36,
-                    "endColumn": 41,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportPossiblyUnboundVariable",
-                "range": {
-                    "startColumn": 36,
-                    "endColumn": 41,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportPossiblyUnboundVariable",
-                "range": {
-                    "startColumn": 36,
-                    "endColumn": 41,
                     "lineCount": 1
                 }
             }
@@ -2275,16 +2235,6 @@
                 "code": "reportAssignmentType",
                 "range": {
                     "startColumn": 23,
-                    "endColumn": 27,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./backend/app/api/routes/warehouse_articles.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 22,
                     "endColumn": 27,
                     "lineCount": 1
                 }

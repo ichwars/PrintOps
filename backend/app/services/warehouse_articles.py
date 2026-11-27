@@ -9,6 +9,7 @@ from sqlalchemy import Select, String, case, func, select, type_coerce, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.types import TypeDecorator
 
 from backend.app.models.calculation import CalculationRevision
@@ -26,6 +27,7 @@ from backend.app.schemas.warehouse_article import (
     WarehouseLocationBalance,
 )
 from backend.app.services import warehouse_number_sequence as numbers
+from backend.app.services.inventory_stocktake import stock_timestamp_parameter
 from backend.app.services.small_parts import StockUsage, get_balance as material_balance, usage_for_parts
 
 ZERO = Decimal("0")
@@ -349,7 +351,9 @@ def active_article_issue():
     )
 
 
-def _forecast_query(start: datetime, now: datetime, sqlite_wide: bool):
+def _forecast_query(
+    start: datetime | ColumnElement[datetime], end: datetime | ColumnElement[datetime], sqlite_wide: bool
+):
     candidates, stock = _article_stock_query(
         select(WarehouseArticle).where(
             WarehouseArticle.is_active.is_(True), WarehouseArticle.stock_source.in_(("own", "material"))
@@ -360,7 +364,7 @@ def _forecast_query(start: datetime, now: datetime, sqlite_wide: bool):
     own_usage = (
         select(own.article_id, _scaled_sum(own.quantity, sqlite_wide).label("consumed"))
         .join(candidates, candidates.c.id == own.article_id)
-        .where(active_article_issue(), own.created_at.between(start, now))
+        .where(active_article_issue(), own.created_at.between(start, end))
         .group_by(own.article_id)
         .subquery()
     )
@@ -368,7 +372,7 @@ def _forecast_query(start: datetime, now: datetime, sqlite_wide: bool):
     material_usage = (
         select(material.small_part_id, func.sum(material.physical_delta).label("physical_delta"))
         .join(candidates, candidates.c.small_part_id == material.small_part_id)
-        .where(material.entry_kind == "issue", material.created_at.between(start, now))
+        .where(material.entry_kind == "issue", material.created_at.between(start, end))
         .group_by(material.small_part_id)
         .subquery()
     )
@@ -387,8 +391,9 @@ def _forecast_query(start: datetime, now: datetime, sqlite_wide: bool):
 
 async def forecast_articles(session: AsyncSession, *, limit: int, offset: int) -> WarehouseForecastPage:
     now = datetime.now(timezone.utc)
-    start = now - timedelta(days=FORECAST_WINDOW_DAYS)
-    rows = await _execute_stock_sums(session, lambda sqlite_wide: _forecast_query(start, now, sqlite_wide))
+    start = stock_timestamp_parameter(session, now - timedelta(days=FORECAST_WINDOW_DAYS))
+    end = stock_timestamp_parameter(session, now)
+    rows = await _execute_stock_sums(session, lambda sqlite_wide: _forecast_query(start, end, sqlite_wide))
     items = []
     for row in rows:
         if row.stock_source == "material":

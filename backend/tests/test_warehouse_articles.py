@@ -1,6 +1,7 @@
 """Independent app: these tests do not need parent main.py registration."""
 
 import asyncio
+import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock
@@ -24,6 +25,20 @@ from backend.app.services.warehouse_articles import WarehouseError, create_artic
 from backend.app.services.warehouse_stock import post_movement
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture
+def non_utc_process_timezone(monkeypatch):
+    if not hasattr(time, "tzset"):
+        yield
+        return
+    try:
+        with monkeypatch.context() as zone:
+            zone.setenv("TZ", "UTC-14")
+            time.tzset()
+            yield
+    finally:
+        time.tzset()
 
 
 @pytest.fixture
@@ -127,6 +142,7 @@ async def test_repeated_large_issues_keep_exact_consumption_after_sqlite_integer
     assert Decimal(row["projected_available"]) == Decimal("0")
 
 
+@pytest.mark.usefixtures("non_utc_process_timezone")
 async def test_forecast_counts_only_recent_effective_issues_against_available_stock(warehouse_client, db_session):
     client = warehouse_client
     item = await article(client, minimum_stock="6")
@@ -253,6 +269,7 @@ async def test_article_sorting_combines_article_and_material_stock_before_pagina
     assert (await client.get("/warehouse-articles", params={"sort_by": "unknown"})).status_code == 422
 
 
+@pytest.mark.usefixtures("non_utc_process_timezone")
 async def test_usage_and_stock_checks_follow_the_physical_stock_owner(warehouse_client, db_session):
     client = warehouse_client
     own = await article(client, sku="STOCK-CHECK-OWN")
@@ -303,7 +320,11 @@ async def test_usage_and_stock_checks_follow_the_physical_stock_owner(warehouse_
     assert material_check.status_code == 200
     spool_check = await client.post("/inventory/spools/stock-check", json={"ids": [spool.id]})
     assert spool_check.status_code == 200, spool_check.text
-    assert (await client.get(f"/inventory/spools/{spool.id}")).json()["stock_checked_at"] is not None
+    spool_read = (await client.get(f"/inventory/spools/{spool.id}")).json()
+    spool_checked_at = datetime.fromisoformat(spool_read["stock_checked_at"])
+    if spool_checked_at.tzinfo is None:
+        spool_checked_at = spool_checked_at.replace(tzinfo=timezone.utc)
+    assert spool_checked_at == datetime.fromisoformat(spool_check.json()["stock_checked_at"])
 
 
 async def test_warehouse_toolbar_filters_before_pagination(warehouse_client, db_session):
@@ -669,6 +690,7 @@ async def test_concurrent_reservations_are_serialized_on_file_sqlite(tmp_path, t
         await engine.dispose()
 
 
+@pytest.mark.sqlite_only
 async def test_references_are_protected_with_sqlite_foreign_keys_off(warehouse_client, db_session):
     assert (await db_session.scalar(text("PRAGMA foreign_keys"))) == 0
     client = warehouse_client

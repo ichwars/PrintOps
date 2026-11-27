@@ -117,11 +117,18 @@ async def test_booking_prevents_later_changes_to_the_received_quantity(client, d
 
 
 @pytest.mark.asyncio
-async def test_print_log_clear_retains_only_stock_booked_runs(client, db_session, destination):
+@pytest.mark.parametrize("clear_from_archive", [False, True])
+async def test_cleanup_retains_only_stock_booked_runs(
+    client, db_session, destination, archive_factory, printer_factory, clear_from_archive
+):
     created = await client.post(f"{PROJECTS}/", json={"name": "Production", "production_output": destination})
     project_id = created.json()["id"]
-    booked = PrintLogEntry(project_id=project_id, quantity=6, good_quantity=6, reject_quantity=0, status="completed")
-    other = PrintLogEntry(quantity=1, status="completed")
+    printer = await printer_factory()
+    archive = await archive_factory(printer.id, with_run=False)
+    booked = PrintLogEntry(
+        archive_id=archive.id, project_id=project_id, quantity=6, good_quantity=6, reject_quantity=0, status="completed"
+    )
+    other = PrintLogEntry(archive_id=archive.id, quantity=1, status="completed")
     db_session.add_all([booked, other])
     await db_session.commit()
     booked_id, other_id = booked.id, other.id
@@ -130,9 +137,13 @@ async def test_print_log_clear_retains_only_stock_booked_runs(client, db_session
     assert completed.status_code == 200, completed.text
     protected = await client.delete(f"/api/v1/print-log/{booked_id}")
     assert protected.status_code == 409, protected.text
-    cleared = await client.delete("/api/v1/print-log/")
-    assert cleared.status_code == 200, cleared.text
-    assert cleared.json()["deleted"] == 1
+    if clear_from_archive:
+        cleared = await client.delete(f"/api/v1/archives/{archive.id}?purge_stats=true")
+        assert cleared.status_code == 200, cleared.text
+    else:
+        cleared = await client.delete("/api/v1/print-log/")
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["deleted"] == 1
     assert await db_session.get(PrintLogEntry, booked_id, populate_existing=True) is not None
     assert await db_session.get(PrintLogEntry, other_id, populate_existing=True) is None
     [entry] = (await client.get(f"{ARTICLES}/{destination['article_id']}/ledger")).json()
