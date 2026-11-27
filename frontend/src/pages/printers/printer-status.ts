@@ -89,6 +89,8 @@ export function mapModelCode(ssdpModel: string | null): string {
     'O1C': 'H2C',
     'O1C2': 'H2C',
     'O1S': 'H2S',
+    // H3 Series
+    'N10': 'H3C',
     // X1 Series
     'BL-P001': 'X1C',
     'BL-P002': 'X1',
@@ -102,6 +104,7 @@ export function mapModelCode(ssdpModel: string | null): string {
     'C12': 'P1S',
     'C13': 'X1E',
     'N7': 'P2S',
+    'N11': 'P3C',
     // A1 Series
     'N2S': 'A1',
     'N1': 'A1 Mini',
@@ -123,6 +126,8 @@ export function mapModelCode(ssdpModel: string | null): string {
     'H2D Pro': 'H2D Pro',
     'H2C': 'H2C',
     'H2S': 'H2S',
+    'H3C': 'H3C',
+    'P3C': 'P3C',
   };
   return modelMap[ssdpModel] || ssdpModel;
 }

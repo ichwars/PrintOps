@@ -426,10 +426,14 @@ export function AddPrinterModal({
                   <option value="H2D Pro">H2D Pro</option>
                   <option value="H2S">H2S</option>
                 </optgroup>
+                <optgroup label="H3 Series">
+                  <option value="H3C">H3C</option>
+                </optgroup>
                 <optgroup label="P Series">
                   <option value="P1P">P1P</option>
                   <option value="P1S">P1S</option>
                   <option value="P2S">P2S</option>
+                  <option value="P3C">P3C</option>
                 </optgroup>
                 <optgroup label="X1 Series">
                   <option value="X1">X1</option>

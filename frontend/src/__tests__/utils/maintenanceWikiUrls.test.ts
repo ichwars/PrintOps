@@ -135,3 +135,25 @@ describe('getMaintenanceWikiUrl', () => {
     });
   });
 });
+
+describe('P3C', () => {
+  it('resolves "Lubricate Steel Rods" to the P2S wiki page (no dedicated P3C pages yet)', () => {
+    expect(getMaintenanceWikiUrl('Lubricate Steel Rods', 'P3C')).toBe(
+      'https://wiki.bambulab.com/en/p2s/maintenance/lubricate-x-y-z-axis'
+    );
+    expect(getMaintenanceWikiUrl('Lubricate Steel Rods', 'N11')).toBe(
+      'https://wiki.bambulab.com/en/p2s/maintenance/lubricate-x-y-z-axis'
+    );
+  });
+
+  it('resolves belt tension to the P2S wiki page', () => {
+    expect(getMaintenanceWikiUrl('Check Belt Tension', 'P3C')).toBe(
+      'https://wiki.bambulab.com/en/p2s/maintenance/belt-tension'
+    );
+  });
+
+  it('does not return carbon-rod or linear-rail URLs for the P3C', () => {
+    expect(getMaintenanceWikiUrl('Clean Carbon Rods', 'P3C')).toBeNull();
+    expect(getMaintenanceWikiUrl('Lubricate Linear Rails', 'P3C')).toBeNull();
+  });
+});

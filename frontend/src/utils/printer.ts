@@ -13,6 +13,9 @@ export function getPrinterImage(model: string | null | undefined): string {
   if (m.includes('h2c')) return '/img/printers/h2c.png';
   // Bambu Studio 02.09's own H3C render (resources/images/printer_thumbnail_N10_png.png).
   if (m.includes('h3c') || m === 'n10') return '/img/printers/h3c.png';
+  // P3C: no dedicated artwork yet; the P3C shares the H3C's chassis design,
+  // so it reuses the H3C render (same precedent as H2S reusing h2d.png).
+  if (m.includes('p3c') || m === 'n11') return '/img/printers/h3c.png';
   if (m.includes('h2s')) return '/img/printers/h2d.png';
   if (m.includes('p2s')) return '/img/printers/p1s.png';
   if (m.includes('p1s')) return '/img/printers/p1s.png';

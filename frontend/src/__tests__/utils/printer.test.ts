@@ -162,3 +162,17 @@ describe('filterCompatibleQueueItems', () => {
     expect(result).toEqual([item]);
   });
 });
+
+describe('P3C', () => {
+  it('resolves the P3C image by name or model code', () => {
+    // No dedicated P3C artwork yet: the P3C shares the H3C's chassis design,
+    // so it reuses h3c.png (same precedent as H2S reusing h2d.png).
+    expect(getPrinterImage('P3C')).toBe('/img/printers/h3c.png');
+    expect(getPrinterImage('p3c')).toBe('/img/printers/h3c.png');
+    expect(getPrinterImage('N11')).toBe('/img/printers/h3c.png');
+  });
+
+  it('does not take the P2S image', () => {
+    expect(getPrinterImage('P2S')).toBe('/img/printers/p1s.png');
+  });
+});

@@ -2,7 +2,11 @@ import type { TFunction } from 'i18next';
 import type { PrinterStatus } from '../../api/client';
 
 export function usesExhaustFanLabel(model?: string | null): boolean {
-  return ['P2S', 'X2D', 'N6', 'N7'].includes((model || '').toUpperCase().replace(/[ -]/g, ''));
+  // BambuStudio machine profiles label fan 3 "Chamber" only on the
+  // X1/X1C/X1E and P1S; every other model ships the default "Exhaust" label.
+  return !['X1', 'X1C', 'X1E', 'P1S', 'BL-P001', 'BL-P002', 'C12', 'C13'].includes(
+    (model || '').toUpperCase().replace(/[ -]/g, '')
+  );
 }
 
 export function auxiliaryFanItems(model: string | null | undefined, status: Pick<PrinterStatus, 'big_fan1_speed' | 'left_aux_fan_speed'>, t: TFunction) {

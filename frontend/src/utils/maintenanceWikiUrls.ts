@@ -3,7 +3,8 @@
  *
  * Model families:
  *   - X1, P1         → carbon rods
- *   - P2S, X2D       → hardened steel rods (X2D shares P2S's gantry — #988)
+ *   - P2S, X2D, P3C  → steel rods (X2D shares P2S's gantry — #988; P3C pages
+ *                      not yet published, so it follows the same P2S route)
  *   - A1, A1 Mini    → linear rails (Y axis)
  *   - H2D, H2C, H2S  → linear rails (X-axis lubrication)
  *   - H3C            → its own tasks carry their wiki links; only the shared
@@ -26,10 +27,12 @@ export function getMaintenanceWikiUrl(typeName: string, printerModel: string | n
   const isH3C = model.includes('H3C') || model === 'N10';
   const isP2S = model.includes('P2S');
   const isX2D = model.includes('X2D');
-  // X2D shares the hardened steel rod hardware and belt layout with P2S,
-  // so its maintenance routes use the P2S wiki pages until dedicated
-  // X2D pages are published by Bambu Lab.
-  const isSteelRod = isP2S || isX2D;
+  const isP3C = model.includes('P3C') || model === 'N11';
+  // X2D shares the steel-rod hardware and belt layout with P2S, so its
+  // maintenance routes use the P2S wiki pages until dedicated X2D pages are
+  // published by Bambu Lab. The P3C's own wiki doesn't publish lubrication
+  // pages yet either, so it follows the same route.
+  const isSteelRod = isP2S || isX2D || isP3C;
 
   switch (typeName) {
     case 'Lubricate Steel Rods':

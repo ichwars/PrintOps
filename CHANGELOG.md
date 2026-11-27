@@ -4,6 +4,19 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Add Bambu Lab P3C support (internal model code "N11", Swaptek 7-tool changer, released Nov 24, 2026): model recognition, dispatch capability gates, steel-rod maintenance classification, RTSP camera routing, firmware update checks against the P3C wiki release history, printer card artwork (reusing the H3C render until dedicated artwork exists), discovery code mapping and manual-add/edit dropdown entries.
+
+### Fixed
+
+- Correct per-model hardware facts against the official spec sheets: only the X1E and H2D Pro have an ethernet port (X1C, P1S, P2S, H2D, H2C, H2S, X2D list "Ethernet: Not available"), and the MicroSD slot is absent on the eMMC generation (P2S, X2D, H2D, H2D Pro, H2C, H2S, H3C, P3C) while the A1/A1 mini/A2L do ship with one — the connection diagnostic keeps skipping the same printers as before, now for the right reason.
+- Reclassify the H3C from linear rails to the steel-rod maintenance class: its X and Y axes run on metal linear rods, not a printhead rail (Bambu wiki, CNC Kitchen), and the rods-class oil maintenance is the correct regime.
+- Label fan 3 "Exhaust" for every model BambuStudio labels "Exhaust" (P1P, P2S, X2D, H2 series, H3C, P3C) and "Chamber" only for X1/X1C/X1E/P1S, matching the slicer's machine profiles.
+- Allow AMS drying and print-while-drying on an H2S discovered under its SSDP code "O1S": the code sat in the unsupported list while the display name already allowed it from firmware 01.02.00.00.
+- Close H3C UI gaps: discovery code "N10" now maps to "H3C", the add/edit printer dropdowns offer the H3C, and the airduct toggle renders for H2D and H3C (both were already backend-supported).
+- Route P3C maintenance help links to the P2S wiki pages (dedicated P3C maintenance pages are not published yet), following the X2D precedent.
+
 ## [1.2.8.4] - 2026-11-20
 
 - Improve resumed print attribution, zero-gram accounting and multi-file queue submission. Equally eligible printers are ranked by operating hours.
