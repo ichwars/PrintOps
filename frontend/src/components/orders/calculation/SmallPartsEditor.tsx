@@ -36,7 +36,7 @@ export function SmallPartsEditor({ parts, locale, currency, onChange }: SmallPar
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <div><h3 className="font-semibold text-white">4. {t('orders.runtimeCalculation.materials', { lng: language })}</h3><p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.availabilityIsCheckedStockIsReservedOnlyAfterOfferAcceptance', { lng: language })}</p></div>
+        <div><h3 className="font-semibold text-white">{t('orders.runtimeCalculation.materials', { lng: language })}</h3><p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.availabilityIsCheckedStockIsReservedOnlyAfterOfferAcceptance', { lng: language })}</p></div>
         <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-sm text-white"><Plus className="h-4 w-4" />{t('printops.nav.parts', { lng: language })}</button>
       </div>
       {adding && <div className="rounded-lg border border-bambu-green/30 bg-bambu-dark p-3"><SmallPartCombobox value={null} onChange={add} locale={locale} label={t('orders.runtimeCalculation.addMaterial', { lng: language })} /></div>}

@@ -74,7 +74,7 @@ export function SetupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bambu-dark p-4">
-      <div className="max-w-md w-full space-y-8 p-8 bg-gradient-to-br from-bambu-card to-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
+      <div className="max-w-md w-full space-y-8 p-8 bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
         <div className="text-center">
           <div className="flex items-center justify-center mb-6">
             <img
@@ -174,7 +174,7 @@ export function SetupPage() {
             <button
               type="submit"
               disabled={setupMutation.isPending}
-              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg shadow-lg shadow-bambu-green/20 hover:shadow-bambu-green/30 focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-bambu-green"
+              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-bambu-green"
             >
               {setupMutation.isPending ? t('setup.settingUp') : t('setup.completeSetup')}
             </button>

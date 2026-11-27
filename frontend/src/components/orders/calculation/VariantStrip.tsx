@@ -20,7 +20,7 @@ export function VariantStrip({ variants, activeIndex, locale, onActiveChange, on
     <section>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-white">2. {t('orders.runtimeCalculation.variants', { lng: language })}</h3>
+          <h3 className="font-semibold text-white">{t('orders.runtimeCalculation.variants', { lng: language })}</h3>
           <p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.clickToEditTheStarSelectsTheOfferVariant', { lng: language })}</p>
         </div>
         <button type="button" onClick={onClone} className="inline-flex items-center gap-2 rounded bg-bambu-dark px-3 py-2 text-sm text-white">

@@ -127,11 +127,11 @@ describe('CalculationWorkspace', () => {
     expect(dialog.querySelector('header')).toHaveClass('shrink-0');
     expect(dialog.querySelector('header')).not.toHaveClass('sticky');
     await waitFor(() => expect(api.getCustomers).toHaveBeenCalledWith({ businessProfileId: 2, status: 'active', limit: 200, offset: 0 }));
-    expect(screen.getByRole('heading', { name: '1. Request' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '3. Project file' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '4. Materials' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '5. Labor & post-processing' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '6. Costs & prices' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Request' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Project file' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Materials' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Labor & post-processing' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Costs & prices' })).toBeInTheDocument();
     expect(screen.getByText('Project')).toBeInTheDocument();
     expect(screen.getByText('No materials selected.')).toBeInTheDocument();
     expect(screen.getByText('Cost breakdown')).toBeInTheDocument();

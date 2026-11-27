@@ -416,18 +416,11 @@ function SortableQueueItem({
       ref={setNodeRef}
       style={style}
       className={`
-        group relative bg-bambu-dark-secondary rounded-xl border transition-all duration-200
-        border-l-[3px] ${
-          isPrinting ? 'border-l-blue-500' :
-          isPending ? 'border-l-yellow-500' :
-          item.status === 'completed' ? 'border-l-emerald-500' :
-          item.status === 'failed' ? 'border-l-red-500' :
-          'border-l-gray-500'
-        }
+        group relative bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary transition-all duration-200
         ${isDragging ? 'opacity-50 scale-[1.02] shadow-xl z-50' : ''}
-        ${isPrinting ? 'border-blue-500/30 bg-gradient-to-r from-blue-500/5 to-transparent' : ''}
+        ${isPrinting ? 'bg-blue-500/5' : ''}
         ${isSelected && isMobileSelectable ? 'sm:border-bambu-dark-tertiary border-bambu-green/40' : ''}
-        ${!isSelected && !isPrinting ? 'border-bambu-dark-tertiary hover:border-bambu-dark-tertiary/80' : ''}
+        ${!isSelected && !isPrinting ? 'hover:border-bambu-dark-tertiary/80' : ''}
         ${isMobileSelectable ? 'sm:cursor-default' : ''}
       `}
       onClick={isMobileSelectable ? () => {
@@ -943,7 +936,7 @@ function SortableBatchRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-bambu-dark-secondary rounded-xl border border-l-[3px] border-l-cyan-400 border-bambu-dark-tertiary overflow-hidden ${
+      className={`bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary overflow-hidden ${
         isDragging ? 'opacity-50 scale-[1.01] shadow-xl z-50' : ''
       }`}
     >
@@ -1246,7 +1239,7 @@ function HistorySection({
           return (
             <div
               key={`batch-${row.batchId}`}
-              className="md:col-span-2 xl:col-span-3 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary border-l-[3px] border-l-cyan-400"
+              className="md:col-span-2 xl:col-span-3 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary"
             >
               <button
                 onClick={() => toggleBatchCollapsed(row.batchId)}

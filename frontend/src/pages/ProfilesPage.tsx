@@ -376,7 +376,7 @@ function ScrollToTop() {
   return (
     <button
       onClick={scrollToTop}
-      className="fixed bottom-6 right-6 p-3 bg-bambu-green hover:bg-bambu-green-light text-white rounded-full shadow-lg shadow-bambu-green/25 transition-all z-40"
+      className="fixed bottom-6 right-6 p-3 bg-bambu-green hover:bg-bambu-green-light text-white rounded-full shadow-lg transition-colors z-40"
       aria-label={translateInterface("orders.runtimeInterface.scrollToTop")}
     >
       <ArrowUp className="w-5 h-5" />

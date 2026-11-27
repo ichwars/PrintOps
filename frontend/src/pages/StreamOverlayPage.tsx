@@ -262,7 +262,7 @@ export function StreamOverlayPage() {
         <img
           src="/img/printops_logo.svg"
           alt="PrintOps"
-          className={`${sizes.logoHeight} object-contain drop-shadow-lg hover:scale-105 transition-transform`}
+          className={`${sizes.logoHeight} object-contain drop-shadow-lg hover:opacity-80 transition-opacity`}
         />
       </a>
 
