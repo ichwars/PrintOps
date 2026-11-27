@@ -1,6 +1,6 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Search, Trash2, Truck } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pencil, Plus, Search, Trash2, Truck, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
@@ -23,20 +23,9 @@ function isActiveFilter(value: string | null): value is ActiveFilter {
   return value === 'active' || value === 'inactive' || value === 'all';
 }
 
-async function loadAllSuppliers(q: string, active: boolean | undefined): Promise<Supplier[]> {
-  const items: Supplier[] = [];
-  let offset = 0;
-  while (true) {
-    const page = await suppliersApi.list({
-      q: q || undefined,
-      active,
-      limit: SUPPLIER_PAGE_SIZE,
-      offset,
-    });
-    items.push(...page.items);
-    if (page.items.length === 0 || items.length >= page.total) return items;
-    offset = page.offset + page.items.length;
-  }
+function parseOffset(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
 }
 
 export function SuppliersPage() {
@@ -44,11 +33,13 @@ export function SuppliersPage() {
   const queryClient = useQueryClient();
   const { hasPermission, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('q') ?? '');
+  const [search, setSearch] = useState(() => (searchParams.get('q') ?? '').trim());
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(() => {
     const activeParam = searchParams.get('active');
     return isActiveFilter(activeParam) ? activeParam : 'active';
   });
+  const [offset, setOffset] = useState(() => parseOffset(searchParams.get('offset')));
   const supplierSearchKey = searchParams.toString();
   const supplierUrlState = useMemo(() => {
     const params = new URLSearchParams(supplierSearchKey);
@@ -56,6 +47,7 @@ export function SuppliersPage() {
     return {
       query: params.get('q') ?? '',
       activeFilter: isActiveFilter(activeParam) ? activeParam : 'active',
+      offset: parseOffset(params.get('offset')),
     };
   }, [supplierSearchKey]);
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -64,43 +56,104 @@ export function SuppliersPage() {
   const canUpdate = hasPermission('inventory:update');
   const canDelete = hasPermission('inventory:delete');
   const active = activeFilter === 'all' ? undefined : activeFilter === 'active';
-  const suppliers = useQuery({
-    queryKey: ['suppliers', { q: query, active }],
-    queryFn: () => loadAllSuppliers(query, active),
-    enabled: !authLoading && canRead,
-  });
-  const items = suppliers.data ?? [];
 
+  const updateSupplierParams = useCallback(
+    (changes: { q?: string; active?: ActiveFilter; offset?: number }) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (changes.q !== undefined) {
+            const trimmedQuery = changes.q.trim();
+            if (trimmedQuery) {
+              next.set('q', trimmedQuery);
+            } else {
+              next.delete('q');
+            }
+          }
+          if (changes.active !== undefined) {
+            if (changes.active === 'active') {
+              next.delete('active');
+            } else {
+              next.set('active', changes.active);
+            }
+          }
+          if (changes.offset !== undefined) {
+            if (changes.offset > 0) {
+              next.set('offset', String(changes.offset));
+            } else {
+              next.delete('offset');
+            }
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  // Debounce the search box: only the trimmed value becomes the query
+  // (and is mirrored into the URL) 300ms after the last keystroke.
   useEffect(() => {
-    setQuery((current) => (current === supplierUrlState.query ? current : supplierUrlState.query));
+    const nextSearch = searchInput.trim();
+    if (nextSearch === search) return;
+    const timer = window.setTimeout(() => {
+      setSearch(nextSearch);
+      setOffset(0);
+      updateSupplierParams({ q: nextSearch, offset: 0 });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, search, updateSupplierParams]);
+
+  const suppliers = useQuery({
+    queryKey: ['suppliers', { q: search, active, limit: SUPPLIER_PAGE_SIZE, offset }],
+    queryFn: () => suppliersApi.list({ q: search || undefined, active, limit: SUPPLIER_PAGE_SIZE, offset }),
+    enabled: !authLoading && canRead,
+    placeholderData: keepPreviousData,
+  });
+  const page = suppliers.data;
+  const items = page?.items ?? [];
+
+  // Follow external URL changes (back/forward navigation). The search box is
+  // only reset when the URL query diverges from the applied search, so a
+  // pending debounced edit is never wiped by an unrelated URL update.
+  useEffect(() => {
+    const urlQuery = supplierUrlState.query.trim();
+    if (urlQuery !== search) {
+      setSearch(urlQuery);
+      setSearchInput(supplierUrlState.query);
+    }
     setActiveFilter((current) => (
       current === supplierUrlState.activeFilter ? current : supplierUrlState.activeFilter
     ));
-  }, [supplierUrlState.activeFilter, supplierUrlState.query]);
+    setOffset((current) => (
+      current === supplierUrlState.offset ? current : supplierUrlState.offset
+    ));
+  }, [supplierUrlState, search]);
 
-  const updateSupplierParams = (nextQuery: string, nextActiveFilter: ActiveFilter) => {
-    const next = new URLSearchParams(searchParams);
-    const trimmedQuery = nextQuery.trim();
-    if (trimmedQuery) {
-      next.set('q', trimmedQuery);
-    } else {
-      next.delete('q');
+  // Clamp the offset when the current page ran empty (e.g. after deletions).
+  useEffect(() => {
+    if (!page || page.items.length > 0 || page.offset <= 0 || page.total <= 0) return;
+    const lastValidOffset = Math.max(0, Math.floor((page.total - 1) / page.limit) * page.limit);
+    if (lastValidOffset !== page.offset) {
+      setOffset(lastValidOffset);
+      updateSupplierParams({ offset: lastValidOffset });
     }
-    if (nextActiveFilter === 'active') {
-      next.delete('active');
-    } else {
-      next.set('active', nextActiveFilter);
-    }
-    setSearchParams(next, { replace: true });
-  };
+  }, [page, updateSupplierParams]);
 
   const handleQueryChange = (value: string) => {
-    setQuery(value);
+    setSearchInput(value);
   };
 
   const handleActiveFilterChange = (value: ActiveFilter) => {
     setActiveFilter(value);
-    updateSupplierParams(query, value);
+    setOffset(0);
+    updateSupplierParams({ active: value, offset: 0 });
+  };
+
+  const goToOffset = (nextOffset: number) => {
+    setOffset(nextOffset);
+    updateSupplierParams({ offset: nextOffset });
   };
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['suppliers'] });
@@ -137,7 +190,7 @@ export function SuppliersPage() {
       <Card>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-            <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-[34px] h-4 w-4 text-bambu-gray" /><TextField type="search" label={t('suppliers.searchLabel')} value={query} onValueChange={handleQueryChange} placeholder={t('suppliers.searchPlaceholder')} className="pl-9" /></div>
+            <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-[34px] h-4 w-4 text-bambu-gray" /><TextField type="search" label={t('suppliers.searchLabel')} value={searchInput} onValueChange={handleQueryChange} placeholder={t('suppliers.searchPlaceholder')} className={`pl-9 ${searchInput ? 'pr-9' : ''}`} />{searchInput ? <button type="button" onClick={() => setSearchInput('')} className="absolute right-2 top-[34px] flex h-[38px] items-center text-bambu-gray hover:text-white" aria-label={t('suppliers.clearSearch')}><X aria-hidden="true" className="h-4 w-4" /></button> : null}</div>
             <Select value={activeFilter} label={t('suppliers.activeFilter')} onValueChange={(value) => handleActiveFilterChange(value as ActiveFilter)} options={[
               { value: 'active', label: t('suppliers.filters.active') },
               { value: 'inactive', label: t('suppliers.filters.inactive') },
@@ -147,7 +200,7 @@ export function SuppliersPage() {
 
           {suppliers.isLoading ? <p className="py-10 text-center text-bambu-gray">{t('suppliers.loading')}</p> : null}
           {suppliers.isError ? <p role="alert" className="rounded-lg border border-red-500/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">{t('suppliers.errors.load')}</p> : null}
-          {!suppliers.isLoading && !suppliers.isError && items.length === 0 ? <p className="py-10 text-center text-bambu-gray">{t('suppliers.empty')}</p> : null}
+          {!suppliers.isLoading && !suppliers.isError && items.length === 0 ? <p className="py-10 text-center text-bambu-gray">{search ? t('suppliers.emptyFiltered') : t('suppliers.empty')}</p> : null}
           <div className="grid gap-3 xl:grid-cols-2">
             {items.map((supplier) => (
               <article key={supplier.id} className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark p-4">
@@ -165,6 +218,16 @@ export function SuppliersPage() {
               </article>
             ))}
           </div>
+
+          {page ? (
+            <div className="flex flex-wrap items-center justify-end gap-3 text-sm text-bambu-gray">
+              <span className="tabular-nums">{t('suppliers.pagination', { start: page.total > 0 ? page.offset + 1 : 0, end: Math.min(page.offset + page.limit, page.total), total: page.total })}</span>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="secondary" disabled={page.offset <= 0} onClick={() => goToOffset(Math.max(0, page.offset - page.limit))}>{t('suppliers.previous')}</Button>
+                <Button type="button" size="sm" variant="secondary" disabled={page.offset + page.limit >= page.total} onClick={() => goToOffset(page.offset + page.limit)}>{t('suppliers.next')}</Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

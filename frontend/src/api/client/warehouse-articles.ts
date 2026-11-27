@@ -47,6 +47,8 @@ export interface WarehouseArticleListParams {
   kind?: WarehouseArticleKind;
   stock_source?: WarehouseStockSource;
   low_stock?: boolean;
+  sort_by?: string;
+  sort_dir?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }

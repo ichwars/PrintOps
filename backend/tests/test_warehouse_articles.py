@@ -102,6 +102,70 @@ async def test_crud_search_archive_and_price_separation(warehouse_client):
     assert (await client.get(f"/warehouse-articles/{identifier}")).status_code == 200
 
 
+async def test_list_sorting_whitelist_and_pagination(warehouse_client):
+    client = warehouse_client
+    for sku, name, minimum in (("WARE-C", "Charlie", "0"), ("WARE-A", "Alpha", "5"), ("WARE-B", "Bravo", "2")):
+        await article(client, sku=sku, name=name, minimum_stock=minimum)
+    # Default stays name asc (backwards compatible).
+    default = (await client.get("/warehouse-articles")).json()
+    assert [row["name"] for row in default["items"]] == ["Alpha", "Bravo", "Charlie"]
+    asc = (await client.get("/warehouse-articles", params={"sort_by": "sku", "sort_dir": "asc"})).json()
+    assert [row["sku"] for row in asc["items"]] == ["WARE-A", "WARE-B", "WARE-C"]
+    desc = (await client.get("/warehouse-articles", params={"sort_by": "sku", "sort_dir": "desc"})).json()
+    assert [row["sku"] for row in desc["items"]] == ["WARE-C", "WARE-B", "WARE-A"]
+    by_minimum = (
+        await client.get("/warehouse-articles", params={"sort_by": "minimum_stock", "sort_dir": "desc"})
+    ).json()
+    assert [row["sku"] for row in by_minimum["items"]] == ["WARE-A", "WARE-B", "WARE-C"]
+    assert [row["minimum_stock"] for row in by_minimum["items"]] == ["5", "2", "0"]
+    # Unknown columns are rejected, invalid directions fail validation.
+    assert (await client.get("/warehouse-articles", params={"sort_by": "password"})).status_code == 400
+    assert (await client.get("/warehouse-articles", params={"sort_by": "name; DROP TABLE"})).status_code == 400
+    assert (await client.get("/warehouse-articles", params={"sort_dir": "sideways"})).status_code == 422
+    # Pagination stays consistent with the requested ordering.
+    page1 = (await client.get("/warehouse-articles", params={"sort_by": "sku", "limit": 2, "offset": 0})).json()
+    page2 = (await client.get("/warehouse-articles", params={"sort_by": "sku", "limit": 2, "offset": 2})).json()
+    assert [row["sku"] for row in page1["items"]] == ["WARE-A", "WARE-B"]
+    assert [row["sku"] for row in page2["items"]] == ["WARE-C"]
+    assert page1["total"] == page2["total"] == 3
+    assert page1["limit"] == 2 and page2["offset"] == 2
+
+
+async def test_low_stock_branch_and_balance_sorting(warehouse_client):
+    client = warehouse_client
+    low_a = await article(client, sku="LOW-A", name="Low A", minimum_stock="10")
+    low_b = await article(client, sku="LOW-B", name="Low B", minimum_stock="10")
+    ok = await article(client, sku="OK", name="Plenty", minimum_stock="0")
+    assert (await move(client, low_a["id"], "receipt", "2", key="low-a-receipt")).status_code == 201
+    assert (await move(client, low_b["id"], "receipt", "5", key="low-b-receipt")).status_code == 201
+    assert (await move(client, ok["id"], "receipt", "9", key="ok-receipt")).status_code == 201
+    # low_stock loads and filters in Python; balance columns must still sort there.
+    asc = await client.get("/warehouse-articles", params={"low_stock": True, "sort_by": "physical", "sort_dir": "asc"})
+    assert asc.status_code == 200, asc.text
+    assert [row["sku"] for row in asc.json()["items"]] == ["LOW-A", "LOW-B"]
+    desc = await client.get(
+        "/warehouse-articles", params={"low_stock": True, "sort_by": "physical", "sort_dir": "desc"}
+    )
+    assert [row["sku"] for row in desc.json()["items"]] == ["LOW-B", "LOW-A"]
+    reserved_desc = await client.get(
+        "/warehouse-articles", params={"low_stock": True, "sort_by": "reserved", "sort_dir": "desc"}
+    )
+    assert reserved_desc.status_code == 200, reserved_desc.text
+    # Balance columns are sortable in the paginated DB branch as well.
+    normal = await client.get("/warehouse-articles", params={"sort_by": "available", "sort_dir": "desc"})
+    assert normal.status_code == 200, normal.text
+    rows = normal.json()["items"]
+    assert [row["sku"] for row in rows] == ["OK", "LOW-B", "LOW-A"]
+    assert [row["balance"]["available"] for row in rows] == ["9", "5", "2"]
+    # low_stock pagination slices the sorted, filtered rows.
+    paged = await client.get(
+        "/warehouse-articles",
+        params={"low_stock": True, "sort_by": "physical", "sort_dir": "desc", "limit": 1, "offset": 1},
+    )
+    assert [row["sku"] for row in paged.json()["items"]] == ["LOW-A"]
+    assert paged.json()["total"] == 2
+
+
 async def test_reservations_transfers_and_counter_entries(warehouse_client):
     client = warehouse_client
     item = await article(client)

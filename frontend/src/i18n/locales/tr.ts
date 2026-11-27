@@ -220,6 +220,7 @@ export default {
       calculation: 'Hesaplama',
       customers: 'Müşteriler',
       invoice: 'Fatura',
+      "reorder": "Yeniden sipariş",
     },
   },
   orders: {
@@ -553,7 +554,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -691,10 +697,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -707,42 +709,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -1596,6 +1579,20 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "title": "Reorder needs",
+        "subtitle": "Aggregated low stock from warehouse goods and material, including the suggested order quantity.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Low-stock warehouse goods",
+        "summaryMaterial": "Low-stock material",
+        "summaryTotal": "Total",
+        "colArea": "Area",
+        "colSuggested": "Suggested order quantity",
+        "colAction": "Action",
+        "areaWarehouse": "Warehouse goods",
+        "areaMaterial": "Material"
       }
     },
 
@@ -10401,7 +10398,12 @@ useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarlarıyla (duv
     noReadAccess: 'Envanter tahminlerini görüntüleme izniniz yok.',
     noWriteAccess: 'Tahmin ayarlarını değiştirme izniniz yok.',
   },
-  suppliers: { navTitle: 'Tedarikçiler', title: 'Tedarikçiler', subtitle: 'Satın alma kişilerini ve satın alma koşullarını yönetin.', createTitle: 'Tedarikçi ekle', editTitle: 'Tedarikçiyi düzenle', searchLabel: 'Tedarikçi ara', searchPlaceholder: 'Şirket, ilgili kişi, e-posta, müşteri numarası …', activeFilter: 'Durum', loading: 'Tedarikçiler yükleniyor …', empty: 'Eşleşen tedarikçi bulunamadı.', noContact: 'İletişim bilgisi yok', leadTime: 'Varsayılan teslim süresi: {{count}} gün', sections: { masterData: 'Ana bilgiler', contactAddress: 'İletişim ve adres', procurement: 'Satın alma', internalNotes: 'Dahili not' }, fields: { name: 'Şirket', customerNumber: 'Müşteri numarası', active: 'Aktif tedarikçi', contactName: 'İlgili kişi', email: 'E-posta', phone: 'Telefon', website: 'Web sitesi', addressLine1: 'Adres satırı 1', addressLine2: 'Adres satırı 2', postalCode: 'Posta kodu', city: 'Şehir', countryCode: 'Ülke kodu', paymentTerms: 'Ödeme koşulları', defaultLeadTime: 'Varsayılan teslim süresi', internalNotes: 'Dahili notlar' }, filters: { active: 'Aktif', inactive: 'Pasif', all: 'Tüm tedarikçiler' }, actions: { create: 'Tedarikçi ekle', save: 'Tedarikçiyi kaydet', edit: '{{name}} tedarikçisini düzenle', delete: 'Tedarikçiyi sil' }, validation: { nameRequired: 'Şirket adı zorunludur.' }, errors: { load: 'Tedarikçiler yüklenemedi.', save: 'Tedarikçi kaydedilemedi.', delete: 'Tedarikçi silinemedi.', noReadPermission: 'Tedarikçileri görüntüleme izniniz yok.' } },
+  suppliers: { navTitle: 'Tedarikçiler', title: 'Tedarikçiler', subtitle: 'Satın alma kişilerini ve satın alma koşullarını yönetin.', createTitle: 'Tedarikçi ekle', editTitle: 'Tedarikçiyi düzenle', searchLabel: 'Tedarikçi ara', searchPlaceholder: 'Şirket, ilgili kişi, e-posta, müşteri numarası …', activeFilter: 'Durum', loading: 'Tedarikçiler yükleniyor …', empty: 'Eşleşen tedarikçi bulunamadı.', noContact: 'İletişim bilgisi yok', leadTime: 'Varsayılan teslim süresi: {{count}} gün', sections: { masterData: 'Ana bilgiler', contactAddress: 'İletişim ve adres', procurement: 'Satın alma', internalNotes: 'Dahili not' }, fields: { name: 'Şirket', customerNumber: 'Müşteri numarası', active: 'Aktif tedarikçi', contactName: 'İlgili kişi', email: 'E-posta', phone: 'Telefon', website: 'Web sitesi', addressLine1: 'Adres satırı 1', addressLine2: 'Adres satırı 2', postalCode: 'Posta kodu', city: 'Şehir', countryCode: 'Ülke kodu', paymentTerms: 'Ödeme koşulları', defaultLeadTime: 'Varsayılan teslim süresi', internalNotes: 'Dahili notlar' }, filters: { active: 'Aktif', inactive: 'Pasif', all: 'Tüm tedarikçiler' }, actions: { create: 'Tedarikçi ekle', save: 'Tedarikçiyi kaydet', edit: '{{name}} tedarikçisini düzenle', delete: 'Tedarikçiyi sil' }, validation: { nameRequired: 'Şirket adı zorunludur.' }, errors: { load: 'Tedarikçiler yüklenemedi.', save: 'Tedarikçi kaydedilemedi.', delete: 'Tedarikçi silinemedi.', noReadPermission: 'Tedarikçileri görüntüleme izniniz yok.' },
+  "pagination": "{{total}} kayıttan {{start}}–{{end}}",
+  "previous": "Önceki",
+  "next": "Sonraki",
+  "emptyFiltered": "Geçerli filtrelere uyan tedarikçi yok.",
+  "clearSearch": "Aramayı temizle" },
   storageSensors: {
     environment: "Ortam",
     manage: "Sensörler",

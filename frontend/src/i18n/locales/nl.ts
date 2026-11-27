@@ -222,6 +222,7 @@ export default {
       calculation: "Calculatie",
       customers: "Klanten",
       invoice: "Factuur",
+      "reorder": "Bijbestellen",
     },
   },
 
@@ -592,7 +593,12 @@ export default {
       "blockerSellableLine": "Voeg een verkoopbare regel of projectplaat toe.",
       "blockerProductionOperation": "Voeg een productiebewerking of projectplaat toe.",
       "blockerInvalidProvenance": "De brongegevens van een productiebewerking zijn ongeldig.",
-      "shippingCost": "Verzendkosten"
+      "shippingCost": "Verzendkosten",
+      "acceptOfferConfirmTitle": "Aanbod accepteren?",
+      "searchOffers": "Aanbiedingen zoeken",
+      "searchOffersPlaceholder": "Nummer, calculatie of klant …",
+      "clearSearch": "Zoekopdracht wissen",
+      "noOffersMatchSearch": "Geen aanbiedingen komen overeen met de zoekopdracht."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -730,10 +736,6 @@ export default {
         "subtitle": "Voorraadoverzicht van filament, materialen en magazijngoederen.",
         "openFilament": "Filament openen",
         "open": "Openen",
-        "planned": "Gepland",
-        "dataModelNext": "Het gegevensmodel volgt in de volgende stap",
-        "empty": "Nog geen gegevens",
-        "foundation": "Basis",
         "metrics": {
           "activeSpools": "Actieve spoelen",
           "lowStock": "Lage voorraad",
@@ -746,42 +748,23 @@ export default {
           },
           "parts": {
             "title": "Materiaal",
-            "body": "Bedoeld voor ingekochte onderdelen, verpakking, bevestigingsmateriaal en verbruiksartikelen."
+            "body": "Inkoopdelen, hardware, verpakking en verbruiksmateriaal — met live voorraad, reserveringen en bestelpunten."
           },
           "stock": {
             "title": "Magazijnvoorraad",
-            "body": "Bedoeld voor voorraadmutaties, nabestellingen en goederen die kunnen worden verzonden."
+            "body": "Afgewerkte en handelsgoederen met voorraadbewegingen, reserveringen en bijbestellingsbehoefte."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Magazijnoverzicht",
-            "subtitle": "Actuele filamentvoorraad en de volgende magazijnonderdelen.",
-            "columns": [
-              "Onderdeel",
-              "Status",
-              "Volgende stap"
-            ]
-          },
-          "parts": {
-            "title": "Materiaal",
-            "subtitle": "Bevestigingsmateriaal, verpakking, magneten, inzetstukken en verbruiksartikelen.",
-            "columns": [
-              "Artikel",
-              "Locatie",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Magazijnvoorraad",
-            "subtitle": "Inkomende, gereserveerde, beschikbare en na te bestellen voorraad.",
-            "columns": [
-              "Artikel",
-              "Beschikbaar",
-              "Bestelpunt"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Actieve artikelen",
+          "reserved": "Gereserveerd",
+          "stockValue": "Voorraadwaarde"
+        },
+        "reorder": {
+          "title": "Bijbestellingsbehoefte",
+          "items": "artikelen onder het bestelpunt",
+          "open": "Bijbestellijst openen"
+        },
       },
       "orderPage": {
         "empty": "Nog geen gegevens",
@@ -1635,6 +1618,20 @@ export default {
         "loadSuppliersFailed": "Leveranciers konden niet worden geladen. De spoel kan nog steeds worden opgeslagen zonder de inkoopbronnen te wijzigen.",
         "offersNotReady": "Inkoopbronnen zijn nog niet volledig geladen.",
         "saveOffersFailed": "Inkoopbronnen konden niet worden opgeslagen."
+      },
+      "warehouseReorder": {
+        "title": "Bijbestellingsbehoefte",
+        "subtitle": "Geaggregeerde lage voorraad van magazijngoederen en materiaal, inclusief de voorgestelde bestelhoeveelheid.",
+        "empty": "Geen bijbestellingsbehoefte.",
+        "open": "Openen",
+        "summaryWarehouse": "Magazijngoederen met lage voorraad",
+        "summaryMaterial": "Materiaal met lage voorraad",
+        "summaryTotal": "Totaal",
+        "colArea": "Gebied",
+        "colSuggested": "Voorgestelde bestelhoeveelheid",
+        "colAction": "Actie",
+        "areaWarehouse": "Magazijngoederen",
+        "areaMaterial": "Materiaal"
       }
     },
 
@@ -10570,6 +10567,11 @@ export default {
     fields: { name: "Bedrijf", customerNumber: "Klantnummer", active: "Actieve leverancier", contactName: "Naam contactpersoon", email: "E-mail", phone: "Telefoon", website: "Website", addressLine1: "Adresregel 1", addressLine2: "Adresregel 2", postalCode: "Postcode", city: "Plaats", countryCode: "Landcode", paymentTerms: "Betalingsvoorwaarden", defaultLeadTime: "Standaardlevertijd", internalNotes: "Interne notities" },
     filters: { active: "Actief", inactive: "Inactief", all: "Alle leveranciers" }, actions: { create: "Leverancier toevoegen", save: "Leverancier opslaan", edit: "{{name}} bewerken", delete: "Leverancier verwijderen" }, validation: { nameRequired: "Bedrijfsnaam is verplicht." },
     errors: { load: "Leveranciers konden niet worden geladen.", save: "De leverancier kon niet worden opgeslagen.", delete: "De leverancier kon niet worden verwijderd.", noReadPermission: "Je hebt geen toestemming om leveranciers te bekijken." },
+    "pagination": "{{start}}–{{end}} van {{total}}",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "emptyFiltered": "Geen leveranciers voldoen aan de huidige filters.",
+    "clearSearch": "Zoekopdracht wissen",
   },
   storageSensors: {
     environment: "Omgeving",

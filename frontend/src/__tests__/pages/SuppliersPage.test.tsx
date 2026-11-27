@@ -51,8 +51,10 @@ describe('SuppliersPage', () => {
       'inventory:update',
       'inventory:delete',
     ]);
+    // Reset the browser URL so search params never leak between tests.
+    window.history.replaceState(null, '', '/');
     server.use(http.get('/api/v1/suppliers', () =>
-      HttpResponse.json({ items: [supplier], total: 1, limit: 100, offset: 0 }),
+      HttpResponse.json({ items: [supplier], total: 1, limit: 50, offset: 0 }),
     ));
   });
 
@@ -63,7 +65,7 @@ describe('SuppliersPage', () => {
     const requests: URL[] = [];
     server.use(http.get('/api/v1/suppliers', ({ request }) => {
       requests.push(new URL(request.url));
-      return HttpResponse.json({ items: [supplier], total: 1, limit: 100, offset: 0 });
+      return HttpResponse.json({ items: [supplier], total: 1, limit: 50, offset: 0 });
     }));
 
     render(<SuppliersPage />);
@@ -72,14 +74,39 @@ describe('SuppliersPage', () => {
     expect(await screen.findByText('Filament World')).toBeInTheDocument();
 
     await user.type(screen.getByRole('searchbox', { name: 'Search suppliers' }), 'Filament World');
-    await waitFor(() => expect(requests.some((url) => url.searchParams.get('q') === 'Filament World')).toBe(true));
+    await waitFor(() => expect(requests.some((url) => url.searchParams.get('q') === 'Filament World')).toBe(true), { timeout: 3000 });
 
     selectComboboxOption(screen.getByRole('combobox', { name: 'Status' }), 'Inactive');
-    await waitFor(() => expect(requests.some((url) => url.searchParams.get('active') === 'false')).toBe(true));
+    await waitFor(() => expect(requests.some((url) => url.searchParams.get('active') === 'false')).toBe(true), { timeout: 3000 });
   });
 
-  it('loads suppliers beyond the first API page', async () => {
-    const offsets: number[] = [];
+  it('debounces the search input and issues a single request after 300ms', async () => {
+    const user = userEvent.setup();
+    const queries: (string | null)[] = [];
+    server.use(http.get('/api/v1/suppliers', ({ request }) => {
+      const url = new URL(request.url);
+      queries.push(url.searchParams.get('q'));
+      return HttpResponse.json({ items: [supplier], total: 1, limit: 50, offset: 0 });
+    }));
+
+    render(<SuppliersPage />);
+    expect(await screen.findByText('Filament World')).toBeInTheDocument();
+
+    const searchbox = screen.getByRole('searchbox', { name: 'Search suppliers' });
+    await user.type(searchbox, 'Filament');
+    // The debounce timer has not elapsed yet, so no request carries q.
+    expect(queries.filter(Boolean)).toHaveLength(0);
+
+    await waitFor(() => expect(queries.filter((q) => q === 'Filament')).toHaveLength(1), { timeout: 3000 });
+    // Exactly one request with the debounced value — keystrokes were coalesced.
+    expect(queries.filter((q) => q === 'Filament')).toHaveLength(1);
+    // The debounced query is mirrored into the URL.
+    expect(window.location.search).toContain('q=Filament');
+  });
+
+  it('lädt nur die aktuelle Seite serverseitig', async () => {
+    const user = userEvent.setup();
+    const requests: URL[] = [];
     const firstPage = Array.from({ length: 50 }, (_, index) => ({
       ...supplier,
       id: index + 1,
@@ -87,20 +114,39 @@ describe('SuppliersPage', () => {
     }));
     const lastSupplier = { ...supplier, id: 51, name: 'Supplier 51' };
     server.use(http.get('/api/v1/suppliers', ({ request }) => {
-      const offset = Number(new URL(request.url).searchParams.get('offset') ?? 0);
-      offsets.push(offset);
+      const url = new URL(request.url);
+      requests.push(url);
+      const offset = Number(url.searchParams.get('offset') ?? 0);
       return HttpResponse.json({
         items: offset === 0 ? firstPage : [lastSupplier],
         total: 51,
-        limit: 50,
+        limit: Number(url.searchParams.get('limit') ?? 50),
         offset,
       });
     }));
 
     render(<SuppliersPage />);
 
+    // First page only: the 51st supplier is NOT fetched client-side.
+    expect(await screen.findByText('Supplier 1')).toBeInTheDocument();
+    expect(screen.queryByText('Supplier 51')).not.toBeInTheDocument();
+    expect(requests).toHaveLength(1);
+    expect(requests[0].searchParams.get('offset')).toBe('0');
+    expect(requests[0].searchParams.get('limit')).toBe('50');
+    expect(screen.getByText(/suppliers\.pagination|of 51/i)).toBeInTheDocument();
+    const nextButton = screen.getByRole('button', { name: /suppliers\.next|Next/i });
+    const previousButton = screen.getByRole('button', { name: /suppliers\.previous|Previous/i });
+    expect(previousButton).toBeDisabled();
+    expect(nextButton).toBeEnabled();
+
+    // Clicking "next" loads exactly the second server page.
+    await user.click(nextButton);
     expect(await screen.findByText('Supplier 51')).toBeInTheDocument();
+    const offsets = requests.map((url) => Number(url.searchParams.get('offset') ?? 0));
     expect(offsets).toEqual([0, 50]);
+    expect(requests[1].searchParams.get('limit')).toBe('50');
+    expect(window.location.search).toContain('offset=50');
+    expect(previousButton).toBeEnabled();
   });
 
   it('opens the create editor when create permission is present', async () => {

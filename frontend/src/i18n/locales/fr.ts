@@ -220,6 +220,7 @@ export default {
       calculation: 'Calcul',
       customers: 'Clients',
       invoice: 'Facture',
+      "reorder": "Réapprovisionnement",
     },
   },
 
@@ -554,7 +555,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -692,10 +698,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -708,42 +710,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -1597,6 +1580,20 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "title": "Reorder needs",
+        "subtitle": "Aggregated low stock from warehouse goods and material, including the suggested order quantity.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Low-stock warehouse goods",
+        "summaryMaterial": "Low-stock material",
+        "summaryTotal": "Total",
+        "colArea": "Area",
+        "colSuggested": "Suggested order quantity",
+        "colAction": "Action",
+        "areaWarehouse": "Warehouse goods",
+        "areaMaterial": "Material"
       }
     },
 
@@ -10462,7 +10459,12 @@ useEmbeddedHint: 'Découpe comme le concepteur l\'a configuré (parois, rempliss
     noReadAccess: 'Vous n\'avez pas la permission de consulter les prévisions de stock.',
     noWriteAccess: 'Vous n\'avez pas la permission de modifier les paramètres de prévision.',
   },
-  suppliers: { navTitle: 'Fournisseurs', title: 'Fournisseurs', subtitle: 'Gérez les contacts et les conditions d’achat.', createTitle: 'Ajouter un fournisseur', editTitle: 'Modifier le fournisseur', searchLabel: 'Rechercher des fournisseurs', searchPlaceholder: 'Entreprise, contact, e-mail, numéro client …', activeFilter: 'Statut', loading: 'Chargement des fournisseurs …', empty: 'Aucun fournisseur correspondant.', noContact: 'Aucune coordonnée', leadTime: '{{count}} jours de délai de livraison standard', sections: { masterData: 'Données de base', contactAddress: 'Contact et adresse', procurement: 'Approvisionnement', internalNotes: 'Note interne' }, fields: { name: 'Entreprise', customerNumber: 'Numéro client', active: 'Fournisseur actif', contactName: 'Personne de contact', email: 'Adresse e-mail', phone: 'Téléphone', website: 'Site web', addressLine1: 'Ligne d’adresse 1', addressLine2: 'Ligne d’adresse 2', postalCode: 'Code postal', city: 'Ville', countryCode: 'Code pays', paymentTerms: 'Conditions de paiement', defaultLeadTime: 'Délai de livraison standard', internalNotes: 'Notes internes' }, filters: { active: 'Actifs', inactive: 'Inactifs', all: 'Tous les fournisseurs' }, actions: { create: 'Ajouter un fournisseur', save: 'Enregistrer le fournisseur', edit: 'Modifier {{name}}', delete: 'Supprimer le fournisseur' }, validation: { nameRequired: 'Le nom de l’entreprise est obligatoire.' }, errors: { load: 'Impossible de charger les fournisseurs.', save: 'Impossible d’enregistrer le fournisseur.', delete: 'Impossible de supprimer le fournisseur.', noReadPermission: 'Vous n’avez pas l’autorisation d’afficher les fournisseurs.' } },
+  suppliers: { navTitle: 'Fournisseurs', title: 'Fournisseurs', subtitle: 'Gérez les contacts et les conditions d’achat.', createTitle: 'Ajouter un fournisseur', editTitle: 'Modifier le fournisseur', searchLabel: 'Rechercher des fournisseurs', searchPlaceholder: 'Entreprise, contact, e-mail, numéro client …', activeFilter: 'Statut', loading: 'Chargement des fournisseurs …', empty: 'Aucun fournisseur correspondant.', noContact: 'Aucune coordonnée', leadTime: '{{count}} jours de délai de livraison standard', sections: { masterData: 'Données de base', contactAddress: 'Contact et adresse', procurement: 'Approvisionnement', internalNotes: 'Note interne' }, fields: { name: 'Entreprise', customerNumber: 'Numéro client', active: 'Fournisseur actif', contactName: 'Personne de contact', email: 'Adresse e-mail', phone: 'Téléphone', website: 'Site web', addressLine1: 'Ligne d’adresse 1', addressLine2: 'Ligne d’adresse 2', postalCode: 'Code postal', city: 'Ville', countryCode: 'Code pays', paymentTerms: 'Conditions de paiement', defaultLeadTime: 'Délai de livraison standard', internalNotes: 'Notes internes' }, filters: { active: 'Actifs', inactive: 'Inactifs', all: 'Tous les fournisseurs' }, actions: { create: 'Ajouter un fournisseur', save: 'Enregistrer le fournisseur', edit: 'Modifier {{name}}', delete: 'Supprimer le fournisseur' }, validation: { nameRequired: 'Le nom de l’entreprise est obligatoire.' }, errors: { load: 'Impossible de charger les fournisseurs.', save: 'Impossible d’enregistrer le fournisseur.', delete: 'Impossible de supprimer le fournisseur.', noReadPermission: 'Vous n’avez pas l’autorisation d’afficher les fournisseurs.' },
+  "pagination": "{{start}}–{{end}} sur {{total}}",
+  "previous": "Précédent",
+  "next": "Suivant",
+  "emptyFiltered": "Aucun fournisseur ne correspond aux filtres actuels.",
+  "clearSearch": "Effacer la recherche" },
   storageSensors: {
     environment: "Environnement",
     manage: "Capteurs",

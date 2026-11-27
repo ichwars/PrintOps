@@ -220,6 +220,7 @@ export default {
       calculation: '計算',
       customers: '顧客',
       invoice: '請求書',
+      "reorder": "再発注",
     },
   },
 
@@ -554,7 +555,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -692,10 +698,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -708,42 +710,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -1597,6 +1580,20 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "title": "Reorder needs",
+        "subtitle": "Aggregated low stock from warehouse goods and material, including the suggested order quantity.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Low-stock warehouse goods",
+        "summaryMaterial": "Low-stock material",
+        "summaryTotal": "Total",
+        "colArea": "Area",
+        "colSuggested": "Suggested order quantity",
+        "colAction": "Action",
+        "areaWarehouse": "Warehouse goods",
+        "areaMaterial": "Material"
       }
     },
 
@@ -10473,7 +10470,12 @@ useEmbedded: 'ファイル内蔵設定を使用',
     noReadAccess: '在庫予測を閲覧する権限がありません。',
     noWriteAccess: '予測設定を変更する権限がありません。',
   },
-  suppliers: { navTitle: '仕入先', title: '仕入先', subtitle: '調達先の連絡先と取引条件を管理します。', createTitle: '仕入先を追加', editTitle: '仕入先を編集', searchLabel: '仕入先を検索', searchPlaceholder: '会社名、担当者、メールアドレス、顧客番号 …', activeFilter: 'ステータス', loading: '仕入先を読み込み中 …', empty: '一致する仕入先がありません。', noContact: '連絡先情報なし', leadTime: '標準リードタイム：{{count}}日', sections: { masterData: '基本情報', contactAddress: '連絡先と住所', procurement: '調達条件', internalNotes: '社内メモ' }, fields: { name: '会社名', customerNumber: '顧客番号', active: '有効な仕入先', contactName: '担当者名', email: 'メールアドレス', phone: '電話番号', website: 'ウェブサイト', addressLine1: '住所1', addressLine2: '住所2', postalCode: '郵便番号', city: '市区町村', countryCode: '国コード', paymentTerms: '支払条件', defaultLeadTime: '標準リードタイム', internalNotes: '社内メモ' }, filters: { active: '有効', inactive: '無効', all: 'すべての仕入先' }, actions: { create: '仕入先を追加', save: '仕入先を保存', edit: '{{name}}を編集', delete: '仕入先を削除' }, validation: { nameRequired: '会社名は必須です。' }, errors: { load: '仕入先を読み込めませんでした。', save: '仕入先を保存できませんでした。', delete: '仕入先を削除できませんでした。', noReadPermission: '仕入先を表示する権限がありません。' } },
+  suppliers: { navTitle: '仕入先', title: '仕入先', subtitle: '調達先の連絡先と取引条件を管理します。', createTitle: '仕入先を追加', editTitle: '仕入先を編集', searchLabel: '仕入先を検索', searchPlaceholder: '会社名、担当者、メールアドレス、顧客番号 …', activeFilter: 'ステータス', loading: '仕入先を読み込み中 …', empty: '一致する仕入先がありません。', noContact: '連絡先情報なし', leadTime: '標準リードタイム：{{count}}日', sections: { masterData: '基本情報', contactAddress: '連絡先と住所', procurement: '調達条件', internalNotes: '社内メモ' }, fields: { name: '会社名', customerNumber: '顧客番号', active: '有効な仕入先', contactName: '担当者名', email: 'メールアドレス', phone: '電話番号', website: 'ウェブサイト', addressLine1: '住所1', addressLine2: '住所2', postalCode: '郵便番号', city: '市区町村', countryCode: '国コード', paymentTerms: '支払条件', defaultLeadTime: '標準リードタイム', internalNotes: '社内メモ' }, filters: { active: '有効', inactive: '無効', all: 'すべての仕入先' }, actions: { create: '仕入先を追加', save: '仕入先を保存', edit: '{{name}}を編集', delete: '仕入先を削除' }, validation: { nameRequired: '会社名は必須です。' }, errors: { load: '仕入先を読み込めませんでした。', save: '仕入先を保存できませんでした。', delete: '仕入先を削除できませんでした。', noReadPermission: '仕入先を表示する権限がありません。' },
+  "pagination": "{{total}} 件中 {{start}}–{{end}}",
+  "previous": "前へ",
+  "next": "次へ",
+  "emptyFiltered": "現在のフィルターに一致する仕入先はありません。",
+  "clearSearch": "検索をクリア" },
   storageSensors: {
     environment: "環境",
     manage: "センサー",

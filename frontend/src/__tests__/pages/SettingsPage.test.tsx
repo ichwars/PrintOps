@@ -1026,6 +1026,7 @@ describe('SettingsPage', () => {
       'warehouse-filament',
       'warehouse-parts',
       'warehouse-stock',
+      'warehouse-reorder',
       'warehouse-suppliers',
       'orders',
       'orders-offers',

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
@@ -34,8 +34,17 @@ function mount(children: React.ReactNode, client = new QueryClient({ defaultOpti
   return { ...render(<MemoryRouter><QueryClientProvider client={client}>{children}</QueryClientProvider></MemoryRouter>), client };
 }
 
+// The global setup replaces localStorage with no-op vi.fn()s; back them with a
+// real map so persistence (sort state, column config, page size) can be asserted.
+const storage = new Map<string, string>();
+
 beforeEach(async () => {
   await i18n.changeLanguage('en');
+  storage.clear();
+  vi.mocked(localStorage.getItem).mockImplementation((key) => storage.get(key) ?? null);
+  vi.mocked(localStorage.setItem).mockImplementation((key, value) => { storage.set(key, String(value)); });
+  vi.mocked(localStorage.removeItem).mockImplementation((key) => { storage.delete(key); });
+  vi.mocked(localStorage.clear).mockImplementation(() => storage.clear());
   permissions.clear();
   ['inventory:read', 'inventory:create', 'inventory:update', 'inventory:delete'].forEach((permission) => permissions.add(permission));
   server.use(
@@ -48,7 +57,10 @@ beforeEach(async () => {
   );
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe('Warehouse goods', () => {
   it('shows stock, opens detail and prevents archiving remaining stock', async () => {
@@ -233,6 +245,105 @@ describe('Warehouse goods', () => {
     await user.click(await screen.findByRole('button', { name: 'GOOD-1' }));
     expect(await screen.findByRole('link', { name: 'Open material management' })).toHaveAttribute('href', '/warehouse/parts?part=42');
     expect(screen.queryByRole('button', { name: 'Post movement' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Warehouse goods list controls', () => {
+  function captureListParams() {
+    const seen: Array<{ q: string | null; sort_by: string | null; sort_dir: string | null; limit: string | null }> = [];
+    server.use(http.get('*/api/v1/warehouse-articles', ({ request }) => {
+      const url = new URL(request.url);
+      seen.push({
+        q: url.searchParams.get('q'),
+        sort_by: url.searchParams.get('sort_by'),
+        sort_dir: url.searchParams.get('sort_dir'),
+        limit: url.searchParams.get('limit'),
+      });
+      return HttpResponse.json({ items: [item], total: 1, offset: 0, limit: Number(url.searchParams.get('limit') ?? 50) });
+    }));
+    return seen;
+  }
+
+  it('toggles aria-sort and sends sort_by/sort_dir when clicking a sortable header', async () => {
+    const seen = captureListParams();
+    const user = userEvent.setup();
+    mount(<WarehouseGoodsPage />);
+    // Re-query before every interaction: the header node is re-created on each render.
+    const skuHeader = () => screen.getByRole('columnheader', { name: /Article number/ });
+    expect(await screen.findByRole('columnheader', { name: /Article number/ })).toHaveAttribute('aria-sort', 'none');
+    expect(seen.at(-1)).toMatchObject({ sort_by: null, sort_dir: null });
+    await user.click(within(skuHeader()).getByRole('button'));
+    await waitFor(() => expect(seen.at(-1)).toMatchObject({ sort_by: 'sku', sort_dir: 'asc' }));
+    expect(skuHeader()).toHaveAttribute('aria-sort', 'ascending');
+    await user.click(within(skuHeader()).getByRole('button'));
+    await waitFor(() => expect(seen.at(-1)).toMatchObject({ sort_by: 'sku', sort_dir: 'desc' }));
+    expect(skuHeader()).toHaveAttribute('aria-sort', 'descending');
+    // Third click clears the sort again.
+    await user.click(within(skuHeader()).getByRole('button'));
+    await waitFor(() => expect(seen.at(-1)?.sort_by).toBeNull());
+    expect(skuHeader()).toHaveAttribute('aria-sort', 'none');
+    expect(localStorage.getItem('printops-warehouse-goods-sort')).toBeNull();
+  });
+
+  it('maps the minimum column to the minimum_stock sort parameter', async () => {
+    const seen = captureListParams();
+    const user = userEvent.setup();
+    mount(<WarehouseGoodsPage />);
+    const header = await screen.findByRole('columnheader', { name: /Minimum stock/ });
+    await user.click(within(header).getByRole('button'));
+    await waitFor(() => expect(seen.at(-1)).toMatchObject({ sort_by: 'minimum_stock', sort_dir: 'asc' }));
+  });
+
+  it('debounces search typing into one request with the final query and clears via the X button', async () => {
+    const seen = captureListParams();
+    mount(<WarehouseGoodsPage />);
+    await screen.findByRole('button', { name: 'GOOD-1' });
+    expect(seen.map((entry) => entry.q)).toEqual(['']);
+    vi.useFakeTimers();
+    try {
+      const field = screen.getByLabelText(/Search articles/);
+      fireEvent.change(field, { target: { value: 'b' } });
+      fireEvent.change(field, { target: { value: 'br' } });
+      fireEvent.change(field, { target: { value: 'bracket' } });
+      // No request per keystroke while the debounce timer is pending.
+      expect(seen).toHaveLength(1);
+      await act(async () => { vi.advanceTimersByTime(400); });
+      await act(async () => {});
+      expect(seen.map((entry) => entry.q)).toEqual(['', 'bracket']);
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+      await act(async () => {});
+      expect(seen.at(-1)?.q).toBe('');
+      expect(field).toHaveValue('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opens the column config modal, hides a column and persists the choice', async () => {
+    const user = userEvent.setup();
+    mount(<WarehouseGoodsPage />);
+    await screen.findByRole('button', { name: 'GOOD-1' });
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    expect(await screen.findByText('Configure Columns')).toBeInTheDocument();
+    const reservedLabel = screen.getAllByText('Reserved').find((element) => element.tagName === 'SPAN')!;
+    await user.click(within(reservedLabel.closest('div')!).getByRole('button', { name: 'Hide column' }));
+    await user.click(screen.getByRole('button', { name: 'Apply Changes' }));
+    const stored = JSON.parse(localStorage.getItem('printops-warehouse-goods-columns') ?? '[]') as Array<{ id: string; visible: boolean }>;
+    expect(stored).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'reserved', visible: false })]));
+    expect(screen.queryByRole('columnheader', { name: /Reserved/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Article number/ })).toBeInTheDocument();
+  });
+
+  it('sends the selected page size as limit and persists it', async () => {
+    const seen = captureListParams();
+    const user = userEvent.setup();
+    mount(<WarehouseGoodsPage />);
+    await screen.findByRole('button', { name: 'GOOD-1' });
+    expect(seen.at(-1)?.limit).toBe('50');
+    await user.click(screen.getByRole('combobox', { name: /Rows/ }));
+    await user.click(await screen.findByRole('option', { name: '100' }));
+    await waitFor(() => expect(seen.at(-1)?.limit).toBe('100'));
+    expect(localStorage.getItem('printops-warehouse-goods-pageSize')).toBe('100');
   });
 });
 

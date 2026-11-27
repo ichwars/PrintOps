@@ -218,6 +218,7 @@ export default {
       calculation: '계산',
       customers: '고객',
       invoice: '송장',
+      "reorder": "재주문",
     },
   },
   orders: {
@@ -551,7 +552,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -689,10 +695,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -705,42 +707,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -1594,6 +1577,20 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "title": "Reorder needs",
+        "subtitle": "Aggregated low stock from warehouse goods and material, including the suggested order quantity.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Low-stock warehouse goods",
+        "summaryMaterial": "Low-stock material",
+        "summaryTotal": "Total",
+        "colArea": "Area",
+        "colSuggested": "Suggested order quantity",
+        "colAction": "Action",
+        "areaWarehouse": "Warehouse goods",
+        "areaMaterial": "Material"
       }
     },
 
@@ -10096,7 +10093,12 @@ useEmbedded: '파일의 내장 설정 사용',
       }
     }
   },
-  suppliers: { navTitle: '공급업체', title: '공급업체', subtitle: '조달 연락처와 구매 조건을 관리합니다.', createTitle: '공급업체 추가', editTitle: '공급업체 편집', searchLabel: '공급업체 검색', searchPlaceholder: '회사, 담당자, 이메일, 고객 번호 …', activeFilter: '상태', loading: '공급업체 불러오는 중 …', empty: '일치하는 공급업체가 없습니다.', noContact: '연락처 정보 없음', leadTime: '기본 리드 타임 {{count}}일', sections: { masterData: '기본 정보', contactAddress: '연락처 및 주소', procurement: '조달', internalNotes: '내부 메모' }, fields: { name: '회사명', customerNumber: '고객 번호', active: '활성 공급업체', contactName: '담당자 이름', email: '이메일 주소', phone: '전화번호', website: '웹사이트', addressLine1: '주소 1', addressLine2: '주소 2', postalCode: '우편번호', city: '시/군/구', countryCode: '국가 코드', paymentTerms: '결제 조건', defaultLeadTime: '기본 리드 타임', internalNotes: '내부 메모' }, filters: { active: '활성', inactive: '비활성', all: '모든 공급업체' }, actions: { create: '공급업체 추가', save: '공급업체 저장', edit: '{{name}} 편집', delete: '공급업체 삭제' }, validation: { nameRequired: '회사명은 필수입니다.' }, errors: { load: '공급업체를 불러올 수 없습니다.', save: '공급업체를 저장할 수 없습니다.', delete: '공급업체를 삭제할 수 없습니다.', noReadPermission: '공급업체를 볼 권한이 없습니다.' } },
+  suppliers: { navTitle: '공급업체', title: '공급업체', subtitle: '조달 연락처와 구매 조건을 관리합니다.', createTitle: '공급업체 추가', editTitle: '공급업체 편집', searchLabel: '공급업체 검색', searchPlaceholder: '회사, 담당자, 이메일, 고객 번호 …', activeFilter: '상태', loading: '공급업체 불러오는 중 …', empty: '일치하는 공급업체가 없습니다.', noContact: '연락처 정보 없음', leadTime: '기본 리드 타임 {{count}}일', sections: { masterData: '기본 정보', contactAddress: '연락처 및 주소', procurement: '조달', internalNotes: '내부 메모' }, fields: { name: '회사명', customerNumber: '고객 번호', active: '활성 공급업체', contactName: '담당자 이름', email: '이메일 주소', phone: '전화번호', website: '웹사이트', addressLine1: '주소 1', addressLine2: '주소 2', postalCode: '우편번호', city: '시/군/구', countryCode: '국가 코드', paymentTerms: '결제 조건', defaultLeadTime: '기본 리드 타임', internalNotes: '내부 메모' }, filters: { active: '활성', inactive: '비활성', all: '모든 공급업체' }, actions: { create: '공급업체 추가', save: '공급업체 저장', edit: '{{name}} 편집', delete: '공급업체 삭제' }, validation: { nameRequired: '회사명은 필수입니다.' }, errors: { load: '공급업체를 불러올 수 없습니다.', save: '공급업체를 저장할 수 없습니다.', delete: '공급업체를 삭제할 수 없습니다.', noReadPermission: '공급업체를 볼 권한이 없습니다.' },
+  "pagination": "{{total}}개 중 {{start}}–{{end}}",
+  "previous": "이전",
+  "next": "다음",
+  "emptyFiltered": "현재 필터와 일치하는 공급업체가 없습니다.",
+  "clearSearch": "검색 지우기" },
   storageSensors: {
     environment: "환경",
     manage: "센서",

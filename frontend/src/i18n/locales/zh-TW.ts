@@ -220,6 +220,7 @@ export default {
       calculation: '計算',
       customers: '客戶',
       invoice: '發票',
+      "reorder": "補貨",
     },
   },
 
@@ -554,7 +555,12 @@ export default {
       "blockerSellableLine": "Add a sellable line or project plate.",
       "blockerProductionOperation": "Add a production operation or project plate.",
       "blockerInvalidProvenance": "The source data for a production operation is invalid.",
-      "shippingCost": "Shipping"
+      "shippingCost": "Shipping",
+      "acceptOfferConfirmTitle": "Accept offer?",
+      "searchOffers": "Search offers",
+      "searchOffersPlaceholder": "Number, calculation, or customer …",
+      "clearSearch": "Clear search",
+      "noOffersMatchSearch": "No offers match your search."
     },
 
     // Runtime commerce text. Older locales inherit the previously shipped English UI.
@@ -692,10 +698,6 @@ export default {
         "subtitle": "Inventory overview for filament, materials, and stock position.",
         "openFilament": "Open filament",
         "open": "Open",
-        "planned": "Planned",
-        "dataModelNext": "Data model follows in the next step",
-        "empty": "No records yet",
-        "foundation": "Foundation",
         "metrics": {
           "activeSpools": "Active spools",
           "lowStock": "Low stock",
@@ -708,42 +710,23 @@ export default {
           },
           "parts": {
             "title": "Material",
-            "body": "Reserved for purchased parts, packaging, hardware, and consumables."
+            "body": "Purchased parts, hardware, packaging and consumables — with live stock, reservations and reorder points."
           },
           "stock": {
             "title": "Stock position",
-            "body": "Reserved for stock movement, reorder needs, and dispatchable items."
+            "body": "Finished and trade goods with stock movements, reservations and reorder needs."
           }
         },
-        "page": {
-          "overview": {
-            "title": "Warehouse overview",
-            "subtitle": "Live filament status plus the next warehouse areas.",
-            "columns": [
-              "Area",
-              "Status",
-              "Next step"
-            ]
-          },
-          "parts": {
-            "title": "Material",
-            "subtitle": "Hardware, packaging, magnets, inserts, and consumables.",
-            "columns": [
-              "Item",
-              "Location",
-              "Status"
-            ]
-          },
-          "stock": {
-            "title": "Stock position",
-            "subtitle": "Inbound, reserved, available, and reorder-relevant stock.",
-            "columns": [
-              "Article",
-              "Available",
-              "Reorder point"
-            ]
-          }
-        }
+        "stats": {
+          "activeItems": "Active items",
+          "reserved": "Reserved",
+          "stockValue": "Stock value"
+        },
+        "reorder": {
+          "title": "Reorder needs",
+          "items": "items below reorder point",
+          "open": "Open reorder list"
+        },
       },
       "orderPage": {
         "empty": "No records yet",
@@ -1597,6 +1580,20 @@ export default {
         "loadSuppliersFailed": "Suppliers could not be loaded. The spool can still be saved without changing procurement sources.",
         "offersNotReady": "Procurement sources are not fully loaded yet.",
         "saveOffersFailed": "Procurement sources could not be saved."
+      },
+      "warehouseReorder": {
+        "title": "Reorder needs",
+        "subtitle": "Aggregated low stock from warehouse goods and material, including the suggested order quantity.",
+        "empty": "No reorder needs.",
+        "open": "Open",
+        "summaryWarehouse": "Low-stock warehouse goods",
+        "summaryMaterial": "Low-stock material",
+        "summaryTotal": "Total",
+        "colArea": "Area",
+        "colSuggested": "Suggested order quantity",
+        "colAction": "Action",
+        "areaWarehouse": "Warehouse goods",
+        "areaMaterial": "Material"
       }
     },
 
@@ -10460,7 +10457,12 @@ useEmbedded: '使用檔案內建設定',
     noReadAccess: '您沒有查看庫存預測的權限。',
     noWriteAccess: '您沒有修改預測設定的權限。',
   },
-  suppliers: { navTitle: '供應商', title: '供應商', subtitle: '管理採購聯絡人和採購條款。', createTitle: '新增供應商', editTitle: '編輯供應商', searchLabel: '搜尋供應商', searchPlaceholder: '公司、聯絡人、電子郵件、客戶編號 …', activeFilter: '狀態', loading: '正在載入供應商 …', empty: '找不到相符的供應商。', noContact: '無聯絡資訊', leadTime: '預設交貨期：{{count}} 天', sections: { masterData: '基本資料', contactAddress: '聯絡方式與地址', procurement: '採購', internalNotes: '內部備註' }, fields: { name: '公司名稱', customerNumber: '客戶編號', active: '啟用供應商', contactName: '聯絡人', email: '電子郵件', phone: '電話', website: '網站', addressLine1: '地址行 1', addressLine2: '地址行 2', postalCode: '郵遞區號', city: '城市', countryCode: '國家代碼', paymentTerms: '付款條件', defaultLeadTime: '預設交貨期', internalNotes: '內部備註' }, filters: { active: '已啟用', inactive: '已停用', all: '全部供應商' }, actions: { create: '新增供應商', save: '儲存供應商', edit: '編輯 {{name}}', delete: '刪除供應商' }, validation: { nameRequired: '公司名稱為必填欄位。' }, errors: { load: '無法載入供應商。', save: '無法儲存供應商。', delete: '無法刪除供應商。', noReadPermission: '您沒有檢視供應商的權限。' } },
+  suppliers: { navTitle: '供應商', title: '供應商', subtitle: '管理採購聯絡人和採購條款。', createTitle: '新增供應商', editTitle: '編輯供應商', searchLabel: '搜尋供應商', searchPlaceholder: '公司、聯絡人、電子郵件、客戶編號 …', activeFilter: '狀態', loading: '正在載入供應商 …', empty: '找不到相符的供應商。', noContact: '無聯絡資訊', leadTime: '預設交貨期：{{count}} 天', sections: { masterData: '基本資料', contactAddress: '聯絡方式與地址', procurement: '採購', internalNotes: '內部備註' }, fields: { name: '公司名稱', customerNumber: '客戶編號', active: '啟用供應商', contactName: '聯絡人', email: '電子郵件', phone: '電話', website: '網站', addressLine1: '地址行 1', addressLine2: '地址行 2', postalCode: '郵遞區號', city: '城市', countryCode: '國家代碼', paymentTerms: '付款條件', defaultLeadTime: '預設交貨期', internalNotes: '內部備註' }, filters: { active: '已啟用', inactive: '已停用', all: '全部供應商' }, actions: { create: '新增供應商', save: '儲存供應商', edit: '編輯 {{name}}', delete: '刪除供應商' }, validation: { nameRequired: '公司名稱為必填欄位。' }, errors: { load: '無法載入供應商。', save: '無法儲存供應商。', delete: '無法刪除供應商。', noReadPermission: '您沒有檢視供應商的權限。' },
+  "pagination": "共 {{total}} 條，第 {{start}}–{{end}} 條",
+  "previous": "上一頁",
+  "next": "下一頁",
+  "emptyFiltered": "沒有符合目前篩選條件的供應商。",
+  "clearSearch": "清除搜尋" },
   storageSensors: {
     environment: "環境",
     manage: "感測器",
