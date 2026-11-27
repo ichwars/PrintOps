@@ -27,6 +27,7 @@ PRINTER_MODEL_MAP = {
     "Bambu Lab X2D": "X2D",
     "Bambu Lab A2L": "A2L",
     "Bambu Lab H3C": "H3C",
+    "Bambu Lab P3C": "P3C",
 }
 
 # Map from printer_model_id (internal codes in slice_info.config) to short names
@@ -66,13 +67,17 @@ PRINTER_MODEL_ID_MAP = {
     # nozzles in Studio's profile, so not in DUAL_NOZZLE_MODELS or
     # NOZZLE_RACK_MODELS: the H2C's rack ids and left/right split don't fit it.
     "N10": "H3C",
+    # P3 series (Swaptek 7-tool changer, single extruder — not dual nozzle).
+    "N11": "P3C",
 }
 
 
 # Rod/rail type classification for maintenance tasks.
-# Carbon rods: X1, P1 series (CoreXY with carbon fiber rods)
-# Steel rods: P2S, X2D series (hardened steel linear shafts)
-# Linear rails: A1, H2 series (linear rail motion system)
+# Carbon rods: X1, P1 series (CoreXY with carbon fiber rods — self-lubricating,
+# must never be greased)
+# Hollow steel rods: P2S, X2D, H3C, P3C series (steel linear rods/shafts)
+# Linear rails: A1, H2 series (X-axis linear rail; the H2 series' Y axis runs
+# on steel rods — see the H2-series Y-axis lubrication guide)
 # Values must be uppercase with spaces stripped for normalized comparison.
 CARBON_ROD_MODELS = frozenset(
     [
@@ -94,9 +99,13 @@ STEEL_ROD_MODELS = frozenset(
         # Display names (uppercase, no spaces)
         "P2S",
         "X2D",
+        "H3C",
+        "P3C",
         # Internal codes
         "N7",  # P2S
         "N6",  # X2D
+        "N10",  # H3C
+        "N11",  # P3C
     ]
 )
 
@@ -110,7 +119,6 @@ LINEAR_RAIL_MODELS = frozenset(
         "H2DPRO",
         "H2C",
         "H2S",
-        "H3C",
         # Internal codes
         "N1",  # A1 Mini
         "N2S",  # A1
@@ -124,58 +132,58 @@ LINEAR_RAIL_MODELS = frozenset(
         "O1C",  # H2C
         "O1C2",  # H2C (dual nozzle variant)
         "O1S",  # H2S
-        "N10",  # H3C
     ]
 )
 
 
-# Models without any external storage (MicroSD / SD card slot).
-# The A1 and A1 Mini ship with internal storage only — there is no
-# firmware-side "Store sent files on external storage" toggle and no
-# slicer-side equivalent surfaces one. The connection diagnostic's
-# external_storage check (printer_diagnostic.py) must skip on these
-# models instead of reporting fail from a 0-valued home_flag bit.
+# Models without any external storage (MicroSD / SD card slot) — they ship
+# with built-in eMMC storage and a USB port instead (per the official spec
+# sheets: P2S 8 GB, H2D/H2C/H2S/X2D 8 GB, H2D Pro 32 GB, H3C 64 GB, P3C 64 GB).
+# The connection diagnostic's external_storage check (printer_diagnostic.py)
+# must skip on these models instead of reporting fail from a 0-valued
+# home_flag bit — these printers never surface a "store to external storage"
+# toggle because there is no external storage to store to.
+# The A1 family and A2L DO have a MicroSD slot (their only storage) — they
+# are excluded from the toggle via has_remote_storage_toggle instead.
 NO_EXTERNAL_STORAGE_MODELS = frozenset(
     [
         # Display names (uppercase, no spaces)
-        "A1",
-        "A1MINI",
-        # Internal codes
-        "N1",  # A1 Mini
-        "N2S",  # A1
-        "A04",  # A1 Mini (alternate)
-        "A11",  # A1
-        "A12",  # A1 Mini
-    ]
-)
-
-
-# Models with an ethernet port.
-# X1, P1P, A1, A1 Mini do NOT have ethernet.
-ETHERNET_MODELS = frozenset(
-    [
-        # Display names (uppercase, no spaces)
-        "X1C",
-        "X1E",
-        "X2D",
-        "P1S",
         "P2S",
+        "X2D",
         "H2D",
         "H2DPRO",
         "H2C",
         "H2S",
+        "H3C",
+        "P3C",
         # Internal codes
-        "BLP001",  # X1C
-        "C13",  # X1E
-        "N6",  # X2D
-        "C12",  # P1S
         "N7",  # P2S
+        "N6",  # X2D
         "O1D",  # H2D
         "O1E",  # H2D Pro
         "O2D",  # H2D Pro (alternate)
         "O1C",  # H2C
         "O1C2",  # H2C (dual nozzle variant)
         "O1S",  # H2S
+        "N10",  # H3C
+        "N11",  # P3C
+    ]
+)
+
+
+# Models with an ethernet port. Per the official spec sheets the RJ45 port
+# exists only on the X1E (100 Mbps, enterprise) and the H2D Pro — X1, X1C,
+# P1P, P1S, P2S, A1, A1 mini, A2L, H2D, H2C, H2S, X2D, H3C and P3C all list
+# "Ethernet: Not available" and reach the network over Wi-Fi only.
+ETHERNET_MODELS = frozenset(
+    [
+        # Display names (uppercase, no spaces)
+        "X1E",
+        "H2DPRO",
+        # Internal codes
+        "C13",  # X1E
+        "O1E",  # H2D Pro
+        "O2D",  # H2D Pro (alternate)
     ]
 )
 
@@ -277,12 +285,14 @@ SINGLE_NOZZLE_FLOW_MODELS = frozenset(
         "A1",
         "A1MINI",
         "A2L",
+        "P3C",
         "N1",
         "N2S",
         "N9",
         "A04",
         "A11",
         "A12",
+        "N11",
     ]
 )
 
@@ -296,9 +306,28 @@ def has_ethernet(model: str | None) -> bool:
 
 
 def has_remote_storage_toggle(model: str | None) -> bool:
-    """Whether the printer or slicer exposes the remote-storage option."""
+    """Whether the printer or slicer exposes the remote-storage option.
+
+    False for models whose only storage IS the card (P1P/P1S, A1 family,
+    A2L): sent files land on the MicroSD unconditionally, the option never
+    surfaces, and home_flag bit 11 is never set (#1703, #3499).
+    """
     normalized = (model or "").strip().upper().replace(" ", "").replace("-", "")
-    return normalized not in {"P1S", "P1P", "C11", "C12", "A2L", "N9"}
+    return normalized not in {
+        "P1S",
+        "P1P",
+        "C11",
+        "C12",
+        "A2L",
+        "N9",
+        "A1",
+        "A1MINI",
+        "N1",
+        "N2S",
+        "A04",
+        "A11",
+        "A12",
+    }
 
 
 def has_external_storage(model: str | None) -> bool:
@@ -316,8 +345,13 @@ def has_external_storage(model: str | None) -> bool:
     return normalized not in NO_EXTERNAL_STORAGE_MODELS
 
 
-# Chamber heater runs only in the airduct's heating mode (in cooling mode the
-# H3C acks M141 and stays off; the H2 series heats in either).
+# Chamber heater / airduct coupling: the H3C's heater lives inside the
+# adaptive-airflow unit and only heats with the damper in heating mode (in
+# cooling mode the H3C acks M141 and stays off). The H2 series follows the
+# same coupling policy — its firmware auto-switches the damper to heating
+# mode whenever a chamber target is set (support_chamber_temp_switch_heating
+# is 40 on N10/O1D/O1S/O1C/N6 alike) — so on stock firmware neither heats in
+# cooling mode; the H3C just needs the explicit flip at dispatch.
 CHAMBER_HEATER_NEEDS_HEATING_MODE_MODELS = frozenset(["H3C", "N10"])
 
 # `mc_percent` counts the start sequence (an H3C is at ~20% on layer 0), so a
@@ -409,8 +443,8 @@ def get_rod_type(model: str | None) -> str | None:
 
     Returns:
         "carbon" for X1/P1 series (carbon fiber rods),
-        "steel_rod" for P2S/X2D series (hardened steel rods),
-        "linear_rail" for A1/H2 series (linear rails),
+        "steel_rod" for P2S/X2D/H3C/P3C series (steel linear rods),
+        "linear_rail" for A1/H2 series (X-axis linear rail),
         None for unknown models.
     """
     if not model:
@@ -487,4 +521,11 @@ def aux_fan_sides(model: str | None) -> tuple[str, str]:
 
 
 def uses_exhaust_fan_label(model: str | None) -> bool:
-    return (model or "").strip().upper().replace(" ", "").replace("-", "") in {"P2S", "X2D", "N6", "N7"}
+    """Whether fan 3 is labeled "Exhaust" rather than "Chamber".
+
+    BambuStudio's machine profiles rename fan 3 to "Chamber" only on the
+    X1, X1C, X1E and P1S; every other model (P1P, P2S, X2D, H2 series, H3C,
+    P3C) ships with the default "Exhaust" label.
+    """
+    normalized = (model or "").strip().upper().replace(" ", "").replace("-", "")
+    return normalized not in {"X1", "X1C", "X1E", "P1S", "BLP001", "BLP002", "C12", "C13"}

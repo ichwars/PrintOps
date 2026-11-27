@@ -93,6 +93,8 @@ MODEL_TO_API_KEY = {
     "N7": "p2s",
     "N9": "a2l",
     "N10": "h3c",
+    "N11": "p3c",
+    "P3C": "p3c",
 }
 
 # Reverse mapping: API key to model codes
@@ -110,6 +112,7 @@ API_KEY_TO_DEV_MODEL = {
     "h2d-pro": "O1E",
     "a2l": "N9",
     "h3c": "N10",
+    "p3c": "N11",
 }
 
 # Wiki firmware release history pages (primary version source)
@@ -125,12 +128,11 @@ API_KEY_TO_WIKI_PATH = {
     "p2s": "/en/p2s/manual/p2s-firmware-release-history",
     "x2d": "/en/x2d/manual/x2d-firmware-release-history",
     "h2d-pro": "/en/h2d-pro/manual/firmware-release-history",
-    # A2L wiki path follows the established pattern but isn't yet published —
-    # _fetch_all_versions_from_wiki silently returns [] on 404 so this is safe
-    # to ship before Bambu publishes the page.
     "a2l": "/en/a2l/manual/a2l-firmware-release-history",
     # H3C: no model prefix in the page name, like the H2D Pro.
     "h3c": "/en/h3c/manual/firmware-release-history",
+    # P3C: no model prefix in the page name, like the H2D Pro and H3C.
+    "p3c": "/en/p3c/manual/firmware-release-history",
 }
 
 

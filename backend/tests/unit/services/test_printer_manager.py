@@ -1515,6 +1515,10 @@ class TestSupportsDrying:
         assert supports_drying("X1C", "01.09.00.00") is True
         assert supports_drying("H2D", "01.02.30.00") is True
         assert supports_drying("H2S", "01.02.00.00") is True
+        # O1S is the H2S's SSDP code — it sat in the unsupported list while
+        # the display name already allowed drying from 01.02.00.00 (the
+        # official Filament drying guide + H2S release notes).
+        assert supports_drying("O1S", "01.02.00.00") is True
         assert supports_drying("H2C", "01.02.00.00") is True
         assert supports_drying("O1C", "01.02.00.00") is True
         assert supports_drying("O1C2", "01.02.00.00") is True
@@ -1526,6 +1530,7 @@ class TestSupportsDrying:
         assert supports_drying("X1C", "01.08.00.00") is False
         assert supports_drying("P1S", "01.07.00.00") is False
         assert supports_drying("H2S", "01.01.00.00") is False
+        assert supports_drying("O1S", "01.01.00.00") is False
         assert supports_drying("H2C", "01.01.99.99") is False
         assert supports_drying("O1C", "01.01.99.99") is False
         assert supports_drying("O1C2", "01.01.99.99") is False

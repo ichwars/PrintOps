@@ -41,6 +41,7 @@ CHAMBER_TEMP_SUPPORTED_MODELS = frozenset(
         "H2DPRO",
         "H2S",  # H2 series
         "H3C",  # H3 series
+        "P3C",  # P3 series (enclosed; exhaust fan speed is chamber-temp driven)
         # Internal codes (from MQTT/SSDP)
         "BL-P001",  # X1/X1C
         "C13",  # X1E
@@ -53,6 +54,7 @@ CHAMBER_TEMP_SUPPORTED_MODELS = frozenset(
         "O2D",  # H2D Pro (alternate code)
         "N7",  # P2S
         "N10",  # H3C
+        "N11",  # P3C
     ]
 )
 
@@ -228,6 +230,7 @@ def is_bed_slinger(model: str | None) -> bool:
 _DRYING_MIN_FIRMWARE: dict[str, str] = {
     "H2D": "01.02.30.00",
     "H2S": "01.02.00.00",
+    "O1S": "01.02.00.00",  # H2S SSDP model code
     "H2C": "01.02.00.00",
     "O1C": "01.02.00.00",  # H2C SSDP model code
     "O1C2": "01.02.00.00",  # H2C dual-nozzle SSDP model code
@@ -236,8 +239,11 @@ _DRYING_MIN_FIRMWARE: dict[str, str] = {
     "P2S": "01.02.00.00",
     "N7": "01.02.00.00",  # P2S internal model code
 }
-# Models that definitely don't support AMS drying (no AMS 2 Pro / AMS-HT compatibility)
-_DRYING_UNSUPPORTED_MODELS = frozenset({"A1", "A1MINI", "A1-MINI", "O1S", "N1", "N2S"})
+# Models that definitely don't support AMS drying (no AMS 2 Pro / AMS-HT
+# compatibility — the A1 family only gained AMS 2 Pro/HT hardware support in
+# firmware 01.07, but Studio/Handy-controlled drying never arrived for it;
+# on the A1 it stays an LCD-screen-only operation).
+_DRYING_UNSUPPORTED_MODELS = frozenset({"A1", "A1MINI", "A1-MINI", "N1", "N2S"})
 _DRYING_SCREEN_ONLY_MODELS = frozenset({"P1P", "P1S"})
 
 
@@ -282,6 +288,7 @@ _DRY_WHILE_PRINTING_MIN_FIRMWARE: dict[str, str] = {
     "O1C": "01.02.00.00",  # H2C SSDP code
     "O1C2": "01.02.00.00",  # H2C dual-nozzle SSDP code
     "H2S": "01.02.00.00",
+    "O1S": "01.02.00.00",  # H2S SSDP code
     "X2D": "01.01.00.00",
     "N6": "01.01.00.00",  # X2D internal code
     "X1C": "01.11.02.00",

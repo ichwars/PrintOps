@@ -30,6 +30,7 @@ CODES = [
     ("O1D", "H2D"),
     ("N2S", "A1"),
     ("N1", "A1 Mini"),
+    ("N11", "P3C"),
 ]
 
 
@@ -45,9 +46,12 @@ def test_capabilities_agree_between_code_and_name(code, name):
     assert has_external_storage(code) == has_external_storage(name)
 
 
-def test_the_p1p_has_no_ethernet_and_the_x1c_has():
+def test_only_the_x1e_has_an_ethernet_port_in_the_x1_family():
+    # X1/X1C spec sheet: "Wi-Fi and Bambu-Bus connectivity" — the RJ45 port
+    # is exclusive to the X1E (and, outside this family, the H2D Pro).
     assert not has_ethernet("C11")
-    assert has_ethernet("BL-P001")
+    assert not has_ethernet("BL-P001")
+    assert has_ethernet("C13")
 
 
 def test_a_p2s_file_can_go_to_a_p2s():

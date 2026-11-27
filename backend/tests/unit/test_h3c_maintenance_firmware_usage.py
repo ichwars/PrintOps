@@ -117,9 +117,14 @@ class TestStoppedPrintProgress:
 
 
 class TestH3CMaintenance:
-    def test_h3c_has_linear_rails_not_carbon_rods(self):
-        assert get_rod_type("H3C") == "linear_rail"
-        assert get_rod_type("N10") == "linear_rail"
+    def test_h3c_has_steel_rods_not_carbon_rods(self):
+        # Bambu's H3C wiki main-components page: "The X-axis utilizes metal
+        # linear rods, bearing sleeves, and belt drives" (Y-axis also "linear
+        # rods" — no printhead rail, per CNC Kitchen's review). Bambu doesn't
+        # declare the rod material; the rods-class oil maintenance regime is
+        # the correct one, so H3C sits in STEEL_ROD_MODELS.
+        assert get_rod_type("H3C") == "steel_rod"
+        assert get_rod_type("N10") == "steel_rod"
 
     @pytest.mark.parametrize("model", ["H3C", "N10"])
     def test_h3c_gets_its_own_tasks_and_the_shared_ones(self, model):
