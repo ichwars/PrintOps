@@ -21,10 +21,10 @@ import { QueueFilamentNotes } from './QueueFilamentNotes';
 import { queueItemDisplayName } from '../utils/queueItemName';
 
 const STATUS_CONFIG = {
-  completed: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400', border: 'border-l-emerald-500' },
-  failed: { icon: XCircle, color: 'text-red-600 dark:text-red-400', border: 'border-l-red-500' },
-  skipped: { icon: SkipForward, color: 'text-orange-600 dark:text-orange-400', border: 'border-l-gray-500' },
-  cancelled: { icon: Ban, color: 'text-gray-400', border: 'border-l-gray-500' },
+  completed: { icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400' },
+  failed: { icon: XCircle, color: 'text-red-600 dark:text-red-400' },
+  skipped: { icon: SkipForward, color: 'text-orange-600 dark:text-orange-400' },
+  cancelled: { icon: Ban, color: 'text-gray-400' },
 } as const;
 
 /** Bambu encodes "no filament" as transparent/zeroed RGBA. The slicer's
@@ -70,7 +70,7 @@ export function CompactHistoryRow({
     && (item.status === 'failed' || item.status === 'skipped');
 
   return (
-    <div className={`px-3 py-2 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary border-l-[3px] ${config.border}`}>
+    <div className={`px-3 py-2 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary`}>
       {/* Top row — status / thumb / name / time / actions */}
       <div className="flex items-center gap-2 sm:gap-3">
         <StatusIcon className={`w-4 h-4 shrink-0 ${config.color}`} />

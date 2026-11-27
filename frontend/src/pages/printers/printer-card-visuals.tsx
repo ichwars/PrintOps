@@ -107,7 +107,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
           `}
           style={{ maxWidth: 'calc(100vw - 24px)' }}
         >
-          <div className="w-44 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
+          <div className="w-44 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden">
             {isEmpty ? (
               <div className="px-3 py-2 text-xs text-bambu-gray text-center whitespace-nowrap">
                 Slot {index + 1} {translateInterface("orders.runtimeInterface.empty")}
@@ -116,14 +116,14 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
               <div className="p-2.5 space-y-1.5">
                 {/* Diameter */}
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleDiameter')}</span>
+                  <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleDiameter')}</span>
                   <span className="text-xs text-white font-semibold">{slot.nozzle_diameter} mm</span>
                 </div>
 
                 {/* Type */}
                 {typeFull && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleType')}</span>
+                    <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleType')}</span>
                     <span className="text-xs text-white font-semibold truncate max-w-[100px]">{typeFull}</span>
                   </div>
                 )}
@@ -131,14 +131,14 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
                 {/* Flow (hide if empty) */}
                 {flowFull && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleFlow')}</span>
+                    <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleFlow')}</span>
                     <span className="text-xs text-white font-semibold">{flowFull}</span>
                   </div>
                 )}
 
                 {/* Status badge */}
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleStatus')}</span>
+                  <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleStatus')}</span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                     activeStatus || isMounted
                       ? 'bg-green-900/50 text-green-400'
@@ -151,7 +151,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
                 {/* Wear (hide if null) */}
                 {slot.wear != null && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleWear')}</span>
+                    <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleWear')}</span>
                     <span className="text-xs text-white font-semibold">{slot.wear}%</span>
                   </div>
                 )}
@@ -159,7 +159,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
                 {/* Print time (H2C firmware only, hide if not reported) */}
                 {slot.print_time_s != null && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzlePrintTime')}</span>
+                    <span className="text-[length:var(--pc-t10,10px)] text-bambu-gray font-medium">{t('printers.nozzlePrintTime')}</span>
                     <span className="text-xs text-white font-semibold">{formatDuration(slot.print_time_s)}</span>
                   </div>
                 )}
@@ -167,7 +167,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
                 {/* Max Temp (hide if 0) */}
                 {slot.max_temp > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleMaxTemp')}</span>
+                    <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleMaxTemp')}</span>
                     <span className="text-xs text-white font-semibold">{slot.max_temp}°C</span>
                   </div>
                 )}
@@ -175,7 +175,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
                 {/* Serial (hide if empty) */}
                 {slot.serial_number && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleSerial')}</span>
+                    <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleSerial')}</span>
                     <span className="text-[10px] text-white font-mono truncate max-w-[80px]">{slot.serial_number}</span>
                   </div>
                 )}
@@ -183,7 +183,7 @@ export function NozzleSlotHoverCard({ slot, index, activeStatus, filamentName, c
                 {/* Filament: material type + color swatch (hide if no color) */}
                 {(filamentCss || slot.filament_type) && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{t('printers.nozzleFilament')}</span>
+                    <span className="text-[10px] text-bambu-gray font-medium">{t('printers.nozzleFilament')}</span>
                     <div className="flex items-center gap-1">
                       {filamentCss && (
                         <div className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: filamentCss }} />
@@ -359,7 +359,7 @@ export function DualNozzleHoverCard({ leftSlot, rightSlot, activeNozzle, filamen
           `}
           style={{ maxWidth: 'calc(100vw - 24px)' }}
         >
-          <div className="w-96 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
+          <div className="w-96 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden">
             <div className="p-2.5 flex gap-3">
               {leftSlot && renderColumn(leftSlot, 'L')}
               {leftSlot && rightSlot && <div className="w-px bg-bambu-dark-tertiary/50" />}
@@ -537,15 +537,10 @@ export function HeaterThermometer({ className, color, isHeating }: HeaterThermom
   };
   const fillColor = colorMap[color] || '#888';
 
-  // Glow style when heating
-  const glowStyle = isHeating ? {
-    filter: `drop-shadow(0 0 4px ${fillColor}) drop-shadow(0 0 8px ${fillColor})`,
-  } : {};
-
   if (isHeating) {
-    // Filled thermometer with glow - heater is ON
+    // Filled thermometer - heater is ON
     return (
-      <svg className={className} style={glowStyle} viewBox="0 0 12 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg className={className} viewBox="0 0 12 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="4.5" y="3" width="3" height="9.5" fill={fillColor} rx="0.5"/>
         <circle cx="6" cy="15" r="2" fill={fillColor}/>
         <path d="M6 0.5C4.6 0.5 3.5 1.6 3.5 3V12.1C2.6 12.8 2 13.9 2 15C2 17.2 3.8 19 6 19C8.2 19 10 17.2 10 15C10 13.9 9.4 12.8 8.5 12.1V3C8.5 1.6 7.4 0.5 6 0.5Z" stroke={fillColor} strokeWidth="1" fill="none"/>
@@ -774,7 +769,7 @@ export function CoverImage({
             <img
               src={cacheBustedUrl}
               alt={t('printers.printPreview')}
-              className="max-w-full max-h-[80vh] rounded-lg shadow-2xl"
+              className="max-w-full max-h-[80vh] rounded-lg shadow-lg"
             />
             {printName && (
               <p className="text-white text-center mt-4 text-lg">{printName}</p>

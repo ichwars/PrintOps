@@ -154,25 +154,25 @@ export function InventorySpoolInfoCard({
 
         <div className="flex-1 min-w-0 pt-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-zinc-100">
+            <h3 className="text-lg font-semibold text-white">
               {spool.color_name || translateInterface("orders.runtimeInterface.unknownColor")}
             </h3>
-            <span className="text-xs font-mono text-zinc-500 shrink-0">#{spool.id}</span>
+            <span className="text-xs font-mono text-bambu-gray shrink-0">#{spool.id}</span>
           </div>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-bambu-gray">
             {spool.brand} &bull; {spool.material}
             {spool.subtype && ` ${spool.subtype}`}
           </p>
 
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold font-mono text-zinc-100">{remaining}g</span>
-              <span className="text-sm text-zinc-500">/ {labelWeight}g</span>
+              <span className="text-3xl font-bold font-mono text-white">{remaining}g</span>
+              <span className="text-sm text-bambu-gray">/ {labelWeight}g</span>
             </div>
-            <p className="text-xs text-zinc-500 mt-0.5">{t('spoolbuddy.spool.remaining', 'Remaining')}</p>
+            <p className="text-xs text-bambu-gray mt-0.5">{t('spoolbuddy.spool.remaining', 'Remaining')}</p>
 
             <div className="mt-2 max-w-xs">
-              <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+              <div className="h-2 bg-bambu-dark-tertiary rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${fillPercent ?? 0}%`, backgroundColor: fillColor }}
@@ -183,21 +183,21 @@ export function InventorySpoolInfoCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm bg-zinc-800 rounded-lg p-4 w-full">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm bg-bambu-dark-secondary rounded-lg p-4 w-full">
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.grossWeight', 'Gross weight')}</span>
-          <span className="font-mono text-zinc-300">{resolvedGrossWeight}g</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.grossWeight', 'Gross weight')}</span>
+          <span className="font-mono text-bambu-gray-light">{resolvedGrossWeight}g</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.spool.coreWeight', 'Core')}</span>
-          <span className="font-mono text-zinc-300">{coreWeight}g</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.spool.coreWeight', 'Core')}</span>
+          <span className="font-mono text-bambu-gray-light">{coreWeight}g</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.spoolSize', 'Spool size')}</span>
-          <span className="font-mono text-zinc-300">{labelWeight}g</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.spoolSize', 'Spool size')}</span>
+          <span className="font-mono text-bambu-gray-light">{labelWeight}g</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-zinc-500">{t('spoolbuddy.spool.scaleWeight', 'Scale')}</span>
+          <span className="text-bambu-gray">{t('spoolbuddy.spool.scaleWeight', 'Scale')}</span>
           {grossWeightFromScale !== null ? (
             <span className={`flex items-center gap-1 font-mono ${isMatch ? 'text-green-500' : 'text-yellow-500'}`}>
               {grossWeightFromScale}g
@@ -217,43 +217,43 @@ export function InventorySpoolInfoCard({
               )}
             </span>
           ) : (
-            <span className="text-zinc-500">{'\u2014'}</span>
+            <span className="text-bambu-gray">{'\u2014'}</span>
           )}
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-zinc-500">{t('spoolbuddy.dashboard.tagId', 'Tag')}</span>
-          <span className="font-mono text-xs text-zinc-400 truncate max-w-[120px]" title={spool.tag_uid || ''}>
+          <span className="text-bambu-gray">{t('spoolbuddy.dashboard.tagId', 'Tag')}</span>
+          <span className="font-mono text-xs text-bambu-gray truncate max-w-[120px]" title={spool.tag_uid || ''}>
             {spool.tag_uid ? spool.tag_uid.slice(-8) : '\u2014'}
           </span>
         </div>
         {nozzleTempRange && (
           <div className="flex justify-between items-center">
-            <span className="text-zinc-500">{t('spoolbuddy.inventory.nozzleTemp', 'Nozzle')}</span>
-            <span className="font-mono text-zinc-300">{nozzleTempRange}</span>
+            <span className="text-bambu-gray">{t('spoolbuddy.inventory.nozzleTemp', 'Nozzle')}</span>
+            <span className="font-mono text-bambu-gray-light">{nozzleTempRange}</span>
           </div>
         )}
         {costPerKg != null && costPerKg > 0 && (
           <div className="flex justify-between items-center">
-            <span className="text-zinc-500">{t('spoolbuddy.inventory.costPerKg', 'Cost/kg')}</span>
-            <span className="font-mono text-zinc-300">{costPerKg.toFixed(2)}/kg</span>
+            <span className="text-bambu-gray">{t('spoolbuddy.inventory.costPerKg', 'Cost/kg')}</span>
+            <span className="font-mono text-bambu-gray-light">{costPerKg.toFixed(2)}/kg</span>
           </div>
         )}
         {kFactorSummary && (
           <div className="flex justify-between items-center">
-            <span className="text-zinc-500">{t('spoolbuddy.inventory.kProfiles', 'K-Profile')}</span>
-            <span className="font-mono text-zinc-300 truncate max-w-[220px] text-right" title={kFactorSummary}>{kFactorSummary}</span>
+            <span className="text-bambu-gray">{t('spoolbuddy.inventory.kProfiles', 'K-Profile')}</span>
+            <span className="font-mono text-bambu-gray-light truncate max-w-[220px] text-right" title={kFactorSummary}>{kFactorSummary}</span>
           </div>
         )}
         {slicerPreset && (
           <div className="min-w-0">
-            <p className="text-xs text-zinc-500 mb-1">{t('spoolbuddy.inventory.slicerFilament', 'Slicer Filament')}</p>
-            <p className="text-sm text-zinc-300 whitespace-pre-wrap break-words">{slicerPreset}</p>
+            <p className="text-xs text-bambu-gray mb-1">{t('spoolbuddy.inventory.slicerFilament', 'Slicer Filament')}</p>
+            <p className="text-sm text-bambu-gray-light whitespace-pre-wrap break-words">{slicerPreset}</p>
           </div>
         )}
         {note && (
           <div className="col-span-2">
-            <p className="text-xs text-zinc-500 mb-1">{t('spoolbuddy.inventory.note', 'Note')}</p>
-            <p className="text-sm leading-5 text-zinc-300 whitespace-pre-wrap break-words max-h-[3.75rem] overflow-y-auto pr-1">{note}</p>
+            <p className="text-xs text-bambu-gray mb-1">{t('spoolbuddy.inventory.note', 'Note')}</p>
+            <p className="text-sm leading-5 text-bambu-gray-light whitespace-pre-wrap break-words max-h-[3.75rem] overflow-y-auto pr-1">{note}</p>
           </div>
         )}
       </div>
@@ -284,16 +284,16 @@ export function InventorySpoolInfoCard({
             synced
               ? 'bg-green-600/20 text-green-400'
               : onAssignToAms
-                ? 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed'
+                ? 'bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary disabled:opacity-40 disabled:cursor-not-allowed'
                 : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed'
           }`}
         >
-          {syncing ? '...' : synced ? t('spoolbuddy.dashboard.weightSynced', 'Synced!') : t('spoolbuddy.dashboard.syncWeight', 'Sync Weight')}
+          {syncing ? '...' : synced ? t('spoolbuddy.dashboard.weightSynced', 'Synced') : t('spoolbuddy.dashboard.syncWeight', 'Sync Weight')}
         </button>
         {onClose && (
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+            className="px-5 py-2.5 rounded-lg text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
           >
             {t('spoolbuddy.dashboard.close', 'Close')}
           </button>

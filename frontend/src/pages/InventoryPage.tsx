@@ -1826,7 +1826,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
           spool is selected; sticky so it stays visible while the user
           scrolls a long list. */}
       {selectedIds.size > 0 && viewMode !== 'forecast' && (
-        <div className="sticky top-2 z-10 mb-4 flex items-center gap-2 px-3 py-2 bg-bambu-green/10 border border-bambu-green/30 rounded-lg backdrop-blur-sm">
+        <div className="sticky top-2 z-10 mb-4 flex items-center gap-2 px-3 py-2 bg-bambu-green/10 border border-bambu-green/30 rounded-lg">
           <span className="text-sm text-bambu-green font-medium">
             {t('inventory.bulk.selectionCount', { count: selectedIds.size })}
             <span className="ml-3 text-xs text-bambu-gray">

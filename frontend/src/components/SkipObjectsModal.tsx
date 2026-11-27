@@ -247,7 +247,7 @@ export function SkipObjectsModal({ printerId, isOpen, onClose }: SkipObjectsModa
       >
         <div className="absolute inset-0 bg-black/55" />
         <section
-          className="relative z-10 flex max-h-[88vh] w-full max-w-[980px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-bambu-dark-tertiary dark:bg-bambu-dark"
+          className="relative z-10 flex max-h-[88vh] w-full max-w-[980px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-bambu-dark-tertiary dark:bg-bambu-dark"
           onClick={(event) => event.stopPropagation()}
           aria-label={t('printers.skipObjects.title')}
         >

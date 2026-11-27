@@ -58,7 +58,7 @@ describe('WeightDisplay', () => {
     const { container } = render(
       <WeightDisplay {...defaultProps} deviceOnline={false} />
     );
-    const dot = container.querySelector('.bg-zinc-600');
+    const dot = container.querySelector('.bg-bambu-dark-tertiary');
     expect(dot).toBeInTheDocument();
     expect(screen.getByText('No reading')).toBeInTheDocument();
   });

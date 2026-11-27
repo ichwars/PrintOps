@@ -8,10 +8,10 @@ export function SpoolIcon({ color, isEmpty, size = 32 }: SpoolIconProps) {
   if (isEmpty) {
     return (
       <div
-        className="rounded-full border-2 border-dashed border-zinc-500 flex items-center justify-center"
+        className="rounded-full border-2 border-dashed border-bambu-dark-tertiary flex items-center justify-center"
         style={{ width: size, height: size }}
       >
-        <div className="w-2 h-2 rounded-full bg-zinc-600" />
+        <div className="w-2 h-2 rounded-full bg-bambu-dark-tertiary" />
       </div>
     );
   }

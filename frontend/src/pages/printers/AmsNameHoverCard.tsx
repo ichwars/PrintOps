@@ -114,9 +114,9 @@ export function AmsNameHoverCard({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <div className="w-52 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden backdrop-blur-sm p-2.5 space-y-2">
+          <div className="w-52 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-xl overflow-hidden p-2.5 space-y-2">
             {/* AMS auto-label */}
-            <div className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">{label}</div>
+            <div className="text-[10px] text-bambu-gray font-medium">{label}</div>
 
             {/* Serial number */}
             <div className="flex items-center justify-between gap-2">

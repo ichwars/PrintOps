@@ -504,7 +504,7 @@ function ProjectCoverThumbnail({
       {hovered && pos &&
         createPortal(
           <div
-            className="fixed z-[100] w-96 h-96 rounded-lg overflow-hidden border border-bambu-dark-tertiary shadow-2xl bg-bambu-dark pointer-events-none"
+            className="fixed z-[100] w-96 h-96 rounded-lg overflow-hidden border border-bambu-dark-tertiary shadow-lg bg-bambu-dark pointer-events-none"
             style={{ left: pos.left, top: pos.top }}
             aria-hidden="true"
           >
@@ -555,19 +555,10 @@ function ProjectCard({ project, parentName, onClick, onEdit, onDelete, hasPermis
 
   return (
     <div
-      className="group relative bg-gradient-to-br from-bambu-card to-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary hover:border-bambu-green/50 hover:shadow-lg hover:shadow-bambu-green/5 transition-all duration-300 cursor-pointer overflow-hidden"
+      className="group relative bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary hover:border-bambu-green/50 transition-colors duration-300 cursor-pointer overflow-hidden"
       onClick={onClick}
     >
-      {/* Color accent bar with glow */}
-      <div
-        className="absolute top-0 left-0 w-1.5 h-full"
-        style={{
-          backgroundColor: project.color || '#6b7280',
-          boxShadow: `0 0 12px ${project.color || '#6b7280'}40`
-        }}
-      />
-
-      <div className="p-5 pl-6">
+      <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -752,15 +743,14 @@ function ProjectCard({ project, parentName, onClick, onEdit, onDelete, hasPermis
                       {project.archive_count} / {project.target_count}
                     </span>
                   </div>
-                  <div className="h-2 bg-bambu-dark/80 rounded-full overflow-hidden backdrop-blur-sm">
+                  <div className="h-2 bg-bambu-dark/80 rounded-full overflow-hidden">
                     <div
-                      className="h-full transition-all duration-500 ease-out rounded-full relative"
+                      className="h-full transition-all duration-500 ease-out rounded-full"
                       style={{
                         width: `${Math.min(platesProgressPercent, 100)}%`,
-                        background: platesProgressPercent >= 100
-                          ? 'linear-gradient(90deg, #22c55e, #4ade80)'
-                          : `linear-gradient(90deg, ${project.color || '#6b7280'}, ${project.color || '#6b7280'}cc)`,
-                        boxShadow: `0 0 8px ${platesProgressPercent >= 100 ? '#22c55e' : project.color || '#6b7280'}60`
+                        backgroundColor: platesProgressPercent >= 100
+                          ? '#22c55e'
+                          : project.color || '#6b7280'
                       }}
                     />
                   </div>
@@ -775,15 +765,14 @@ function ProjectCard({ project, parentName, onClick, onEdit, onDelete, hasPermis
                       {project.completed_count} / {project.target_parts_count}
                     </span>
                   </div>
-                  <div className="h-2 bg-bambu-dark/80 rounded-full overflow-hidden backdrop-blur-sm">
+                  <div className="h-2 bg-bambu-dark/80 rounded-full overflow-hidden">
                     <div
-                      className="h-full transition-all duration-500 ease-out rounded-full relative"
+                      className="h-full transition-all duration-500 ease-out rounded-full"
                       style={{
                         width: `${Math.min(partsProgressPercent, 100)}%`,
-                        background: partsProgressPercent >= 100
-                          ? 'linear-gradient(90deg, #22c55e, #4ade80)'
-                          : `linear-gradient(90deg, ${project.color || '#6b7280'}, ${project.color || '#6b7280'}cc)`,
-                        boxShadow: `0 0 8px ${partsProgressPercent >= 100 ? '#22c55e' : project.color || '#6b7280'}60`
+                        backgroundColor: partsProgressPercent >= 100
+                          ? '#22c55e'
+                          : project.color || '#6b7280'
                       }}
                     />
                   </div>

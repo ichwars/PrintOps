@@ -19,15 +19,14 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay();
 }
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
+function getMonthName(language: string, year: number, month: number): string {
+  return new Intl.DateTimeFormat(language, { month: 'long' }).format(new Date(year, month, 1));
+}
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }: CalendarViewProps) {
-  const { t: translateInterface } = useTranslation();
+  const { t: translateInterface, i18n } = useTranslation();
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -106,7 +105,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
           </button>
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-white">
-              {MONTH_NAMES[currentMonth]} {currentYear}
+              {getMonthName(i18n.language, currentYear, currentMonth)} {currentYear}
             </h2>
             <button
               onClick={goToToday}
@@ -168,10 +167,10 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                   <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1">
                     <div className={`w-2 h-2 rounded-full ${
                       failedCount > 0 && successCount === 0
-                        ? 'bg-red-400'
+                        ? 'bg-status-error'
                         : failedCount > 0
-                        ? 'bg-yellow-400'
-                        : 'bg-green-400'
+                        ? 'bg-status-warning'
+                        : 'bg-status-ok'
                     }`} />
                     <span className="text-xs font-medium">{dayArchives.length}</span>
                   </div>
@@ -194,7 +193,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
               <div className="text-xs text-bambu-gray">{translateInterface("orders.runtimeInterface.printsThisMonth")}</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+              <div className="text-2xl font-bold text-status-ok">
                 {archives.filter(a => {
                   const d = parseUTCDate(a.completed_at || a.created_at) || new Date();
                   return d.getMonth() === currentMonth && d.getFullYear() === currentYear && a.status === 'completed';
@@ -203,7 +202,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
               <div className="text-xs text-bambu-gray">{translateInterface("orders.runtimeInterface.successful")}</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-red-700 dark:text-red-400">
+              <div className="text-2xl font-bold text-status-error">
                 {archives.filter(a => {
                   const d = parseUTCDate(a.completed_at || a.created_at) || new Date();
                   return d.getMonth() === currentMonth && d.getFullYear() === currentYear && a.status === 'failed';
@@ -239,9 +238,8 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                       onArchiveClick?.(archive);
                     }}
                     className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left ${
-                      !isHighlighted ? 'hover:bg-bambu-dark-tertiary' : ''
+                      isHighlighted ? 'outline-4 outline-status-warning outline-offset-2' : 'hover:bg-bambu-dark-tertiary'
                     }`}
-                    style={isHighlighted ? { outline: '4px solid #facc15', outlineOffset: '2px' } : undefined}
                   >
                     {archive.thumbnail_path ? (
                       <img
@@ -259,7 +257,7 @@ export function CalendarView({ archives, onArchiveClick, highlightedArchiveId }:
                         {archive.print_name || archive.filename}
                       </p>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className={archive.status === 'failed' ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}>
+                        <span className={archive.status === 'failed' ? 'text-status-error' : 'text-status-ok'}>
                           {archive.status === 'failed' ? 'Failed' : 'Completed'}
                         </span>
                         {archive.filament_color && (

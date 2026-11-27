@@ -188,7 +188,7 @@ function BulkEditModal({
     nozzleOffsetCali !== 'unchanged';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary">
           <h2 className="text-lg font-semibold text-white">
@@ -416,18 +416,11 @@ function SortableQueueItem({
       ref={setNodeRef}
       style={style}
       className={`
-        group relative bg-bambu-dark-secondary rounded-xl border transition-all duration-200
-        border-l-[3px] ${
-          isPrinting ? 'border-l-blue-500' :
-          isPending ? 'border-l-yellow-500' :
-          item.status === 'completed' ? 'border-l-emerald-500' :
-          item.status === 'failed' ? 'border-l-red-500' :
-          'border-l-gray-500'
-        }
+        group relative bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary transition-all duration-200
         ${isDragging ? 'opacity-50 scale-[1.02] shadow-xl z-50' : ''}
-        ${isPrinting ? 'border-blue-500/30 bg-gradient-to-r from-blue-500/5 to-transparent' : ''}
+        ${isPrinting ? 'bg-blue-500/5' : ''}
         ${isSelected && isMobileSelectable ? 'sm:border-bambu-dark-tertiary border-bambu-green/40' : ''}
-        ${!isSelected && !isPrinting ? 'border-bambu-dark-tertiary hover:border-bambu-dark-tertiary/80' : ''}
+        ${!isSelected && !isPrinting ? 'hover:border-bambu-dark-tertiary/80' : ''}
         ${isMobileSelectable ? 'sm:cursor-default' : ''}
       `}
       onClick={isMobileSelectable ? () => {
@@ -943,7 +936,7 @@ function SortableBatchRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-bambu-dark-secondary rounded-xl border border-l-[3px] border-l-cyan-400 border-bambu-dark-tertiary overflow-hidden ${
+      className={`bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary overflow-hidden ${
         isDragging ? 'opacity-50 scale-[1.01] shadow-xl z-50' : ''
       }`}
     >
@@ -1246,7 +1239,7 @@ function HistorySection({
           return (
             <div
               key={`batch-${row.batchId}`}
-              className="md:col-span-2 xl:col-span-3 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary border-l-[3px] border-l-cyan-400"
+              className="md:col-span-2 xl:col-span-3 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary"
             >
               <button
                 onClick={() => toggleBatchCollapsed(row.batchId)}
@@ -2591,8 +2584,8 @@ export function QueuePage() {
                       if (siblings.length === 0) return null;
                       const name = siblings[0].batch_name || t('queue.batch.defaultName');
                       return (
-                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border-2 border-cyan-400 rounded-lg shadow-2xl">
-                          <Package className="w-4 h-4 text-cyan-700 dark:text-cyan-300" />
+                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg">
+                          <Package className="w-4 h-4 text-bambu-gray" />
                           <span className="text-sm text-white font-medium">
                             {t('queue.dragGhost.batch', {
                               defaultValue: '{{name}} ({{count}} copies)',
@@ -2606,8 +2599,8 @@ export function QueuePage() {
                     // Multi-row drag — show the N-item ghost.
                     if (typeof activeDragId === 'number' && selectedItems.includes(activeDragId) && selectedItems.length > 1) {
                       return (
-                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border-2 border-cyan-400 rounded-lg shadow-2xl">
-                          <Package className="w-4 h-4 text-cyan-700 dark:text-cyan-300" />
+                        <div className="flex items-center gap-3 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg">
+                          <Package className="w-4 h-4 text-bambu-gray" />
                           <span className="text-sm text-white font-medium">
                             {t('queue.dragGhost.multiCount', { count: selectedItems.length })}
                           </span>

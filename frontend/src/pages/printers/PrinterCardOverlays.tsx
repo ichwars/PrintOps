@@ -142,7 +142,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
     {/* Plate Check Result Modal */}
     {plateCheckResult && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => closePlateCheckModal()}>
-        <div className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-w-lg w-full" onClick={e => e.stopPropagation()}>
+        <div className="bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-lg max-w-lg w-full" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between p-4 border-b border-bambu-dark-tertiary">
             <div className="flex items-center gap-2">
               {plateCheckResult.needs_calibration ? (
@@ -653,7 +653,7 @@ export function PrinterCardOverlays({ model }: PrinterCardOverlaysProps) {
           <div className="fixed inset-0 z-[100]" onClick={() => setDryingPopoverAmsId(null)} />
           {/* Popover */}
           <div
-            className="fixed z-[101] flex flex-col w-[240px] bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl overflow-hidden"
+            className="fixed z-[101] flex flex-col w-[240px] bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-lg overflow-hidden"
             style={{
               top: dryingPopoverPos.top,
               left: dryingPopoverPos.left,

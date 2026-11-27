@@ -129,7 +129,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
         }}
       />
       <div
-        className="relative w-full max-w-2xl mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
+        className="relative w-full max-w-2xl mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-lg max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby={modalTitleId}
@@ -226,7 +226,7 @@ export function LocationsModal({ open, onClose, onPickLocation }: LocationsModal
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={closeEditor} />
           <div
-            className="relative w-full max-w-md mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl p-6 shadow-2xl"
+            className="relative w-full max-w-md mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl p-6 shadow-lg"
             role="dialog"
             aria-modal="true"
             aria-labelledby={editorTitleId}

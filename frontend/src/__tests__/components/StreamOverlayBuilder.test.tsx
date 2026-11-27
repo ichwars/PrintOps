@@ -19,12 +19,12 @@ describe('overlay share links', () => {
       .toBe('https://printops.example/overlay/7');
   });
   it('canonicalizes independent fields and option order with token last', () => {
-    const config = parseOverlayConfig(new URLSearchParams('show=temperatures,model,printer,progress&fps=25&camera=0&size=large&artwork=landscape'));
+    const config = parseOverlayConfig(new URLSearchParams('show=temperatures,model,printer,progress&fps=25&camera=0&size=large'));
     expect(buildOverlayUrl('https://printops.example', 7, config, 'bblt_x'))
-      .toBe('https://printops.example/overlay/7?show=progress%2Cprinter%2Cmodel%2Ctemperatures&size=large&fps=25&camera=false&artwork=landscape&token=bblt_x');
+      .toBe('https://printops.example/overlay/7?show=progress%2Cprinter%2Cmodel%2Ctemperatures&size=large&fps=25&camera=false&token=bblt_x');
   });
   it('keeps an empty field selection empty and rejects invalid enum options', () => {
-    expect(buildOverlayUrl('https://printops.example', 7, parseOverlayConfig(new URLSearchParams('show=&size=invalid&fps=NaN&artwork=invalid'))))
+    expect(buildOverlayUrl('https://printops.example', 7, parseOverlayConfig(new URLSearchParams('show=&size=invalid&fps=NaN'))))
       .toBe('https://printops.example/overlay/7?show=');
   });
   it('never subscribes before an explicit preview click and hides preview on editing', async () => {

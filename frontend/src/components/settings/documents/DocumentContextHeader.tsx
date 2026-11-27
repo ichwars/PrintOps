@@ -72,7 +72,7 @@ export function DocumentContextHeader({
       : 'border-bambu-green/40 bg-bambu-green/10 text-bambu-green-light';
 
   return (
-    <header className="sticky top-0 z-10 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary/95 p-4 shadow-lg backdrop-blur">
+    <header className="sticky top-0 z-10 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 shadow-lg">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-bambu-green" aria-hidden="true" />

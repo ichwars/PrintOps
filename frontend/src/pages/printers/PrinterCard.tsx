@@ -226,7 +226,7 @@ return (
               <div className="flex flex-wrap items-center gap-2">
               {printer.is_active === false ? (
                 <span
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
                   title={t('printers.maintenance.subtitle')}
                 >
                   <Wrench className="w-3 h-3" />
@@ -234,7 +234,7 @@ return (
                 </span>
               ) : (
                 <span
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs ${
                     status?.connected
                       ? 'bg-status-ok/20 text-status-ok'
                       : 'bg-status-error/20 text-status-error'
@@ -250,7 +250,7 @@ return (
               )}
               {localPrinterControlUnavailable && (
                 <span
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20"
                   title={t(
                     'printers.localControlBadgeTitle',
                     'Lokale Druckersteuerung ist deaktiviert. PrintOps zeigt Statusdaten, sperrt aber lokale Steuerbefehle.',
@@ -261,7 +261,7 @@ return (
                 </span>
               )}
               <span
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs border ${
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs border ${
                   activeControlPath === 'local'
                     ? 'bg-status-ok/20 text-status-ok border-status-ok/20'
                     : activeControlPath === 'cloud'
@@ -279,7 +279,7 @@ return (
               </span>
               {cloudControlConfigured && (
                 <span
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-sky-500/10 text-sky-400 border border-sky-500/20"
                   title={t('printers.cloudControlConfiguredTitle', 'Bambu Cloud ist konfiguriert und kann für unterstützte Fallback-Aktionen genutzt werden.')}
                 >
                   <Zap className="w-3 h-3" />
@@ -289,7 +289,7 @@ return (
               <button
                 type="button"
                 onClick={() => setShowControlMatrix(open => !open)}
-                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
                 title={t('printers.controlMatrix.toggle', 'Steuerwege anzeigen')}
               >
                 <Info className="w-3 h-3" />
@@ -299,7 +299,7 @@ return (
               {printer.is_active !== false && !status?.connected && (
                 <button
                   onClick={() => setShowDiagnostic(true)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-xs cursor-pointer bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
                   title={t('diagnostic.runButton')}
                 >
                   <Stethoscope className="w-3 h-3" />
@@ -309,7 +309,7 @@ return (
               {/* Network connection indicator */}
               {status?.connected && status?.wired_network && (
                 <span
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-status-ok/20 text-status-ok"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-status-ok/20 text-status-ok"
                   title={t('printers.connection.ethernet', 'Ethernet')}
                 >
                   <Cable className="w-3 h-3" />
@@ -319,7 +319,7 @@ return (
               {/* WiFi signal indicator */}
               {status?.connected && !status?.wired_network && wifiSignal != null && (
                 <span
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs ${
                     wifiSignal >= -50
                       ? 'bg-status-ok/20 text-status-ok'
                       : wifiSignal >= -60
@@ -342,7 +342,7 @@ return (
                 return (
                   <button
                     onClick={() => setShowHMSModal(true)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs cursor-pointer hover:opacity-80 transition-opacity ${
                       knownErrors.length > 0
                         ? knownErrors.some(isSevereHMSError)
                           ? 'bg-status-error/20 text-status-error'
@@ -361,7 +361,7 @@ return (
               {maintenanceInfo && (
                 <button
                   onClick={() => navigate('/maintenance')}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs cursor-pointer hover:opacity-80 transition-opacity ${
                     maintenanceInfo.due_count > 0
                       ? 'bg-status-error/20 text-status-error'
                       : maintenanceInfo.warning_count > 0
@@ -384,7 +384,7 @@ return (
               {queueCount > 0 && (
                 <button
                   onClick={() => navigate('/queue')}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 hover:opacity-80 transition-opacity"
                   title={t('printers.queue.inQueue', { count: queueCount })}
                 >
                   <Layers className="w-3 h-3" />
@@ -395,7 +395,7 @@ return (
               {checkPrinterFirmware && firmwareInfo?.current_version && firmwareInfo?.latest_version ? (
                 <button
                   onClick={() => setShowFirmwareModal(true)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs hover:opacity-80 transition-opacity ${
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs hover:opacity-80 transition-opacity ${
                     firmwareInfo.update_available
                       ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400'
                       : 'bg-status-ok/20 text-status-ok'
@@ -410,7 +410,7 @@ return (
                   {firmwareInfo.current_version}
                 </button>
               ) : status?.firmware_version ? (
-                <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-bambu-dark-tertiary/50 text-bambu-gray">
+                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-bambu-dark-tertiary/50 text-bambu-gray">
                   {status.firmware_version}
                 </span>
               ) : null}
@@ -419,7 +419,7 @@ return (
                   P1S has an enclosure door but no sensor; P1P has no enclosure at all. */}
               {status?.connected && ['X1C', 'X1', 'X1E', 'X2D', 'P2S', 'H2D', 'H2D Pro', 'H2C', 'H2S', 'H3C'].includes(printer.model ?? '') && (
                 <span
-                  className={`flex items-center px-2 py-1 rounded-full text-xs ${
+                  className={`flex items-center px-2 py-1 rounded-md text-xs ${
                     status.door_open
                       ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400'
                       : 'bg-status-ok/20 text-status-ok'
@@ -432,7 +432,7 @@ return (
               </div>
               {showControlMatrix && (
                 <div className="mt-2 overflow-hidden rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary/70">
-                  <div className="grid grid-cols-[1.4fr_0.7fr_0.9fr_1fr] gap-2 border-b border-bambu-dark-tertiary px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-bambu-gray">
+                  <div className="grid grid-cols-[1.4fr_0.7fr_0.9fr_1fr] gap-2 border-b border-bambu-dark-tertiary px-3 py-2 text-[10px] font-medium text-bambu-gray">
                     <span>{t('printers.controlMatrix.action', 'Aktion')}</span>
                     <span>{t('printers.controlMatrix.local', 'LAN')}</span>
                     <span>{t('printers.controlMatrix.cloud', 'Cloud')}</span>
@@ -561,7 +561,7 @@ return (
             ) : (
               <>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+                  <span className="text-[10px] text-bambu-gray font-medium">
                     {t('printers.status.title', 'Status')}
                   </span>
                   <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
@@ -628,7 +628,7 @@ return (
               /* Expanded: Full status section */
               <>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+                  <span className="text-[10px] text-bambu-gray font-medium">
                     {t('printers.status.title', 'Status')}
                   </span>
                   <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
@@ -1114,7 +1114,7 @@ return (
                 <div className="mt-3">
                   {/* Section Header */}
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+                    <span className="text-[10px] text-bambu-gray font-medium">
                       {t('printers.controls')}
                     </span>
                     <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
@@ -1217,7 +1217,7 @@ return (
                             {showBedJogMenu === printer.id && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowBedJogMenu(null)} />
-                                <div className="absolute bottom-full left-0 mb-1 z-50 flex w-[216px] flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-2xl">
+                                <div className="absolute bottom-full left-0 mb-1 z-50 flex w-[216px] flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-lg">
                                   <div className="shrink-0 px-3 py-2.5 text-center text-sm font-medium text-white">
                                     {t('printers.bedJog.title')}
                                   </div>
@@ -1322,7 +1322,7 @@ return (
                                   </div>
                                   <div className="h-px bg-bambu-dark-tertiary" />
                                   <div className="px-3 pt-2.5 pb-3">
-                                    <div className="mb-1 text-[9px] uppercase tracking-wider text-bambu-gray/70">
+                                    <div className="mb-1 text-[9px] text-bambu-gray/70">
                                       {t('printers.bedJog.step')}
                                     </div>
                                     <div className="flex gap-1">
@@ -2662,7 +2662,7 @@ return (
         {smartPlug && (
           <div className="pt-3">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] uppercase tracking-wider text-bambu-gray font-medium">
+              <span className="text-[10px] text-bambu-gray font-medium">
                 {t('printers.power', 'Power')}
               </span>
               <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />

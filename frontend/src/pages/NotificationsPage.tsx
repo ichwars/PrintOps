@@ -102,12 +102,10 @@ export function NotificationsPage() {
       </div>
 
       {/* Info card */}
-      <Card className="mb-6 border-blue-300 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/5">
+      <Card className="mb-6 border-blue-500/30 bg-blue-500/5">
         <CardContent className="py-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-500/20 flex-shrink-0">
-              <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
+            <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
             <div>
               <h3 className="text-white font-medium">{t('notifications.userEmail.emailNotifications')}</h3>
               <p className="text-sm text-bambu-gray mt-1">

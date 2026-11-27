@@ -171,7 +171,7 @@ export function IndicatorControlPopover({
         <>
           <div className="fixed inset-0 z-[1000]" onClick={onClose} />
           <div
-            className={`fixed z-[1001] flex ${widthClass} flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-2xl`}
+            className={`fixed z-[1001] flex ${widthClass} flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-lg`}
             style={{
               top: coords?.top ?? -9999,
               left: coords?.left ?? -9999,

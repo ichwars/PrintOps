@@ -88,15 +88,15 @@ export function DiagnosticModal({ type, deviceId, onClose }: DiagnosticModalProp
       onClick={onClose}
     >
       <div
-        className="bg-zinc-800 rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col animate-slide-up"
+        className="bg-bambu-dark-secondary rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b border-zinc-700">
+        <div className="flex justify-between items-center p-4 border-b border-bambu-dark-tertiary">
           <h2 className="text-lg font-semibold text-white">{title}</h2>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-white transition-colors"
+            className="text-bambu-gray hover:text-white transition-colors"
             aria-label="Close"
           >
             <X size={20} />
@@ -116,7 +116,7 @@ export function DiagnosticModal({ type, deviceId, onClose }: DiagnosticModalProp
               </div>
               {error && (
                 <div className="text-red-400 mt-2">
-                  ❌ {error}
+                  {error}
                 </div>
               )}
             </>
@@ -129,18 +129,18 @@ export function DiagnosticModal({ type, deviceId, onClose }: DiagnosticModalProp
               )}
             </div>
                 ) : (
-            <div className="text-zinc-500">
+            <div className="text-bambu-gray">
               {t('spoolbuddy.diagnostic.clickStart', 'Click "Run Diagnostic" to start the hardware diagnostic on')} {deviceId}.
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 p-4 border-t border-zinc-700 bg-zinc-800">
+        <div className="flex gap-2 p-4 border-t border-bambu-dark-tertiary bg-bambu-dark-secondary">
           <button
             onClick={runDiagnostic}
             disabled={isRunning}
-            className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded font-semibold text-white transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-bambu-dark-tertiary disabled:cursor-not-allowed px-4 py-2 rounded font-semibold text-white transition-colors"
           >
             {isRunning ? (
               <>
@@ -161,7 +161,7 @@ export function DiagnosticModal({ type, deviceId, onClose }: DiagnosticModalProp
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600 text-white font-semibold transition-colors"
+            className="px-4 py-2 rounded bg-bambu-dark-tertiary hover:bg-bambu-dark-tertiary text-white font-semibold transition-colors"
           >
             {t('spoolbuddy.diagnostic.close', 'Close')}
           </button>

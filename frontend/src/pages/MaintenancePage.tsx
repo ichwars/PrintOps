@@ -334,13 +334,13 @@ function PrinterSection({
             <h2 className="text-xl font-semibold text-white">{overview.printer_name}</h2>
             <div className="flex items-center gap-2">
               {overview.due_count > 0 && (
-                <span className="px-2.5 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 text-xs font-medium rounded-full flex items-center gap-1.5">
+                <span className="px-2.5 py-1 bg-status-error/10 text-status-error text-xs font-medium rounded-full flex items-center gap-1.5">
                   <AlertTriangle className="w-3 h-3" />
                   {t('maintenance.overdueCount', { count: overview.due_count })}
                 </span>
               )}
               {overview.warning_count > 0 && (
-                <span className="px-2.5 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 text-xs font-medium rounded-full flex items-center gap-1.5">
+                <span className="px-2.5 py-1 bg-status-warning/10 text-status-warning text-xs font-medium rounded-full flex items-center gap-1.5">
                   <Clock className="w-3 h-3" />
                   {t('maintenance.dueSoonCount', { count: overview.warning_count })}
                 </span>

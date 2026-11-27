@@ -123,7 +123,7 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className={`flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-2xl ${className}`}
+        className={`flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary shadow-lg ${className}`}
         onKeyDown={handleKeyDown}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-bambu-dark-tertiary px-6 py-4">

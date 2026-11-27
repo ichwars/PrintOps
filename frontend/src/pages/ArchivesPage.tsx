@@ -708,8 +708,7 @@ function ArchiveCard({
   return (
     <Card
       data-archive-id={archive.id}
-      className={`relative flex flex-col group ${isSelected ? 'ring-2 ring-bambu-green' : ''} ${selectionMode ? 'cursor-pointer' : ''}`}
-      style={isHighlighted ? { outline: '4px solid #facc15', outlineOffset: '2px' } : undefined}
+      className={`relative flex flex-col group ${isSelected ? 'ring-2 ring-bambu-green' : ''} ${selectionMode ? 'cursor-pointer' : ''} ${isHighlighted ? 'outline-4 outline-status-warning outline-offset-2' : ''}`}
       onContextMenu={handleContextMenu}
       onClick={selectionMode ? () => onSelect(archive.id) : undefined}
     >
@@ -2070,8 +2069,7 @@ function ArchiveListRow({
         data-archive-id={archive.id}
         className={`grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-bambu-dark-tertiary/30 ${
           isSelected ? 'bg-bambu-green/10' : ''
-        }`}
-        style={isHighlighted ? { outline: '4px solid #facc15', outlineOffset: '-4px' } : undefined}
+        } ${isHighlighted ? 'outline-4 outline-status-warning -outline-offset-4' : ''}`}
         onContextMenu={handleContextMenu}
       >
         <div className="col-span-1 flex items-center gap-2">
@@ -4248,7 +4246,7 @@ export function ArchivesPage() {
           Archive Edit modal — backend validates against the same list. */}
       {editingLogEntry !== null && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
           onClick={() => setEditingLogEntry(null)}
         >
           <div

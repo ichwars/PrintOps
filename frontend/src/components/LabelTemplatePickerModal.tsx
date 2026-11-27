@@ -373,11 +373,11 @@ export function LabelTemplatePickerModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto">
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60"
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-3xl bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col my-auto">
+      <div className="relative w-full max-w-3xl bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-lg max-h-[90vh] overflow-hidden flex flex-col my-auto">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between p-4 border-b border-bambu-dark-tertiary">
           <div className="flex flex-wrap min-w-0 items-center gap-x-2 gap-y-1">

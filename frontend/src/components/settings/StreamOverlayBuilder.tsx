@@ -36,9 +36,6 @@ export function StreamOverlayBuilder() {
         <Select label={t('streamOverlay.builder.size')} ariaLabel={t('streamOverlay.builder.size')} value={config.size}
           options={(['small', 'medium', 'large'] as const).map(value => ({ value, label: t(`streamOverlay.builder.${value}`) }))}
           onValueChange={size => update({ size })} />
-        <Select label={t('streamOverlay.builder.artwork')} ariaLabel={t('streamOverlay.builder.artwork')} value={config.artwork}
-          options={(['none', 'portrait', 'landscape'] as const).map(value => ({ value, label: t(`streamOverlay.builder.${value}`) }))}
-          onValueChange={artwork => update({ artwork })} />
         <NumberField label={t('streamOverlay.builder.fps')} aria-label={t('streamOverlay.builder.fps')} value={config.fps} min={1} max={30}
           onChange={event => update({ fps: Math.min(30, Math.max(1, Number(event.target.value) || 15)) })} />
       </div>

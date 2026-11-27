@@ -431,7 +431,7 @@ export function LoginPage() {
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-bambu-dark p-4">
-        <div className="max-w-md w-full space-y-8 p-8 bg-gradient-to-br from-bambu-card to-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
+        <div className="max-w-md w-full space-y-8 p-8 bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
           <div className="text-center">
             <div className="flex items-center justify-center mb-4">
               <div className="w-14 h-14 rounded-full bg-bambu-green/20 flex items-center justify-center">
@@ -480,7 +480,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={resetPasswordMutation.isPending || !newPassword || !confirmPassword}
-              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg shadow-lg shadow-bambu-green/20 hover:shadow-bambu-green/30 focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {resetPasswordMutation.isPending ? t('login.resetPassword.saving') : t('login.resetPassword.submit')}
             </button>
@@ -509,7 +509,7 @@ export function LoginPage() {
   if (step === '2fa') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bambu-dark p-4">
-        <div className="max-w-md w-full space-y-8 p-8 bg-gradient-to-br from-bambu-card to-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
+        <div className="max-w-md w-full space-y-8 p-8 bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
           <div className="text-center">
             <div className="flex items-center justify-center mb-4">
               <div className="w-14 h-14 rounded-full bg-bambu-green/20 flex items-center justify-center">
@@ -639,7 +639,7 @@ export function LoginPage() {
                 !twoFACode.trim() ||
                 (twoFAMethod === 'email' && !emailOTPSent)
               }
-              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg shadow-lg shadow-bambu-green/20 hover:shadow-bambu-green/30 focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {verify2FAMutation.isPending
                 ? t('login.twoFA.verifyingButton')
@@ -669,7 +669,7 @@ export function LoginPage() {
   // ---- Render: credentials step ----
   return (
     <div className="min-h-screen flex items-center justify-center bg-bambu-dark p-4">
-      <div className="max-w-md w-full space-y-8 p-8 bg-gradient-to-br from-bambu-card to-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
+      <div className="max-w-md w-full space-y-8 p-8 bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary shadow-lg">
         <div className="text-center">
           <div className="flex items-center justify-center mb-6">
             <img
@@ -753,7 +753,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loginMutation.isPending}
-              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg shadow-lg shadow-bambu-green/20 hover:shadow-bambu-green/30 focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-bambu-green"
+              className="w-full flex justify-center py-3 px-4 bg-bambu-green hover:bg-bambu-green-light text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-bambu-green/50 focus:ring-offset-2 focus:ring-offset-bambu-dark-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-bambu-green"
             >
               {loginMutation.isPending ? t('login.signingIn') : t('login.signIn')}
             </button>

@@ -73,7 +73,7 @@ export function BatchOrdersView({ hasPermission, t }: BatchOrdersViewProps) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Package className="w-5 h-5 text-cyan-700 dark:text-cyan-300" />
+        <Package className="w-5 h-5 text-bambu-gray" />
         <h2 className="text-base sm:text-lg font-semibold text-white">{t('queue.batchOrders.title')}</h2>
         <div className="flex gap-1 ml-auto">
           {filters.map((value) => (
@@ -81,7 +81,7 @@ export function BatchOrdersView({ hasPermission, t }: BatchOrdersViewProps) {
               key={value}
               type="button"
               onClick={() => setStatusFilter(value)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                 statusFilter === value
                   ? 'border-bambu-green bg-bambu-green/10 text-bambu-green'
                   : 'border-bambu-dark-tertiary text-bambu-gray hover:border-bambu-gray'
@@ -134,10 +134,10 @@ export function BatchOrdersView({ hasPermission, t }: BatchOrdersViewProps) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
-  completed: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300',
+  active: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
+  completed: 'bg-status-ok/10 text-status-ok',
   cancelled: 'bg-bambu-dark-tertiary text-bambu-gray',
-  failed: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300',
+  failed: 'bg-status-error/10 text-status-error',
 };
 
 function BatchOrderCard({

@@ -152,17 +152,17 @@ export function SpoolBuddyQuickMenu({ isOpen, onClose, deviceId, deviceOnline }:
       <div className="fixed inset-0 z-40 bg-black/50" onPointerDown={onClose} />
 
       {/* Slide-down panel */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary rounded-b-2xl shadow-2xl animate-slide-down">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-bambu-dark-secondary border-b border-bambu-dark-tertiary rounded-b-2xl shadow-lg animate-slide-down">
         {/* Handle bar */}
         <div className="flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 rounded-full bg-zinc-600" />
+          <div className="w-10 h-1 rounded-full bg-bambu-dark-tertiary" />
         </div>
 
         <div className="px-4 pb-4 max-h-[80vh] overflow-y-auto">
           {/* Printer Power Section */}
           {printerPlugs.length > 0 && (
             <div className="mb-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
+              <h3 className="text-xs font-semibold text-bambu-gray uppercase tracking-wide mb-2">
                 {t('spoolbuddy.quickMenu.printerPower', 'Printer Power')}
               </h3>
               <div className="space-y-1">
@@ -174,12 +174,12 @@ export function SpoolBuddyQuickMenu({ isOpen, onClose, deviceId, deviceOnline }:
                       key={plug.id}
                       onClick={() => setPendingConfirm({ type: 'plug', plug, printer, currentState: state?.state ?? null })}
                       disabled={loading}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/60 hover:bg-zinc-700/60 transition-colors min-h-[36px]"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bambu-dark-secondary hover:bg-bambu-dark-tertiary transition-colors min-h-[36px]"
                     >
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${on ? 'bg-green-500' : 'bg-zinc-600'}`} />
-                      {loading && <Loader2 className="w-3 h-3 animate-spin text-zinc-400 shrink-0" />}
-                      <span className="flex-1 text-sm text-zinc-200 text-left truncate">{printer.name}</span>
-                      <span className={`text-xs font-medium ${on ? 'text-green-400' : 'text-zinc-500'}`}>
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${on ? 'bg-green-500' : 'bg-bambu-dark-tertiary'}`} />
+                      {loading && <Loader2 className="w-3 h-3 animate-spin text-bambu-gray shrink-0" />}
+                      <span className="flex-1 text-sm text-bambu-gray-light text-left truncate">{printer.name}</span>
+                      <span className={`text-xs font-medium ${on ? 'text-green-400' : 'text-bambu-gray'}`}>
                         {state?.state ?? '—'}
                       </span>
                     </button>
@@ -191,7 +191,7 @@ export function SpoolBuddyQuickMenu({ isOpen, onClose, deviceId, deviceOnline }:
 
           {/* System Controls Section */}
           <div>
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
+            <h3 className="text-xs font-semibold text-bambu-gray uppercase tracking-wide mb-2">
               {t('spoolbuddy.quickMenu.systemControls', 'System')}
             </h3>
             <div className="grid grid-cols-2 gap-2">
@@ -226,7 +226,7 @@ export function SpoolBuddyQuickMenu({ isOpen, onClose, deviceId, deviceOnline }:
 
           {/* Swipe hint */}
           <div className="flex justify-center mt-3">
-            <div className="flex items-center gap-1 text-xs text-zinc-600">
+            <div className="flex items-center gap-1 text-xs text-bambu-gray-dark">
               <ChevronDown className="w-3 h-3" />
               <span>{t('spoolbuddy.quickMenu.swipeToClose', 'Swipe down to close')}</span>
             </div>
@@ -237,11 +237,11 @@ export function SpoolBuddyQuickMenu({ isOpen, onClose, deviceId, deviceOnline }:
       {/* Confirmation Dialog */}
       {pendingConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="bg-zinc-800 rounded-2xl p-5 mx-4 max-w-sm w-full border border-zinc-700">
-            <h3 className="text-lg font-semibold text-zinc-100 mb-2">
+          <div className="bg-bambu-dark-secondary rounded-2xl p-5 mx-4 max-w-sm w-full border border-bambu-dark-tertiary">
+            <h3 className="text-lg font-semibold text-white mb-2">
               {t('spoolbuddy.quickMenu.confirmTitle', 'Confirm')}
             </h3>
-            <p className="text-sm text-zinc-400 mb-5">
+            <p className="text-sm text-bambu-gray mb-5">
               {pendingConfirm.type === 'plug'
                 ? (isPlugOn(pendingConfirm.currentState)
                     ? t('spoolbuddy.quickMenu.confirmPlugOff', 'Turn off {{name}}?', { name: pendingConfirm.printer.name })
@@ -257,7 +257,7 @@ export function SpoolBuddyQuickMenu({ isOpen, onClose, deviceId, deviceOnline }:
             <div className="flex gap-3">
               <button
                 onClick={() => setPendingConfirm(null)}
-                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors min-h-[44px]"
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-bambu-dark-tertiary text-bambu-gray-light hover:bg-bambu-dark-tertiary transition-colors min-h-[44px]"
               >
                 {t('common.cancel', 'Cancel')}
               </button>
@@ -301,7 +301,7 @@ function SystemButton({
   variant?: 'default' | 'warning' | 'danger';
 }) {
   const variantClasses = {
-    default: 'bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300',
+    default: 'bg-bambu-dark-secondary hover:bg-bambu-dark-tertiary text-bambu-gray-light',
     warning: 'bg-amber-900/30 hover:bg-amber-900/50 text-amber-400',
     danger: 'bg-red-900/30 hover:bg-red-900/50 text-red-400',
   };

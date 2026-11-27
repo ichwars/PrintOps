@@ -35,7 +35,7 @@ export function CommercialOverridesEditor({ values, defaults = {}, locale, onCha
     delete next[key];
     onChange(next);
   };
-  return <section><div className="mb-3"><h3 className="font-semibold text-white">5. {t('orders.runtimeCalculation.laborPostProcessing', { lng: language })}</h3><p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.centralSettingsAreShownAndCanBeOverriddenForThisCalculation', { lng: language })}</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{fields.map(([key, defaultKey, labelKey, percentage, step]) => {
+  return <section><div className="mb-3"><h3 className="font-semibold text-white">{t('orders.runtimeCalculation.laborPostProcessing', { lng: language })}</h3><p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.centralSettingsAreShownAndCanBeOverriddenForThisCalculation', { lng: language })}</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{fields.map(([key, defaultKey, labelKey, percentage, step]) => {
     const label = t(labelKey, { lng: language });
     const overridden = values[key] !== undefined;
     const displayed = overridden ? String(Number(values[key]) * (percentage ? 100 : 1)) : '';

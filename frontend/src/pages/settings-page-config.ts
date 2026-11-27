@@ -38,17 +38,17 @@ import {
 } from '../lib/settingsNavigation';
 
 export const STORAGE_CATEGORY_COLORS: Record<string, string> = {
-  database: 'bg-blue-600',
+  database: 'bg-blue-500',
   library_files: 'bg-green-500',
   library_thumbnails: 'bg-teal-500',
-  library_other: 'bg-emerald-700',
+  library_other: 'bg-emerald-500',
   archive_timelapses: 'bg-red-500',
   archive_thumbnails: 'bg-amber-500',
   archive_files: 'bg-sky-500',
   virtual_printer_uploads: 'bg-purple-500',
   virtual_printer_upload_cache: 'bg-fuchsia-500',
   virtual_printer_certs: 'bg-violet-500',
-  virtual_printer_other: 'bg-purple-700',
+  virtual_printer_other: 'bg-indigo-500',
   downloads: 'bg-cyan-500',
   plate_calibration: 'bg-lime-500',
   logs: 'bg-orange-500',

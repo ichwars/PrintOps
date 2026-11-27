@@ -138,13 +138,13 @@ const surface = {
 };
 
 const toneClasses: Record<Tone, { bg: string; text: string; bar: string }> = {
-  green: { bg: 'bg-[#0f2b1d]', text: 'text-[#35c46f]', bar: 'bg-[#00a14a]' },
-  blue: { bg: 'bg-[#102737]', text: 'text-[#65b7dc]', bar: 'bg-[#38a8d5]' },
-  amber: { bg: 'bg-[#302510]', text: 'text-[#e1ad43]', bar: 'bg-[#d89a18]' },
-  red: { bg: 'bg-[#341c20]', text: 'text-[#e1727b]', bar: 'bg-[#dc5b64]' },
-  violet: { bg: 'bg-[#261f35]', text: 'text-[#a992df]', bar: 'bg-[#8d73d9]' },
-  cyan: { bg: 'bg-[#0d2b31]', text: 'text-[#5bc2d1]', bar: 'bg-[#21b7cf]' },
-  neutral: { bg: 'bg-white/[0.04]', text: 'text-bambu-gray', bar: 'bg-[#78828b]' },
+  green: { bg: 'bg-status-ok/10', text: 'text-status-ok', bar: 'bg-status-ok' },
+  blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', bar: 'bg-blue-500' },
+  amber: { bg: 'bg-status-warning/10', text: 'text-status-warning', bar: 'bg-status-warning' },
+  red: { bg: 'bg-status-error/10', text: 'text-status-error', bar: 'bg-status-error' },
+  violet: { bg: 'bg-violet-500/10', text: 'text-violet-400', bar: 'bg-violet-500' },
+  cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', bar: 'bg-cyan-500' },
+  neutral: { bg: 'bg-white/[0.04]', text: 'text-bambu-gray', bar: 'bg-bambu-gray' },
 };
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));

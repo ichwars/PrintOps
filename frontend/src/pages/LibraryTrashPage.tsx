@@ -175,7 +175,7 @@ export function LibraryTrashPage() {
       <div className="flex items-center gap-3 mb-4">
         <Link
           to="/files"
-          className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+          className="inline-flex items-center gap-1 text-sm text-bambu-gray-light hover:text-white"
         >
           <ArrowLeft className="w-4 h-4" /> {t('libraryTrash.backToFiles')}
         </Link>
@@ -183,10 +183,10 @@ export function LibraryTrashPage() {
 
       <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <h1 className="text-2xl font-bold text-white">
             {t('libraryTrash.title')}
           </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-sm text-bambu-gray-light mt-1">
             {isAdmin
               ? t('libraryTrash.subtitleAdmin', { days: retentionDays })
               : t('libraryTrash.subtitleUser', { days: retentionDays })}
@@ -205,8 +205,8 @@ export function LibraryTrashPage() {
       </div>
 
       {isAdmin && settingsQuery.data && (
-        <div className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg p-3 flex items-center gap-3 bg-gray-50 dark:bg-gray-800/40">
-          <label htmlFor="retention-days" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <div className="mb-4 border border-bambu-dark-tertiary rounded-lg p-3 flex items-center gap-3 bg-bambu-dark-secondary">
+          <label htmlFor="retention-days" className="text-sm font-medium text-bambu-gray-light">
             {t('libraryTrash.retentionLabel')}
           </label>
           <NumberField
@@ -217,9 +217,9 @@ export function LibraryTrashPage() {
             onChange={(e) =>
               setRetentionDraft(Math.max(1, Math.min(365, parseInt(e.target.value || '0', 10) || 0)))
             }
-            className="w-20 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm px-2 py-1 text-gray-900 dark:text-gray-100"
+            className="w-20 rounded border border-bambu-dark-tertiary bg-bambu-dark-secondary text-sm px-2 py-1 text-white"
           />
-          <span className="text-sm text-gray-600 dark:text-gray-400">{t('libraryTrash.days')}</span>
+          <span className="text-sm text-bambu-gray-light">{t('libraryTrash.days')}</span>
           <Button
             variant="secondary"
             onClick={() => retentionDraft != null && updateRetentionMutation.mutate(retentionDraft)}
@@ -237,22 +237,22 @@ export function LibraryTrashPage() {
       )}
 
       {trashQuery.isLoading ? (
-        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-bambu-gray">
           <Loader2 className="w-4 h-4 animate-spin" /> {t('libraryTrash.loading')}
         </div>
       ) : items.length === 0 ? (
-        <div className="border border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-12 text-center">
-          <p className="text-gray-500 dark:text-gray-400">{t('libraryTrash.empty')}</p>
+        <div className="border border-dashed border-bambu-dark-tertiary rounded-lg p-12 text-center">
+          <p className="text-bambu-gray">{t('libraryTrash.empty')}</p>
         </div>
       ) : (
         <>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="text-xs text-bambu-gray">
               {t('libraryTrash.summary', { count: items.length, size: formatFileSize(totalBytes) })}
             </div>
             {selected.size > 0 && (
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-600 dark:text-gray-400">
+                <span className="text-bambu-gray-light">
                   {t('libraryTrash.selectionCount', { count: selected.size })}
                 </span>
                 <Button
@@ -275,9 +275,9 @@ export function LibraryTrashPage() {
               </div>
             )}
           </div>
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
+          <div className="border border-bambu-dark-tertiary rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-600 dark:text-gray-300">
+              <thead className="bg-bambu-dark-secondary text-left text-bambu-gray-light">
                 <tr>
                   <th className="px-3 py-2 w-10">
                     <Checkbox
@@ -298,9 +298,9 @@ export function LibraryTrashPage() {
                   <th className="px-3 py-2 font-medium text-right">{t('libraryTrash.col.actions')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              <tbody className="divide-y divide-bambu-dark-tertiary">
                 {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                  <tr key={item.id} className="hover:bg-bambu-dark-tertiary">
                     <td className="px-3 py-2">
                       <Checkbox
                         checked={selected.has(item.id)}
@@ -309,25 +309,25 @@ export function LibraryTrashPage() {
                       />
                     </td>
                     <td
-                      className="px-3 py-2 text-gray-900 dark:text-gray-100 truncate max-w-md"
+                      className="px-3 py-2 text-white truncate max-w-md"
                       title={item.filename}
                     >
                       {item.filename}
                     </td>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{item.folder_name ?? '—'}</td>
-                    <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 tabular-nums whitespace-nowrap">
+                    <td className="px-3 py-2 text-bambu-gray-light">{item.folder_name ?? '—'}</td>
+                    <td className="px-3 py-2 text-right text-bambu-gray-light tabular-nums whitespace-nowrap">
                       {formatFileSize(item.file_size)}
                     </td>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                    <td className="px-3 py-2 text-bambu-gray-light whitespace-nowrap">
                       {formatDeletedAt(item.deleted_at)}
                     </td>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                    <td className="px-3 py-2 text-bambu-gray-light whitespace-nowrap">
                       <span title={formatDeletedAt(item.auto_purge_at)}>
                         {t('libraryTrash.autoPurgeIn', { when: formatRelativeDays(item.auto_purge_at) })}
                       </span>
                     </td>
                     {isAdmin && (
-                      <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                      <td className="px-3 py-2 text-bambu-gray-light">
                         {item.created_by_username ?? '—'}
                       </td>
                     )}

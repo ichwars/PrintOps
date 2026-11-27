@@ -285,7 +285,7 @@ export function SpoolBuddyWriteTagPage() {
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? 'text-bambu-green border-b-2 border-bambu-green bg-bambu-dark'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-bambu-dark-tertiary'
+                : 'text-bambu-gray hover:text-bambu-gray-light hover:bg-bambu-dark-tertiary'
             }`}
           >
             {tab.label}
@@ -314,14 +314,14 @@ export function SpoolBuddyWriteTagPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t('spoolbuddy.writeTag.searchPlaceholder', 'Search by material, color, brand...')}
-                  className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-bambu-green"
+                  className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
                 />
               </div>
 
               {/* Spool list */}
               <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
                 {filteredSpools.length === 0 ? (
-                  <div className="text-center text-zinc-500 py-8 text-sm">
+                  <div className="text-center text-bambu-gray py-8 text-sm">
                     {activeTab === 'existing'
                       ? t('spoolbuddy.writeTag.noUntaggedSpools', 'No spools without tags')
                       : t('spoolbuddy.writeTag.noTaggedSpools', 'No spools with tags')}
@@ -424,14 +424,14 @@ function SpoolListItem({ spool, selected, showTag, onClick }: {
           <span className="text-sm font-medium text-white truncate">
             {spool.brand ? `${spool.brand} ` : ''}{spool.material}{spool.subtype ? ` ${spool.subtype}` : ''}
           </span>
-          <span className="text-[10px] font-mono text-zinc-500 shrink-0">#{spool.id}</span>
+          <span className="text-[10px] font-mono text-bambu-gray shrink-0">#{spool.id}</span>
         </div>
-        <div className="flex items-center gap-2 text-xs text-zinc-400">
+        <div className="flex items-center gap-2 text-xs text-bambu-gray">
           {spool.color_name && <span>{spool.color_name}</span>}
           <span>{remaining}g / {spool.label_weight}g ({pct}%)</span>
         </div>
         {showTag && spool.tag_uid && (
-          <div className="text-xs text-zinc-500 mt-0.5 font-mono">{spool.tag_uid}</div>
+          <div className="text-xs text-bambu-gray mt-0.5 font-mono">{spool.tag_uid}</div>
         )}
       </div>
 
@@ -790,13 +790,13 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
   return (
     <div className="p-3 space-y-3 overflow-y-auto h-full">
       <div className="flex items-center justify-between px-2 py-2 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary">
-        <span className="text-sm text-zinc-200">{t('spoolbuddy.writeTag.viewMode', 'View')}</span>
+        <span className="text-sm text-bambu-gray-light">{t('spoolbuddy.writeTag.viewMode', 'View')}</span>
         <div className="flex rounded-lg overflow-hidden border border-bambu-dark-tertiary">
           <button
             type="button"
             onClick={() => setViewMode('simple')}
             className={`px-3 py-1.5 text-xs font-medium ${
-              viewMode === 'simple' ? 'bg-bambu-green/20 text-bambu-green' : 'bg-bambu-dark text-zinc-400'
+              viewMode === 'simple' ? 'bg-bambu-green/20 text-bambu-green' : 'bg-bambu-dark text-bambu-gray'
             }`}
           >
             {t('spoolbuddy.writeTag.simpleView', 'Simple')}
@@ -805,7 +805,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
             type="button"
             onClick={() => setViewMode('full')}
             className={`px-3 py-1.5 text-xs font-medium ${
-              viewMode === 'full' ? 'bg-bambu-green/20 text-bambu-green' : 'bg-bambu-dark text-zinc-400'
+              viewMode === 'full' ? 'bg-bambu-green/20 text-bambu-green' : 'bg-bambu-dark text-bambu-gray'
             }`}
           >
             {t('spoolbuddy.writeTag.fullView', 'Full')}
@@ -823,14 +823,14 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
             <p className="text-white font-medium">
               {selectedSpool.brand ? `${selectedSpool.brand} ` : ''}{selectedSpool.material}
             </p>
-            {selectedSpool.color_name && <p className="text-zinc-400 text-sm">{selectedSpool.color_name}</p>}
-            <p className="text-zinc-500 text-xs mt-1">{selectedSpool.label_weight}g</p>
+            {selectedSpool.color_name && <p className="text-bambu-gray text-sm">{selectedSpool.color_name}</p>}
+            <p className="text-bambu-gray text-xs mt-1">{selectedSpool.label_weight}g</p>
             <p className="text-bambu-green text-sm mt-4">{t('spoolbuddy.writeTag.spoolCreated', 'Spool created! Ready to write.')}</p>
           </div>
         ) : (
           <div className="p-4 space-y-4 overflow-y-auto bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg">
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.material', 'Material')}</label>
+              <label className="block text-xs text-bambu-gray mb-1">{t('spoolbuddy.writeTag.material', 'Material')}</label>
               <LegacySelect
                 value={formData.material}
                 onChange={(e) => updateField('material', e.target.value)}
@@ -844,17 +844,17 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.colorName', 'Color Name')}</label>
+                <label className="block text-xs text-bambu-gray mb-1">{t('spoolbuddy.writeTag.colorName', 'Color Name')}</label>
                 <TextField
                   type="text"
                   value={formData.color_name}
                   onChange={(e) => updateField('color_name', e.target.value)}
                   placeholder="Jade White"
-                  className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-bambu-green"
+                  className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
                 />
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.color', 'Color')}</label>
+                <label className="block text-xs text-bambu-gray mb-1">{t('spoolbuddy.writeTag.color', 'Color')}</label>
                 <ColorInput
                   value={simpleColorHex}
                   onChange={(e) => updateField('rgba', e.target.value.replace('#', '').toUpperCase() + 'FF')}
@@ -864,18 +864,18 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
             </div>
 
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.brand', 'Brand')}</label>
+              <label className="block text-xs text-bambu-gray mb-1">{t('spoolbuddy.writeTag.brand', 'Brand')}</label>
               <TextField
                 type="text"
                 value={formData.brand}
                 onChange={(e) => updateField('brand', e.target.value)}
                 placeholder="Polymaker"
-                className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-bambu-green"
+                className="w-full px-3 py-2 bg-bambu-dark-tertiary border border-bambu-dark-tertiary rounded text-sm text-white placeholder-bambu-gray focus:outline-none focus:border-bambu-green"
               />
             </div>
 
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">{t('spoolbuddy.writeTag.weight', 'Weight (g)')}</label>
+              <label className="block text-xs text-bambu-gray mb-1">{t('spoolbuddy.writeTag.weight', 'Weight (g)')}</label>
               <NumberField
                 value={formData.label_weight}
                 onChange={(e) => updateField('label_weight', parseInt(e.target.value) || 0)}
@@ -897,7 +897,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
       ) : (
         <>
       <div className="flex items-center justify-between px-2 py-2 bg-bambu-dark-secondary rounded-lg border border-bambu-dark-tertiary">
-        <span className="text-sm text-zinc-200">{t('inventory.quickAdd', 'Quick Add')}</span>
+        <span className="text-sm text-bambu-gray-light">{t('inventory.quickAdd', 'Quick Add')}</span>
         <button
           type="button"
           onClick={() => setQuickAdd((prev) => !prev)}
@@ -913,7 +913,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
         <button
           onClick={() => setActiveSubTab('filament')}
           className={`flex-1 py-2.5 text-sm font-medium ${
-            activeSubTab === 'filament' ? 'bg-bambu-green/15 text-bambu-green' : 'bg-bambu-dark-secondary text-zinc-400'
+            activeSubTab === 'filament' ? 'bg-bambu-green/15 text-bambu-green' : 'bg-bambu-dark-secondary text-bambu-gray'
           }`}
         >
           {t('inventory.filamentInfoTab', 'Filament')}
@@ -922,7 +922,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
           <button
             onClick={() => setActiveSubTab('pa-profile')}
             className={`flex-1 py-2.5 text-sm font-medium ${
-              activeSubTab === 'pa-profile' ? 'bg-bambu-green/15 text-bambu-green' : 'bg-bambu-dark-secondary text-zinc-400'
+              activeSubTab === 'pa-profile' ? 'bg-bambu-green/15 text-bambu-green' : 'bg-bambu-dark-secondary text-bambu-gray'
             }`}
           >
             {t('inventory.paProfileTab', 'PA Profile')}
@@ -1009,8 +1009,8 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
           <p className="text-white font-medium">
             {selectedSpool.brand ? `${selectedSpool.brand} ` : ''}{selectedSpool.material}
           </p>
-          {selectedSpool.color_name && <p className="text-zinc-400 text-sm">{selectedSpool.color_name}</p>}
-          <p className="text-zinc-500 text-xs mt-1">{selectedSpool.label_weight}g</p>
+          {selectedSpool.color_name && <p className="text-bambu-gray text-sm">{selectedSpool.color_name}</p>}
+          <p className="text-bambu-gray text-xs mt-1">{selectedSpool.label_weight}g</p>
           <p className="text-bambu-green text-sm mt-4">{t('spoolbuddy.writeTag.spoolCreated', 'Spool created! Ready to write.')}</p>
         </div>
       )}
@@ -1047,7 +1047,7 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
         </div>
         <p className="text-green-400 font-medium">{writeMessage}</p>
         {selectedSpool && (
-          <p className="text-zinc-400 text-sm">
+          <p className="text-bambu-gray text-sm">
             {selectedSpool.brand ? `${selectedSpool.brand} ` : ''}{selectedSpool.material}
             {selectedSpool.color_name ? ` - ${selectedSpool.color_name}` : ''}
           </p>
@@ -1088,10 +1088,10 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
           </div>
         </div>
         <p className="text-bambu-green font-medium">{t('spoolbuddy.writeTag.writing', 'Writing tag...')}</p>
-        <p className="text-zinc-500 text-xs">{writeMessage}</p>
+        <p className="text-bambu-gray text-xs">{writeMessage}</p>
         <button
           onClick={onCancel}
-          className="px-4 py-2 bg-bambu-dark-tertiary hover:bg-bambu-dark-secondary text-zinc-400 text-sm rounded transition-colors"
+          className="px-4 py-2 bg-bambu-dark-tertiary hover:bg-bambu-dark-secondary text-bambu-gray text-sm rounded transition-colors"
         >
           {t('spoolbuddy.writeTag.cancel', 'Cancel')}
         </button>
@@ -1103,8 +1103,8 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
   if (!deviceOnline) {
     return (
       <div className="flex flex-col items-center text-center space-y-3">
-        <NfcIcon className="w-12 h-12 text-zinc-600" />
-        <p className="text-zinc-500 text-sm">{t('spoolbuddy.writeTag.deviceOffline', 'SpoolBuddy is offline')}</p>
+        <NfcIcon className="w-12 h-12 text-bambu-gray-dark" />
+        <p className="text-bambu-gray text-sm">{t('spoolbuddy.writeTag.deviceOffline', 'SpoolBuddy is offline')}</p>
       </div>
     );
   }
@@ -1113,8 +1113,8 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
   if (!selectedSpool) {
     return (
       <div className="flex flex-col items-center text-center space-y-3">
-        <NfcIcon className="w-12 h-12 text-zinc-600" />
-        <p className="text-zinc-400 text-sm">{t('spoolbuddy.writeTag.selectSpool', 'Select a spool, then place a blank NTAG on the reader')}</p>
+        <NfcIcon className="w-12 h-12 text-bambu-gray-dark" />
+        <p className="text-bambu-gray text-sm">{t('spoolbuddy.writeTag.selectSpool', 'Select a spool, then place a blank NTAG on the reader')}</p>
       </div>
     );
   }
@@ -1137,9 +1137,9 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
           </>
         ) : (
           <>
-            <div className="absolute inset-0 rounded-full border-2 border-zinc-600 animate-pulse" />
+            <div className="absolute inset-0 rounded-full border-2 border-bambu-dark-tertiary animate-pulse" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <NfcIcon className="w-8 h-8 text-zinc-500" />
+              <NfcIcon className="w-8 h-8 text-bambu-gray" />
             </div>
           </>
         )}
@@ -1148,10 +1148,10 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
       {tagOnReader ? (
         <div className="space-y-1">
           <p className="text-bambu-green text-sm font-medium">{t('spoolbuddy.writeTag.tagReady', 'Tag detected — ready to write')}</p>
-          {tagUid && <p className="text-zinc-500 text-xs font-mono">{tagUid}</p>}
+          {tagUid && <p className="text-bambu-gray text-xs font-mono">{tagUid}</p>}
         </div>
       ) : (
-        <p className="text-zinc-400 text-sm">{t('spoolbuddy.writeTag.placeTag', 'Place an NTAG on the reader')}</p>
+        <p className="text-bambu-gray text-sm">{t('spoolbuddy.writeTag.placeTag', 'Place an NTAG on the reader')}</p>
       )}
 
       {/* Selected spool summary */}
@@ -1162,10 +1162,10 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
             <p className="text-white text-sm font-medium truncate">
               {selectedSpool.brand ? `${selectedSpool.brand} ` : ''}{selectedSpool.material}
             </p>
-            {selectedSpool.color_name && <p className="text-zinc-400 text-xs">{selectedSpool.color_name}</p>}
+            {selectedSpool.color_name && <p className="text-bambu-gray text-xs">{selectedSpool.color_name}</p>}
           </div>
         </div>
-        <div className="text-xs text-zinc-500">{selectedSpool.label_weight}g</div>
+        <div className="text-xs text-bambu-gray">{selectedSpool.label_weight}g</div>
       </div>
 
       {/* Replace warning */}
@@ -1190,7 +1190,7 @@ function NfcStatusPanel({ writeStatus, writeMessage, selectedSpool, tagOnReader,
         <button
           onClick={onUntag}
           disabled={untagging}
-          className="w-full py-2.5 bg-bambu-dark-tertiary hover:bg-bambu-dark-secondary disabled:opacity-40 disabled:cursor-not-allowed text-zinc-200 rounded-lg transition-colors text-sm"
+          className="w-full py-2.5 bg-bambu-dark-tertiary hover:bg-bambu-dark-secondary disabled:opacity-40 disabled:cursor-not-allowed text-bambu-gray-light rounded-lg transition-colors text-sm"
         >
           {untagging
             ? t('spoolbuddy.writeTag.untagging', 'Removing tag...')

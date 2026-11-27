@@ -145,20 +145,18 @@ describe('StreamOverlayPage', () => {
       expect(forbidden).toEqual([]);
       expect(WebSocket).not.toHaveBeenCalled();
     });
-    it('keeps new details and artwork off for existing URLs', async () => {
+    it('keeps new details off for existing URLs', async () => {
       renderOverlayPage(1, '?token=bblt_fixture');
       await screen.findByText('Benchy');
       expect(screen.queryByText('H2D')).not.toBeInTheDocument();
       expect(screen.queryByText(/°C/)).not.toBeInTheDocument();
-      expect(screen.queryByTestId('overlay-artwork')).not.toBeInTheDocument();
     });
     it('omits absent chamber capability and supports independent model/temperature toggles', async () => {
       server.use(http.get('/api/v1/printers/:id/overlay-status', () => HttpResponse.json({ ...narrow, supports_chamber_sensor: false })));
-      renderOverlayPage(1, '?token=bblt_fixture&show=temperatures&artwork=portrait');
+      renderOverlayPage(1, '?token=bblt_fixture&show=temperatures');
       expect(await screen.findByText('215°C')).toBeInTheDocument();
       expect(screen.queryByText('35°C')).not.toBeInTheDocument();
       expect(screen.queryByText('H2D')).not.toBeInTheDocument();
-      expect(screen.getByTestId('overlay-artwork')).toHaveAttribute('data-layout', 'portrait');
     });
     it('recovers errors silently and stops after three unsuccessful reloads', async () => {
       renderOverlayPage(1, '?token=bblt_fixture');

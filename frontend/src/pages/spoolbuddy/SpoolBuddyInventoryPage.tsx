@@ -394,7 +394,7 @@ function SpoolDetailModal({ spool, assignment, sbState, onSyncWeight, onAssignTo
                 {assignmentLabel(assignment)}
               </span>
               {assignment.printer_name && (
-                <span className="text-xs text-zinc-400">{assignment.printer_name}</span>
+                <span className="text-xs text-bambu-gray">{assignment.printer_name}</span>
               )}
             </div>
           )}

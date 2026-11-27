@@ -142,7 +142,7 @@ export function ProjectFileSection({ calculationId, plates, printers, dryers, sp
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="font-semibold text-white">3. {t('orders.runtimeCalculation.projectFile', { lng: language })}</h3>
+        <h3 className="font-semibold text-white">{t('orders.runtimeCalculation.projectFile', { lng: language })}</h3>
         <p className="text-xs text-bambu-gray">{t('orders.runtimeCalculation.printTimeMaterialAndLineItemsAreDerivedPerSelected3MFPlate', { lng: language })}</p>
       </div>
       <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload(event.dataTransfer.files[0]); }} className="relative flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-bambu-dark-tertiary bg-bambu-dark/50 p-4">

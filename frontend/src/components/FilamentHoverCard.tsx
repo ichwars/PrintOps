@@ -217,7 +217,6 @@ export function FilamentHoverCard({ data, children, disabled, className = '', sp
           <div className="
             w-52 bg-bambu-dark-secondary border border-bambu-dark-tertiary
             rounded-lg shadow-xl overflow-hidden
-            backdrop-blur-sm
           ">
             {/* Color swatch header - the hero element */}
             <div
