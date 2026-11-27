@@ -370,15 +370,17 @@ async def generate_go2rtc_mjpeg_stream(
     # them independently per-consumer is unsafe (go2rtc replaces a stream's
     # whole producer list on every registration call).
     #
-    # NOTE: the MJPEG derivative runs at the camera's native fps (commonly
-    # ~30) rather than the viewer-requested `fps` — go2rtc's REST API has
-    # no reliable way to pass a raw ffmpeg arg containing a space
-    # (`#raw=-r 15` fails go2rtc's own source-string validation; every
-    # percent-encoding of the space we tried against go2rtc 1.9.14 was
-    # preserved literally instead of decoded, so ffmpeg always saw a
-    # malformed single token). Not worth chasing further for a codepath
-    # that's meant to become a legacy fallback once the MSE player (Phase
-    # B) is the primary path.
+    # NOTE: go2rtc's MJPEG derivative runs at the camera's native fps
+    # (commonly ~30) — go2rtc's REST API has no reliable way to pass a raw
+    # ffmpeg arg containing a space (`#raw=-r 15` fails go2rtc's own
+    # source-string validation; every percent-encoding of the space we tried
+    # against go2rtc 1.9.14 was preserved literally instead of decoded, so
+    # ffmpeg always saw a malformed single token). The native rate here is
+    # deliberate: this upstream is shared by every viewer of the printer
+    # via the fan-out broadcaster, so the viewer-requested `fps` is honored
+    # per subscriber (iter_subscriber(max_fps=...)) — throttling the shared
+    # upstream would pin every later viewer to the fps of whoever created
+    # the broadcaster.
     if printer_id is None:
         logger.error("generate_go2rtc_mjpeg_stream requires printer_id (go2rtc registration is keyed by it)")
         yield (b"--frame\r\nContent-Type: text/plain\r\n\r\nError: internal error (missing printer id)\r\n")
@@ -408,7 +410,7 @@ async def generate_go2rtc_mjpeg_stream(
     reconnect_count = 0
     got_any_frames = False
     mjpeg_endpoint = go2rtc_client.mjpeg_url(go2rtc_name)
-    frozen_watchdog = FrozenFrameWatchdog(adaptive=isinstance(camera_source, ExternalRtspSource))
+    frozen_watchdog = FrozenFrameWatchdog(adaptive=True)
 
     try:
         while reconnect_count <= profile.rtsp_reconnect_max:
@@ -437,7 +439,7 @@ async def generate_go2rtc_mjpeg_stream(
 
             try:
                 async with (
-                    httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=None)) as client,
+                    httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=30.0)) as client,
                     client.stream("GET", mjpeg_endpoint) as resp,
                 ):
                     if resp.status_code != 200:
@@ -735,7 +737,11 @@ async def camera_stream(
         _stream_fps_target[printer_id] = fps
         async with aclosing(
             iter_subscriber(
-                broadcaster, queue, is_disconnected=is_disconnected, idle_check_seconds=_STREAM_RECHECK_SECONDS
+                broadcaster,
+                queue,
+                is_disconnected=is_disconnected,
+                idle_check_seconds=_STREAM_RECHECK_SECONDS,
+                max_fps=fps,
             )
         ) as frames:
             async for chunk in frames:

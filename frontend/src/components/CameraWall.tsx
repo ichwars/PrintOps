@@ -7,6 +7,7 @@ import { Settings as SettingsIcon } from 'lucide-react';
 import { CameraTile, type CameraTileMode, type CameraTileStatusMode } from './CameraTile';
 import { CameraTileControls } from './CameraTileControls';
 import type { CamWallControlsMode } from './camWallControls';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import { filterKnownHMSErrors } from './HMSErrorModal';
 import { api, type PrinterStatus } from '../api/client';
 import type { TimeFormat } from '../utils/date';
@@ -85,6 +86,9 @@ export function CameraWall({
 }: CameraWallProps) {
   const { t } = useTranslation();
   const tileRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
+  // A background tab pulls no frames at all — pause every tile (snapshot
+  // polling included) until the wall is foreground again.
+  const pageVisible = usePageVisibility();
 
   // Reuses the same ['printerStatus', id] cache that each PrinterCard
   // populates, so flipping between Cards and Cam Wall is instant.
@@ -120,9 +124,12 @@ export function CameraWall({
     return () => document.removeEventListener('mousedown', handler);
   }, [showSettings]);
 
-  // IntersectionObserver: a tile is "visible" when ≥40% of it is on-screen.
-  // 40% (not 0%) avoids flicker at scroll boundaries where a tile is fractionally
-  // visible — we don't want to spin up a live stream for a 5-pixel sliver.
+  // IntersectionObserver with hysteresis: a tile becomes "visible" once
+  // ≥40% of it is on-screen, but only drops back out below 10%. Without the
+  // lower exit threshold, slow-scrolling a tile across the 40% line flips
+  // it between live and paused — each flip tears the whole stream down
+  // (POST /camera/stop) and rebuilds it, which reads as flicker and burns
+  // bandwidth and battery.
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -131,13 +138,13 @@ export function CameraWall({
           for (const entry of entries) {
             const id = Number((entry.target as HTMLElement).dataset.printerId);
             if (!Number.isFinite(id)) continue;
-            if (entry.isIntersecting) next.add(id);
-            else next.delete(id);
+            if (entry.intersectionRatio >= 0.4) next.add(id);
+            else if (entry.intersectionRatio < 0.1) next.delete(id);
           }
           return next;
         });
       },
-      { threshold: 0.4 },
+      { threshold: [0, 0.1, 0.4] },
     );
 
     for (const [, el] of tileRefs.current) {
@@ -156,7 +163,7 @@ export function CameraWall({
     let liveBudget = Math.max(0, maxLive);
     for (const p of printers) {
       const connected = statusByPrinter.get(p.id)?.connected ?? false;
-      if (!visibleIds.has(p.id) || !connected) {
+      if (!pageVisible || !visibleIds.has(p.id) || !connected) {
         map.set(p.id, 'paused');
         continue;
       }
@@ -168,7 +175,7 @@ export function CameraWall({
       }
     }
     return map;
-  }, [printers, visibleIds, maxLive, statusByPrinter]);
+  }, [printers, visibleIds, maxLive, statusByPrinter, pageVisible]);
 
   if (printers.length === 0) {
     return (

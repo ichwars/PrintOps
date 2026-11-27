@@ -13,6 +13,7 @@ import { ChamberLight } from '../components/icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from '../components/SkipObjectsModal';
 import { CameraDiagnoseModal } from '../components/CameraDiagnoseModal';
 import { useCameraViewPreference } from '../hooks/useCameraViewPreference';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import { isIosHomeScreenApp } from '../utils/cameraWindow';
 import { requestCameraOverlay } from '../utils/cameraHandoff';
 import { useCameraOverlayAccount } from '../hooks/useEmbeddedCameraSelection';
@@ -28,6 +29,9 @@ export function CameraPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission, authEnabled, user, loading: authLoading } = useAuth();
+  // Background tabs must not keep pulling a live stream: gate every stream
+  // source, the MSE socket and the stall polling on foreground visibility.
+  const pageVisible = usePageVisibility();
   const { printerId } = useParams<{ printerId: string }>();
   const id = parseInt(printerId || '0', 10);
   const [searchParams] = useSearchParams();
@@ -148,7 +152,7 @@ export function CameraPage() {
   const useMjpeg = mseGaveUp || printer?.external_camera_enabled === true;
   const { videoRef: mseVideoRef, status: mseStatus, reconnect: mseReconnect } = useCameraStream({
     printerId: id,
-    enabled: preferenceReady && !transitioning && id > 0 && streamMode === 'stream' && !!printer && !useMjpeg,
+    enabled: preferenceReady && !transitioning && pageVisible && id > 0 && streamMode === 'stream' && !!printer && !useMjpeg,
     onPlaying: () => {
       setStreamLoading(false);
       setStreamError(false);
@@ -231,19 +235,37 @@ export function CameraPage() {
     };
   }, [id]);
 
-  // Auto-hide loading after timeout
+  // Auto-hide loading after timeout. A source that never delivers a frame
+  // must not sit on a silent black viewport: surface it as a retryable
+  // error instead. MSE gets longer — it retries with backoff internally
+  // (see useCameraStream) and its handshake needs the printer round trip.
+  // mseStatus is a dependency so the window restarts whenever MSE moves:
+  // a mid-stream drop that goes back to 'connecting' must not inherit the
+  // remaining time of the initial connect.
   useEffect(() => {
-    if (streamLoading && !transitioning) {
-      const timeout = streamMode === 'stream' ? 3000 : 20000;
+    if (streamLoading && !transitioning && pageVisible) {
+      const timeout = streamMode === 'stream' ? (useMjpeg ? 3000 : 15000) : 20000;
       const timer = setTimeout(() => {
         setStreamLoading(false);
+        setStreamError(true);
       }, timeout);
       return () => clearTimeout(timer);
     }
-  }, [streamMode, streamLoading, imageKey, transitioning]);
+  }, [streamMode, streamLoading, imageKey, transitioning, pageVisible, useMjpeg, mseStatus]);
+
+  // A mid-stream MSE drop hides the video element while the hook retries
+  // with backoff — without this the viewport sits fully black with neither
+  // frame nor spinner for the whole backoff window.
+  useEffect(() => {
+    if (streamMode === 'stream' && !useMjpeg && mseStatus === 'connecting' && !transitioning && pageVisible) {
+      setStreamLoading(true);
+      setStreamError(false);
+    }
+  }, [streamMode, useMjpeg, mseStatus, transitioning, pageVisible]);
 
   // Fullscreen change listener - refresh stream after fullscreen transition
   useEffect(() => {
+    const fullscreenRefreshTimer = { current: null as ReturnType<typeof setTimeout> | null };
     const handleFullscreenChange = () => {
       const nowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(nowFullscreen);
@@ -257,14 +279,19 @@ export function CameraPage() {
         if (imgRef.current) {
           imgRef.current.src = '';
         }
-        setTimeout(() => {
+        if (fullscreenRefreshTimer.current) clearTimeout(fullscreenRefreshTimer.current);
+        fullscreenRefreshTimer.current = setTimeout(() => {
+          fullscreenRefreshTimer.current = null;
           setStreamLoading(true);
           setImageKey(Date.now());
         }, 200);
       }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (fullscreenRefreshTimer.current) clearTimeout(fullscreenRefreshTimer.current);
+    };
   }, [streamMode, transitioning]);
 
   // Save window size and position when user resizes or moves
@@ -311,6 +338,12 @@ export function CameraPage() {
 
   // Auto-reconnect logic
   const attemptReconnect = useCallback(() => {
+    // A second error while a reconnect is already pending must not stack a
+    // parallel countdown + reconnect timer: the old ones would leak past
+    // unmount cleanup and double-fire the refresh.
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       setIsReconnecting(false);
       setStreamError(true);
@@ -358,7 +391,7 @@ export function CameraPage() {
   useEffect(() => {
     // Only skip stall check during initial load, reconnecting, or transitioning
     // Continue checking even during streamError to detect recovery
-    if (!useMjpeg || streamMode !== 'stream' || streamLoading || isReconnecting || transitioning) {
+    if (!useMjpeg || streamMode !== 'stream' || streamLoading || isReconnecting || transitioning || !pageVisible) {
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
         stallCheckIntervalRef.current = null;
@@ -393,7 +426,7 @@ export function CameraPage() {
         stallCheckIntervalRef.current = null;
       }
     };
-  }, [useMjpeg, streamMode, streamLoading, streamError, isReconnecting, transitioning, id, attemptReconnect]);
+  }, [useMjpeg, streamMode, streamLoading, streamError, isReconnecting, transitioning, pageVisible, id, attemptReconnect]);
 
   const handleStreamError = () => {
     if (streamMode === 'snapshot' && !snapshotRetriedRef.current) {
@@ -702,7 +735,7 @@ export function CameraPage() {
   const waitingForStreamToken = authEnabled && !streamTokenValue;
   const appendToken = (url: string) =>
     !authEnabled ? url : streamTokenValue ? `${url}&token=${encodeURIComponent(streamTokenValue)}` : withStreamToken(url);
-  const currentUrl = !preferenceReady || transitioning || waitingForStreamToken
+  const currentUrl = !preferenceReady || transitioning || waitingForStreamToken || !pageVisible
     ? ''
     : streamMode === 'stream'
       ? appendToken(`/api/v1/printers/${id}/camera/stream?fps=${fps}&t=${imageKey}`)

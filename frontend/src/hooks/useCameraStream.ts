@@ -16,6 +16,12 @@ const CANDIDATE_CODECS = [
 
 export type CameraStreamStatus = 'idle' | 'connecting' | 'playing' | 'error' | 'unsupported';
 
+// A dropped socket is usually transient (Wi-Fi ↔ LTE handover, standby
+// resume, proxy hiccup), so retry with backoff before reporting an error —
+// the viewer treats 'error' as "fall back to MJPEG permanently", and one
+// network blip must not cost the session the efficient H.264 path.
+const RETRY_DELAYS_MS = [2000, 4000, 8000];
+
 interface UseCameraStreamOptions {
   printerId: number;
   enabled: boolean;
@@ -49,9 +55,22 @@ export function useCameraStream({ printerId, enabled, onError, onPlaying }: UseC
   const wsRef = useRef<WebSocket | null>(null);
   const mediaSourceRef = useRef<MediaSource | null>(null);
   const generationRef = useRef(0);
+  const attemptsRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
-  const reconnect = useCallback(() => setRetryKey((k) => k + 1), []);
+  const reconnect = useCallback(() => {
+    // A user-triggered reconnect (refresh button) is a fresh start — don't
+    // let earlier transient failures eat into the backoff budget.
+    attemptsRef.current = 0;
+    setRetryKey((k) => k + 1);
+  }, []);
+
+  // Retries carry across retryKey bumps (they drive those bumps), but a new
+  // printer or a disabled period starts fresh.
+  useEffect(() => {
+    attemptsRef.current = 0;
+  }, [printerId, enabled]);
 
   useEffect(() => {
     if (!enabled) {
@@ -104,6 +123,26 @@ export function useCameraStream({ printerId, enabled, onError, onPlaying }: UseC
     const ws = new WebSocket(`${proto}//${window.location.host}/api/v1/printers/${printerId}/camera/mse${tokenParam}`);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
+
+    // The first failure (error or close) drives the backoff; browsers often
+    // fire both events for one dropped connection, and each must count once.
+    let failureHandled = false;
+    const handleFailure = () => {
+      if (failureHandled) return;
+      failureHandled = true;
+      const delayIndex = attemptsRef.current;
+      attemptsRef.current += 1;
+      if (delayIndex >= RETRY_DELAYS_MS.length) {
+        setStatus('error');
+        onError?.();
+        return;
+      }
+      setStatus('connecting');
+      retryTimerRef.current = setTimeout(() => {
+        retryTimerRef.current = null;
+        setRetryKey((k) => k + 1);
+      }, RETRY_DELAYS_MS[delayIndex]);
+    };
 
     const supportedCodecs = CANDIDATE_CODECS.filter((c) =>
       MediaSource.isTypeSupported(`video/mp4; codecs="${c}"`)
@@ -161,6 +200,7 @@ export function useCameraStream({ printerId, enabled, onError, onPlaying }: UseC
               // this. Not a stream error.
             });
             setStatus('playing');
+            attemptsRef.current = 0;
             onPlaying?.();
           } catch {
             setStatus('error');
@@ -193,8 +233,7 @@ export function useCameraStream({ printerId, enabled, onError, onPlaying }: UseC
 
     ws.onerror = () => {
       if (generationRef.current !== generation) return;
-      setStatus('error');
-      onError?.();
+      handleFailure();
     };
 
     ws.onclose = () => {
@@ -202,8 +241,7 @@ export function useCameraStream({ printerId, enabled, onError, onPlaying }: UseC
       // generationRef in the cleanup below *before* the browser fires this
       // event, so reaching here means the socket dropped unexpectedly.
       if (generationRef.current !== generation) return;
-      setStatus('error');
-      onError?.();
+      handleFailure();
     };
 
     return () => {
@@ -212,6 +250,10 @@ export function useCameraStream({ printerId, enabled, onError, onPlaying }: UseC
         ws.close();
       } catch {
         // Already closed.
+      }
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
       }
       wsRef.current = null;
       if (ms.readyState === 'open') {
