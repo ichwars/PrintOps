@@ -33,11 +33,11 @@ export function DryingPresetsEditor({ value, onChange }: { value: string | null 
   return (
         <div className="space-y-2">
           <p className="text-sm text-white font-medium">{t('settings.dryingPresets')}</p>
-          <p className="text-xs text-bambu-gray">{t('settings.dryingPresetsDescription')}</p>
+          <p className="text-xs text-table-secondary">{t('settings.dryingPresetsDescription')}</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-bambu-gray border-b border-bambu-dark-tertiary">
+                <tr className="text-table-secondary border-b border-bambu-dark-tertiary">
                   <th className="text-left py-1.5">{t('settings.dryingFilament')}</th>
                   <th className="text-center py-1.5" colSpan={2}>AMS 2 Pro</th>
                   <th className="text-center py-1.5" colSpan={2}>AMS-HT</th>
@@ -53,7 +53,7 @@ export function DryingPresetsEditor({ value, onChange }: { value: string | null 
                             onChange={e => updatePreset(fil, 'n3f', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                          <span className="text-bambu-gray">°C</span>
+                          <span className="text-table-secondary">°C</span>
                         </div>
                       </td>
                       <td className="py-1 px-1">
@@ -62,7 +62,7 @@ export function DryingPresetsEditor({ value, onChange }: { value: string | null 
                             onChange={e => updatePreset(fil, 'n3f_hours', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                          <span className="text-bambu-gray">h</span>
+                          <span className="text-table-secondary">h</span>
                         </div>
                       </td>
                       <td className="py-1 px-1">
@@ -71,7 +71,7 @@ export function DryingPresetsEditor({ value, onChange }: { value: string | null 
                             onChange={e => updatePreset(fil, 'n3s', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                          <span className="text-bambu-gray">°C</span>
+                          <span className="text-table-secondary">°C</span>
                         </div>
                       </td>
                       <td className="py-1 px-1">
@@ -80,7 +80,7 @@ export function DryingPresetsEditor({ value, onChange }: { value: string | null 
                             onChange={e => updatePreset(fil, 'n3s_hours', Math.max(1, parseInt(e.target.value) || 0))}
                             className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                          <span className="text-bambu-gray">h</span>
+                          <span className="text-table-secondary">h</span>
                         </div>
                       </td>
                     </tr>

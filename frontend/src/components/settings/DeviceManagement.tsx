@@ -18,6 +18,7 @@ import {
 } from '../../api/client';
 import { Button, DatePicker, IconButton, NumberField, TextField } from '../ui';
 import { resolveSupportedLanguage } from '../../i18n';
+import { dashboardStyles } from '../dashboardStyles';
 
 function useDeviceTranslation(locale: string) {
   const language = resolveSupportedLanguage(locale);
@@ -63,12 +64,12 @@ function DeviceSectionHeader({
   action: ReactNode;
 }) {
   return (
-    <header className="flex flex-col gap-3 border-b border-bambu-dark-tertiary px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
+    <header className={`${dashboardStyles.cardHeader} flex flex-wrap items-center justify-between gap-3`}>
+      <div className="flex min-w-0 basis-full items-start gap-2 sm:flex-1">
         {icon}
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-bambu-gray">{description}</p>
+          <h2 className={dashboardStyles.cardTitle}>{title}</h2>
+          <p className="mt-0.5 text-xs leading-5 text-table-secondary">{description}</p>
         </div>
       </div>
       <div className="shrink-0">{action}</div>
@@ -87,14 +88,14 @@ function DeviceMetric({
 }) {
   const valueClass =
     accent === 'printer'
-      ? 'text-bambu-green-light'
+      ? 'text-accent-foreground'
       : accent === 'dryer'
-        ? 'text-cyan-300'
+        ? 'text-cyan-800 dark:text-cyan-300'
         : 'text-white';
 
   return (
     <div className="rounded-lg border border-bambu-dark-tertiary bg-bambu-dark-secondary/70 px-3 py-2">
-      <dt className="text-[11px] text-bambu-gray">{label}</dt>
+      <dt className="text-xs text-table-secondary">{label}</dt>
       <dd className={`mt-0.5 text-sm font-semibold ${valueClass}`}>{value}</dd>
     </div>
   );
@@ -119,26 +120,26 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
   return (
     <section
       data-device-card="printers"
-      className="overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary"
+      className={`${dashboardStyles.card} min-w-0 overflow-hidden`}
     >
       <DeviceSectionHeader
         icon={
           <PrinterIcon
             data-device-accent="printer"
-            className="mt-0.5 h-5 w-5 shrink-0 text-bambu-green"
+            className="mt-0.5 h-4 w-4 shrink-0 text-bambu-green"
           />
         }
         title={tr('printersTitle')}
         description={tr('printersDescription')}
         action={
-          <Button size="sm" onClick={() => setPrinterDraft(initialPrinter())}>
+          <Button className="text-black!" size="sm" onClick={() => setPrinterDraft(initialPrinter())}>
             <Plus className="h-4 w-4" />
             {tr('addPrinter')}
           </Button>
         }
       />
 
-      <div className="space-y-4 p-4">
+      <div className={`${dashboardStyles.cardBody} space-y-4`}>
         {printerDraft && (
           <div className="grid gap-3 rounded-lg border border-bambu-green/20 bg-bambu-dark p-4 sm:grid-cols-2">
             {(
@@ -165,6 +166,7 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
             ))}
             <div className="flex flex-wrap items-end justify-end gap-2 sm:col-span-2">
               <Button
+                className="text-black!"
                 size="sm"
                 onClick={() => createPrinter.mutate(printerDraft)}
                 disabled={
@@ -194,7 +196,7 @@ export function PrinterManagementCard({ locale }: { locale: string }) {
         ))}
 
         {printers.length === 0 && (
-          <p className="rounded-lg border border-dashed border-bambu-dark-tertiary px-4 py-6 text-center text-sm text-bambu-gray">
+          <p className="rounded-lg border border-dashed border-bambu-dark-tertiary px-4 py-6 text-center text-sm text-table-secondary">
             {tr('printersEmpty')}
           </p>
         )}
@@ -266,7 +268,7 @@ function PrinterCostEditor({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-white">{printer.name}</h3>
-          <p className="mt-0.5 text-xs text-bambu-gray">
+          <p className="mt-0.5 text-xs text-table-secondary">
             {printer.model || tr('modelNotDetected')}
           </p>
         </div>
@@ -310,7 +312,7 @@ function PrinterCostEditor({
       </div>
 
       <div className="mt-4 flex justify-end">
-        <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+        <Button className="text-black!" size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
           {tr('saveCostValues')}
         </Button>
       </div>
@@ -380,19 +382,20 @@ export function DryerManagementCard({ locale }: { locale: string }) {
   return (
     <section
       data-device-card="dryers"
-      className="overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary"
+      className={`${dashboardStyles.card} min-w-0 overflow-hidden`}
     >
       <DeviceSectionHeader
         icon={
           <Wind
             data-device-accent="dryer"
-            className="mt-0.5 h-5 w-5 shrink-0 text-cyan-400"
+            className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-400"
           />
         }
         title={tr('dryersTitle')}
         description={tr('dryersDescription')}
         action={
           <Button
+            className="text-black!"
             size="sm"
             onClick={() => {
               setEditingId(null);
@@ -405,7 +408,7 @@ export function DryerManagementCard({ locale }: { locale: string }) {
         }
       />
 
-      <div className="space-y-4 p-4">
+      <div className={`${dashboardStyles.cardBody} space-y-4`}>
         {draft && (
           <DryerForm
             draft={draft}
@@ -437,7 +440,7 @@ export function DryerManagementCard({ locale }: { locale: string }) {
         ))}
 
         {dryers.length === 0 && (
-          <p className="rounded-lg border border-dashed border-cyan-500/20 px-4 py-6 text-center text-sm text-bambu-gray">
+          <p className="rounded-lg border border-dashed border-cyan-500/20 px-4 py-6 text-center text-sm text-table-secondary">
             {tr('dryersEmpty')}
           </p>
         )}
@@ -504,7 +507,7 @@ function DryerForm({
           />
       ))}
       <div className="flex flex-wrap items-end justify-end gap-2 sm:col-span-2">
-        <Button size="sm" onClick={onSave} disabled={!draft.name || pending}>
+        <Button className="text-black!" size="sm" onClick={onSave} disabled={!draft.name || pending}>
           {tr('save')}
         </Button>
         <Button size="sm" variant="secondary" onClick={onCancel}>
@@ -544,8 +547,8 @@ function DryerPanel({
             <span
               className={
                 dryer.is_active
-                  ? 'rounded-full bg-bambu-green/15 px-2 py-0.5 text-xs text-bambu-green-light'
-                  : 'rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-bambu-gray'
+                  ? 'rounded-full bg-bambu-green/15 px-2 py-0.5 text-xs text-accent-foreground'
+                  : 'rounded-full bg-bambu-dark-tertiary px-2 py-0.5 text-xs text-table-secondary'
               }
             >
               {dryer.is_active ? tr('active') : tr('inactive')}
@@ -567,7 +570,7 @@ function DryerPanel({
             label={tr('deleteDryer')}
             icon={Trash2}
             onClick={onDelete}
-            className="text-red-300 hover:bg-red-500/10 hover:text-red-200"
+            className="text-red-700 hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-300"
           />
         </div>
       </div>

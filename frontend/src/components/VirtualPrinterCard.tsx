@@ -257,7 +257,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
           className="px-4 py-3 flex items-center gap-3 cursor-pointer select-none"
           onClick={() => setExpanded(!expanded)}
         >
-          <Button variant="unstyled" className="text-bambu-gray flex-shrink-0">
+          <Button variant="unstyled" className="text-table-secondary flex-shrink-0">
             {expanded
               ? <ChevronDown className="w-4 h-4" />
               : <ChevronRight className="w-4 h-4" />
@@ -265,21 +265,21 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
           </Button>
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
           <span className="text-white font-medium truncate">{printer.name}</span>
-          <span className="text-xs text-bambu-gray flex-shrink-0">{modeLabel}</span>
+          <span className="text-xs text-table-secondary flex-shrink-0">{modeLabel}</span>
           {printer.model_name && (
-            <span className="text-xs text-bambu-gray flex-shrink-0">{printer.model_name}</span>
+            <span className="text-xs text-table-secondary flex-shrink-0">{printer.model_name}</span>
           )}
           {targetPrinterName && (
-            <span className="text-xs text-bambu-gray flex-shrink-0 truncate">
+            <span className="text-xs text-table-secondary flex-shrink-0 truncate">
               {localMode === 'proxy' && <ArrowRightLeft className="w-3 h-3 inline mr-1" />}
               {targetPrinterName}
             </span>
           )}
           {localBindIp && (
-            <span className="text-[10px] text-bambu-gray flex-shrink-0 font-mono">{localBindIp}</span>
+            <span className="text-[10px] text-table-secondary flex-shrink-0 font-mono">{localBindIp}</span>
           )}
           {localRemoteInterfaceIp && (
-            <span className="text-[10px] text-bambu-gray flex-shrink-0 font-mono">{localRemoteInterfaceIp}</span>
+            <span className="text-[10px] text-table-secondary flex-shrink-0 font-mono">{localRemoteInterfaceIp}</span>
           )}
           <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             <Button variant="unstyled"
@@ -315,14 +315,14 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
               />
               <Button variant="unstyled"
                 onClick={() => setShowDiagnostic(true)}
-                className="p-1.5 text-bambu-gray hover:text-bambu-green transition-colors flex-shrink-0"
+                className="p-1.5 text-table-secondary hover:text-bambu-green transition-colors flex-shrink-0"
                 title={t('vpDiagnostic.runButton')}
               >
                 <Stethoscope className="w-4 h-4" />
               </Button>
               <Button variant="unstyled"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 transition-colors flex-shrink-0"
+                className="p-1.5 text-table-secondary hover:text-red-600 dark:hover:text-red-400 transition-colors flex-shrink-0"
                 title={t('common.delete')}
               >
                 <Trash2 className="w-4 h-4" />
@@ -333,14 +333,14 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 Shown only when this VP is marked Tailscale-exposed AND the daemon is up. */}
             <div className="flex items-center gap-2 -mt-2">
               {tailscaleFqdn && (
-                <span className="flex items-center gap-1 text-green-700/80 dark:text-green-400/70 min-w-0">
+                <span className="flex items-center gap-1 text-green-800 dark:text-green-400 min-w-0">
                   <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="font-mono text-xs truncate">
                     {tailscaleIp ? `${tailscaleIp} (${tailscaleFqdn})` : tailscaleFqdn}
                   </span>
                   <Button variant="unstyled"
                     onClick={handleCopyFqdn}
-                    className="p-0.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors flex-shrink-0"
+                    className="p-0.5 rounded hover:bg-bambu-dark-tertiary text-table-secondary hover:text-white transition-colors flex-shrink-0"
                     title={fqdnCopied ? t('printers.copied') : t('printers.copyToClipboard')}
                   >
                     {fqdnCopied ? (
@@ -351,7 +351,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                   </Button>
                 </span>
               )}
-              <span className="text-xs text-bambu-gray font-mono ml-auto flex-shrink-0">{printer.serial}</span>
+              <span className="text-xs text-table-secondary font-mono ml-auto flex-shrink-0">{printer.serial}</span>
             </div>
 
             {/* Mode */}
@@ -375,7 +375,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                       {mode === 'proxy' && <ArrowRightLeft className="w-3 h-3" />}
                       {t(`virtualPrinter.mode.${MODE_LABELS[mode]}`)}
                     </div>
-                    <div className="text-[10px] text-bambu-gray">
+                    <div className="text-[10px] text-table-secondary">
                       {t(`virtualPrinter.mode.${MODE_LABELS[mode]}Desc`)}
                     </div>
                   </Button>
@@ -389,7 +389,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-white text-sm font-medium">{t('virtualPrinter.autoDispatch.title')}</div>
-                    <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.autoDispatch.description')}</div>
+                    <div className="text-[10px] text-table-secondary">{t('virtualPrinter.autoDispatch.description')}</div>
                   </div>
                   <Button variant="unstyled"
                     onClick={() => {
@@ -419,7 +419,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-white text-sm font-medium">{t('virtualPrinter.queueForceColorMatch.title')}</div>
-                    <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.queueForceColorMatch.description')}</div>
+                    <div className="text-[10px] text-table-secondary">{t('virtualPrinter.queueForceColorMatch.description')}</div>
                   </div>
                   <Button variant="unstyled"
                     onClick={() => {
@@ -449,7 +449,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-white text-sm font-medium">{t('virtualPrinter.gcodeInjection.title')}</div>
-                    <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.gcodeInjection.description')}</div>
+                    <div className="text-[10px] text-table-secondary">{t('virtualPrinter.gcodeInjection.description')}</div>
                   </div>
                   <Button variant="unstyled"
                     onClick={() => {
@@ -478,7 +478,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-white text-sm font-medium">{t('virtualPrinter.tailscaleDisabled.title')}</div>
-                  <div className="text-[10px] text-bambu-gray">{t('virtualPrinter.tailscaleDisabled.description')}</div>
+                  <div className="text-[10px] text-table-secondary">{t('virtualPrinter.tailscaleDisabled.description')}</div>
                 </div>
                 <Button variant="unstyled"
                   onClick={() => {
@@ -505,7 +505,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
             {localMode !== 'proxy' && (
               <div className="pt-2 border-t border-bambu-dark-tertiary">
                 <div className="text-white text-sm font-medium mb-1">{t('virtualPrinter.model.title')}</div>
-                <p className="text-xs text-bambu-gray mb-2">{t('virtualPrinter.model.description')}</p>
+                <p className="text-xs text-table-secondary mb-2">{t('virtualPrinter.model.description')}</p>
                 <div className="relative">
                   <LegacySelect
                     value={localModel}
@@ -526,7 +526,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
               <div className="pt-2 border-t border-bambu-dark-tertiary">
                 <div className="flex items-start gap-2 p-2 rounded bg-blue-50 border border-blue-300 dark:bg-blue-500/10 dark:border-blue-500/30">
                   <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-bambu-gray">
+                  <p className="text-xs text-table-secondary">
                     {t('virtualPrinter.proxy.accessCodeHint')}
                   </p>
                 </div>
@@ -567,13 +567,13 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                       />
                       <Button variant="unstyled"
                         onClick={() => setShowAccessCode(!showAccessCode)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-table-secondary hover:text-white"
                         aria-label={showAccessCode ? t('virtualPrinter.accessCode.hide') : t('virtualPrinter.accessCode.reveal')}
                       >
                         {showAccessCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </div>
-                    <p className="text-xs text-bambu-gray mt-1">
+                    <p className="text-xs text-table-secondary mt-1">
                       {t('virtualPrinter.accessCode.derivedFromTargetHint')}
                     </p>
                   </>
@@ -591,7 +591,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                         />
                         <Button variant="unstyled"
                           onClick={() => setShowAccessCode(!showAccessCode)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-table-secondary hover:text-white"
                         >
                           {showAccessCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </Button>
@@ -605,7 +605,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                       </Button>
                     </div>
                     {localAccessCode && (
-                      <p className="text-xs text-bambu-gray mt-1">
+                      <p className="text-xs text-table-secondary mt-1">
                         <span className={localAccessCode.length === 8 ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'}>
                           {t('virtualPrinter.accessCode.charCount', { count: localAccessCode.length })}
                         </span>
@@ -659,7 +659,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                   ))}
                 </LegacySelect>
               </div>
-              <p className="text-xs text-bambu-gray mt-1">{t('virtualPrinter.bindIp.hint')}</p>
+              <p className="text-xs text-table-secondary mt-1">{t('virtualPrinter.bindIp.hint')}</p>
             </div>
 
             <div className="pt-2 border-t border-bambu-dark-tertiary">
@@ -695,7 +695,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 {localRemoteInterfaceIp ? (
                   <span className="flex items-center gap-1 text-xs text-green-700 dark:text-green-400"><Check className="w-3 h-3" /></span>
                 ) : (
-                  <span className="flex items-center gap-1 text-xs text-bambu-gray" title={t('virtualPrinter.remoteInterface.optional')}><Info className="w-3 h-3" /></span>
+                  <span className="flex items-center gap-1 text-xs text-table-secondary" title={t('virtualPrinter.remoteInterface.optional')}><Info className="w-3 h-3" /></span>
                 )}
               </div>
               <div className="relative">

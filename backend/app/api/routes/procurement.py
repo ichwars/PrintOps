@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,10 @@ from backend.app.schemas.procurement import (
     SupplierListResponse,
     SupplierRead,
     SupplierUpdate,
+    WarehousePurchaseOrderRead,
+    WarehousePurchaseOrderReceiptCreate,
+    WarehousePurchaseOrderReceiptHistoryRow,
+    WarehousePurchaseOrderReceiptRead,
     WarehouseShoppingItemRead,
     WarehouseShoppingResource,
 )
@@ -259,16 +263,75 @@ async def add_warehouse_shopping_item(
     return result
 
 
+@router.get("/warehouse-purchase-orders", response_model=list[WarehousePurchaseOrderRead])
+async def list_warehouse_purchase_orders(
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+) -> list[WarehousePurchaseOrderRead]:
+    return await warehouse_shopping_list.list_purchase_orders(db)
+
+
+@router.post(
+    "/warehouse-shopping-list/{item_id}/purchase-order",
+    response_model=WarehousePurchaseOrderRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_warehouse_purchase_order(
+    item_id: int = Path(gt=0, le=2_147_483_647),
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+) -> WarehousePurchaseOrderRead:
+    try:
+        order = await warehouse_shopping_list.create_purchase_order(db, item_id)
+        result = (await warehouse_shopping_list.list_purchase_orders(db, order_id=order.id))[0]
+        await db.commit()
+        return result
+    except WarehouseError as exc:
+        raise HTTPException(exc.status, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@router.get(
+    "/warehouse-purchase-orders/{order_id}/receipts", response_model=list[WarehousePurchaseOrderReceiptHistoryRow]
+)
+async def list_warehouse_purchase_order_receipts(
+    order_id: int = Path(gt=0, le=2_147_483_647),
+    db: AsyncSession = DB_SESSION,
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+) -> list[WarehousePurchaseOrderReceiptHistoryRow]:
+    try:
+        return await warehouse_shopping_list.list_order_receipts(db, order_id)
+    except WarehouseError as exc:
+        raise HTTPException(exc.status, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@router.post(
+    "/warehouse-purchase-orders/{order_id}/receipts",
+    response_model=WarehousePurchaseOrderReceiptRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def receive_warehouse_purchase_order(
+    data: WarehousePurchaseOrderReceiptCreate,
+    order_id: int = Path(gt=0, le=2_147_483_647),
+    db: AsyncSession = DB_SESSION,
+    user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+) -> WarehousePurchaseOrderReceiptRead:
+    try:
+        result = await warehouse_shopping_list.receive_purchase_order(
+            db, order_id, data, actor_id=user.id if user else None
+        )
+        await db.commit()
+        return result
+    except WarehouseError as exc:
+        await db.rollback()
+        raise HTTPException(exc.status, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
 @router.delete("/warehouse-shopping-list/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def remove_warehouse_shopping_item(
     item_id: int = Path(gt=0, le=2_147_483_647),
     db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ) -> Response:
-    await db.execute(
-        delete(WarehouseShoppingListItem).where(
-            WarehouseShoppingListItem.id == item_id, WarehouseShoppingListItem.small_part_id.is_not(None)
-        )
-    )
+    await warehouse_shopping_list.remove_items(db, [item_id])
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

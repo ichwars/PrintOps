@@ -211,6 +211,7 @@ class SpoolKProfileResponse(SpoolKProfileBase):
 
 
 class SpoolResponse(SpoolBase):
+    spool_number: str | None = None
     material_number: str | None = None
     id: int
     # rgba is intentionally unconstrained on the response side: the write paths

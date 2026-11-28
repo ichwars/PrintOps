@@ -149,6 +149,41 @@ class ProcurementOfferRead(ProcurementSchema):
 WarehouseShoppingResource = Literal["warehouse", "material"]
 
 
+class WarehousePurchaseOrderReceiptCreate(ProcurementSchema):
+    quantity: Decimal = Field(gt=0, max_digits=18, decimal_places=6)
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class WarehousePurchaseOrderRead(ProcurementSchema):
+    id: int
+    number: str
+    shopping_item_id: int | None
+    supplier_id: int | None
+    supplier_name: str | None
+    sku: str
+    name: str
+    quantity: Decimal
+    unit_code: str
+    unit_label: str
+    created_at: datetime
+    received_quantity: Decimal = Decimal("0")
+    open_quantity: Decimal = Decimal("0")
+    can_receive: bool = False
+
+
+class WarehousePurchaseOrderReceiptHistoryRow(ProcurementSchema):
+    id: int
+    receipt_number: str | None
+    quantity: Decimal
+    created_at: datetime
+
+
+class WarehousePurchaseOrderReceiptRead(ProcurementSchema):
+    receipt_id: int
+    receipt_number: str
+    order: WarehousePurchaseOrderRead
+
+
 class WarehouseShoppingItemRead(ProcurementSchema):
     id: int
     resource_kind: Literal["material"]

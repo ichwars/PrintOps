@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Save, Loader2, Search, Check, Minus, Shield, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search, Shield, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client';
 import type { Permission, PermissionCategory } from '../api/client';
 import { Button } from '../components/Button';
@@ -172,7 +172,7 @@ export function GroupEditPage() {
         <button
           onClick={() => navigate('/settings?tab=users')}
           aria-label={t('common.back')}
-          className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
+          className="p-2 rounded-lg hover:bg-bambu-dark-tertiary text-table-secondary hover:text-white transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -216,8 +216,8 @@ export function GroupEditPage() {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-bambu-gray">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-sm text-table-secondary">
             {t('groups.editor.permissionsSelected', { count: permissions.length })} / {totalPermissions}
           </span>
           <Button size="sm" variant="ghost" onClick={selectAll}>
@@ -228,7 +228,7 @@ export function GroupEditPage() {
           </Button>
         </div>
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-bambu-gray" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-table-secondary" />
           <TextField
             type="text"
             value={search}
@@ -241,7 +241,7 @@ export function GroupEditPage() {
 
       {/* Permission grid */}
       {filteredCategories.length === 0 ? (
-        <div className="text-center py-12 text-bambu-gray">
+        <div className="text-center py-12 text-table-secondary">
           {t('groups.editor.noResults')}
         </div>
       ) : (
@@ -258,24 +258,16 @@ export function GroupEditPage() {
               <Card key={category.name}>
                 <div className={`${dashboardStyles.cardHeader} flex items-center justify-between gap-2 rounded-t-xl`}>
                   <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleCategoryPermissions(fullCategory, !fullySelected)}
-                      className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${
-                        fullySelected
-                          ? 'bg-bambu-green border-bambu-green'
-                          : partiallySelected
-                          ? 'bg-bambu-green/50 border-bambu-green'
-                          : 'border-bambu-gray hover:border-white'
-                      }`}
-                    >
-                      {fullySelected && <Check className="w-3 h-3 text-white" />}
-                      {partiallySelected && !fullySelected && <Minus className="w-3 h-3 text-white" />}
-                    </button>
-                    <Shield className="w-4 h-4 text-bambu-gray shrink-0" />
+                    <Checkbox
+                      checked={fullySelected}
+                      indeterminate={partiallySelected}
+                      ariaLabel={category.name}
+                      onCheckedChange={(checked) => toggleCategoryPermissions(fullCategory, checked)}
+                    />
+                    <Shield className="w-4 h-4 text-table-secondary shrink-0" />
                     <span className="text-white font-medium text-sm">{category.name}</span>
                   </div>
-                  <span className="text-xs text-bambu-gray tabular-nums">
+                  <span className="text-xs text-table-secondary tabular-nums">
                     {selectedCount}/{totalCount}
                   </span>
                 </div>
@@ -312,7 +304,7 @@ export function GroupEditPage() {
         <Button variant="secondary" onClick={() => navigate('/settings?tab=users')}>
           {t('common.cancel')}
         </Button>
-        <Button onClick={handleSave} disabled={isSaving || !name.trim()}>
+        <Button className="text-black!" onClick={handleSave} disabled={isSaving || !name.trim()}>
           {isSaving ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />

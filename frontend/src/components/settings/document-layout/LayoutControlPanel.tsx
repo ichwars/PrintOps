@@ -72,10 +72,10 @@ function Accordion({
   return <section id={`layout-section-${section}`} className="scroll-mt-24 overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary">
     <button type="button" className="flex min-h-12 w-full items-center gap-2 px-4 py-3 text-left" aria-expanded={open} onClick={onToggle}>
       <span className="min-w-0 flex-1 font-semibold text-white">{title}</span>
-      {changed ? <span className="rounded-full bg-bambu-green/20 px-2 py-0.5 text-[10px] text-bambu-green">{t('orders.runtimeDomain.documentLayoutExtras.changedCount', { count: changed })}</span> : <span className="rounded-full bg-bambu-dark px-2 py-0.5 text-[10px] text-bambu-gray">{t('orders.runtimeDomain.documentLayoutExtras.inherited')}</span>}
+      {changed ? <span className="rounded-full bg-bambu-green/20 px-2 py-0.5 text-[10px] text-accent-foreground">{t('orders.runtimeDomain.documentLayoutExtras.changedCount', { count: changed })}</span> : <span className="rounded-full bg-bambu-dark px-2 py-0.5 text-[10px] text-table-secondary">{t('orders.runtimeDomain.documentLayoutExtras.inherited')}</span>}
       {blockers ? <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] text-red-700 dark:text-red-300">{t('orders.runtimeDomain.documentLayoutExtras.blockerCount', { count: blockers })}</span> : null}
       {warnings ? <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-800 dark:text-amber-300">{t('orders.runtimeDomain.documentLayoutExtras.warningCount', { count: warnings })}</span> : null}
-      <ChevronDown className={`h-4 w-4 shrink-0 text-bambu-gray transition ${open ? 'rotate-180' : ''}`} />
+      <ChevronDown className={`h-4 w-4 shrink-0 text-table-secondary transition ${open ? 'rotate-180' : ''}`} />
     </button>
     {open ? <div className="border-t border-bambu-dark-tertiary p-3">{children}</div> : null}
   </section>;

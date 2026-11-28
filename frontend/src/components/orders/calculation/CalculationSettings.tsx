@@ -109,8 +109,8 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       {group.title === (t('orders.runtimeCalculation.costBasis', { lng: language })) && <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Select<number> label={t('orders.runtimeCalculation.defaultPrinter', { lng: language })} value={Number(defaults.defaultPrinterId)} onValueChange={(value) => update('defaultPrinterId', value)} options={[{ value: 0, label: t('orders.runtimeCalculation.noDefaultPrinter', { lng: language }) }, ...printers.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }))]} />
         <Select<number> label={t('orders.runtimeCalculation.defaultDryer', { lng: language })} value={Number(defaults.defaultDryerId)} onValueChange={(value) => update('defaultDryerId', value)} options={[{ value: 0, label: t('orders.runtimeCalculation.noDefaultDryer', { lng: language }) }, ...dryers.map(item => ({ value: item.id, label: item.name }))]} />
-        {selectedPrinter && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{t('orders.runtimeCalculation.printerResidualHourly', { lng: language })}</span><strong className="text-white">{money(selectedPrinter.residual_value ?? '0')} / {money(selectedPrinter.hourly_rate ?? '0')}/h</strong></div>}
-        {selectedDryer && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-bambu-gray">{t('orders.runtimeCalculation.dryerResidualHourly', { lng: language })}</span><strong className="text-white">{money(selectedDryer.residual_value)} / {money(selectedDryer.hourly_rate)}/h</strong></div>}
+        {selectedPrinter && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-table-secondary">{t('orders.runtimeCalculation.printerResidualHourly', { lng: language })}</span><strong className="text-white">{money(selectedPrinter.residual_value ?? '0')} / {money(selectedPrinter.hourly_rate ?? '0')}/h</strong></div>}
+        {selectedDryer && <div className="rounded-lg bg-bambu-dark p-3 text-sm"><span className="block text-xs text-table-secondary">{t('orders.runtimeCalculation.dryerResidualHourly', { lng: language })}</span><strong className="text-white">{money(selectedDryer.residual_value)} / {money(selectedDryer.hourly_rate)}/h</strong></div>}
       </div>}
       {group.title === (t('orders.runtimeCalculation.priceDerivation', { lng: language })) && <Select label={t('orders.runtimeCalculation.method', { lng: language })} value={String(defaults.priceMethod)} onValueChange={(value) => update('priceMethod', value)} className="mt-4" options={[
         { value: 'target_margin', label: t('orders.runtimeCalculation.targetMargin', { lng: language }) },
@@ -122,14 +122,14 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       ]} />}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">{group.fields.map(([key, label, step]) => <NumberField key={key} label={label} min="0" step={step} value={Number(defaults[key] ?? 0)} onValueChange={(value) => update(key, Number(value))} />)}</div>
       {group.title === (t('orders.runtimeCalculation.exampleCalculation', { lng: language })) && <div className="mt-4">
-        {loading && <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.runtimeCalculation.calculating', { lng: language })}</div>}
+        {loading && <div className="flex items-center gap-2 text-sm text-table-secondary"><Loader2 className="h-4 w-4 animate-spin" />{t('orders.runtimeCalculation.calculating', { lng: language })}</div>}
         {previewError && <div role="alert" className="text-sm text-red-800 dark:text-red-200">{t('orders.runtimeCalculation.exampleCouldNotBeCalculated', { lng: language })}</div>}
         {preview && <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">{[
           [t('printops.nav.parts', { lng: language }), preview.material_cost], [t('orders.runtimeCalculation.machine', { lng: language }), preview.machine_cost], [t('settings.energyCostBadge', { lng: language }), preview.energy_cost],
           [t('orders.runtimeCalculation.labor', { lng: language }), preview.labor_cost], [t('orders.runtimeCalculation.risk', { lng: language }), preview.risk_cost], [t('orders.runtimeCalculation.productionCost', { lng: language }), preview.production_cost],
           [t('orders.runtimeCalculation.contribution', { lng: language }), preview.contribution], [t('inventory.net', { lng: language }), preview.net_price], [t('orders.runtimeCalculation.tax', { lng: language }), preview.tax],
           [t('orders.runtimeCalculation.gross', { lng: language }), preview.gross_price], [t('orders.runtimeCalculation.unitPrice', { lng: language }), preview.unit_price], [t('orders.runtimeCalculation.runs', { lng: language }), String(preview.total_runs)],
-        ].map(([label, value]) => <div key={label} className="rounded-lg bg-bambu-dark p-3"><span className="block text-xs text-bambu-gray">{label}</span><strong className="text-white">{label === (t('orders.runtimeCalculation.runs', { lng: language })) ? value : money(value)}</strong></div>)}</div>}
+        ].map(([label, value]) => <div key={label} className="rounded-lg bg-bambu-dark p-3"><span className="block text-xs text-table-secondary">{label}</span><strong className="text-white">{label === (t('orders.runtimeCalculation.runs', { lng: language })) ? value : money(value)}</strong></div>)}</div>}
       </div>}
       </div>
     </section>;
@@ -143,6 +143,6 @@ export function CalculationSettings({ settings, onChange, locale }: { settings: 
       <Select label={t('orders.runtimeCalculation.energyDisplay', { lng: language })} value={settings.energy_tracking_mode} onValueChange={(value) => onChange('energy_tracking_mode', value)} options={[{ value: 'total', label: t('orders.runtimeCalculation.totalConsumption', { lng: language }) }, { value: 'print', label: t('orders.runtimeCalculation.printEnergyOnly', { lng: language }) }]} />
     </div>
     <div className="grid items-start gap-4 lg:grid-cols-2"><div className="min-w-0 space-y-4">{groups.filter(group => group.column === 'cost').map(renderGroup)}</div><div className="min-w-0 space-y-4">{groups.filter(group => group.column === 'commercial').map(renderGroup)}</div></div>
-    <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-bambu-gray"><Calculator className="h-4 w-4 text-bambu-green" />{t('orders.runtimeCalculation.previewAndApprovalUseTheSameDecimalCostEngine', { lng: language })}</div>
+    <div className="flex items-center gap-2 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-xs text-table-secondary"><Calculator className="h-4 w-4 text-bambu-green" />{t('orders.runtimeCalculation.previewAndApprovalUseTheSameDecimalCostEngine', { lng: language })}</div>
   </div>;
 }

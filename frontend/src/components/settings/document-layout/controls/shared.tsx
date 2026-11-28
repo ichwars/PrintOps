@@ -48,13 +48,13 @@ export function FieldShell({ label, controlKind, help, unit, source, overridden,
   });
   return <div data-layout-field className="group relative flex h-full flex-col rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-3">
     <div className="mb-2 min-w-0">
-      <p className="block min-h-5 text-sm font-medium text-white">{label}{unit ? <span className="ml-1 text-xs font-normal text-bambu-gray">({unit})</span> : null}</p>
-      <p data-layout-help className="mt-0.5 min-h-10 w-full text-xs leading-4 text-bambu-gray">{fieldHelp}</p>
+      <p className="block min-h-5 text-sm font-medium text-white">{label}{unit ? <span className="ml-1 text-xs font-normal text-table-secondary">({unit})</span> : null}</p>
+      <p data-layout-help className="mt-0.5 min-h-10 w-full text-xs leading-4 text-table-secondary">{fieldHelp}</p>
     </div>
     <div className="absolute right-1 top-1 flex items-center gap-1">
       <span className={[
         'pointer-events-none rounded-full px-2 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-        overridden ? 'bg-bambu-green/20 text-bambu-green' : 'bg-bambu-dark-secondary text-bambu-gray',
+        overridden ? 'bg-bambu-green/15 text-accent-foreground' : 'bg-bambu-dark-secondary text-table-secondary',
       ].join(' ')}>
         {overridden ? t('settings.documentLayout.inheritance.override', 'Override') : source}
       </span>

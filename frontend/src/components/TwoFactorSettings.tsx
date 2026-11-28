@@ -62,7 +62,7 @@ function BackupCodesDisplay({ codes, onDone }: { codes: string[]; onDone: () => 
           <Copy className="w-4 h-4" />
           {copied ? t('common.copied') : t('common.copy')}
         </Button>
-        <Button variant="primary" size="sm" onClick={onDone} className="flex-1">
+        <Button variant="primary" size="sm" onClick={onDone} className="flex-1 text-black!">
           {t('settings.twoFa.savedCodes')}
         </Button>
       </div>
@@ -116,23 +116,23 @@ function TOTPSetupWizard({ onDone }: { onDone: () => void }) {
           />
         </div>
         <div>
-          <p className="text-xs text-bambu-gray mb-1">{t('settings.twoFa.manualEntry')}</p>
+          <p className="text-xs text-table-secondary mb-1">{t('settings.twoFa.manualEntry')}</p>
           <div className="flex items-center gap-2 bg-bambu-dark-secondary rounded-lg px-3 py-2">
             <code className="text-white text-xs font-mono flex-1 break-all">
               {showSecret ? setupData.secret : '••••••••••••••••'}
             </code>
-            <Button variant="unstyled" onClick={() => setShowSecret(!showSecret)} className="text-bambu-gray hover:text-white">
+            <Button variant="unstyled" onClick={() => setShowSecret(!showSecret)} className="text-table-secondary hover:text-white">
               {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </Button>
             <Button variant="unstyled"
               onClick={() => { navigator.clipboard.writeText(setupData.secret); }}
-              className="text-bambu-gray hover:text-white"
+              className="text-table-secondary hover:text-white"
             >
               <Copy className="w-4 h-4" />
             </Button>
           </div>
         </div>
-        <Button variant="primary" className="w-full" onClick={() => setStep('confirm')}>
+        <Button variant="primary" className="w-full text-black!" onClick={() => setStep('confirm')}>
           {t('settings.twoFa.scannedContinue')}
         </Button>
       </div>
@@ -150,7 +150,7 @@ function TOTPSetupWizard({ onDone }: { onDone: () => void }) {
           </Button>
           <Button
             variant="primary"
-            className="flex-1"
+            className="flex-1 text-black!"
             disabled={code.length !== 6 || enableMutation.isPending}
             onClick={() => enableMutation.mutate(code)}
           >
@@ -294,21 +294,21 @@ export function TwoFactorSettings() {
       {/* ── TOTP ─────────────────────────────────────────────────────────── */}
       <Card id="card-2fa-totp">
         <CardHeader>
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${status?.totp_enabled ? 'bg-green-100 dark:bg-green-500/20' : 'bg-gray-500/20'}`}>
-              <Smartphone className={`w-5 h-5 ${status?.totp_enabled ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`} />
+              <Smartphone className={`w-5 h-5 ${status?.totp_enabled ? 'text-green-600 dark:text-green-400' : 'text-table-secondary'}`} />
             </div>
             <div>
               <h3 className="text-white font-semibold">{t('settings.twoFa.totpTitle')}</h3>
-              <p className="text-bambu-gray text-sm">{t('settings.twoFa.totpDesc')}</p>
+              <p className="text-table-secondary text-sm">{t('settings.twoFa.totpDesc')}</p>
             </div>
-            <div className="ml-auto">
+            <div className="col-start-2 sm:col-start-3 sm:row-start-1">
               {status?.totp_enabled ? (
                 <span className="flex items-center gap-1 text-green-700 dark:text-green-400 text-sm font-medium">
                   <ShieldCheck className="w-4 h-4" /> {t('common.enabled')}
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-bambu-gray text-sm">
+                <span className="flex items-center gap-1 text-table-secondary text-sm">
                   <ShieldOff className="w-4 h-4" /> {t('common.disabled')}
                 </span>
               )}
@@ -321,7 +321,7 @@ export function TwoFactorSettings() {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-white font-medium">{t('settings.twoFa.setupAuthApp')}</h4>
-                <Button variant="unstyled" onClick={() => { setShowTOTPSetup(false); queryClient.removeQueries({ queryKey: ['totp-setup'] }); }} className="text-bambu-gray hover:text-white">
+                <Button variant="unstyled" onClick={() => { setShowTOTPSetup(false); queryClient.removeQueries({ queryKey: ['totp-setup'] }); }} className="text-table-secondary hover:text-white">
                   <X className="w-5 h-5" />
                 </Button>
               </div>
@@ -355,7 +355,7 @@ export function TwoFactorSettings() {
                 </Button>
                 <Button
                   variant="primary"
-                  className="flex-1"
+                  className="flex-1 text-black!"
                   disabled={regenCode.length < 6 || regenMutation.isPending}
                   onClick={() => regenMutation.mutate(regenCode)}
                 >
@@ -371,7 +371,7 @@ export function TwoFactorSettings() {
           ) : (
             <div className="space-y-3">
               {!status?.totp_enabled ? (
-                <Button variant="primary" onClick={() => setShowTOTPSetup(true)} className="flex items-center gap-2">
+                <Button variant="primary" onClick={() => setShowTOTPSetup(true)} className="flex items-center gap-2 text-black!">
                   <Smartphone className="w-4 h-4" />
                   {t('settings.twoFa.setupTotp')}
                 </Button>
@@ -399,26 +399,26 @@ export function TwoFactorSettings() {
       {/* ── Email OTP ─────────────────────────────────────────────────────── */}
       <Card id="card-2fa-emailotp">
         <CardHeader>
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${status?.email_otp_enabled ? 'bg-green-100 dark:bg-green-500/20' : 'bg-gray-500/20'}`}>
-              <Mail className={`w-5 h-5 ${status?.email_otp_enabled ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`} />
+              <Mail className={`w-5 h-5 ${status?.email_otp_enabled ? 'text-green-600 dark:text-green-400' : 'text-table-secondary'}`} />
             </div>
             <div className="flex-1">
               <h3 className="text-white font-semibold">{t('settings.twoFa.emailOtpTitle')}</h3>
-              <p className="text-bambu-gray text-sm">
+              <p className="wrap-anywhere text-table-secondary text-sm">
                 {hasEmail
                   ? t('settings.twoFa.emailOtpDesc', { email: user?.email })
                   : t('settings.twoFa.emailOtpNoEmail')}
               </p>
             </div>
             {/* Show status badge; enable/disable handled in CardContent */}
-            <div className="ml-auto">
+            <div className="col-start-2 sm:col-start-3 sm:row-start-1">
               {status?.email_otp_enabled ? (
                 <span className="flex items-center gap-1 text-green-700 dark:text-green-400 text-sm font-medium">
                   <ShieldCheck className="w-4 h-4" /> {t('common.enabled')}
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-bambu-gray text-sm">
+                <span className="flex items-center gap-1 text-table-secondary text-sm">
                   <ShieldOff className="w-4 h-4" /> {t('common.disabled')}
                 </span>
               )}
@@ -443,7 +443,7 @@ export function TwoFactorSettings() {
                 </Button>
                 <Button
                   variant="primary"
-                  className="flex-1"
+                  className="flex-1 text-black!"
                   disabled={emailSetupCode.length !== 6 || enableEmailConfirmMutation.isPending}
                   onClick={() => enableEmailConfirmMutation.mutate()}
                 >
@@ -466,7 +466,7 @@ export function TwoFactorSettings() {
                 <Button variant="unstyled"
                   type="button"
                   onClick={() => setShowEmailDisablePassword(!showEmailDisablePassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-bambu-gray hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-table-secondary hover:text-white"
                 >
                   {showEmailDisablePassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </Button>
@@ -496,7 +496,7 @@ export function TwoFactorSettings() {
                   variant="primary"
                   disabled={!hasEmail || enableEmailRequestMutation.isPending}
                   onClick={() => enableEmailRequestMutation.mutate()}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 text-black!"
                 >
                   <Mail className="w-4 h-4" />
                   {enableEmailRequestMutation.isPending ? t('common.saving') : t('settings.twoFa.enableEmailOtp')}
@@ -522,7 +522,7 @@ export function TwoFactorSettings() {
         <Card id="card-2fa-linked">
           <CardHeader>
             <h3 className="text-white font-semibold">{t('settings.twoFa.linkedAccounts')}</h3>
-            <p className="text-bambu-gray text-sm">{t('settings.twoFa.linkedAccountsDesc')}</p>
+            <p className="text-table-secondary text-sm">{t('settings.twoFa.linkedAccountsDesc')}</p>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -531,7 +531,7 @@ export function TwoFactorSettings() {
                   <div>
                     <p className="text-white text-sm font-medium">{link.provider_name}</p>
                     {link.provider_email && (
-                      <p className="text-bambu-gray text-xs">{link.provider_email}</p>
+                      <p className="text-table-secondary text-xs">{link.provider_email}</p>
                     )}
                   </div>
                   <Button

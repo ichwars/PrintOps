@@ -1,3 +1,5 @@
+import { PanelsTopLeft } from 'lucide-react';
+import { SettingsDashboardCard } from '../SettingsDashboardCard';
 import { useTranslation } from 'react-i18next';
 
 import type { LayoutLanguage } from '../../../api/documentLayouts';
@@ -61,47 +63,49 @@ export function LayoutContextBar({
     label: option.detail ? `${option.label} - ${option.detail}` : option.label,
   }));
 
-  return <section aria-label={t('settings.documentLayout.context.title', 'Layout context')} className="grid gap-3 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-3 sm:grid-cols-2 xl:grid-cols-4">
-    <Select
-      value={businessProfileId ?? ''}
-      options={businessProfiles}
-      label={t('settings.documentLayout.context.profile', 'Business profile')}
-      ariaLabel={t('settings.documentLayout.context.profile', 'Business profile')}
-      placeholder={t('settings.documentLayout.context.profile', 'Business profile')}
-      disabled={disabled || businessProfiles.length === 0}
-      onValueChange={(value) => onBusinessProfileChange(Number(value))}
-    />
-    <Select
-      value={documentType ?? ''}
-      options={documentTypes}
-      label={t('settings.documentLayout.context.documentType', 'Document type')}
-      ariaLabel={t('settings.documentLayout.context.documentType', 'Document type')}
-      placeholder={t('settings.documentLayout.context.documentType', 'Document type')}
-      disabled={disabled || documentTypes.length === 0}
-      onValueChange={(value) => onDocumentTypeChange(String(value))}
-    />
-    <Select
-      value={language}
-      options={languages ?? (['de', 'en'] as const).map((value) => ({ value, label: t(`orders.runtimeDomain.documentLanguageNames.${value}`) }))}
-      label={t('settings.documentLayout.context.language', 'Language')}
-      ariaLabel={t('settings.documentLayout.context.language', 'Language')}
-      disabled={disabled}
-      onValueChange={(value) => onLanguageChange(value as LayoutLanguage)}
-    />
-    <Select
-      value={source ? sourceKey(source) : ''}
-      options={sourceOptions}
-      label={t('settings.documentLayout.context.sample', 'Preview source')}
-      ariaLabel={t('settings.documentLayout.context.sample', 'Preview source')}
-      placeholder={t('settings.documentLayout.context.sample', 'Preview source')}
-      helperText={!canReadCommercialDocuments && sources.some((option) => option.requiresCommercialDocumentRead)
-        ? t('settings.documentLayout.context.realDocumentHint', 'Only the document ID is sent; each preview is audited.')
-        : undefined}
-      disabled={disabled || visibleSources.length === 0}
-      onValueChange={(value) => {
-        const option = visibleSources.find((candidate) => sourceKey(candidate.value) === value);
-        if (option) onSourceChange(option.value);
-      }}
-    />
-  </section>;
+  return <SettingsDashboardCard id="card-layout-context" title={t('settings.documentLayout.context.title', 'Layout context')} icon={PanelsTopLeft}>
+    <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Select
+        value={businessProfileId ?? ''}
+        options={businessProfiles}
+        label={t('settings.documentLayout.context.profile', 'Business profile')}
+        ariaLabel={t('settings.documentLayout.context.profile', 'Business profile')}
+        placeholder={t('settings.documentLayout.context.profile', 'Business profile')}
+        disabled={disabled || businessProfiles.length === 0}
+        onValueChange={(value) => onBusinessProfileChange(Number(value))}
+      />
+      <Select
+        value={documentType ?? ''}
+        options={documentTypes}
+        label={t('settings.documentLayout.context.documentType', 'Document type')}
+        ariaLabel={t('settings.documentLayout.context.documentType', 'Document type')}
+        placeholder={t('settings.documentLayout.context.documentType', 'Document type')}
+        disabled={disabled || documentTypes.length === 0}
+        onValueChange={(value) => onDocumentTypeChange(String(value))}
+      />
+      <Select
+        value={language}
+        options={languages ?? (['de', 'en'] as const).map((value) => ({ value, label: t(`orders.runtimeDomain.documentLanguageNames.${value}`) }))}
+        label={t('settings.documentLayout.context.language', 'Language')}
+        ariaLabel={t('settings.documentLayout.context.language', 'Language')}
+        disabled={disabled}
+        onValueChange={(value) => onLanguageChange(value as LayoutLanguage)}
+      />
+      <Select
+        value={source ? sourceKey(source) : ''}
+        options={sourceOptions}
+        label={t('settings.documentLayout.context.sample', 'Preview source')}
+        ariaLabel={t('settings.documentLayout.context.sample', 'Preview source')}
+        placeholder={t('settings.documentLayout.context.sample', 'Preview source')}
+        helperText={!canReadCommercialDocuments && sources.some((option) => option.requiresCommercialDocumentRead)
+          ? <span className="text-table-secondary">{t('settings.documentLayout.context.realDocumentHint', 'Only the document ID is sent; each preview is audited.')}</span>
+          : undefined}
+        disabled={disabled || visibleSources.length === 0}
+        onValueChange={(value) => {
+          const option = visibleSources.find((candidate) => sourceKey(candidate.value) === value);
+          if (option) onSourceChange(option.value);
+        }}
+      />
+    </div>
+  </SettingsDashboardCard>;
 }

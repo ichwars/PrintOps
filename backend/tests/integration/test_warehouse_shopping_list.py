@@ -15,6 +15,7 @@ from backend.app.models.user import User
 from backend.app.models.warehouse_article import WarehouseArticle
 
 SHOPPING_LIST = "/api/v1/warehouse-shopping-list"
+PURCHASE_ORDERS = "/api/v1/warehouse-purchase-orders"
 
 
 @pytest.fixture
@@ -128,6 +129,37 @@ async def test_repeat_keeps_the_saved_quantity_after_a_stock_change(async_client
 
 
 @pytest.mark.asyncio
+async def test_removing_item_detaches_order_without_removing_a_later_item(async_client, db_session, stock_resources):
+    part, _, _, _ = stock_resources
+    other = SmallPart(sku="MAT-2", name="Wire", unit_code="MTR", minimum_stock=Decimal("2"))
+    db_session.add(other)
+    await db_session.commit()
+
+    added = await async_client.put(f"{SHOPPING_LIST}/material/{part.id}")
+    item_url = f"{SHOPPING_LIST}/{added.json()['id']}"
+    created = await async_client.post(f"{item_url}/purchase-order")
+    assert created.status_code == 201, created.text
+    order = created.json()
+    assert (await async_client.delete(item_url)).status_code == 204
+
+    replacement = await async_client.put(f"{SHOPPING_LIST}/material/{other.id}")
+    assert replacement.status_code == 200, replacement.text
+    new_order = await async_client.post(f"{SHOPPING_LIST}/{replacement.json()['id']}/purchase-order")
+    assert new_order.status_code == 201, new_order.text
+    assert new_order.json()["sku"] == other.sku
+    assert new_order.json()["id"] != order["id"]
+
+    receipt = await async_client.post(
+        f"{PURCHASE_ORDERS}/{order['id']}/receipts",
+        json={"quantity": order["quantity"], "idempotency_key": "receipt-after-shopping-item-removal"},
+    )
+    assert receipt.status_code == 201, receipt.text
+    assert receipt.json()["order"]["shopping_item_id"] is None
+    assert Decimal(receipt.json()["order"]["open_quantity"]) == 0
+    assert (await async_client.get(SHOPPING_LIST)).json() == [replacement.json()]
+
+
+@pytest.mark.asyncio
 async def test_rejects_unknown_material_and_unsupported_resource_kind(async_client, stock_resources):
     assert (await async_client.put(f"{SHOPPING_LIST}/material/999999")).status_code == 404
     assert (await async_client.put(f"{SHOPPING_LIST}/filament/1")).status_code == 422
@@ -135,7 +167,9 @@ async def test_rejects_unknown_material_and_unsupported_resource_kind(async_clie
 
 
 @pytest.mark.asyncio
-async def test_shopping_list_routes_enforce_inventory_permissions(async_client, db_session, stock_resources):
+async def test_shopping_list_and_purchase_order_routes_enforce_inventory_permissions(
+    async_client, db_session, stock_resources
+):
     part, _, _, _ = stock_resources
     db_session.add(Settings(key="auth_enabled", value="true"))
     for permission in ("read", "update"):
@@ -159,6 +193,28 @@ async def test_shopping_list_routes_enforce_inventory_permissions(async_client, 
     assert (await async_client.put(add, headers=expired)).status_code == 401
     added = await async_client.put(add, headers=updater)
     assert added.status_code == 200
+
+    draft = f"{SHOPPING_LIST}/{added.json()['id']}/purchase-order"
+    assert (await async_client.post(draft)).status_code == 401
+    assert (await async_client.post(draft, headers=auth("invalid"))).status_code == 401
+    assert (await async_client.post(draft, headers=expired)).status_code == 401
+    assert (await async_client.post(draft, headers=reader)).status_code == 403
+    order = await async_client.post(draft, headers=updater)
+    assert order.status_code == 201
+    receipts = f"{PURCHASE_ORDERS}/{order.json()['id']}/receipts"
+    command = {"quantity": "1", "idempotency_key": "receipt-authorization-test"}
+    for path in (PURCHASE_ORDERS, receipts):
+        assert (await async_client.get(path)).status_code == 401
+        assert (await async_client.get(path, headers=auth("invalid"))).status_code == 401
+        assert (await async_client.get(path, headers=expired)).status_code == 401
+        assert (await async_client.get(path, headers=updater)).status_code == 403
+        assert (await async_client.get(path, headers=reader)).status_code == 200
+    assert (await async_client.post(receipts, json=command)).status_code == 401
+    assert (await async_client.post(receipts, json=command, headers=auth("invalid"))).status_code == 401
+    assert (await async_client.post(receipts, json=command, headers=expired)).status_code == 401
+    assert (await async_client.post(receipts, json=command, headers=reader)).status_code == 403
+    assert (await async_client.post(receipts, json=command, headers=updater)).status_code == 201
+
     delete = f"{SHOPPING_LIST}/{added.json()['id']}"
     assert (await async_client.delete(delete, headers=reader)).status_code == 403
     assert (await async_client.delete(delete, headers=updater)).status_code == 204
@@ -168,9 +224,10 @@ async def test_shopping_list_routes_enforce_inventory_permissions(async_client, 
 async def test_startup_metadata_adds_shopping_list_to_an_existing_database(test_engine, stock_resources):
     metadata = load_all_models()
     async with test_engine.begin() as conn:
+        await conn.exec_driver_sql("DROP TABLE IF EXISTS warehouse_purchase_orders")
         await conn.exec_driver_sql("DROP TABLE IF EXISTS warehouse_shopping_list_items")
         await conn.run_sync(metadata.create_all)
         await conn.run_sync(metadata.create_all)
         tables = await conn.run_sync(lambda connection: inspect(connection).get_table_names())
 
-    assert "warehouse_shopping_list_items" in tables
+    assert {"warehouse_shopping_list_items", "warehouse_purchase_orders"} <= set(tables)

@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -85,6 +86,7 @@ class SmallPartLedgerEntry(Base):
             name="ck_small_part_ledger_kind",
         ),
         UniqueConstraint("idempotency_key", name="uq_small_part_ledger_idempotency"),
+        Index("ix_small_part_ledger_reference", "reference_type", "reference_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -95,6 +97,7 @@ class SmallPartLedgerEntry(Base):
     physical_delta: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=Decimal("0"))
     reserved_delta: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=Decimal("0"))
     reason: Mapped[str] = mapped_column(Text, nullable=False)
+    receipt_number: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
     reference_type: Mapped[str | None] = mapped_column(String(32))
     reference_id: Mapped[int | None] = mapped_column(Integer)
     actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

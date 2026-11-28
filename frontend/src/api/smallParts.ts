@@ -84,6 +84,7 @@ export interface SmallPartLedgerInput {
 }
 
 export interface SmallPartLedgerEntry {
+  receipt_number?: string | null;
   id: number;
   small_part_id: number;
   entry_kind: string;

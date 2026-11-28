@@ -64,8 +64,8 @@ export function LexwareImportReview({ connection, kind, resources, onClose, onIm
         {previews.isError && <Button variant="secondary" onClick={refresh}>{text.refreshPreview}</Button>}
       </>}>
       <section aria-label={text.preview} className="space-y-5 text-sm">
-        <p className="text-bambu-gray">{text.previewHelp}</p>
-        {resources.length === 1 && (linkedId ? <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bambu-dark-tertiary px-4 py-3"><span>{text.linkedTarget}: #{linkedId}</span><span className="inline-flex items-center gap-2 text-xs text-bambu-gray"><ShieldCheck className="h-4 w-4" aria-hidden />{text.readonly}</span></p>
+        <p className="text-table-secondary">{text.previewHelp}</p>
+        {resources.length === 1 && (linkedId ? <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bambu-dark-tertiary px-4 py-3"><span>{text.linkedTarget}: #{linkedId}</span><span className="inline-flex items-center gap-2 text-xs text-table-secondary"><ShieldCheck className="h-4 w-4" aria-hidden />{text.readonly}</span></p>
           : <LexwareTargetPicker kind={kind} profileId={connection.business_profile_id} value={targetId} onChange={setTargetId} disabled={busy} />)}
         {previews.isPending && <p role="status">{text.loading}</p>}
         {previews.isError && <p role="alert">{lexwareError(previews.error, text, true)}</p>}
@@ -153,18 +153,18 @@ function PreviewForm({ footer, connection, kind, resources, previews, onImported
         const done = completed.includes(preview.resource_id);
         return <article key={preview.resource_id} className="space-y-3" aria-label={resource.name}>
           {previews.length > 1 && <h3 className="border-t border-bambu-dark-tertiary pt-4 font-semibold">{resource.name}</h3>}
-          <p className="break-all text-xs text-bambu-gray">{text.sourceNumber}: {resource.number ?? '—'} · {text.externalId}: {resource.external_id}</p>
+          <p className="break-all text-xs text-table-secondary">{text.sourceNumber}: {resource.number ?? '—'} · {text.externalId}: {resource.external_id}</p>
           {kind === 'articles' && <p className="text-sm">{text.externalType}: {preview.source.external_type === 'PRODUCT' ? text.product : preview.source.external_type === 'SERVICE' ? text.service : text.unknown}</p>}
           {existingArticle && <div className="space-y-3 rounded-lg border border-amber-500/40 p-3">
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
-              <div><dt className="text-bambu-gray">{text.sourceUnit}</dt><dd><LexwarePreviewValue value={preview.source.unit_name} /></dd></div>
-              <div><dt className="text-bambu-gray">{text.currentUnit}</dt><dd><LexwarePreviewValue value={preview.current.unit_code} /></dd></div>
+              <div><dt className="text-table-secondary">{text.sourceUnit}</dt><dd><LexwarePreviewValue value={preview.source.unit_name} /></dd></div>
+              <div><dt className="text-table-secondary">{text.currentUnit}</dt><dd><LexwarePreviewValue value={preview.current.unit_code} /></dd></div>
             </dl>
             <Checkbox label={text.confirmUnit} helperText={text.unitBasisHelp} checked={unitConfirmed}
               disabled={!currentUnit || submit.isPending || stale || done || !canImport}
               onCheckedChange={setUnitConfirmed} />
           </div>}
-          {done && <p role="status" className="text-bambu-green">{text.imported}</p>}
+          {done && <p role="status" className="text-accent-foreground">{text.imported}</p>}
           {resource.archived && <p className="text-amber-300">{text.archivedWarning}</p>}
           {preview.affected_profiles.length > 1 && <div role="alert" className="rounded-lg bg-amber-500/10 p-3 text-amber-300">
             <p>{text.shared}</p><ul className="list-inside list-disc">{preview.affected_profiles.map((profile) => <li key={profile.id}>{profile.name}</li>)}</ul>
@@ -184,7 +184,7 @@ function PreviewForm({ footer, connection, kind, resources, previews, onImported
                   <th scope="row" className="break-words px-4 py-3 font-normal">{change ? <Checkbox label={fieldName(field, text)}
                     checked={fields[preview.resource_id]?.includes(field) ?? false} disabled={submit.isPending || stale || done || !canImport || batchLinked}
                     onCheckedChange={(checked) => setFields((previous) => ({ ...previous, [preview.resource_id]: checked ? [...previous[preview.resource_id], field] : previous[preview.resource_id].filter((item) => item !== field) }))} /> : fieldName(field, text)}</th>
-                  <td className={'px-4 py-3 ' + (checked ? 'text-bambu-green-light' : 'text-bambu-gray-light')}><LexwarePreviewValue value={preview.source[field]} /></td><td className="px-4 py-3 text-bambu-gray-light"><LexwarePreviewValue value={preview.current?.[field]} /></td>
+                  <td className={'px-4 py-3 ' + (checked ? 'text-accent-foreground' : 'text-bambu-gray-light')}><LexwarePreviewValue value={preview.source[field]} /></td><td className="px-4 py-3 text-bambu-gray-light"><LexwarePreviewValue value={preview.current?.[field]} /></td>
                 </tr>;
               })}</tbody>
             </table>
@@ -203,12 +203,12 @@ function PreviewForm({ footer, connection, kind, resources, previews, onImported
       {submit.isError && <div role="alert" className="space-y-2 text-red-300">
         {completed.length > 0 && <p>{text.partial}</p>}<p>{lexwareError(submit.error, text, true)}</p>
       </div>}
-      {!pending.length && <p className="text-sm text-bambu-gray">{text.chooseFields}</p>}
-      <details className="text-xs leading-relaxed text-bambu-gray"><summary tabIndex={0} className="w-fit cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green">{text.selectedFieldsOnly}</summary><p className="mt-2 max-w-3xl">{kind === 'contacts' ? text.preserve : text.articleHelp}</p></details>
+      {!pending.length && <p className="text-sm text-table-secondary">{text.chooseFields}</p>}
+      <details className="text-xs leading-relaxed text-table-secondary"><summary tabIndex={0} className="w-fit cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green">{text.selectedFieldsOnly}</summary><p className="mt-2 max-w-3xl">{kind === 'contacts' ? text.preserve : text.articleHelp}</p></details>
       {footer && createPortal(<>
         <Button variant="ghost" size="sm" disabled={submit.isPending} onClick={onRefresh}><RefreshCw className="h-4 w-4" aria-hidden />{text.refreshPreview}</Button>
         <Button variant="secondary" disabled={submit.isPending} onClick={onClose}>{text.cancel}</Button>
-        <Button disabled={submit.isPending || stale || batchLinked || archived || requiredMissing || unitConfirmationMissing || !supportedArticle || !connection.connected || !canImport || !pending.length || (newArticle && !options)}
+        <Button className="text-black!" disabled={submit.isPending || stale || batchLinked || archived || requiredMissing || unitConfirmationMissing || !supportedArticle || !connection.connected || !canImport || !pending.length || (newArticle && !options)}
           loading={submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? text.importing : linkOnly ? text.link : text.import}</Button>
       </>, footer)}
     </div>

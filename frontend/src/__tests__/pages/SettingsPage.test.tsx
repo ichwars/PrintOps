@@ -17,18 +17,7 @@ import { server } from '../mocks/server';
 import { SIDEBAR_HIDDEN_SYSTEM_ITEMS_KEY, SIDEBAR_ORDER_KEY } from '../../utils/sidebarLayout';
 import { setAuthToken } from '../../api/client';
 
-import { mockSettings, resetSettingsPage, setSettingsTabUrl } from './settingsPageFixtures';
-
-const settingsSidebarChildIds = [
-  'settings-general',
-  'settings-users-security',
-  'settings-printers-production',
-  'settings-projects-files',
-  'settings-warehouse-material',
-  'settings-orders-calculation',
-  'settings-integrations',
-  'settings-operations',
-];
+import { mockSettings, resetSettingsPage, setSettingsTabUrl, settingsSidebarChildIds } from './settingsPageFixtures';
 
 async function clickSettingsSearchResult(query: string) {
   const user = userEvent.setup();
@@ -1044,6 +1033,7 @@ describe('SettingsPage', () => {
       'warehouse-parts',
       'warehouse-stock',
       'warehouse-reorder',
+      'warehouse-purchase-orders',
       'warehouse-suppliers',
       'orders',
       'orders-offers',

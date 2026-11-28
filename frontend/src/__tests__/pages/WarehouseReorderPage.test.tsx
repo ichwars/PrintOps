@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -6,6 +7,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SmallPart } from '../../api/smallParts';
 import type { WarehouseArticle } from '../../api/client/warehouse-articles';
+import { WarehousePurchaseOrdersPage } from '../../pages/WarehousePurchaseOrdersPage';
 import { WarehouseReorderPage } from '../../pages/WarehouseReorderPage';
 import i18n from '../../i18n';
 import { server } from '../mocks/server';
@@ -46,9 +48,9 @@ function CurrentPath() {
   </>;
 }
 
-function mount() {
+function mount(content: ReactNode = <WarehouseReorderPage />, entry = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return { ...render(<MemoryRouter><QueryClientProvider client={client}><WarehouseReorderPage /><CurrentPath /></QueryClientProvider></MemoryRouter>), client };
+  return { ...render(<MemoryRouter initialEntries={[entry]}><QueryClientProvider client={client}>{content}<CurrentPath /></QueryClientProvider></MemoryRouter>), client };
 }
 
 beforeEach(async () => {
@@ -60,12 +62,118 @@ beforeEach(async () => {
     http.get('*/api/v1/warehouse-articles', () => HttpResponse.json({ items: [article], total: 1, limit: 200, offset: 0 })),
     http.get('*/api/v1/small-parts', () => HttpResponse.json({ items: [part], total: 1, limit: 200, offset: 0 })),
     http.get('*/api/v1/warehouse-shopping-list', () => HttpResponse.json([])),
+    http.get('*/api/v1/warehouse-purchase-orders', () => HttpResponse.json([])),
   );
 });
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('WarehouseReorderPage', () => {
+  it('creates a numbered draft from an item and displays the saved number', async () => {
+    permissions.add('inventory:update');
+    const item = { id: 3, resource_kind: 'material', resource_id: part.id, sku: part.sku, name: part.name,
+      quantity: '16', unit_code: 'C62', unit_label: 'Piece' };
+    const order = { ...item, id: 4, number: 'BE-2026-00001', shopping_item_id: item.id, supplier_name: 'Test supplier',
+      received_quantity: '0', open_quantity: '16', can_receive: true };
+    let saved = false;
+    server.use(
+      http.get('*/api/v1/warehouse-shopping-list', () => HttpResponse.json([item])),
+      http.get('*/api/v1/warehouse-purchase-orders', () => HttpResponse.json(saved ? [order] : [])),
+      http.post('*/api/v1/warehouse-shopping-list/3/purchase-order', () => {
+        saved = true;
+        return HttpResponse.json(order, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole('button', { name: /^Shopping list/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Shopping list' });
+    await user.click(await within(dialog).findByRole('button', { name: 'Create purchase order draft' }));
+
+    expect(await within(dialog).findByRole('link', { name: 'BE-2026-00001' })).toHaveAttribute(
+      'href', '/warehouse/purchase-orders#purchase-order-4',
+    );
+    expect(within(dialog).getByRole('link', { name: 'Purchase orders' })).toHaveAttribute('href', '/warehouse/purchase-orders');
+    expect(within(dialog).queryByRole('button', { name: 'Create purchase order draft' })).not.toBeInTheDocument();
+  });
+
+  it('groups orders, retains receipt history and moves the order after the last receipt', async () => {
+    permissions.add('inventory:update');
+    const order = { id: 4, number: 'BE-2026-00001', shopping_item_id: 3, sku: part.sku, name: part.name,
+      quantity: '16', unit_code: 'C62', unit_label: 'Piece', supplier_name: 'Test supplier',
+      received_quantity: '0', open_quantity: '16', can_receive: true };
+    const complete = { ...order, id: 7, number: 'BE-2026-00002', name: 'Delivered part',
+      shopping_item_id: null, received_quantity: '16', open_quantity: '0', can_receive: false };
+    const finished = { ...order, shopping_item_id: null, received_quantity: '16', open_quantity: '0', can_receive: false };
+    let delivered = false;
+    server.use(
+      http.get('*/api/v1/warehouse-purchase-orders', () => HttpResponse.json([delivered ? finished : order, complete])),
+      http.get('*/api/v1/warehouse-purchase-orders/7/receipts', () => HttpResponse.json([
+        { id: 5, receipt_number: 'WE-2026-00001', quantity: '16', created_at: '2026-08-31T10:00:00Z' },
+      ])),
+      http.post('*/api/v1/warehouse-purchase-orders/4/receipts', async ({ request }) => {
+        expect(await request.json()).toMatchObject({ quantity: '16' });
+        delivered = true;
+        return HttpResponse.json({ receipt_id: 6, receipt_number: 'WE-2026-00002', order: finished }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    mount(<WarehousePurchaseOrdersPage />);
+
+    const open = await screen.findByRole('region', { name: 'Open purchase orders' });
+    const completed = screen.getByRole('region', { name: 'Completed purchase orders' });
+    expect(within(open).getByText(/BE-2026-00001/)).toBeInTheDocument();
+    expect(within(completed).getByText(/BE-2026-00002/)).toBeInTheDocument();
+    const completedMenu = within(completed).getByRole('button', { name: 'Actions: BE-2026-00002' });
+    await user.click(completedMenu);
+    expect(screen.queryByRole('menuitem', { name: 'Receipt' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: 'Goods receipts' }));
+    const history = screen.getByRole('dialog', { name: 'Goods receipts' });
+    expect(await within(history).findByText('WE-2026-00001', { exact: true })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(completedMenu).toHaveFocus();
+
+    await user.click(within(open).getByRole('button', { name: 'Actions: BE-2026-00001' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Receipt' }));
+    const booking = screen.getByRole('dialog', { name: 'Receipt' });
+    await user.type(within(booking).getByRole('spinbutton', { name: 'Quantity' }), '16');
+    await user.click(within(booking).getByRole('button', { name: 'Post movement' }));
+    expect(await screen.findByText(/Stock movement saved.*WE-2026-00002/)).toBeInTheDocument();
+    expect(within(completed).getByText(/BE-2026-00001/)).toBeInTheDocument();
+    expect(within(open).getByText('No open purchase orders.')).toBeInTheDocument();
+    expect(booking).not.toBeInTheDocument();
+  });
+
+  it('opens a linked order on its page and sorts unformatted amounts across pages', async () => {
+    const orders = Array.from({ length: 17 }, (_, index) => {
+      const id = index + 1;
+      const quantity = ['1', '1.2', '1.11'][index] ?? String(id);
+      return {
+        id, number: `BE-2026-${id}`, sku: `SKU-${id}`, name: 'Material',
+        quantity, open_quantity: '0', received_quantity: quantity,
+        unit_code: 'KGM', unit_label: 'Kilogram', supplier_name: null, can_receive: false, shopping_item_id: null,
+      };
+    }).reverse();
+    server.use(http.get('*/api/v1/warehouse-purchase-orders', () => HttpResponse.json(orders)));
+    const user = userEvent.setup();
+    mount(<WarehousePurchaseOrdersPage />, '/warehouse/purchase-orders#purchase-order-1');
+
+    const table = await screen.findByRole('table', { name: 'Completed purchase orders' });
+    const orderNumbers = () => within(table).getAllByRole('rowheader').map(cell => cell.textContent?.trim());
+    expect(orderNumbers()).toEqual(['BE-2026-2', 'BE-2026-1']);
+    expect(within(table).getByRole('row', { name: /^BE-2026-1\b/ })).toHaveFocus();
+    const received = within(table).getByRole('columnheader', { name: 'Received' });
+    await user.click(within(received).getByRole('button'));
+    expect(received).toHaveAttribute('aria-sort', 'ascending');
+    expect(orderNumbers().slice(0, 3)).toEqual(['BE-2026-1', 'BE-2026-3', 'BE-2026-2']);
+    await user.click(screen.getByRole('button', { name: 'Next page', exact: true }));
+    expect(orderNumbers()).toEqual(['BE-2026-16', 'BE-2026-17']);
+    await user.click(within(received).getByRole('button'));
+    expect(received).toHaveAttribute('aria-sort', 'descending');
+    expect(orderNumbers().slice(0, 3)).toEqual(['BE-2026-17', 'BE-2026-16', 'BE-2026-15']);
+  });
+
   it('separates production and purchasing shortages and keeps their warehouse links', async () => {
     permissions.add('inventory:update');
     mount();

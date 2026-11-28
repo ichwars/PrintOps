@@ -45,17 +45,17 @@ export function DocumentActionBar({
 
   return (
     <div className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-end">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,auto)] xl:items-end">
         <TextField
           value={changeReason}
           label={t('settings.documents.changeReason', 'Change reason')}
-          helperText={t('settings.documents.changeReasonHint', 'Required for saved and published changes (at least 3 characters).')}
+          helperText={<span className="text-table-secondary">{t('settings.documents.changeReasonHint', 'Required for saved and published changes (at least 3 characters).')}</span>}
           disabled={!canManage || busy}
           onValueChange={onChangeReason}
         />
         <div className="flex flex-wrap gap-2">
           {!hasConfiguration ? (
-            <Button onClick={onCreate} disabled={!canManage || busy} loading={pendingAction === 'create'}>
+            <Button className="text-black!" onClick={onCreate} disabled={!canManage || busy} loading={pendingAction === 'create'}>
               {!pendingAction && <FilePlus2 className="h-4 w-4" aria-hidden="true" />}
               {t('settings.documents.actions.create', 'Create draft')}
             </Button>
@@ -65,12 +65,12 @@ export function DocumentActionBar({
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                 {t('settings.documents.actions.check', 'Check readiness')}
               </Button>
-              <Button onClick={onSave} disabled={!canManage || status !== 'draft' || !dirty || !reasonValid || busy} loading={pendingAction === 'save'}>
+              <Button className="text-black!" onClick={onSave} disabled={!canManage || status !== 'draft' || !dirty || !reasonValid || busy} loading={pendingAction === 'save'}>
                 <Save className="h-4 w-4" aria-hidden="true" />
                 {t('settings.documents.actions.save', 'Save draft')}
               </Button>
               {status === 'draft' ? (
-                <Button onClick={onPublish} disabled={!canManage || policyDirty || !reasonValid || readiness === 'blocked' || busy}>
+                <Button className="text-black!" onClick={onPublish} disabled={!canManage || policyDirty || !reasonValid || readiness === 'blocked' || busy}>
                   <Rocket className="h-4 w-4" aria-hidden="true" />
                   {t('settings.documents.actions.publish', 'Publish')}
                 </Button>

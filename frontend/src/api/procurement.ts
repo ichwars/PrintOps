@@ -85,6 +85,21 @@ export interface WarehouseShoppingItem {
   unit_label: string;
 }
 
+export interface WarehousePurchaseOrder {
+  id: number;
+  number: string;
+  shopping_item_id: number | null;
+  received_quantity: string;
+  open_quantity: string;
+  can_receive: boolean;
+  supplier_name: string | null;
+  sku: string;
+  name: string;
+  quantity: string;
+  unit_code: string;
+  unit_label: string;
+}
+
 function queryString<T extends object>(params: T): string {
   const result = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -144,6 +159,36 @@ export const procurementOffersApi = {
         offers: offers.filter((offer) => offer.is_active).map(writableOffer),
       }),
     }),
+};
+
+export interface WarehousePurchaseOrderReceipt {
+  receipt_id: number;
+  receipt_number: string;
+  order: WarehousePurchaseOrder;
+}
+
+export interface WarehousePurchaseOrderReceiptHistoryRow {
+  id: number;
+  receipt_number: string | null;
+  quantity: string;
+  created_at: string;
+}
+
+export const PURCHASE_ORDERS_QUERY = ['warehouse-purchase-orders'] as const;
+export const SHOPPING_LIST_QUERY = ['warehouse-shopping-list'] as const;
+
+export const warehousePurchaseOrdersApi = {
+  list: () => request<WarehousePurchaseOrder[]>('/warehouse-purchase-orders'),
+  receipts: (id: number) => request<WarehousePurchaseOrderReceiptHistoryRow[]>(
+    `/warehouse-purchase-orders/${id}/receipts`,
+  ),
+  receive: (id: number, quantity: string, idempotencyKey: string) => request<WarehousePurchaseOrderReceipt>(
+    `/warehouse-purchase-orders/${id}/receipts`,
+    { method: 'POST', body: JSON.stringify({ quantity, idempotency_key: idempotencyKey }) },
+  ),
+  create: (itemId: number) => request<WarehousePurchaseOrder>(
+    `/warehouse-shopping-list/${itemId}/purchase-order`, { method: 'POST' },
+  ),
 };
 
 export const warehouseShoppingListApi = {

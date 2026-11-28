@@ -20,6 +20,7 @@ describe('form controls', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input.getAttribute('aria-describedby')).toContain('helper');
     expect(input.getAttribute('aria-describedby')).toContain('error');
+    expect(screen.getByText('Seconds')).toHaveClass('text-table-secondary');
   });
 
   it('reports value changes instead of DOM events', async () => {

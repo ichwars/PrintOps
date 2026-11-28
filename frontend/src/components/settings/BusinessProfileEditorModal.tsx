@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Building2, ImageOff, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { availableLanguages } from '../../i18n';
@@ -174,6 +174,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
   const editing = profile !== null;
+  const formId = useId();
   const initialFocusRef = useRef<HTMLInputElement>(null);
   const localeOptions = useMemo(() => {
     const current = draft.default_locale ?? 'en';
@@ -293,12 +294,16 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
       title={editing ? t('orders.businessProfile.editTitle') : t('orders.businessProfile.createTitle')}
       initialFocusRef={initialFocusRef}
       className="max-w-3xl"
+      footer={<>
+        <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>{t('common.cancel')}</Button>
+        <Button className="text-black!" type="submit" form={formId} disabled={isSubmitting} aria-label={t('orders.businessProfile.save')}>{isSubmitting ? t('common.saving') : t('orders.businessProfile.save')}</Button>
+      </>}
     >
-      <form onSubmit={submit}>
+      <form id={formId} onSubmit={submit}>
         <div data-testid="business-profile-editor-scroll-viewport" className="min-h-0">
           <fieldset disabled={isSubmitting} className="space-y-6">
           {genericError && (
-            <div role="alert" className={`flex gap-2 border p-3 text-sm ${error instanceof ApiError && error.status === 409 ? 'border-amber-500/40 bg-amber-500/10 text-amber-100' : 'border-red-500/40 bg-red-500/10 text-red-200'}`}>
+            <div role="alert" className={`flex gap-2 border p-3 text-sm ${error instanceof ApiError && error.status === 409 ? 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200' : 'border-red-500/40 bg-red-500/10 text-red-800 dark:text-red-200'}`}>
               <AlertTriangle className="h-4 w-4 shrink-0" />{genericError}
             </div>
           )}
@@ -319,7 +324,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
               <label className="text-sm text-bambu-gray-light">
                 {t('orders.businessProfile.tradingName')}
                 <TextField aria-label={t('orders.businessProfile.tradingName')} value={draft.trading_name ?? ''} onChange={(event) => setDraft({ ...draft, trading_name: event.target.value || null })} className={inputClass} />
-                <span className="mt-1 block text-xs text-bambu-gray">{tradingNameHelp}</span>
+                <span className="mt-1 block text-xs text-table-secondary">{tradingNameHelp}</span>
                 <FieldError message={validation.fields.trading_name} />
               </label>
               <label className="text-sm text-bambu-gray-light">
@@ -390,7 +395,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 )}
               </div>
             ))}
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, addresses: [...draft.addresses, { ...emptyAddress(draft.country_code), kind: 'other', is_default: false }] })} className="text-bambu-green">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, addresses: [...draft.addresses, { ...emptyAddress(draft.country_code), kind: 'other', is_default: false }] })} className="text-accent-foreground">
               <Plus className="h-4 w-4" />{t('orders.businessProfile.addAddress')}
             </Button>
           </fieldset>
@@ -404,19 +409,19 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                   {t('orders.runtimeBusinessProfile.uploadLogo')}
                   <FileInput accept="image/png,image/jpeg" aria-label={t('orders.runtimeBusinessProfile.uploadLogo')} onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); setRemoveLogo(false); }} className="mt-1 block text-sm" />
                 </label>
-                {(logoFile || (profile?.logo_version && !removeLogo)) && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-red-300">{t('orders.runtimeBusinessProfile.removeLogo')}</Button>}
+                {(logoFile || (profile?.logo_version && !removeLogo)) && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setRemoveLogo(true); }} className="text-red-700 dark:text-red-400">{t('orders.runtimeBusinessProfile.removeLogo')}</Button>}
               </div>
               <label className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm text-bambu-gray-light">
                 <Checkbox checked={draft.show_offer_qr ?? false} onChange={(event) => setDraft({ ...draft, show_offer_qr: event.target.checked })} />
                 {t('orders.runtimeBusinessProfile.offerQR')}
               </label>
-              <p className="text-xs text-bambu-gray">{t('orders.runtimeBusinessProfile.offerQRHelp')}</p>
+              <p className="text-xs text-table-secondary">{t('orders.runtimeBusinessProfile.offerQRHelp')}</p>
             </div>
           </fieldset>
 
           <fieldset className="space-y-3">
             <legend className="font-medium text-white">{t('orders.runtimeBusinessProfile.taxSettings')}</legend>
-            <p className="text-xs text-bambu-gray">{t('orders.runtimeBusinessProfile.taxHelp')}</p>
+            <p className="text-xs text-table-secondary">{t('orders.runtimeBusinessProfile.taxHelp')}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-bambu-gray-light">{t('orders.runtimeBusinessProfile.taxMode')}
                 <Select ariaLabel={t('orders.runtimeBusinessProfile.taxMode')} value={draft.tax_mode ?? 'standard'} onValueChange={(taxMode) => setDraft({ ...draft, tax_mode: taxMode as 'standard' | 'exempt' | 'none', ...(taxMode === 'standard' ? {} : { default_tax_rate: '0.00', input_tax_deductible: false }) })} options={[
@@ -454,7 +459,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                   {t('orders.businessProfile.taxIdValue')}
                   <TextField required aria-label={`${t('orders.businessProfile.taxIdValue')} ${index + 1}`} value={identifier.value} onChange={(event) => updateTaxId(index, { value: event.target.value })} className={inputClass} />
                   {identifier.kind === 'vat' && (
-                    <span className="mt-1 block text-xs text-bambu-gray">
+                    <span className="mt-1 block text-xs text-table-secondary">
                       {t('orders.runtimeBusinessProfile.germanVatHint')}
                     </span>
                   )}
@@ -485,7 +490,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 <IconButton label={t('orders.businessProfile.removeTaxId', { number: index + 1 })} icon={Trash2} onClick={() => setDraft({ ...draft, tax_identifiers: (draft.tax_identifiers ?? []).filter((_, itemIndex) => itemIndex !== index) })} size="sm" className="self-end text-red-300" />
               </div>
             ))}
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, tax_identifiers: [...(draft.tax_identifiers ?? []), emptyTaxId(draft.country_code)] })} className="text-bambu-green">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, tax_identifiers: [...(draft.tax_identifiers ?? []), emptyTaxId(draft.country_code)] })} className="text-accent-foreground">
               <Plus className="h-4 w-4" />{t('orders.businessProfile.addTaxId')}
             </Button>
 
@@ -545,7 +550,7 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
                 <IconButton label={t('orders.businessProfile.removeBankAccount', { number: index + 1 })} icon={Trash2} onClick={() => setDraft({ ...draft, bank_accounts: (draft.bank_accounts ?? []).filter((_, itemIndex) => itemIndex !== index) })} size="sm" className="justify-self-start text-red-300" />
               </div>
             ))}
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, bank_accounts: [...(draft.bank_accounts ?? []), emptyBankAccount(draft.country_code, draft.default_currency)] })} className="text-bambu-green">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, bank_accounts: [...(draft.bank_accounts ?? []), emptyBankAccount(draft.country_code, draft.default_currency)] })} className="text-accent-foreground">
               <Plus className="h-4 w-4" />{t('orders.businessProfile.addBankAccount')}
             </Button>
           </fieldset>
@@ -586,10 +591,6 @@ export function BusinessProfileEditorModal({ profile, isSubmitting, onClose, onS
             </label>
           </fieldset>
           </fieldset>
-        </div>
-        <div className="mt-6 flex justify-end gap-3 border-t border-bambu-dark-tertiary pt-4">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>{t('common.cancel')}</Button>
-          <Button type="submit" disabled={isSubmitting} aria-label={t('orders.businessProfile.save')}>{isSubmitting ? t('common.saving') : t('orders.businessProfile.save')}</Button>
         </div>
       </form>
     </Modal>
@@ -656,7 +657,7 @@ function LogoPreview({
 
   if (removeLogo || (!logoFile && logoVersion == null)) {
     return (
-      <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
+      <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-table-secondary">
         <Building2 className="h-5 w-5" aria-hidden="true" />
         <span className="sr-only">{t('orders.runtimeBusinessProfile.noLogo')}</span>
       </div>
@@ -665,7 +666,7 @@ function LogoPreview({
 
   if (failed) {
     return (
-      <div className="flex h-16 w-24 flex-col items-center justify-center gap-1 rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
+      <div className="flex h-16 w-24 flex-col items-center justify-center gap-1 rounded border border-bambu-dark-tertiary text-xs text-table-secondary">
         <ImageOff className="h-5 w-5" aria-hidden="true" />
         <span>{t('orders.runtimeBusinessProfile.logoNotLoaded')}</span>
       </div>
@@ -675,7 +676,7 @@ function LogoPreview({
   const src = localPreviewUrl ?? remotePreviewUrl;
   if (loading || !src) {
     return (
-      <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-bambu-gray">
+      <div className="flex h-16 w-24 items-center justify-center rounded border border-bambu-dark-tertiary text-xs text-table-secondary">
         {t('orders.runtimeBusinessProfile.logoLoading')}
       </div>
     );

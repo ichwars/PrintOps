@@ -163,6 +163,7 @@ class WarehouseMovementCreate(WarehouseSchema):
 
 class WarehouseMovementRead(WarehouseSchema):
     id: int
+    receipt_number: str | None = None
     article_id: int
     entry_kind: str
     location_id: int

@@ -18,6 +18,7 @@ export function spoolMatchesQuery(spool: InventorySpool, query: string): boolean
   const q = query.toLowerCase();
   return (
     String(spool.id).includes(q) ||
+    (spool.spool_number?.toLowerCase().includes(q) ?? false) ||
     (spool.material_number?.toLowerCase().includes(q) ?? false) ||
     spool.material.toLowerCase().includes(q) ||
     (spool.brand?.toLowerCase().includes(q) ?? false) ||

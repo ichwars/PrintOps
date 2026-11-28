@@ -1608,85 +1608,59 @@ export function SettingsPage() {
   };
 
   const fileManagerCard = localSettings ? (
-    <Card id="card-filemanager">
-      <CardHeader>
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <FileText className="w-5 h-5 text-bambu-green" />
-          {t('settings.fileManager')}
-        </h2>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div>
-          <label className="block text-sm text-bambu-gray mb-1">
-            {t('settings.lowDiskSpaceWarning')}
-          </label>
-          <div className="flex items-center gap-2">
-            <NumberField
-              min="0.5"
-              max="100"
-              step="0.5"
-              value={localSettings.library_disk_warning_gb ?? 5}
-              onChange={(e) => updateSetting('library_disk_warning_gb', parseFloat(e.target.value) || 5)}
-              className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
+    <SettingsDashboardCard id="card-filemanager" title={t('settings.fileManager')} icon={FileText}>
+      <NumberField
+        label={t('settings.lowDiskSpaceWarning')}
+        helperText={<span className="text-table-secondary">{t('settings.lowDiskSpaceDescription')}</span>}
+        suffix={<span className="text-table-secondary">GB</span>}
+        containerClassName="w-44 max-w-full"
+        min="0.5"
+        max="100"
+        step="0.5"
+        value={localSettings.library_disk_warning_gb ?? 5}
+        onChange={(e) => updateSetting('library_disk_warning_gb', parseFloat(e.target.value) || 5)}
+      />
+
+      {canPurge && trashSettings && (
+        <div className="space-y-4 border-t border-bambu-dark-tertiary pt-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="font-medium text-white">{t('libraryAutoPurge.enableLabel')}</p>
+              <p className="mt-1 text-table-secondary">{t('libraryAutoPurge.enableDescription')}</p>
+            </div>
+            <Switch
+              ariaLabel={t('libraryAutoPurge.enableLabel')}
+              checked={trashSettings.auto_purge_enabled}
+              onCheckedChange={(checked) => saveTrashSettings({ auto_purge_enabled: checked })}
+              className="shrink-0"
             />
-            <span className="text-bambu-gray">GB</span>
           </div>
-          <p className="text-xs text-bambu-gray mt-1">
-            {t('settings.lowDiskSpaceDescription')}
-          </p>
+
+          <NumberField
+            label={t('libraryAutoPurge.ageLabel')}
+            helperText={<span className="text-table-secondary">{t('libraryAutoPurge.ageDescription')}</span>}
+            suffix={<span className="text-table-secondary">{t('libraryAutoPurge.days')}</span>}
+            containerClassName="w-44 max-w-full"
+            min={7}
+            max={3650}
+            disabled={!trashSettings.auto_purge_enabled}
+            value={trashSettings.auto_purge_days}
+            onChange={(e) =>
+              saveTrashSettings({
+                auto_purge_days: Math.max(7, Math.min(3650, parseInt(e.target.value || '0', 10) || 0)),
+              })
+            }
+          />
+
+          <Checkbox
+            label={t('libraryAutoPurge.includeNeverPrinted')}
+            disabled={!trashSettings.auto_purge_enabled}
+            checked={trashSettings.auto_purge_include_never_printed}
+            onCheckedChange={(checked) => saveTrashSettings({ auto_purge_include_never_printed: checked })}
+          />
         </div>
-
-        {canPurge && trashSettings && (
-          <div className="border-t border-bambu-dark-tertiary pt-3 mt-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white">{t('libraryAutoPurge.enableLabel')}</p>
-                <p className="text-sm text-bambu-gray">{t('libraryAutoPurge.enableDescription')}</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <Switch
-                  checked={trashSettings.auto_purge_enabled}
-                  onChange={(e) => saveTrashSettings({ auto_purge_enabled: e.target.checked })}
-                />
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm text-bambu-gray mb-1">
-                {t('libraryAutoPurge.ageLabel')}
-              </label>
-              <div className="flex items-center gap-2">
-                <NumberField
-                  min={7}
-                  max={3650}
-                  disabled={!trashSettings.auto_purge_enabled}
-                  value={trashSettings.auto_purge_days}
-                  onChange={(e) =>
-                    saveTrashSettings({
-                      auto_purge_days: Math.max(7, Math.min(3650, parseInt(e.target.value || '0', 10) || 0)),
-                    })
-                  }
-                  className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none disabled:opacity-50"
-                />
-                <span className="text-bambu-gray">{t('libraryAutoPurge.days')}</span>
-              </div>
-              <p className="text-xs text-bambu-gray mt-1">
-                {t('libraryAutoPurge.ageDescription')}
-              </p>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-white cursor-pointer">
-              <Checkbox
-                disabled={!trashSettings.auto_purge_enabled}
-                checked={trashSettings.auto_purge_include_never_printed}
-                onChange={(e) => saveTrashSettings({ auto_purge_include_never_printed: e.target.checked })}
-              />
-              {t('libraryAutoPurge.includeNeverPrinted')}
-            </label>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </SettingsDashboardCard>
   ) : null;
 
   const archiveSettingsCard = localSettings ? (
@@ -1698,7 +1672,7 @@ export function SettingsPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-white">{t('settings.autoArchivePrints')}</p>
-            <p className="text-sm text-bambu-gray">
+            <p className="text-sm text-table-secondary">
               {t('settings.autoArchiveDescription')}
             </p>
           </div>
@@ -1712,7 +1686,7 @@ export function SettingsPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-white">{t('settings.captureFinishPhoto')}</p>
-            <p className="text-sm text-bambu-gray">
+            <p className="text-sm text-table-secondary">
               {t('settings.captureFinishPhotoDescription')}
             </p>
           </div>
@@ -1727,8 +1701,8 @@ export function SettingsPage() {
           <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
             <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
-              <p className="text-yellow-500 font-medium">{t('settings.ffmpegNotInstalled')}</p>
-              <p className="text-bambu-gray mt-1">
+              <p className="font-medium text-amber-800 dark:text-amber-300">{t('settings.ffmpegNotInstalled')}</p>
+              <p className="text-table-secondary mt-1">
                 {t('settings.ffmpegRequired')}
               </p>
             </div>
@@ -1743,7 +1717,7 @@ export function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-white">{t('archiveAutoPurge.enableLabel')}</p>
-                <p className="text-sm text-bambu-gray">{t('archiveAutoPurge.enableDescription')}</p>
+                <p className="text-sm text-table-secondary">{t('archiveAutoPurge.enableDescription')}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <Switch
@@ -1754,7 +1728,7 @@ export function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('archiveAutoPurge.ageLabel')}
               </label>
               <div className="flex items-center gap-2">
@@ -1770,9 +1744,9 @@ export function SettingsPage() {
                   }
                   className="w-24 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none disabled:opacity-50"
                 />
-                <span className="text-bambu-gray">{t('archiveAutoPurge.days')}</span>
+                <span className="text-table-secondary">{t('archiveAutoPurge.days')}</span>
               </div>
-              <p className="text-xs text-bambu-gray mt-1">
+              <p className="text-xs text-table-secondary mt-1">
                 {t('archiveAutoPurge.ageDescription')}
               </p>
             </div>
@@ -1785,7 +1759,7 @@ export function SettingsPage() {
               />
               <span className="text-sm">
                 <span className="text-white block">{t('archiveAutoPurge.purgeStatsLabel')}</span>
-                <span className="text-xs text-bambu-gray block mt-0.5">
+                <span className="text-xs text-table-secondary block mt-0.5">
                   {t('archiveAutoPurge.purgeStatsDescription')}
                 </span>
               </span>
@@ -1806,7 +1780,7 @@ export function SettingsPage() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <label className="block text-sm text-bambu-gray mb-1">
+          <label className="block text-sm text-table-secondary mb-1">
             {t('settings.cameraViewMode')}
           </label>
           <Select
@@ -1818,7 +1792,7 @@ export function SettingsPage() {
               { value: 'embedded', label: t('settings.embeddedOverlay') },
             ]}
           />
-          <p className="text-xs text-bambu-gray mt-1">
+          <p className="text-xs text-table-secondary mt-1">
             {localSettings.camera_view_mode === 'embedded'
               ? t('settings.cameraOverlayDescription')
               : t('settings.cameraWindowDescription')}
@@ -1834,7 +1808,7 @@ export function SettingsPage() {
         {/* External Cameras Section */}
         <div className="border-t border-bambu-dark-tertiary pt-4 mt-4">
           <h3 className="text-sm font-medium text-white mb-2">{t('settings.externalCameras')}</h3>
-          <p className="text-xs text-bambu-gray mb-3">
+          <p className="text-xs text-table-secondary mb-3">
             {t('settings.externalCamerasDescription')}
           </p>
 
@@ -1888,14 +1862,14 @@ export function SettingsPage() {
                       <ExternalCameraTestFeedback result={extCameraTestResults[printer.id]} />
                       {(printer.external_camera_type === 'mjpeg' || printer.external_camera_type === 'rtsp' || printer.external_camera_type === 'usb') && (
                         <div className="space-y-1">
-                          <label className="text-xs text-bambu-gray">{t('settings.cameraSnapshotUrl', 'Snapshot URL (optional)')}</label>
+                          <label className="text-xs text-table-secondary">{t('settings.cameraSnapshotUrl', 'Snapshot URL (optional)')}</label>
                           <div className="flex gap-2">
                             <TextField
                               type="text"
                               placeholder={t('settings.cameraSnapshotUrlPlaceholder', 'http://192.168.1.61:1984/api/frame.jpeg?src=printer')}
                               value={localSnapshotUrls[printer.id] ?? printer.external_camera_snapshot_url ?? ''}
                               onChange={(e) => handleSnapshotUrlChange(printer.id, e.target.value)}
-                              className="flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                              className="min-w-0 flex-1 px-3 py-2 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
                             />
                             <Button
                               size="sm"
@@ -1910,13 +1884,13 @@ export function SettingsPage() {
                               )}
                             </Button>
                           </div>
-                          <p className="text-xs text-bambu-gray opacity-75">
+                          <p className="text-xs text-table-secondary">
                             {t('settings.cameraSnapshotUrlHelp', 'Single-frame URL used for notification thumbnails, finish photos, timelapse and plate detection. Leave blank to capture from the live stream above. Useful for go2rtc (/api/frame.jpeg) and IP cameras with a dedicated snapshot endpoint.')}
                           </p>
                         </div>
                       )}
                       <div className="flex items-center gap-2">
-                        <label className="text-xs text-bambu-gray">{t('settings.cameraRotation')}</label>
+                        <label className="text-xs text-table-secondary">{t('settings.cameraRotation')}</label>
                         <Select
                           ariaLabel={`${printer.name} ${t('settings.cameraRotation')}`}
                           value={printer.camera_rotation || 0}
@@ -1936,7 +1910,7 @@ export function SettingsPage() {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-bambu-gray italic">{t('settings.noPrintersConfigured')}</p>
+            <p className="text-xs text-table-secondary italic">{t('settings.noPrintersConfigured')}</p>
           )}
         </div>
       </CardContent>
@@ -1953,7 +1927,7 @@ export function SettingsPage() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <label className="block text-sm text-bambu-gray mb-1">
+          <label className="block text-sm text-table-secondary mb-1">
             {t('settings.defaultPrinter')}
           </label>
           <div className="relative">
@@ -1967,7 +1941,7 @@ export function SettingsPage() {
               ]}
             />
           </div>
-          <p className="text-xs text-bambu-gray mt-1">
+          <p className="text-xs text-table-secondary mt-1">
             {t('settings.defaultPrinterDescription')}
           </p>
         </div>
@@ -2389,15 +2363,15 @@ export function SettingsPage() {
         </h3>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-bambu-gray">
+        <p className="text-xs text-table-secondary">
           {t('settings.queueDryingDescription')}
         </p>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <label className="block text-sm text-white">
               {t('settings.queueDryingEnabled')}
             </label>
-            <p className="text-xs text-bambu-gray mt-0.5">
+            <p className="text-xs text-table-secondary mt-0.5">
               {t('settings.queueDryingEnabledDescription')}
             </p>
           </div>
@@ -2409,12 +2383,12 @@ export function SettingsPage() {
           </label>
         </div>
         {localSettings.queue_drying_enabled && (
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <label className="block text-sm text-white">
                 {t('settings.queueDryingBlock')}
               </label>
-              <p className="text-xs text-bambu-gray mt-0.5">
+              <p className="text-xs text-table-secondary mt-0.5">
                 {t('settings.queueDryingBlockDescription')}
               </p>
             </div>
@@ -2432,12 +2406,12 @@ export function SettingsPage() {
           onEnabledChange={(enabled) => updateSetting('ambient_drying_enabled', enabled)}
           onMinutesChange={(minutes) => updateSetting('ambient_drying_sustained_minutes', minutes)}
         />
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <label className="block text-sm text-white">
               {t('settings.printDryingEnabled')}
             </label>
-            <p className="text-xs text-bambu-gray mt-0.5">
+            <p className="text-xs text-table-secondary mt-0.5">
               {t('settings.printDryingEnabledDescription')}
             </p>
           </div>
@@ -2450,13 +2424,13 @@ export function SettingsPage() {
         </div>
         <DryingPresetsEditor value={localSettings.drying_presets} onChange={(value) => updateSetting('drying_presets', value)} />
         {/* Per-Filament Humidity Thresholds (#1605) */}
-        <div className="space-y-2">
+        <div className="space-y-2 border-t border-bambu-dark-tertiary pt-4">
           <p className="text-sm text-white font-medium">{t('settings.humidityThresholds')}</p>
-          <p className="text-xs text-bambu-gray">{t('settings.humidityThresholdsDescription')}</p>
+          <p className="text-xs text-table-secondary">{t('settings.humidityThresholdsDescription')}</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-bambu-gray border-b border-bambu-dark-tertiary">
+                <tr className="text-table-secondary border-b border-bambu-dark-tertiary">
                   <th className="text-left py-1.5">{t('settings.dryingFilament')}</th>
                   <th className="text-right py-1.5 pr-2">{t('settings.humidityThresholdCol')}</th>
                 </tr>
@@ -2507,7 +2481,7 @@ export function SettingsPage() {
                     const displayValue = draft !== undefined ? draft : String(row.value);
                     return (
                       <tr key={row.key} className="border-b border-bambu-dark-tertiary/50">
-                        <td className={`py-1.5 pr-2 font-medium ${row.isDefault ? 'text-bambu-gray italic' : 'text-white'}`}>{row.label}</td>
+                        <td className={`py-1.5 pr-2 font-medium ${row.isDefault ? 'text-table-secondary italic' : 'text-white'}`}>{row.label}</td>
                         <td className="py-1 pr-2">
                           <div className="flex items-center justify-end gap-1">
                             <NumberField
@@ -2528,9 +2502,10 @@ export function SettingsPage() {
                                   (e.currentTarget as HTMLInputElement).blur();
                                 }
                               }}
-                              className="w-14 px-1.5 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-center text-xs focus:border-amber-500/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              aria-label={row.label}
+                              className="w-24 text-xs"
                             />
-                            <span className="text-bambu-gray">%</span>
+                            <span className="text-table-secondary">%</span>
                           </div>
                         </td>
                       </tr>
@@ -2555,14 +2530,14 @@ export function SettingsPage() {
         </h2>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-bambu-gray">
+        <p className="text-sm text-table-secondary">
           {t('settings.ftpRetryDescription')}
         </p>
 
         <div className="flex items-center justify-between">
           <div>
             <p className="text-white">{t('settings.enableRetry')}</p>
-            <p className="text-sm text-bambu-gray">
+            <p className="text-sm text-table-secondary">
               {t('settings.autoRetryDescription')}
             </p>
           </div>
@@ -2580,7 +2555,7 @@ export function SettingsPage() {
             className="grid grid-cols-1 gap-3 border-t border-bambu-dark-tertiary pt-3 md:grid-cols-3 md:items-start"
           >
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('settings.retryAttempts')}
               </label>
               <div className="relative w-full">
@@ -2598,7 +2573,7 @@ export function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('settings.retryDelay')}
               </label>
               <div className="relative w-full">
@@ -2615,7 +2590,7 @@ export function SettingsPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('settings.connectionTimeout')}
               </label>
               <div className="relative w-full">
@@ -2630,7 +2605,7 @@ export function SettingsPage() {
                   }))}
                 />
               </div>
-              <p className="text-xs text-bambu-gray mt-1">
+              <p className="text-xs text-table-secondary mt-1">
                 {t('settings.increaseForWeakWifi')}
               </p>
             </div>
@@ -2759,6 +2734,12 @@ export function SettingsPage() {
   const settingsPageTitle = localizedHeaderLabel(activeSettingsHeaderMeta);
   const settingsPageDescription = localizedHeaderDescription(activeSettingsHeaderMeta);
 
+  const subnavClassName = `mb-5 [&_button[aria-current=page]]:border-accent-foreground [&_button[aria-current=page]]:text-accent-foreground
+    max-md:[&_[role=navigation]>button]:min-h-[44px]`;
+  const responsiveSubnavClassName = `${subnavClassName}
+    max-md:[&>[role=navigation]]:grid max-md:[&>[role=navigation]]:grid-cols-2
+    max-md:[&_[role=navigation]>button]:min-w-0 max-md:[&_[role=navigation]>button]:text-start max-md:[&_svg]:shrink-0`;
+
   const settingsSectionSubnav =
     activeTab === 'users-security' ? (
       <Tabs<UsersSubTab>
@@ -2766,7 +2747,7 @@ export function SettingsPage() {
         value={shownUsersSubTab}
         onValueChange={setUsersSubTab}
         renderPanel={false}
-        className="mb-5"
+        className={responsiveSubnavClassName}
         items={[
           {
             value: 'users',
@@ -2812,7 +2793,7 @@ export function SettingsPage() {
         value={integrationSubTab}
         onValueChange={handleIntegrationSubTabChange}
         renderPanel={false}
-        className="mb-5"
+        className={responsiveSubnavClassName}
         items={INTEGRATION_SUB_TABS.map(({ id, icon: Icon }) => ({
           value: id,
           label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{integrationSubTabLabel(id)}</span>,
@@ -2825,7 +2806,7 @@ export function SettingsPage() {
         value={operationSubTab}
         onValueChange={handleOperationSubTabChange}
         renderPanel={false}
-        className="mb-5"
+        className={responsiveSubnavClassName}
         items={OPERATION_SUB_TABS.map(({ id, icon: Icon }) => ({
           value: id,
           label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{operationSubTabLabel(id)}</span>,
@@ -2838,7 +2819,7 @@ export function SettingsPage() {
         value={printerProductionSubTab}
         onValueChange={handlePrinterProductionSubTabChange}
         renderPanel={false}
-        className="mb-5"
+        className={responsiveSubnavClassName}
         items={PRINTER_PRODUCTION_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
           return {
@@ -2854,7 +2835,7 @@ export function SettingsPage() {
         value={projectManagementSubTab}
         onValueChange={handleProjectManagementSubTabChange}
         renderPanel={false}
-        className="mb-5"
+        className={subnavClassName}
         items={PROJECT_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
           return {
@@ -2870,7 +2851,7 @@ export function SettingsPage() {
         value={warehouseMaterialSubTab}
         onValueChange={handleWarehouseMaterialSubTabChange}
         renderPanel={false}
-        className="mb-5"
+        className={responsiveSubnavClassName}
         items={WAREHOUSE_MATERIAL_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
           return {
@@ -2886,12 +2867,12 @@ export function SettingsPage() {
         value={orderManagementSubTab}
         onValueChange={handleOrderManagementSubTabChange}
         renderPanel={false}
-        className="mb-5"
+        className={responsiveSubnavClassName}
         items={ORDER_MANAGEMENT_SUB_TAB_ITEMS.map(({ id, meta }) => {
           const Icon = meta.icon;
           return {
             value: id,
-            label: <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{orderManagementSubTabLabel(id)}</span>,
+            label: <span className="flex min-w-0 items-center gap-1.5 md:gap-2"><Icon className="h-4 w-4 shrink-0" /><span className="min-w-0 [overflow-wrap:anywhere]">{orderManagementSubTabLabel(id)}</span></span>,
             content: null,
           };
         })}
@@ -3227,9 +3208,7 @@ export function SettingsPage() {
       )}
 
       {activeTab === 'projects-files' && projectManagementSubTab === 'files' && localSettings && (
-        <div className="max-w-3xl space-y-3">
-          {fileManagerCard}
-        </div>
+        <div className="max-w-3xl">{fileManagerCard}</div>
       )}
 
       {activeTab === 'orders-calculation' && <OrderSettingsPanels tab={orderManagementSubTab} />}
@@ -3962,7 +3941,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.readStatus')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.readStatusDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.readStatusDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -3972,7 +3951,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.manageQueue')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.manageQueueDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.manageQueueDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -3982,7 +3961,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.controlPrinter')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.controlPrinterDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.controlPrinterDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -3992,7 +3971,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.manageLibrary')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.manageLibraryDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.manageLibraryDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -4002,7 +3981,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.manageInventory')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.manageInventoryDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.manageInventoryDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -4012,7 +3991,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.manageMaintenance')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.manageMaintenanceDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.manageMaintenanceDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -4022,7 +4001,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.manageArchives')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.manageArchivesDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.manageArchivesDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -4032,7 +4011,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.manageProjects')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.manageProjectsDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.manageProjectsDescription')}</p>
                             </div>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -4042,7 +4021,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.renderDocuments', 'Render documents')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.renderDocumentsDescription', 'Read layouts and immutable evidence, render PDFs, export artifacts and inspect the render audit.')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.renderDocumentsDescription', 'Read layouts and immutable evidence, render PDFs, export artifacts and inspect the render audit.')}</p>
                             </div>
                           </label>
                           <APIKeyScopeControl checked={newAPIKeyPermissions.can_access_cloud} onChange={(checked) => setNewAPIKeyPermissions(prev => ({ ...prev, can_access_cloud: checked }))} title={t('settings.cloudAccess')} description={t('settings.cloudAccessDescription')} />
@@ -4054,7 +4033,7 @@ export function SettingsPage() {
                             />
                             <div>
                               <span className="text-white">{t('settings.updateEnergyCost')}</span>
-                              <p className="text-xs text-bambu-gray">{t('settings.updateEnergyCostDescription')}</p>
+                              <p className="text-xs text-table-secondary">{t('settings.updateEnergyCostDescription')}</p>
                             </div>
                           </label>
                         </div>
@@ -4263,7 +4242,7 @@ export function SettingsPage() {
         <>
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left Column */}
-          <div className="lg:w-1/2 space-y-3">
+          <div className="min-w-0 space-y-4 lg:flex-1">
           {archiveSettingsCard}
           {/* Default Print Options */}
           <Card id="card-print-options">
@@ -4274,7 +4253,7 @@ export function SettingsPage() {
               </h3>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-xs text-bambu-gray">
+              <p className="text-xs text-table-secondary">
                 {t('settings.defaultPrintOptionsDescription', 'Set default values for print options when starting new prints. These can be overridden per print in the print dialog.')}
               </p>
               {[
@@ -4290,7 +4269,7 @@ export function SettingsPage() {
                 <div key={key} className="flex items-center justify-between">
                   <div className="flex-1 mr-4">
                     <p className="text-sm text-white">{label}</p>
-                    <p className="text-xs text-bambu-gray mt-0.5">{desc}</p>
+                    <p className="text-xs text-table-secondary mt-0.5">{desc}</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <Switch
@@ -4317,7 +4296,7 @@ export function SettingsPage() {
                   <p className="text-sm text-white">
                     {t('settings.requirePlateClear', 'Require plate-clear confirmation')}
                   </p>
-                  <p className="text-xs text-bambu-gray mt-1">
+                  <p className="text-xs text-table-secondary mt-1">
                     {t('settings.requirePlateClearDescription', 'When enabled, the scheduler waits for per-printer plate-clear confirmation before starting queued prints on printers with finished jobs. Disabling this also hides the plate status badge and the "Mark plate as cleared" button on printer cards.')}
                   </p>
                 </div>
@@ -4342,7 +4321,7 @@ export function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white text-sm font-medium">{t('settings.bedCooledThreshold')}</p>
-                  <p className="text-xs text-bambu-gray">{t('settings.bedCooledThresholdDescription')}</p>
+                  <p className="text-xs text-table-secondary">{t('settings.bedCooledThresholdDescription')}</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <NumberField
@@ -4353,7 +4332,7 @@ export function SettingsPage() {
                     onChange={(e) => updateSetting('bed_cooled_threshold', Number(e.target.value))}
                     className="w-16 px-2 py-1.5 bg-bambu-dark border border-bambu-dark-tertiary rounded text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-bambu-green"
                   />
-                  <span className="text-sm text-bambu-gray">°C</span>
+                  <span className="text-sm text-table-secondary">°C</span>
                 </div>
               </div>
             </CardContent>
@@ -4368,7 +4347,7 @@ export function SettingsPage() {
               </h3>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-xs text-bambu-gray">
+              <p className="text-xs text-table-secondary">
                 {t('settings.tempFanPresetsDescription', 'Customize the quick-select values shown in printer-card temperature and fan-speed popovers. The Off button is always shown.')}
               </p>
               {PRESET_CATEGORIES.map(category => {
@@ -4392,13 +4371,13 @@ export function SettingsPage() {
                   <div key={category.key}>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-sm text-white">
-                        {rowLabel} <span className="text-bambu-gray text-xs">({unitLabel} · {category.lo}–{category.hi})</span>
+                        {rowLabel} <span className="text-table-secondary text-xs">({unitLabel} · {category.lo}–{category.hi})</span>
                       </label>
                       <Button variant="unstyled"
                         type="button"
                         onClick={() => updateSetting(category.key, '')}
                         title={t('settings.tempFanPresetsReset', 'Reset to defaults')}
-                        className="text-bambu-gray hover:text-white transition-colors p-1 rounded hover:bg-bambu-dark-tertiary"
+                        className="text-table-secondary hover:text-white transition-colors p-1 rounded hover:bg-bambu-dark-tertiary"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                       </Button>
@@ -4417,7 +4396,7 @@ export function SettingsPage() {
                             next[idx] = clamped;
                             updateSetting(category.key, JSON.stringify(next));
                           }}
-                          className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+                          className="min-w-0 flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
                         />
                       ))}
                     </div>
@@ -4436,12 +4415,12 @@ export function SettingsPage() {
               </h3>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-xs text-bambu-gray">
+              <p className="text-xs text-table-secondary">
                 {t('settings.staggeredStartDescription', 'Default group size and interval when staggering multi-printer batch starts. Can be overridden per batch in the print modal.')}
               </p>
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs text-bambu-gray mb-1">
+                  <label className="block text-xs text-table-secondary mb-1">
                     {t('settings.staggerGroupSize', 'Group size')}
                   </label>
                   <NumberField
@@ -4451,12 +4430,12 @@ export function SettingsPage() {
                     onChange={(e) => updateSetting('stagger_group_size', Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
                     className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
                   />
-                  <p className="text-xs text-bambu-gray mt-1">
+                  <p className="text-xs text-table-secondary mt-1">
                     {t('settings.staggerGroupSizeHelp', 'Printers to start simultaneously per group')}
                   </p>
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs text-bambu-gray mb-1">
+                  <label className="block text-xs text-table-secondary mb-1">
                     {t('settings.staggerInterval', 'Interval (minutes)')}
                   </label>
                   <NumberField
@@ -4466,7 +4445,7 @@ export function SettingsPage() {
                     onChange={(e) => updateSetting('stagger_interval_minutes', Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
                     className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
                   />
-                  <p className="text-xs text-bambu-gray mt-1">
+                  <p className="text-xs text-table-secondary mt-1">
                     {t('settings.staggerIntervalHelp', 'Delay between each group starting')}
                   </p>
                 </div>
@@ -4482,11 +4461,11 @@ export function SettingsPage() {
               </h3>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-xs text-bambu-gray">
+              <p className="text-xs text-table-secondary">
                 {t('settings.concurrentUploadsDescription', 'How many printers the queue may send files to at the same time. Higher values help larger farms avoid waiting for one slow FTP transfer at a time; lower values reduce load on weaker hosts or networks.')}
               </p>
               <div className="w-full sm:w-1/2">
-                <label className="block text-xs text-bambu-gray mb-1">
+                <label className="block text-xs text-table-secondary mb-1">
                   {t('settings.concurrentUploadsLabel', 'Printers uploaded to at once')}
                 </label>
                 <NumberField
@@ -4496,7 +4475,7 @@ export function SettingsPage() {
                   onChange={(e) => updateSetting('queue_max_concurrent_uploads', Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
                   className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
                 />
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t('settings.concurrentUploadsHelp', 'Default is 4. Set to 1 to send files serially.')}
                 </p>
               </div>
@@ -4514,7 +4493,7 @@ export function SettingsPage() {
               </h3>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-xs text-bambu-gray">
+              <p className="text-xs text-table-secondary">
                 {t('settings.gcodeInjectionDescription', 'Configure custom G-code to inject at the start and/or end of prints for auto-print systems like Farmloop, SwapMod, AutoClear, and Printflow 3D. Snippets are configured per printer model and applied when "Inject G-code" is enabled on a queue item.')}
               </p>
               {(() => {
@@ -4552,7 +4531,7 @@ export function SettingsPage() {
 
                 if (printerModels.length === 0) {
                   return (
-                    <p className="text-sm text-bambu-gray italic">
+                    <p className="text-sm text-table-secondary italic">
                       {t('settings.gcodeInjectionNoPrinters', 'No printers found. Add printers to configure G-code snippets.')}
                     </p>
                   );
@@ -4579,7 +4558,7 @@ export function SettingsPage() {
                     >
                       <div className="space-y-2">
                         <div>
-                          <label className="block text-xs text-bambu-gray mb-1">
+                          <label className="block text-xs text-table-secondary mb-1">
                             {t('settings.gcodeStartLabel', 'Start G-code')}
                           </label>
                           <TextArea
@@ -4592,7 +4571,7 @@ export function SettingsPage() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-bambu-gray mb-1">
+                          <label className="block text-xs text-table-secondary mb-1">
                             {t('settings.gcodeEndLabel', 'End G-code')}
                           </label>
                           <TextArea
@@ -4614,7 +4593,7 @@ export function SettingsPage() {
 
           </div>
           {/* Right Column */}
-          <div className="lg:w-1/2 space-y-3">
+          <div className="min-w-0 space-y-4 lg:flex-1">
 
           {/* Slicer Pipelines (#1425 PR C). Cap on the copies input in
               the Run-with-pipeline modal to prevent fat-fingered queue
@@ -4632,7 +4611,7 @@ export function SettingsPage() {
                   <p className="text-sm text-white">
                     {t('settings.pipelineLimits.maxCopiesLabel', 'Max copies per run')}
                   </p>
-                  <p className="text-xs text-bambu-gray mt-0.5">
+                  <p className="text-xs text-table-secondary mt-0.5">
                     {t(
                       'settings.pipelineLimits.maxCopiesDesc',
                       'Upper bound on the copies operators can request when running a pipeline. Server-side hard cap is 1000.',
@@ -4665,7 +4644,7 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <label className="block text-sm text-bambu-gray mb-1">
+                <label className="block text-sm text-table-secondary mb-1">
                   {t('settings.preferredSlicer')}
                 </label>
                 <div className="relative">
@@ -4679,7 +4658,7 @@ export function SettingsPage() {
                     ]}
                   />
                 </div>
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t('settings.preferredSlicerDescription')}
                 </p>
                 {/* Upstream OrcaSlicer 2.3.2 / 2.4.0-dev have two known
@@ -4706,7 +4685,7 @@ export function SettingsPage() {
                   API slicer so a user can slice via the Bambu Studio sidecar
                   but open files locally in OrcaSlicer, or vice versa. */}
               <div>
-                <label className="block text-sm text-bambu-gray mb-1">
+                <label className="block text-sm text-table-secondary mb-1">
                   {t('settings.openInSlicerLabel', 'Open in Slicer')}
                 </label>
                 <div className="relative">
@@ -4726,7 +4705,7 @@ export function SettingsPage() {
                     ]}
                   />
                 </div>
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t(
                     'settings.openInSlicerDescription',
                     "Desktop slicer used by the 'Open in Slicer' button. Leave on 'Same as API slicer' to inherit, or pick a different slicer to use locally.",
@@ -4736,7 +4715,7 @@ export function SettingsPage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-white">{t('settings.useSlicerApi')}</p>
-                  <p className="text-sm text-bambu-gray">
+                  <p className="text-sm text-table-secondary">
                     {t('settings.useSlicerApiDescription')}
                   </p>
                 </div>
@@ -4749,7 +4728,7 @@ export function SettingsPage() {
               </div>
               {(localSettings.use_slicer_api ?? false) && (
                 <div>
-                  <label className="block text-sm text-bambu-gray mb-1">
+                  <label className="block text-sm text-table-secondary mb-1">
                     {(localSettings.preferred_slicer ?? 'bambu_studio') === 'orcaslicer'
                       ? t('settings.orcaslicerApiUrl', 'OrcaSlicer sidecar URL')
                       : t('settings.bambuStudioApiUrl', 'Bambu Studio sidecar URL')}
@@ -4776,7 +4755,7 @@ export function SettingsPage() {
                     }
                     className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none placeholder:text-bambu-gray/40"
                   />
-                  <p className="text-xs text-bambu-gray mt-1">
+                  <p className="text-xs text-table-secondary mt-1">
                     {t(
                       'settings.slicerApiUrlDescription',
                       'URL of the slicer-API sidecar container. Leave blank to use the SLICER_API_URL / BAMBU_STUDIO_API_URL env var defaults.',
@@ -4817,9 +4796,9 @@ export function SettingsPage() {
 
       {activeTab === 'warehouse-material' && warehouseMaterialSubTab === 'filament' && localSettings && (
         <>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           {/* Left Column - Filament and AMS settings */}
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-4">
             <SpoolmanSettings />
 
             <Card id="card-filamentchecks">
@@ -4827,10 +4806,10 @@ export function SettingsPage() {
                 <h2 className="text-lg font-semibold text-white">{t('settings.filamentChecks')}</h2>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-white">{t('settings.disableFilamentWarnings')}</p>
-                    <p className="text-sm text-bambu-gray">
+                    <p className="text-sm text-table-secondary">
                       {t('settings.disableFilamentWarningsDesc')}
                     </p>
                   </div>
@@ -4841,13 +4820,13 @@ export function SettingsPage() {
                     />
                   </label>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-white">{t('settings.preferLowestFilament')}</p>
-                    <p className="text-sm text-bambu-gray">
+                    <p className="text-sm text-table-secondary">
                       {t('settings.preferLowestFilamentDesc')}
                     </p>
-                    <p className="text-xs text-bambu-gray/70 mt-1">
+                    <p className="text-xs text-table-secondary mt-1">
                       {t('settings.preferLowestFilamentBackupNote')}
                     </p>
                   </div>
@@ -4867,10 +4846,10 @@ export function SettingsPage() {
                 <h2 className="text-lg font-semibold text-white">{t('settings.printModal')}</h2>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-white">{t('settings.expandCustomMapping')}</p>
-                    <p className="text-sm text-bambu-gray">
+                    <p className="text-sm text-table-secondary">
                       {t('settings.expandCustomMappingDescription')}
                     </p>
                   </div>
@@ -4889,7 +4868,7 @@ export function SettingsPage() {
                 <h2 className="text-lg font-semibold text-white">{t('settings.amsDisplayThresholds')}</h2>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-bambu-gray">
+                <p className="text-sm text-table-secondary">
                   {t('settings.amsThresholdsDescription')}
                 </p>
 
@@ -4899,42 +4878,28 @@ export function SettingsPage() {
                     <Droplets className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     <span className="font-medium">{t('settings.humidity')}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm text-bambu-gray mb-1">
-                        {t('settings.goodGreen')} ≤
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <NumberField
-                          min="0"
-                          max="100"
-                          value={localSettings.ams_humidity_good ?? 40}
-                          onChange={(e) => updateSetting('ams_humidity_good', parseInt(e.target.value) || 40)}
-                          className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                        />
-                        <span className="text-bambu-gray">%</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-bambu-gray mb-1">
-                        {t('settings.fairOrange')} ≤
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <NumberField
-                          min="0"
-                          max="100"
-                          value={localSettings.ams_humidity_fair ?? 60}
-                          onChange={(e) => updateSetting('ams_humidity_fair', parseInt(e.target.value) || 60)}
-                          className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                        />
-                        <span className="text-bambu-gray">%</span>
-                      </div>
-                    </div>
+                  <div className="grid gap-3 min-[420px]:grid-cols-2">
+                    <NumberField
+                      label={<>{t('settings.goodGreen')} ≤</>}
+                      suffix={<span className="text-table-secondary">%</span>}
+                      min="0"
+                      max="100"
+                      value={localSettings.ams_humidity_good ?? 40}
+                      onChange={(e) => updateSetting('ams_humidity_good', parseInt(e.target.value) || 40)}
+                    />
+                    <NumberField
+                      label={<>{t('settings.fairOrange')} ≤</>}
+                      suffix={<span className="text-table-secondary">%</span>}
+                      min="0"
+                      max="100"
+                      value={localSettings.ams_humidity_fair ?? 60}
+                      onChange={(e) => updateSetting('ams_humidity_fair', parseInt(e.target.value) || 60)}
+                    />
                   </div>
-                  <p className="text-xs text-bambu-gray">
+                  <p className="text-xs text-table-secondary">
                     {t('settings.aboveFairBad')}
                   </p>
-                  <p className="text-xs text-amber-700/80 dark:text-amber-400/70">
+                  <p className="text-xs text-amber-800 dark:text-amber-400">
                     {t('settings.fairAlsoDryingThreshold')}
                   </p>
                 </div>
@@ -4945,41 +4910,27 @@ export function SettingsPage() {
                     <Thermometer className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                     <span className="font-medium">{t('settings.temperature')}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm text-bambu-gray mb-1">
-                        {t('settings.goodBlue')} ≤
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <NumberField
-                          step="0.5"
-                          min="0"
-                          max="60"
-                          value={localSettings.ams_temp_good ?? 28}
-                          onChange={(e) => updateSetting('ams_temp_good', parseFloat(e.target.value) || 28)}
-                          className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                        />
-                        <span className="text-bambu-gray">°C</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-bambu-gray mb-1">
-                        {t('settings.fairOrange')} ≤
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <NumberField
-                          step="0.5"
-                          min="0"
-                          max="60"
-                          value={localSettings.ams_temp_fair ?? 35}
-                          onChange={(e) => updateSetting('ams_temp_fair', parseFloat(e.target.value) || 35)}
-                          className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white focus:border-bambu-green focus:outline-none"
-                        />
-                        <span className="text-bambu-gray">°C</span>
-                      </div>
-                    </div>
+                  <div className="grid gap-3 min-[420px]:grid-cols-2">
+                    <NumberField
+                      label={<>{t('settings.goodBlue')} ≤</>}
+                      suffix={<span className="text-table-secondary">°C</span>}
+                      step="0.5"
+                      min="0"
+                      max="60"
+                      value={localSettings.ams_temp_good ?? 28}
+                      onChange={(e) => updateSetting('ams_temp_good', parseFloat(e.target.value) || 28)}
+                    />
+                    <NumberField
+                      label={<>{t('settings.fairOrange')} ≤</>}
+                      suffix={<span className="text-table-secondary">°C</span>}
+                      step="0.5"
+                      min="0"
+                      max="60"
+                      value={localSettings.ams_temp_fair ?? 35}
+                      onChange={(e) => updateSetting('ams_temp_fair', parseFloat(e.target.value) || 35)}
+                    />
                   </div>
-                  <p className="text-xs text-bambu-gray">
+                  <p className="text-xs text-table-secondary">
                     {t('settings.aboveFairHot')}
                   </p>
                 </div>
@@ -4991,7 +4942,7 @@ export function SettingsPage() {
                     <span className="font-medium">{t('settings.historyRetention')}</span>
                   </div>
                   <SensorHistoryRetentionFields settings={localSettings} update={updateSetting} />
-                  <p className="text-xs text-bambu-gray">
+                  <p className="text-xs text-table-secondary">
                     {t('settings.historyRetentionDescription')}
                   </p>
                 </div>
@@ -5001,7 +4952,7 @@ export function SettingsPage() {
           </div>
 
           {/* Right Column - Automatic drying and humidity thresholds */}
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-4">
             {queueDryingCard}
             <ScheduledDryingSettings />
           </div>
@@ -5199,12 +5150,12 @@ export function SettingsPage() {
                     {authEnabled ? (
                       <Lock className="w-5 h-5 text-green-600 dark:text-green-400" />
                     ) : (
-                      <Unlock className="w-5 h-5 text-gray-400" />
+                      <Unlock className="w-5 h-5 text-table-secondary" />
                     )}
                   </div>
                   <div>
                     <h3 className="text-white font-medium">{t('settings.authentication')}</h3>
-                    <p className="text-sm text-bambu-gray">
+                    <p className="text-sm text-table-secondary">
                       {authEnabled
                         ? t('settings.authEnabledDescription')
                         : t('settings.authDisabledDescription')}
@@ -5212,7 +5163,7 @@ export function SettingsPage() {
                   </div>
                 </div>
                 {!authEnabled ? (
-                  <Button onClick={() => navigate('/setup')}>
+                  <Button className="text-black!" onClick={() => navigate('/setup')}>
                     <Lock className="w-4 h-4" />
                     {t('common.enable')}
                   </Button>
@@ -5236,7 +5187,7 @@ export function SettingsPage() {
                   </div>
                   <div>
                     <h3 className="text-white font-medium">{t('settings.email.advancedAuthEnabled')}</h3>
-                    <p className="text-sm text-bambu-gray mt-1">
+                    <p className="text-sm text-table-secondary mt-1">
                       {t('settings.email.advancedAuthEnabledDesc')}
                     </p>
                   </div>
@@ -5258,7 +5209,7 @@ export function SettingsPage() {
                     </h3>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-bambu-gray mb-4">
+                    <p className="text-sm text-table-secondary mb-4">
                       {t('settings.sessionPolicy.description')}
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
@@ -5275,11 +5226,12 @@ export function SettingsPage() {
                             type="button"
                             onClick={() => updateSetting('session_max_hours', preset.hours)}
                             disabled={!isAdmin}
-                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            aria-pressed={isActive}
+                            className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors max-md:min-h-11 ${
                               isActive
-                                ? 'bg-bambu-green text-white'
-                                : 'bg-bambu-dark-tertiary text-bambu-gray hover:text-white hover:bg-bambu-dark'
-                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                ? 'border-accent-foreground bg-bambu-green/10 text-accent-foreground'
+                                : 'border-bambu-dark-tertiary bg-bambu-dark-secondary text-table-secondary hover:bg-bambu-dark hover:text-white'
+                            }`}
                           >
                             {t(preset.labelKey)}
                           </Button>
@@ -5299,7 +5251,7 @@ export function SettingsPage() {
                           aria-label={t('settings.sessionPolicy.customHoursLabel')}
                           className="w-20 px-2 py-2 bg-bambu-dark-tertiary text-white text-sm rounded-lg border border-bambu-dark-tertiary focus:border-bambu-green focus:outline-none disabled:opacity-50"
                         />
-                        <span className="text-sm text-bambu-gray">{t('settings.sessionPolicy.hoursSuffix')}</span>
+                        <span className="text-sm text-table-secondary">{t('settings.sessionPolicy.hoursSuffix')}</span>
                       </div>
                     </div>
                     {(localSettings?.session_max_hours ?? 24) > 24 && (
@@ -5373,6 +5325,7 @@ export function SettingsPage() {
                       </h3>
                       {hasPermission('users:create') && (
                         <Button
+                          className="text-black!"
                           size="sm"
                           onClick={() => {
                             setShowCreateUserModal(true);
@@ -5391,7 +5344,7 @@ export function SettingsPage() {
                         <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
                       </div>
                     ) : usersData.length === 0 ? (
-                      <p className="text-center text-bambu-gray py-8">{t('settings.noUsersFound')}</p>
+                      <p className="text-center text-table-secondary py-8">{t('settings.noUsersFound')}</p>
                     ) : (
                       <div className="divide-y divide-bambu-dark-tertiary">
                         {usersData.map((userItem) => (
@@ -5425,7 +5378,7 @@ export function SettingsPage() {
                                     {group.name}
                                   </span>
                                 ))}
-                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-bambu-dark text-bambu-gray">
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-bambu-dark text-table-secondary">
                                   {userItem.allowed_printer_ids != null
                                     ? t('users.form.printerScopeCount', { count: userItem.allowed_printer_ids.length, defaultValue: `${userItem.allowed_printer_ids.length} printers` })
                                     : t('users.form.allPrinters', 'All printers')}
@@ -5463,6 +5416,7 @@ export function SettingsPage() {
                       </h3>
                       {hasPermission('groups:create') && (
                         <Button
+                          className="text-black!"
                           size="sm"
                           onClick={() => navigate('/groups/new')}
                         >
@@ -5478,7 +5432,7 @@ export function SettingsPage() {
                         <Loader2 className="w-6 h-6 text-bambu-green animate-spin" />
                       </div>
                     ) : groupsData.length === 0 ? (
-                      <p className="text-center text-bambu-gray py-8">{t('settings.noGroupsFound')}</p>
+                      <p className="text-center text-table-secondary py-8">{t('settings.noGroupsFound')}</p>
                     ) : (
                       <div className="divide-y divide-bambu-dark-tertiary">
                         {groupsData.map((group) => (
@@ -5493,7 +5447,7 @@ export function SettingsPage() {
                                       ? 'text-blue-600 dark:text-blue-400'
                                       : group.name === 'Viewers'
                                       ? 'text-green-600 dark:text-green-400'
-                                      : 'text-bambu-gray'
+                                      : 'text-table-secondary'
                                   }`}
                                 />
                                 <span className="break-all font-medium text-white">{group.name}</span>
@@ -5516,10 +5470,10 @@ export function SettingsPage() {
                                 )}
                               </div>
                             </div>
-                            <p className="text-sm text-bambu-gray mt-1 ml-6">
+                            <p className="text-sm text-table-secondary mt-1 ml-6">
                               {group.description || t('settings.noDescription')}
                             </p>
-                            <div className="flex items-center gap-4 mt-2 ml-6 text-xs text-bambu-gray">
+                            <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-2 ml-6 text-xs text-table-secondary">
                               <span>{t('settings.userCount', { count: group.user_count })}</span>
                               <span>{t('settings.permissionCount', { count: group.permissions.length })}</span>
                             </div>
@@ -5538,12 +5492,12 @@ export function SettingsPage() {
             <Card>
               <CardContent className="py-6">
                 <div className="text-center">
-                  <Unlock className="w-12 h-12 text-bambu-gray mx-auto mb-4" />
+                  <Unlock className="w-12 h-12 text-table-secondary mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-white mb-2">{t('settings.authDisabledTitle')}</h3>
-                  <p className="text-sm text-bambu-gray mb-4 max-w-md mx-auto">
+                  <p className="text-sm text-table-secondary mb-4 max-w-md mx-auto">
                     {t('settings.authDisabledMessage')}
                   </p>
-                  <ul className="space-y-2 text-sm text-bambu-gray mb-6 text-left max-w-xs mx-auto">
+                  <ul className="space-y-2 text-sm text-table-secondary mb-6 text-left max-w-xs mx-auto">
                     <li className="flex items-start gap-2">
                       <CheckCircle className="w-4 h-4 text-bambu-green mt-0.5 flex-shrink-0" />
                       <span>{t('settings.authDisabledFeature1')}</span>
@@ -5557,7 +5511,7 @@ export function SettingsPage() {
                       <span>{t('settings.authDisabledFeature3')}</span>
                     </li>
                   </ul>
-                  <Button onClick={() => navigate('/setup')}>
+                  <Button className="text-black!" onClick={() => navigate('/setup')}>
                     <Lock className="w-4 h-4" />
                     {t('settings.enableAuthentication')}
                   </Button>
@@ -5598,7 +5552,7 @@ export function SettingsPage() {
                     />
                     <div>
                       <p className="text-sm font-medium text-white">{t('settings.localLogin.disable')}</p>
-                      <p className="text-xs text-bambu-gray mt-0.5">{t('settings.localLogin.disableHint')}</p>
+                      <p className="text-xs text-table-secondary mt-0.5">{t('settings.localLogin.disableHint')}</p>
                     </div>
                   </label>
                 </CardContent>
@@ -5627,6 +5581,7 @@ export function SettingsPage() {
                 </Button>
                 {!(createUserTab === 'ldap' && ldapStatus?.ldap_enabled) && (
                 <Button
+                  className="text-black!"
                   onClick={handleCreateUser}
                   disabled={createUserMutation.isPending || !userFormData.username || !userFormData.password || userFormData.password !== userFormData.confirmPassword || checkPasswordComplexity(userFormData.password) !== null}
                 >
@@ -5658,8 +5613,8 @@ export function SettingsPage() {
                 onClick={() => setCreateUserTab('local')}
                 className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
                   createUserTab === 'local'
-                    ? 'bg-bambu-green/15 text-bambu-green'
-                    : 'text-bambu-gray hover:text-white'
+                    ? 'bg-bambu-green/15 text-accent-foreground'
+                    : 'text-table-secondary hover:text-white'
                 }`}
               >
                 {t('users.modal.localTab')}
@@ -5671,8 +5626,8 @@ export function SettingsPage() {
                 onClick={() => setCreateUserTab('ldap')}
                 className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
                   createUserTab === 'ldap'
-                    ? 'bg-bambu-green/15 text-bambu-green'
-                    : 'text-bambu-gray hover:text-white'
+                    ? 'bg-bambu-green/15 text-accent-foreground'
+                    : 'text-table-secondary hover:text-white'
                 }`}
               >
                 {t('users.modal.ldapTab')}
@@ -5716,7 +5671,7 @@ export function SettingsPage() {
                 autoComplete="new-password"
                 minLength={8}
               />
-              <p className="text-bambu-gray text-xs mt-1">{t('settings.passwordRequirements')}</p>
+              <p className="text-table-secondary text-xs mt-1">{t('settings.passwordRequirements')}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-white mb-2">{t('settings.confirmPassword')}</label>
@@ -5756,7 +5711,7 @@ export function SettingsPage() {
                   </label>
                 ))}
                 {groupsData.length === 0 && (
-                  <p className="text-sm text-bambu-gray">{t('settings.noGroupsAvailable')}</p>
+                  <p className="text-sm text-table-secondary">{t('settings.noGroupsAvailable')}</p>
                 )}
               </div>
             </div>
@@ -5824,6 +5779,7 @@ export function SettingsPage() {
                   {t('users.modal.cancel') || 'Cancel'}
                 </Button>
                 <Button
+                  className="text-black!"
                   onClick={() => handleUpdateUser(editingUserId)}
                   disabled={
                     updateUserMutation.isPending ||
@@ -5865,7 +5821,7 @@ export function SettingsPage() {
             {/* Email Field */}
             <div>
               <label className="block text-sm font-medium text-white mb-2">
-                {t('users.form.email') || 'Email'} {advancedAuthStatus?.advanced_auth_enabled ? <span className="text-red-700 dark:text-red-400">*</span> : <span className="text-bambu-gray font-normal">({t('users.form.optional') || 'optional'})</span>}
+                {t('users.form.email') || 'Email'} {advancedAuthStatus?.advanced_auth_enabled ? <span className="text-red-700 dark:text-red-400">*</span> : <span className="text-table-secondary font-normal">({t('users.form.optional') || 'optional'})</span>}
               </label>
               <TextField
                 type="email"
@@ -5882,7 +5838,7 @@ export function SettingsPage() {
               <>
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    {t('users.form.password') || 'Password'} <span className="text-bambu-gray font-normal">({t('users.form.leaveBlankToKeep') || 'leave blank to keep current'})</span>
+                    {t('users.form.password') || 'Password'} <span className="text-table-secondary font-normal">({t('users.form.leaveBlankToKeep') || 'leave blank to keep current'})</span>
                   </label>
                   <TextField
                     type="password"
@@ -5893,7 +5849,7 @@ export function SettingsPage() {
                     autoComplete="new-password"
                     minLength={8}
                   />
-                  <p className="text-bambu-gray text-xs mt-1">{t('settings.passwordRequirements')}</p>
+                  <p className="text-table-secondary text-xs mt-1">{t('settings.passwordRequirements')}</p>
                 </div>
                 {userFormData.password && (
                   <div>
@@ -5922,7 +5878,7 @@ export function SettingsPage() {
             {/* Info box about auto-generated password when Advanced Auth is enabled */}
             {advancedAuthStatus?.advanced_auth_enabled && (
               <div className="bg-bambu-dark-secondary/50 border border-bambu-green/20 rounded-lg p-3 space-y-3">
-                <p className="text-sm text-bambu-gray">
+                <p className="text-sm text-table-secondary">
                   {t('users.form.passwordManagedByAdvancedAuth')}
                 </p>
                 <Button
@@ -6009,7 +5965,7 @@ export function SettingsPage() {
               ) : deleteUserItemCounts && (deleteUserItemCounts.archives + deleteUserItemCounts.queue_items + deleteUserItemCounts.library_files > 0) ? (
                 <>
                   <p className="text-white">{t('settings.userHasCreated')}</p>
-                  <ul className="list-disc list-inside text-bambu-gray space-y-1">
+                  <ul className="list-disc list-inside text-table-secondary space-y-1">
                     {deleteUserItemCounts.archives > 0 && (
                       <li>{t('orders.runtimeInterface.archiveCount', { count: deleteUserItemCounts.archives })}</li>
                     )}
@@ -6020,13 +5976,13 @@ export function SettingsPage() {
                       <li>{t('orders.runtimeInterface.libraryFileCount', { count: deleteUserItemCounts.library_files })}</li>
                     )}
                   </ul>
-                  <p className="text-bambu-gray text-sm">{t('settings.userItemsQuestion')}</p>
+                  <p className="text-table-secondary text-sm">{t('settings.userItemsQuestion')}</p>
                   <div className="flex flex-col gap-2">
                     <Button
                       variant="danger"
                       onClick={() => deleteUserMutation.mutate({ id: deleteUserId, deleteItems: true })}
                       disabled={deleteUserMutation.isPending}
-                      className="justify-center"
+                      className="justify-center text-white!"
                     >
                       {t('settings.deleteUserAndItems')}
                     </Button>
@@ -6054,7 +6010,7 @@ export function SettingsPage() {
               ) : (
                 <>
                   <p className="text-white">{t('settings.deleteUserConfirm')}</p>
-                  <p className="text-bambu-gray text-sm">{t('settings.actionCannotBeUndone')}</p>
+                  <p className="text-table-secondary text-sm">{t('settings.actionCannotBeUndone')}</p>
                   <div className="flex gap-2 justify-end">
                     <Button
                       variant="ghost"
@@ -6067,6 +6023,7 @@ export function SettingsPage() {
                       {t('common.cancel')}
                     </Button>
                     <Button
+                      className="text-white!"
                       variant="danger"
                       onClick={() => deleteUserMutation.mutate({ id: deleteUserId, deleteItems: false })}
                       disabled={deleteUserMutation.isPending}

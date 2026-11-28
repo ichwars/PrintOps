@@ -112,7 +112,8 @@ describe('DocumentLayoutSettings', () => {
     const preview = screen.getByTestId('pdf-preview');
     const controls = container.querySelector('aside > div') as HTMLElement;
     expect(preview.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(container.querySelector('main')).toHaveClass('min-[900px]:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]');
+    expect(controls.closest('#document-layout-workspace')).toHaveClass('@container/layout');
+    expect(controls.closest('aside')?.parentElement).toHaveClass('@[1050px]/layout:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]');
   });
 
   it('enforces read-only access without hiding previews or findings', async () => {

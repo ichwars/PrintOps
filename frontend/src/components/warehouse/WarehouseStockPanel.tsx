@@ -128,7 +128,7 @@ export function WarehouseStockPanel({
       {mutation.isError && <p role="alert" className="rounded-lg bg-red-100 p-3 text-red-900 dark:bg-red-950/50 dark:text-red-300">{mutation.error.message}</p>}
       {remembered?.uncertain && <p role="status" className="text-amber-800 dark:text-amber-300">{copy.uncertainMovement}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {quickKind && mutation.isSuccess && <p role="status" className="mr-auto text-accent-foreground">{t('orders.runtimeDomain.warehouseGoods.quickBookingSaved')}</p>}
+        {quickKind && mutation.isSuccess && <p role="status" className="mr-auto text-accent-foreground">{t('orders.runtimeDomain.warehouseGoods.quickBookingSaved')}{mutation.data.receipt_number && ` · ${mutation.data.receipt_number}`}</p>}
         {onCancel && <Button type="button" variant="secondary" disabled={mutation.isPending} onClick={onCancel}>{t('common.cancel')}</Button>}
         <Button type="submit" className={quickKind ? 'text-black!' : undefined} loading={mutation.isPending} disabled={disabled || (!remembered && (!valid || locations.isError || (usesReservation && reservations.isError)))}>{copy.book}</Button>
       </div>
@@ -140,7 +140,7 @@ export function WarehouseStockPanel({
       {ledger.isSuccess && !ledger.data.length && <p className="text-bambu-gray">{copy.noHistory}</p>}
       {ledger.data?.map((entry) => <div key={entry.id} className="space-y-2 rounded-lg border border-bambu-dark-tertiary p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-medium text-white">#{entry.id} · {copy[entry.entry_kind]}</span>
+          <span className="font-medium text-white">{entry.receipt_number ?? `#${entry.id}`} · {copy[entry.entry_kind]}</span>
           <span className="text-xs text-bambu-gray">{new Date(entry.created_at).toLocaleString()}</span>
         </div>
         <p className="tabular-nums text-bambu-gray-light">{locationName(entry.location_id)}{entry.target_location_id && ` → ${locationName(entry.target_location_id)}`} · {warehouseQuantity(entry.quantity)} {entry.unit_code}</p>

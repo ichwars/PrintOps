@@ -168,8 +168,8 @@ export function FailureDetectionSettings() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-      <div className="space-y-3 flex-1 lg:max-w-xl">
+    <div className="flex flex-col gap-4 lg:flex-row">
+      <div className="min-w-0 flex-1 space-y-4">
         <Card id="card-fd-ml">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -179,11 +179,11 @@ export function FailureDetectionSettings() {
               </div>
               <Toggle checked={enabled} onChange={setEnabled} />
             </div>
-            <p className="text-sm text-bambu-gray mt-2">{t('failureDetection.description')}</p>
+            <p className="text-sm text-table-secondary mt-2">{t('failureDetection.description')}</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('failureDetection.mlUrl')}
               </label>
               <div className="flex gap-2">
@@ -192,7 +192,7 @@ export function FailureDetectionSettings() {
                   value={mlUrl}
                   onChange={(e) => setMlUrl(e.target.value)}
                   placeholder="http://192.168.1.10:3333"
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm"
+                  className="min-w-0 flex-1 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white text-sm"
                   disabled={!enabled}
                 />
                 <Button
@@ -203,7 +203,7 @@ export function FailureDetectionSettings() {
                   {t('failureDetection.test')}
                 </Button>
               </div>
-              <p className="text-xs text-bambu-gray mt-1">{t('failureDetection.mlUrlHint')}</p>
+              <p className="text-xs text-table-secondary mt-1">{t('failureDetection.mlUrlHint')}</p>
               {testResult && (
                 <div
                   className={`flex items-start gap-2 mt-2 text-sm ${
@@ -217,7 +217,7 @@ export function FailureDetectionSettings() {
             </div>
 
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('failureDetection.mlToken')}
               </label>
               <TextField
@@ -226,38 +226,38 @@ export function FailureDetectionSettings() {
                 onFocus={selectPlaceholderOnFocus}
                 onChange={(e) => setMlToken(e.target.value)}
                 placeholder={t('failureDetection.mlTokenPlaceholder')}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm"
+                className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white text-sm"
                 disabled={!enabled}
               />
-              <p className="text-xs text-bambu-gray mt-1">{t(tokenNeedsReentry ? 'common.secretReenter' : 'failureDetection.mlTokenHint')}</p>
+              <p className="text-xs text-table-secondary mt-1">{t(tokenNeedsReentry ? 'common.secretReenter' : 'failureDetection.mlTokenHint')}</p>
             </div>
 
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('failureDetection.sensitivity')}
               </label>
               <LegacySelect
                 value={sensitivity}
                 onChange={(e) => setSensitivity(e.target.value as 'low' | 'medium' | 'high')}
                 disabled={!enabled}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm"
+                className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white text-sm"
               >
                 <option value="low">{t('failureDetection.sensitivityLow')}</option>
                 <option value="medium">{t('failureDetection.sensitivityMedium')}</option>
                 <option value="high">{t('failureDetection.sensitivityHigh')}</option>
               </LegacySelect>
-              <p className="text-xs text-bambu-gray mt-1">{t('failureDetection.sensitivityHint')}</p>
+              <p className="text-xs text-table-secondary mt-1">{t('failureDetection.sensitivityHint')}</p>
             </div>
 
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('failureDetection.action')}
               </label>
               <LegacySelect
                 value={action}
                 onChange={(e) => setAction(e.target.value as 'notify' | 'pause' | 'pause_and_off')}
                 disabled={!enabled}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm"
+                className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white text-sm"
               >
                 <option value="notify">{t('failureDetection.actionNotify')}</option>
                 <option value="pause">{t('failureDetection.actionPause')}</option>
@@ -266,7 +266,7 @@ export function FailureDetectionSettings() {
             </div>
 
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('failureDetection.pollInterval')}
               </label>
               <NumberField
@@ -275,9 +275,9 @@ export function FailureDetectionSettings() {
                 min={5}
                 max={120}
                 disabled={!enabled}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm"
+                className="w-full bg-bambu-dark border border-bambu-dark-tertiary rounded-lg px-3 py-2 text-white text-sm"
               />
-              <p className="text-xs text-bambu-gray mt-1">{t('failureDetection.pollIntervalHint')}</p>
+              <p className="text-xs text-table-secondary mt-1">{t('failureDetection.pollIntervalHint')}</p>
             </div>
 
             {status && !status.external_url_configured && enabled && (
@@ -295,7 +295,7 @@ export function FailureDetectionSettings() {
         <Card id="card-fd-perprinter">
           <CardHeader>
             <h2 className="text-lg font-semibold text-white">{t('failureDetection.perPrinterTitle')}</h2>
-            <p className="text-sm text-bambu-gray mt-1">{t('failureDetection.perPrinterHint')}</p>
+            <p className="text-sm text-table-secondary mt-1">{t('failureDetection.perPrinterHint')}</p>
           </CardHeader>
           <CardContent className="space-y-2">
             <label className="flex items-center gap-2 text-sm">
@@ -307,7 +307,7 @@ export function FailureDetectionSettings() {
               <span className="text-white">{t('failureDetection.monitorAll')}</span>
             </label>
             {enabledPrinters !== null && printers && (
-              <div className="pl-5 space-y-1 border-l border-gray-700">
+              <div className="pl-5 space-y-1 border-l border-bambu-dark-tertiary">
                 {printers.map((p) => (
                   <label key={p.id} className="flex items-center gap-2 text-sm">
                     <Checkbox
@@ -324,34 +324,34 @@ export function FailureDetectionSettings() {
         </Card>
       </div>
 
-      <div className="space-y-3 flex-1 lg:max-w-xl">
+      <div className="min-w-0 flex-1 space-y-4">
         <Card id="card-fd-status">
           <CardHeader>
             <h2 className="text-lg font-semibold text-white">{t('failureDetection.statusTitle')}</h2>
           </CardHeader>
           <CardContent>
             {!status ? (
-              <div className="flex items-center gap-2 text-bambu-gray">
+              <div className="flex items-center gap-2 text-table-secondary">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>{t('common.loading')}</span>
               </div>
             ) : (
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-bambu-gray">{t('failureDetection.serviceRunning')}</span>
+                  <span className="text-table-secondary">{t('failureDetection.serviceRunning')}</span>
                   <span className={status.is_running ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
                     {status.is_running ? t('common.yes') : t('common.no')}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-bambu-gray">{t('failureDetection.thresholds')}</span>
+                  <span className="text-table-secondary">{t('failureDetection.thresholds')}</span>
                   <span className="text-white font-mono">
                     {status.thresholds.low.toFixed(2)} / {status.thresholds.high.toFixed(2)}
                   </span>
                 </div>
                 {status.thresholds.pause != null && (
                   <div className="flex justify-between">
-                    <span className="text-bambu-gray">{t('failureDetection.pauseThreshold')}</span>
+                    <span className="text-table-secondary">{t('failureDetection.pauseThreshold')}</span>
                     <span className="text-white font-mono">{status.thresholds.pause.toFixed(2)}</span>
                   </div>
                 )}
@@ -362,9 +362,9 @@ export function FailureDetectionSettings() {
                   </div>
                 )}
                 <div>
-                  <div className="text-bambu-gray mb-1">{t('failureDetection.activePrinters')}</div>
+                  <div className="text-table-secondary mb-1">{t('failureDetection.activePrinters')}</div>
                   {Object.keys(status.per_printer).length === 0 ? (
-                    <div className="text-bambu-gray italic text-xs">{t('failureDetection.noActivePrints')}</div>
+                    <div className="text-table-secondary italic text-xs">{t('failureDetection.noActivePrints')}</div>
                   ) : (
                     <div className="space-y-1">
                       {Object.entries(status.per_printer).map(([pid, info]) => {
@@ -377,7 +377,7 @@ export function FailureDetectionSettings() {
                               ? 'text-amber-700 dark:text-amber-400'
                               : classification === 'safe'
                                 ? 'text-green-700 dark:text-green-400'
-                                : 'text-bambu-gray';
+                                : 'text-table-secondary';
                         return (
                           <div key={pid} className="space-y-0.5">
                             <div className="flex justify-between">
@@ -405,14 +405,14 @@ export function FailureDetectionSettings() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">{t('failureDetection.historyTitle')}</h2>
-              <Button variant="unstyled" onClick={() => refetchStatus()} className="text-xs text-bambu-gray hover:text-white">
+              <Button variant="unstyled" onClick={() => refetchStatus()} className="text-xs text-table-secondary hover:text-white">
                 {t('common.refresh')}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {!status || status.history.length === 0 ? (
-              <div className="flex items-center gap-2 text-bambu-gray text-sm">
+              <div className="flex items-center gap-2 text-table-secondary text-sm">
                 <Info className="w-4 h-4" />
                 <span>{t('failureDetection.noHistory')}</span>
               </div>
@@ -425,10 +425,10 @@ export function FailureDetectionSettings() {
                       ? 'text-red-700 dark:text-red-400'
                       : ev.class === 'warning'
                         ? 'text-amber-700 dark:text-amber-400'
-                        : 'text-bambu-gray';
+                        : 'text-table-secondary';
                   return (
-                    <div key={idx} className="flex justify-between gap-2 py-1 border-b border-gray-800">
-                      <span className="text-bambu-gray">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                    <div key={idx} className="flex justify-between gap-2 py-1 border-b border-bambu-dark-tertiary">
+                      <span className="text-table-secondary">{new Date(ev.timestamp).toLocaleTimeString()}</span>
                       <span className="text-white truncate">{printer?.name ?? `#${ev.printer_id}`}</span>
                       <span className={colorClass}>
                         {ev.class} {ev.score.toFixed(3)}

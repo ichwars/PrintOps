@@ -78,7 +78,6 @@ export function WarehouseNumberSequenceSettings() {
     }
     setDrafts(next);
     setError(null);
-    setSavedKey(null);
   }, [sequencesQuery.data]);
 
   const saveMutation = useMutation({
@@ -89,13 +88,13 @@ export function WarehouseNumberSequenceSettings() {
       }
       return api.createWarehouseNumberSequence({ key: definition.key, ...values });
     },
+    onMutate: () => setSavedKey(null),
     onSuccess: async (sequence) => {
       setError(null);
       setSavedKey(sequence.key);
       await queryClient.invalidateQueries({ queryKey: ['warehouse-number-sequences'] });
     },
     onError: (caught) => {
-      setSavedKey(null);
       setError(caught instanceof ApiError ? caught.message : caught instanceof Error ? caught.message : tr('sequenceSaveError'));
     },
   });
@@ -107,7 +106,7 @@ export function WarehouseNumberSequenceSettings() {
 
   return (
     <SettingsDashboardCard id="card-warehouse-number-sequences" title={tr('warehouse.title')} icon={Hash}>
-        <p className="text-sm text-bambu-gray">
+        <p className="text-sm text-table-secondary">
           {tr('warehouse.description')}
         </p>
 
@@ -119,7 +118,7 @@ export function WarehouseNumberSequenceSettings() {
         )}
 
         {sequencesQuery.isPending && (
-          <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{tr('sequenceLoading')}</div>
+          <div className="flex items-center gap-2 text-sm text-table-secondary"><Loader2 className="h-4 w-4 animate-spin" />{tr('sequenceLoading')}</div>
         )}
 
         {!sequencesQuery.isPending && (
@@ -135,7 +134,7 @@ export function WarehouseNumberSequenceSettings() {
                 <div key={definition.key} className="space-y-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/35 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="font-medium text-white">{noun}</h3>
-                    <span className={`text-xs ${existing ? 'text-bambu-green' : 'text-bambu-gray'}`}>{existing ? tr('active') : tr('notCreated')}</span>
+                    <span className={`text-xs ${existing ? 'text-accent-foreground' : 'text-table-secondary'}`}>{existing ? tr('active') : tr('notCreated')}</span>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextField label={tr(textKey + '.prefix')} aria-label={tr(textKey + '.prefix')} value={draft.prefix} onValueChange={(value) => updateDraft(definition.key, { prefix: value })} disabled={!canManage || pending} />
@@ -145,13 +144,13 @@ export function WarehouseNumberSequenceSettings() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <Checkbox checked={draft.yearly} onCheckedChange={(checked) => updateDraft(definition.key, { yearly: checked })} label={tr(textKey + '.resetYearly')} disabled={!canManage || pending} />
                     {canManage && (
-                      <Button type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending}>
+                      <Button className="text-black!" type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending}>
                         {!pending && <Save className="h-4 w-4" />}
                         {existing ? tr('saveSequence', { name: actionName }) : tr('createSequence', { name: actionName })}
                       </Button>
                     )}
                   </div>
-                  {savedKey === definition.key && <p role="status" className="text-xs text-bambu-green">{tr('sequenceSaved')}</p>}
+                  {savedKey === definition.key && <p role="status" className="text-xs text-accent-foreground">{tr('sequenceSaved')}</p>}
                 </div>
               );
             })}

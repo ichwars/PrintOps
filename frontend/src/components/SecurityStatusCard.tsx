@@ -56,12 +56,12 @@ export function SecurityStatusCard() {
       <Card id="card-mfa-encryption" data-testid="encryption-status-card">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Shield className="text-bambu-gray" size={20} />
+            <Shield className="text-table-secondary" size={20} />
             <h2 className="text-lg font-semibold">{t('settings.encryption.title')}</h2>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2 text-bambu-gray" data-testid="encryption-loading">
+          <div className="flex items-center gap-2 text-table-secondary" data-testid="encryption-loading">
             <Loader2 className="animate-spin" size={16} />
             <span>{t('common.loading')}</span>
           </div>
@@ -75,7 +75,7 @@ export function SecurityStatusCard() {
       <Card id="card-mfa-encryption" data-testid="encryption-status-card">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Shield className="text-bambu-gray" size={20} />
+            <Shield className="text-table-secondary" size={20} />
             <h2 className="text-lg font-semibold">{t('settings.encryption.title')}</h2>
           </div>
         </CardHeader>
@@ -129,8 +129,8 @@ export function SecurityStatusCard() {
     statusLabel = data.key_source === 'env' ? t('settings.encryption.enabledFromEnv') : t('settings.encryption.enabledFromFile');
     statusBody = t('settings.encryption.allEncrypted');
   } else {
-    severityClasses = 'bg-gray-500/20 border-gray-500/30 text-gray-400';
-    icon = <ShieldOff className="text-gray-400" size={20} />;
+    severityClasses = 'border-bambu-dark-tertiary bg-bambu-dark text-table-secondary';
+    icon = <ShieldOff className="text-table-secondary" size={20} />;
     statusLabel = t('settings.encryption.notConfigured');
     statusBody = t('settings.encryption.notConfiguredDesc');
   }
@@ -175,13 +175,13 @@ export function SecurityStatusCard() {
         )}
         <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-bambu-gray">{t('settings.encryption.encryptedRowsLabel')}</p>
+            <p className="text-table-secondary">{t('settings.encryption.encryptedRowsLabel')}</p>
             <p className="font-medium">
               OIDC: {data.encrypted_rows.oidc_providers} · TOTP: {data.encrypted_rows.user_totp}
             </p>
           </div>
           <div>
-            <p className="text-bambu-gray">{t('settings.encryption.legacyRowsLabel')}</p>
+            <p className="text-table-secondary">{t('settings.encryption.legacyRowsLabel')}</p>
             <p className="font-medium">
               OIDC: {data.legacy_plaintext_rows.oidc_providers} · TOTP: {data.legacy_plaintext_rows.user_totp}
             </p>

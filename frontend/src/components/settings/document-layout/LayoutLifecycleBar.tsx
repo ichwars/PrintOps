@@ -15,7 +15,7 @@ type DialogKind = 'clone' | 'publish' | 'withdraw' | null;
 function Axis({ label, value, state }: { label: string; value: string; state: 'ok' | 'wait' | 'bad' | 'neutral' }) {
   const Icon = state === 'ok' ? CheckCircle2 : state === 'bad' ? AlertTriangle : state === 'wait' ? Clock3 : ShieldCheck;
   return <div className="min-w-[132px] flex-1 rounded-lg bg-bambu-dark px-3 py-2">
-    <p className="text-[10px] uppercase tracking-wide text-bambu-gray">{label}</p>
+    <p className="text-[10px] uppercase tracking-wide text-table-secondary">{label}</p>
     <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${state === 'ok' ? 'text-emerald-800 dark:text-emerald-300' : state === 'bad' ? 'text-red-700 dark:text-red-300' : state === 'wait' ? 'text-amber-800 dark:text-amber-300' : 'text-bambu-gray-light'}`}><Icon className="h-3.5 w-3.5" />{value}</p>
   </div>;
 }
@@ -83,11 +83,11 @@ export function LayoutLifecycleBar({
   return <>
     <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-3" aria-labelledby="layout-lifecycle-title">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 id="layout-lifecycle-title" className="mr-auto font-semibold text-white">{t('settings.documentLayout.lifecycle.title', 'Lifecycle')} <span className="ml-2 rounded-full bg-bambu-dark px-2 py-0.5 text-xs font-normal text-bambu-gray">v{detail.summary.version} - {t(`settings.documentLayout.statuses.${detail.summary.status}`, detail.summary.status)}</span></h2>
+        <h2 id="layout-lifecycle-title" className="mr-auto font-semibold text-white">{t('settings.documentLayout.lifecycle.title', 'Lifecycle')} <span className="ml-2 rounded-full bg-bambu-dark px-2 py-0.5 text-xs font-normal text-table-secondary">v{detail.summary.version} - {t(`settings.documentLayout.statuses.${detail.summary.status}`, detail.summary.status)}</span></h2>
         <Button size="sm" variant="ghost" onClick={onOpenHistory}><History className="h-4 w-4" />{t('settings.documentLayout.actions.history', 'History')}</Button>
         {!readOnly ? <Button size="sm" variant="secondary" onClick={() => setDialog('clone')}><Copy className="h-4 w-4" />{t('settings.documentLayout.actions.clone', 'Clone')}</Button> : null}
         {!readOnly && detail.summary.status === 'scheduled' ? <Button size="sm" variant="danger" onClick={() => setDialog('withdraw')}><Undo2 className="h-4 w-4" />{t('settings.documentLayout.actions.withdraw', 'Withdraw')}</Button> : null}
-        {!readOnly && detail.summary.status === 'draft' ? <Button size="sm" disabled={!canPublish} title={!canPublish ? t('settings.documentLayout.lifecycle.publishBlocked', 'Publish is blocked until the latest saved version is blocker-free.') : undefined} onClick={() => setDialog('publish')}><Send className="h-4 w-4" />{t('settings.documentLayout.actions.publish', 'Publish')}</Button> : null}
+        {!readOnly && detail.summary.status === 'draft' ? <Button size="sm" className="text-black!" disabled={!canPublish} title={!canPublish ? t('settings.documentLayout.lifecycle.publishBlocked', 'Publish is blocked until the latest saved version is blocker-free.') : undefined} onClick={() => setDialog('publish')}><Send className="h-4 w-4" />{t('settings.documentLayout.actions.publish', 'Publish')}</Button> : null}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Axis label={t('settings.documentLayout.lifecycle.autosave', 'Autosave')} value={saveValue} state={autosaveStatus === 'error' ? 'bad' : autosaveStatus === 'pending' || autosaveStatus === 'saving' ? 'wait' : 'ok'} />
@@ -119,7 +119,7 @@ export function LayoutLifecycleBar({
           /> : null}
         </> : null}
         {dialogError ? <p role="alert" className="text-sm text-red-700 dark:text-red-400">{dialogError}</p> : null}
-        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>{t('settings.documentLayout.actions.cancel', 'Cancel')}</Button><Button loading={actionBusy} onClick={() => void submit()}>{t('settings.documentLayout.actions.confirm', 'Confirm')}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>{t('settings.documentLayout.actions.cancel', 'Cancel')}</Button><Button className="text-black!" loading={actionBusy} onClick={() => void submit()}>{t('settings.documentLayout.actions.confirm', 'Confirm')}</Button></div>
       </div>
     </Modal>
   </>;

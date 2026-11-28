@@ -1,3 +1,4 @@
+import { dashboardStyles } from '../../dashboardStyles';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 import {
@@ -366,7 +367,7 @@ export function PdfPreviewPane({
   if (!enabled) {
     return (
       <section className={`rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary ${className}`}>
-        <div className="p-5 text-sm text-bambu-gray">
+        <div className="p-5 text-sm text-table-secondary">
           {confirmedLockVersion
             ? t('settings.documentLayout.preview.empty', 'Select or create a draft to generate a preview.')
             : t(
@@ -381,14 +382,14 @@ export function PdfPreviewPane({
   return (
     <section
       aria-label={t('settings.documentLayout.preview.title', 'PDF preview')}
-      className={`flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-[#071b22] ${className}`}
+      className={`${dashboardStyles.card} flex min-h-[620px] min-w-0 flex-col overflow-hidden ${className}`}
     >
-      <div className="flex flex-wrap items-center gap-2 border-b border-bambu-dark-tertiary px-3 py-2">
+      <div className={`${dashboardStyles.cardHeader} flex flex-wrap items-center gap-2 rounded-t-xl`}>
         <div className="mr-auto min-w-0">
-          <h2 className="truncate text-sm font-semibold text-white">
+          <h2 className={dashboardStyles.cardTitle}>
             {t('settings.documentLayout.preview.title', 'PDF preview')}
           </h2>
-          <p className="text-xs text-bambu-gray">
+          <p className="text-xs text-table-secondary">
             {t('settings.documentLayout.preview.paper', '{{format}} portrait', { format: pageFormat })}
           </p>
         </div>
@@ -403,7 +404,7 @@ export function PdfPreviewPane({
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="min-w-24 text-center text-xs text-bambu-gray">
+        <span className="min-w-24 text-center text-xs text-table-secondary">
           {t('settings.documentLayout.preview.page', 'Page {{page}} of {{pages}}', {
             page: numPages ? currentPage : 0,
             pages: numPages,
@@ -442,7 +443,7 @@ export function PdfPreviewPane({
               ? 'bg-green-500/15 text-green-800 dark:text-green-300'
               : pdfaLabel(preview?.report) === 'Invalid'
                 ? 'bg-red-500/15 text-red-700 dark:text-red-300'
-                : 'bg-bambu-dark-tertiary text-bambu-gray'
+                : 'border border-bambu-dark-tertiary bg-bambu-dark text-table-secondary'
           }`}
         >
           PDF/A: {t(`orders.runtimeDomain.documentLayoutExtras.${pdfaLabel(preview?.report).toLowerCase()}`)}
@@ -463,7 +464,7 @@ export function PdfPreviewPane({
             href={downloadUrl}
             download={`layout-preview-${layoutId}.pdf`}
             aria-label={t('settings.documentLayout.preview.download', 'Download preview PDF')}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs text-bambu-green hover:bg-bambu-dark-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs text-accent-foreground hover:bg-bambu-dark-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green"
           >
             <Download className="h-4 w-4" />
             <span className="hidden xl:inline">
@@ -483,8 +484,8 @@ export function PdfPreviewPane({
               ? t('settings.documentLayout.preview.pdfOriginal', 'PDF is original')
               : t('settings.documentLayout.preview.xmlOriginal', 'XML is original')}
           </strong>
-          <span className="text-bambu-gray">{einvoiceEvidence.kind === 'zugferd' ? 'ZUGFeRD' : 'XRechnung'} · {einvoiceEvidence.profile}</span>
-          <code className="min-w-0 break-all text-[10px] text-bambu-gray" title={einvoiceEvidence.xml_sha256}>XML SHA-256: {einvoiceEvidence.xml_sha256}</code>
+          <span className="text-table-secondary">{einvoiceEvidence.kind === 'zugferd' ? 'ZUGFeRD' : 'XRechnung'} · {einvoiceEvidence.profile}</span>
+          <code className="min-w-0 break-all text-[10px] text-table-secondary" title={einvoiceEvidence.xml_sha256}>XML SHA-256: {einvoiceEvidence.xml_sha256}</code>
           {einvoiceEvidence.kind === 'xrechnung' && einvoiceEvidence.pdf_artifact_id ? (
             <Button type="button" variant="ghost" size="sm" loading={evidenceDownloadBusy} onClick={() => void downloadEvidencePdf()}>
               <Download className="h-4 w-4" />
@@ -494,9 +495,9 @@ export function PdfPreviewPane({
         </div>
       ) : null}
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 bg-bambu-dark">
         {previewQuery.isFetching && preview ? (
-          <div className="absolute inset-x-3 top-3 z-10 rounded-md bg-bambu-dark/90 px-3 py-2 text-xs text-bambu-gray shadow">
+          <div className="absolute inset-x-3 top-3 z-10 rounded-md bg-bambu-dark/90 px-3 py-2 text-xs text-table-secondary shadow">
             {t(
               'settings.documentLayout.preview.updating',
               'Preview is being updated; the previous version remains visible.',
@@ -505,7 +506,7 @@ export function PdfPreviewPane({
         ) : null}
 
         {!preview && previewQuery.isPending ? (
-          <div className="flex h-full min-h-[560px] items-center justify-center p-8 text-sm text-bambu-gray">
+          <div className="flex h-full min-h-[560px] items-center justify-center p-8 text-sm text-table-secondary">
             {t('settings.documentLayout.preview.loading', 'Generating PDF preview...')}
           </div>
         ) : null}
@@ -524,7 +525,7 @@ export function PdfPreviewPane({
                   href={downloadUrl}
                   download={`layout-preview-${layoutId}.pdf`}
                   aria-label={t('settings.documentLayout.preview.download', 'Download preview PDF')}
-                  className="inline-flex min-h-9 items-center rounded-lg border border-bambu-dark-tertiary px-3 text-sm text-bambu-green"
+                  className="inline-flex min-h-9 items-center rounded-lg border border-bambu-dark-tertiary px-3 text-sm text-accent-foreground"
                 >
                   {t('settings.documentLayout.actions.download', 'Download')}
                 </a>
@@ -534,7 +535,7 @@ export function PdfPreviewPane({
         ) : null}
 
         {!visibleError && preview && !pdfDocument ? (
-          <div className="flex h-full min-h-[560px] items-center justify-center p-8 text-sm text-bambu-gray">
+          <div className="flex h-full min-h-[560px] items-center justify-center p-8 text-sm text-table-secondary">
             {t('settings.documentLayout.preview.loading', 'Generating PDF preview...')}
           </div>
         ) : null}

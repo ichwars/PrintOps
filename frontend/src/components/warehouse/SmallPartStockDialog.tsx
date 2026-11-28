@@ -160,7 +160,7 @@ function SmallPartStockForm({ part, onClose, readOnly = false, quickKind }: Stoc
         </fieldset>
         {error && <p role="alert" className="rounded-lg bg-red-100 px-3 py-2 text-sm text-red-900 dark:bg-red-950/60 dark:text-red-300">{errorMessage}</p>}
         {remembered?.uncertain && <p role="status" className="text-sm text-amber-800 dark:text-amber-300">{copy.uncertainMovement}</p>}
-        {mutation.isSuccess && <p role="status" className="text-sm text-accent-foreground">{t('orders.runtimeDomain.warehouseGoods.quickBookingSaved')}</p>}
+        {mutation.isSuccess && <p role="status" className="text-sm text-accent-foreground">{t('orders.runtimeDomain.warehouseGoods.quickBookingSaved')}{mutation.data.receipt_number && ` · ${mutation.data.receipt_number}`}</p>}
         <Button ref={submitRef} type="submit" className={quickKind ? 'text-black!' : undefined} loading={mutation.isPending}
           disabled={!remembered && !valid}>{text('saveBooking')}</Button>
       </form>}
@@ -173,7 +173,7 @@ function SmallPartStockForm({ part, onClose, readOnly = false, quickKind }: Stoc
           {ledger.data?.map((entry) => (
             <div key={entry.id} className="rounded-lg border border-bambu-dark-tertiary p-3 text-sm">
               <div className="flex justify-between gap-3 text-white">
-                <span>{movementLabel(entry.entry_kind)}</span>
+                <span>{movementLabel(entry.entry_kind)}{entry.receipt_number && ` · ${entry.receipt_number}`}</span>
                 <span>{Number(entry.physical_delta).toLocaleString(smallPartsLocale())}</span>
               </div>
               <p className="mt-1 text-bambu-gray">{entry.reason}</p>

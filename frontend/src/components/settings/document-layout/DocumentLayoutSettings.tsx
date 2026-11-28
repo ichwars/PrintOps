@@ -333,7 +333,7 @@ export function DocumentLayoutSettings() {
   const conflict = dirty && autosave.error instanceof LayoutVersionConflictError;
   const readOnly = !canManage || detail?.summary.status !== 'draft';
 
-  return <div id="document-layout-workspace" className="w-full space-y-3">
+  return <div id="document-layout-workspace" className="@container/layout w-full min-w-0 space-y-4">
     <LayoutContextBar
       businessProfileId={businessProfileId}
       businessProfiles={profiles.map((profile) => ({ value: profile.id, label: profile.name, disabled: !profile.is_active }))}
@@ -355,10 +355,10 @@ export function DocumentLayoutSettings() {
 
     {!detail && selectedLayout ? <LoadingState /> : !detail ? <section className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-5">
       <h2 className="font-semibold text-white">{t('orders.runtimeDomain.documentLayoutExtras.noLayout')}</h2>
-      <p className="mt-1 text-sm text-bambu-gray">{t('orders.runtimeDomain.documentLayoutExtras.createHint')}</p>
+      <p className="mt-1 text-sm text-table-secondary">{t('orders.runtimeDomain.documentLayoutExtras.createHint')}</p>
       {canManage ? <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <TextField className="min-h-11 flex-1" value={createReason} placeholder={t('orders.runtimeDomain.documentLayoutExtras.createReason')} aria-label={t('orders.runtimeDomain.documentLayoutExtras.createReason')} onValueChange={setCreateReason} />
-        <Button loading={actionBusy} disabled={createReason.trim().length < 3 || !businessProfileId || !documentType} onClick={() => void runAction(() => documentLayoutsApi.createLayout({ scope: { business_profile_id: businessProfileId!, document_type: documentType, language }, template_key: 'classic', reason: createReason.trim() }))}><FilePlus2 className="h-4 w-4" />{t('orders.runtimeDomain.documentLayoutExtras.createDraft')}</Button>
+        <Button className="text-black!" loading={actionBusy} disabled={createReason.trim().length < 3 || !businessProfileId || !documentType} onClick={() => void runAction(() => documentLayoutsApi.createLayout({ scope: { business_profile_id: businessProfileId!, document_type: documentType, language }, template_key: 'classic', reason: createReason.trim() }))}><FilePlus2 className="h-4 w-4" />{t('orders.runtimeDomain.documentLayoutExtras.createDraft')}</Button>
       </div> : null}
     </section> : <>
       <LayoutLifecycleBar
@@ -379,8 +379,8 @@ export function DocumentLayoutSettings() {
       {conflict ? <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"><AlertTriangle className="h-4 w-4" /><span className="min-w-0 flex-1">{t('settings.documentLayout.errors.conflict', 'This draft was changed in another session.')}</span><Button size="sm" variant="secondary" onClick={() => void refreshDetail()}>{t('settings.documentLayout.errors.reload', 'Load latest version')}</Button></div> : null}
       {actionError && !conflict ? <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">{actionError}</div> : null}
 
-      <main className="grid min-w-0 gap-4 min-[900px]:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-        <div className="min-w-0 min-[900px]:min-w-[680px]">
+      <div className="grid min-w-0 items-start gap-4 @[1050px]/layout:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+        <div className="min-w-0">
           <PreviewBoundary resetKey={previewKey} failureMessage={t('orders.runtimeDomain.documentLayoutExtras.previewFailed')}>
             <Suspense fallback={<LoadingState />}>
               <PdfPreviewPane
@@ -393,7 +393,7 @@ export function DocumentLayoutSettings() {
             </Suspense>
           </PreviewBoundary>
         </div>
-        <aside className="min-w-0 space-y-3 min-[900px]:sticky min-[900px]:top-4 min-[900px]:max-h-[calc(100vh-2rem)] min-[900px]:overflow-y-auto min-[900px]:pr-1">
+        <aside className="min-w-0 space-y-3 @[1050px]/layout:sticky @[1050px]/layout:top-4 @[1050px]/layout:max-h-[calc(100vh-2rem)] @[1050px]/layout:overflow-y-auto @[1050px]/layout:pr-1">
           <LayoutControlPanel
             detail={detail}
             patch={patch}
@@ -409,7 +409,7 @@ export function DocumentLayoutSettings() {
           />
           <LayoutFindings findings={readinessQuery.data?.findings ?? []} stale={dirty || autosave.status === 'pending' || autosave.status === 'saving'} onNavigate={(section) => { setFocusSection(null); window.setTimeout(() => setFocusSection(section), 0); }} />
         </aside>
-      </main>
+      </div>
 
       <LayoutHistoryDrawer
         open={historyOpen}

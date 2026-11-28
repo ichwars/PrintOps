@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.app.models.small_part import SmallPart, SmallPartCategory, SmallPartLedgerEntry
 from backend.app.schemas.small_part import SmallPartUpdate
+from backend.app.services.warehouse_number_sequence import reserve_number
 
 
 class SmallPartNotFound(LookupError):
@@ -136,8 +137,10 @@ async def append_ledger_entry(
     if next_physical < 0 or next_reserved < 0 or next_reserved > next_physical:
         raise InsufficientSmallPartStock(small_part_id, next_physical - next_reserved)
 
+    receipt_number = await reserve_number(session, key="goods_receipt") if entry_kind == "receipt" else None
     entry = SmallPartLedgerEntry(
         small_part_id=small_part_id,
+        receipt_number=receipt_number,
         entry_kind=entry_kind,
         physical_delta=physical_delta,
         reserved_delta=reserved_delta,

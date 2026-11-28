@@ -85,7 +85,8 @@ describe('DeviceManagement cards', () => {
       'text-bambu-green',
     );
     expect(container.querySelector('[data-device-accent="dryer"]')).toHaveClass(
-      'text-cyan-400',
+      'text-cyan-700',
+      'dark:text-cyan-400',
     );
     expect(container.querySelector('.bg-bambu-orange')).toBeNull();
   });

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { spoolbuddyApi, type SpoolBuddyDevice } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
+import { SettingsDashboardCard } from './settings/SettingsDashboardCard';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
@@ -117,14 +118,14 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                   online
                     ? 'bg-green-500/15 text-green-400 border border-green-500/40'
-                    : 'bg-gray-500/15 text-gray-400 border border-gray-500/40'
+                    : 'border border-bambu-dark-tertiary bg-bambu-dark text-table-secondary'
                 }`}
               >
                 {online ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
                 {online ? t('settings.spoolbuddy.online') : t('settings.spoolbuddy.offline')}
               </span>
             </div>
-            <p className="text-xs text-bambu-gray font-mono mt-1 truncate">{device.device_id}</p>
+            <p className="text-xs text-table-secondary font-mono mt-1 truncate">{device.device_id}</p>
           </div>
           <Button
             variant="danger"
@@ -142,15 +143,15 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
         {/* Connection */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div>
-            <div className="text-bambu-gray">{t('settings.spoolbuddy.ipAddress')}</div>
+            <div className="text-table-secondary">{t('settings.spoolbuddy.ipAddress')}</div>
             <div className="text-white font-mono">{device.ip_address}</div>
           </div>
           <div>
-            <div className="text-bambu-gray">{t('settings.spoolbuddy.firmware')}</div>
+            <div className="text-table-secondary">{t('settings.spoolbuddy.firmware')}</div>
             <div className="text-white">{device.firmware_version ?? '—'}</div>
           </div>
           <div>
-            <div className="text-bambu-gray flex items-center gap-1">
+            <div className="text-table-secondary flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {t('settings.spoolbuddy.lastSeen')}
             </div>
@@ -159,7 +160,7 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
             </div>
           </div>
           <div>
-            <div className="text-bambu-gray">{t('settings.spoolbuddy.daemonUptime')}</div>
+            <div className="text-table-secondary">{t('settings.spoolbuddy.daemonUptime')}</div>
             <div className="text-white">{formatUptime(device.uptime_s)}</div>
           </div>
         </div>
@@ -187,16 +188,16 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
 
         {/* Hardware flags */}
         <div className="flex items-center gap-3 text-xs flex-wrap">
-          <span className="flex items-center gap-1 text-bambu-gray">
+          <span className="flex items-center gap-1 text-table-secondary">
             {device.nfc_ok ? (
               <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
             ) : (
               <XCircle className="w-3.5 h-3.5 text-red-400" />
             )}
             {t('settings.spoolbuddy.nfc')}
-            {device.nfc_reader_type && <span className="text-bambu-gray/70">({device.nfc_reader_type})</span>}
+            {device.nfc_reader_type && <span className="text-table-secondary">({device.nfc_reader_type})</span>}
           </span>
-          <span className="flex items-center gap-1 text-bambu-gray">
+          <span className="flex items-center gap-1 text-table-secondary">
             {device.scale_ok ? (
               <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
             ) : (
@@ -212,18 +213,18 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
               {stats.cpu_temp_c !== undefined && (
                 <div className="flex items-center gap-2">
-                  <Thermometer className="w-3.5 h-3.5 text-bambu-gray" />
+                  <Thermometer className="w-3.5 h-3.5 text-table-secondary" />
                   <div>
-                    <div className="text-bambu-gray">{t('settings.spoolbuddy.cpuTemp')}</div>
+                    <div className="text-table-secondary">{t('settings.spoolbuddy.cpuTemp')}</div>
                     <div className="text-white">{stats.cpu_temp_c.toFixed(1)}°C</div>
                   </div>
                 </div>
               )}
               {stats.load_avg && stats.load_avg.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <Activity className="w-3.5 h-3.5 text-bambu-gray" />
+                  <Activity className="w-3.5 h-3.5 text-table-secondary" />
                   <div>
-                    <div className="text-bambu-gray">{t('settings.spoolbuddy.cpuLoad')}</div>
+                    <div className="text-table-secondary">{t('settings.spoolbuddy.cpuLoad')}</div>
                     <div className="text-white">
                       {stats.load_avg[0].toFixed(2)}
                       {stats.cpu_count
@@ -235,9 +236,9 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
               )}
               {mem && mem.percent !== undefined && (
                 <div className="flex items-center gap-2">
-                  <Cpu className="w-3.5 h-3.5 text-bambu-gray" />
+                  <Cpu className="w-3.5 h-3.5 text-table-secondary" />
                   <div>
-                    <div className="text-bambu-gray">{t('settings.spoolbuddy.memory')}</div>
+                    <div className="text-table-secondary">{t('settings.spoolbuddy.memory')}</div>
                     <div className="text-white">
                       {mem.percent.toFixed(0)}% ({formatMB(mem.used_mb)} / {formatMB(mem.total_mb)})
                     </div>
@@ -246,9 +247,9 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
               )}
               {disk && disk.percent !== undefined && (
                 <div className="flex items-center gap-2">
-                  <HardDrive className="w-3.5 h-3.5 text-bambu-gray" />
+                  <HardDrive className="w-3.5 h-3.5 text-table-secondary" />
                   <div>
-                    <div className="text-bambu-gray">{t('settings.spoolbuddy.disk')}</div>
+                    <div className="text-table-secondary">{t('settings.spoolbuddy.disk')}</div>
                     <div className="text-white">
                       {disk.percent.toFixed(0)}% ({disk.used_gb?.toFixed(1)} / {disk.total_gb?.toFixed(1)} GB)
                     </div>
@@ -257,16 +258,16 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
               )}
               {stats.system_uptime_s !== undefined && (
                 <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-bambu-gray" />
+                  <Clock className="w-3.5 h-3.5 text-table-secondary" />
                   <div>
-                    <div className="text-bambu-gray">{t('settings.spoolbuddy.systemUptime')}</div>
+                    <div className="text-table-secondary">{t('settings.spoolbuddy.systemUptime')}</div>
                     <div className="text-white">{formatUptime(stats.system_uptime_s)}</div>
                   </div>
                 </div>
               )}
             </div>
             {stats.os && (
-              <div className="mt-3 text-xs text-bambu-gray font-mono truncate">
+              <div className="mt-3 text-xs text-table-secondary font-mono truncate">
                 {[stats.os.os, stats.os.kernel, stats.os.arch, stats.os.python && `Python ${stats.os.python}`]
                   .filter(Boolean)
                   .join(' · ')}
@@ -328,24 +329,16 @@ export function SpoolBuddySettings() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardContent className="py-3 px-4">
-          <div className="flex items-start gap-2 text-xs">
-            <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-            <div className="text-bambu-gray">
-              <p className="text-white font-medium mb-1">{t('settings.spoolbuddy.infoTitle')}</p>
-              <p>{t('settings.spoolbuddy.infoBody')}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <SettingsDashboardCard id="card-spoolbuddy-info" title={t('settings.spoolbuddy.infoTitle')} icon={Info}>
+        <p>{t('settings.spoolbuddy.infoBody')}</p>
+      </SettingsDashboardCard>
 
       {hasDuplicates && (
         <Card className="border-l-4 border-l-yellow-500">
           <CardContent className="py-3 px-4">
             <div className="flex items-start gap-2 text-xs">
               <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-              <div className="text-bambu-gray">
+              <div className="text-table-secondary">
                 <p className="text-white font-medium mb-1">
                   {t('settings.spoolbuddy.duplicatesTitle', { count: devices.length })}
                 </p>
@@ -358,7 +351,7 @@ export function SpoolBuddySettings() {
 
       {devices.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-bambu-gray text-sm">
+          <CardContent className="py-8 text-center text-table-secondary text-sm">
             {t('settings.spoolbuddy.empty')}
           </CardContent>
         </Card>

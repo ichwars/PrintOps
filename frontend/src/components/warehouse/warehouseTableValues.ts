@@ -12,6 +12,17 @@ export function warehouseUnit(code: string, piece: string, fallback = code) {
   return code === 'C62' || code === 'H87' ? piece : UNIT_SYMBOLS[code] ?? fallback;
 }
 
+export function stockMicroUnits(value: string): bigint {
+  // The stock APIs serialize Decimal values with up to six decimal places,
+  // including scientific notation for some small balances.
+  const match = /^([+-]?\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(value);
+  if (!match) return 0n;
+  const [, integer, fraction = '', exponent = '0'] = match;
+  const coefficient = BigInt(integer + fraction);
+  const places = 6 + Number(exponent) - fraction.length;
+  return places >= 0 ? coefficient * 10n ** BigInt(places) : coefficient / 10n ** BigInt(-places);
+}
+
 export function warehouseDate(value: string | null | undefined, format: DateFormat = 'system') {
   const date = parseUTCDate(value);
   return date ? formatDateInput(date, format) : '—';

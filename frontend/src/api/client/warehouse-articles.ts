@@ -102,6 +102,7 @@ export interface WarehouseMovementInput {
   idempotency_key: string;
 }
 export interface WarehouseMovement extends Omit<WarehouseMovementInput, 'location_id' | 'quantity' | 'order_id' | 'reservation_id' | 'reverses_id' | 'target_location_id'> {
+  receipt_number?: string | null;
   id: number;
   article_id: number;
   quantity: string;

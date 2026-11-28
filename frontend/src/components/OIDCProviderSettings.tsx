@@ -94,7 +94,7 @@ function ProviderForm({
           <label className={labelCls}>
             {t('settings.oidc.form.clientSecret')}
             {!isEdit && <span className="text-red-700 dark:text-red-400"> *</span>}
-            {isEdit && <span className="text-bambu-gray text-xs ml-1">({t('settings.oidc.form.secretHint')})</span>}
+            {isEdit && <span className="text-table-secondary text-xs ml-1">({t('settings.oidc.form.secretHint')})</span>}
           </label>
           <TextField
             className={inputCls}
@@ -131,14 +131,14 @@ function ProviderForm({
           <Toggle checked={form.auto_create_users ?? false} onChange={(v) => set('auto_create_users', v)} />
           <div>
             <p className="text-white text-sm">{t('settings.oidc.form.autoCreate')}</p>
-            <p className="text-bambu-gray text-xs">{t('settings.oidc.form.autoCreateDesc')}</p>
+            <p className="text-table-secondary text-xs">{t('settings.oidc.form.autoCreateDesc')}</p>
           </div>
         </label>
         <label className="flex items-center gap-3 cursor-pointer w-full">
           <Toggle checked={form.auto_link_existing_accounts ?? false} onChange={(v) => set('auto_link_existing_accounts', v)} />
           <div>
             <p className="text-white text-sm">{t('settings.oidc.form.autoLink')}</p>
-            <p className="text-bambu-gray text-xs">{t('settings.oidc.form.autoLinkDesc')}</p>
+            <p className="text-table-secondary text-xs">{t('settings.oidc.form.autoLinkDesc')}</p>
           </div>
         </label>
         <label className="flex items-center gap-3 cursor-pointer w-full">
@@ -149,14 +149,14 @@ function ProviderForm({
           />
           <div>
             <p className="text-white text-sm">{t('settings.oidc.form.requireEmailVerified')}</p>
-            <p className="text-bambu-gray text-xs">{requireEmailVerifiedDesc}</p>
+            <p className="text-table-secondary text-xs">{requireEmailVerifiedDesc}</p>
           </div>
         </label>
         <label className="flex items-center gap-3 cursor-pointer w-full">
           <Toggle checked={form.is_autologin ?? false} onChange={(v) => set('is_autologin', v)} />
           <div>
             <p className="text-white text-sm">{t('settings.oidc.form.autologin')}</p>
-            <p className="text-bambu-gray text-xs">{t('settings.oidc.form.autologinDesc')}</p>
+            <p className="text-table-secondary text-xs">{t('settings.oidc.form.autologinDesc')}</p>
           </div>
         </label>
         <label className="flex items-center gap-3 cursor-pointer w-full">
@@ -166,7 +166,7 @@ function ProviderForm({
           />
           <div>
             <p className="text-white text-sm">{t('settings.oidc.form.allowPrivateNetwork')}</p>
-            <p className="text-bambu-gray text-xs">{t('settings.oidc.form.allowPrivateNetworkDesc')}</p>
+            <p className="text-table-secondary text-xs">{t('settings.oidc.form.allowPrivateNetworkDesc')}</p>
           </div>
         </label>
       </div>
@@ -179,7 +179,7 @@ function ProviderForm({
           onChange={(e) => set('email_claim', e.target.value || 'email')}
           placeholder={t('settings.oidc.form.emailClaimPlaceholder')}
         />
-        <p className="text-bambu-gray text-xs mt-1">{t('settings.oidc.form.emailClaimDesc')}</p>
+        <p className="text-table-secondary text-xs mt-1">{t('settings.oidc.form.emailClaimDesc')}</p>
         {autoLinkOn && form.email_claim !== 'email' && (
           <p className="text-yellow-700 dark:text-yellow-400 text-xs mt-1">{t('settings.oidc.form.emailClaimCustomClaimAutoLinkWarning')}</p>
         )}
@@ -197,7 +197,7 @@ function ProviderForm({
             <option key={g.id} value={g.id}>{g.name}</option>
           ))}
         </LegacySelect>
-        <p className="text-bambu-gray text-xs mt-1">{t('settings.oidc.form.defaultGroupDesc')}</p>
+        <p className="text-table-secondary text-xs mt-1">{t('settings.oidc.form.defaultGroupDesc')}</p>
       </div>
 
       <div className="flex gap-3 pt-2">
@@ -206,7 +206,7 @@ function ProviderForm({
         </Button>
         <Button
           variant="primary"
-          className="flex-1"
+          className="flex-1 text-black!"
           disabled={!form.name || !form.issuer_url || !form.client_id || (!isEdit && !form.client_secret) || (isEdit && secretChanged && !form.client_secret) || isPending}
           onClick={handleSave}
         >
@@ -241,7 +241,7 @@ function ProviderIconAvatar({ provider }: { provider: OIDCProvider }) {
   }
   return (
     <div className="w-8 h-8 rounded-full bg-bambu-dark-tertiary flex items-center justify-center">
-      <Globe className="w-4 h-4 text-bambu-gray" />
+      <Globe className="w-4 h-4 text-table-secondary" />
     </div>
   );
 }
@@ -335,13 +335,13 @@ export function OIDCProviderSettings() {
       {/* Header */}
       <Card id="card-oidc">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
               <h3 className="text-white font-semibold">{t('settings.oidc.title')}</h3>
-              <p className="text-bambu-gray text-sm">{t('settings.oidc.desc')}</p>
+              <p className="text-table-secondary text-sm">{t('settings.oidc.desc')}</p>
             </div>
             {!showCreate && (
-              <Button variant="primary" size="sm" onClick={() => setShowCreate(true)} className="flex items-center gap-2">
+              <Button variant="primary" size="sm" onClick={() => setShowCreate(true)} className="text-black!">
                 <Plus className="w-4 h-4" />
                 {t('settings.oidc.addProvider')}
               </Button>
@@ -370,9 +370,9 @@ export function OIDCProviderSettings() {
         <Card id="card-oidc-empty">
           <CardContent>
             <div className="text-center py-8 space-y-3">
-              <Globe className="w-12 h-12 text-bambu-gray mx-auto" />
-              <p className="text-bambu-gray">{t('settings.oidc.empty')}</p>
-              <Button variant="primary" size="sm" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2">
+              <Globe className="w-12 h-12 text-table-secondary mx-auto" />
+              <p className="text-table-secondary">{t('settings.oidc.empty')}</p>
+              <Button variant="primary" size="sm" onClick={() => setShowCreate(true)} className="text-black!">
                 <Plus className="w-4 h-4" />
                 {t('settings.oidc.addProvider')}
               </Button>
@@ -394,7 +394,7 @@ export function OIDCProviderSettings() {
                       <Check className="w-3 h-3" /> {t('common.enabled')}
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs text-bambu-gray bg-bambu-dark-tertiary px-2 py-0.5 rounded-full">
+                    <span className="flex items-center gap-1 text-xs text-table-secondary bg-bambu-dark-tertiary px-2 py-0.5 rounded-full">
                       <X className="w-3 h-3" /> {t('common.disabled')}
                     </span>
                   )}
@@ -404,7 +404,7 @@ export function OIDCProviderSettings() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 text-bambu-gray text-xs mt-0.5">
+                <div className="flex items-center gap-1 text-table-secondary text-xs mt-0.5">
                   <ExternalLink className="w-3 h-3" />
                   <span>{provider.issuer_url}</span>
                 </div>
@@ -490,37 +490,37 @@ export function OIDCProviderSettings() {
             <CardContent>
               <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
                 <div>
-                  <dt className="text-bambu-gray">{t('settings.oidc.form.clientId')}</dt>
+                  <dt className="text-table-secondary">{t('settings.oidc.form.clientId')}</dt>
                   <dd className="text-white font-mono truncate">{provider.client_id}</dd>
                 </div>
                 <div>
-                  <dt className="text-bambu-gray">{t('settings.oidc.form.scopes')}</dt>
+                  <dt className="text-table-secondary">{t('settings.oidc.form.scopes')}</dt>
                   <dd className="text-white">{provider.scopes}</dd>
                 </div>
                 <div>
-                  <dt className="text-bambu-gray">{t('settings.oidc.form.autoCreate')}</dt>
-                  <dd className={provider.auto_create_users ? 'text-green-700 dark:text-green-400' : 'text-bambu-gray'}>
+                  <dt className="text-table-secondary">{t('settings.oidc.form.autoCreate')}</dt>
+                  <dd className={provider.auto_create_users ? 'text-green-700 dark:text-green-400' : 'text-table-secondary'}>
                     {provider.auto_create_users ? t('common.yes') : t('common.no')}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-bambu-gray">{t('settings.oidc.form.autoLink')}</dt>
-                  <dd className={provider.auto_link_existing_accounts ? 'text-green-700 dark:text-green-400' : 'text-bambu-gray'}>
+                  <dt className="text-table-secondary">{t('settings.oidc.form.autoLink')}</dt>
+                  <dd className={provider.auto_link_existing_accounts ? 'text-green-700 dark:text-green-400' : 'text-table-secondary'}>
                     {provider.auto_link_existing_accounts ? t('common.yes') : t('common.no')}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-bambu-gray">{t('settings.oidc.form.emailClaim')}</dt>
+                  <dt className="text-table-secondary">{t('settings.oidc.form.emailClaim')}</dt>
                   <dd className="text-white font-mono">{provider.email_claim}</dd>
                 </div>
                 <div>
-                  <dt className="text-bambu-gray">{t('settings.oidc.form.requireEmailVerified')}</dt>
+                  <dt className="text-table-secondary">{t('settings.oidc.form.requireEmailVerified')}</dt>
                   <dd className={provider.require_email_verified ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
                     {provider.require_email_verified ? t('common.yes') : t('common.no')}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-bambu-gray">{t('settings.oidc.form.defaultGroup')}</dt>
+                  <dt className="text-table-secondary">{t('settings.oidc.form.defaultGroup')}</dt>
                   <dd className="text-white">
                     {provider.default_group_id
                       ? (groups.find((g) => g.id === provider.default_group_id)?.name ?? t('settings.oidc.form.defaultGroupViewersFallback'))

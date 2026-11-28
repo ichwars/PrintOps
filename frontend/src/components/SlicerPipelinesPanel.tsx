@@ -165,7 +165,7 @@ export function SlicerPipelinesPanel() {
           <Workflow className="w-4 h-4 text-bambu-green" />
           {t('settings.pipelines.title', 'Slicer Pipelines')}
         </h3>
-        <p className="text-xs text-bambu-gray mt-1">
+        <p className="text-xs text-table-secondary mt-1">
           {t(
             'settings.pipelines.subtitle',
             'Reusable preset bundles (printer + process + filaments + bed type). Save one from the Slice dialog and apply it with a single click on the next file.',
@@ -174,7 +174,7 @@ export function SlicerPipelinesPanel() {
       </CardHeader>
       <CardContent>
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-bambu-gray">
+          <div className="flex items-center gap-2 text-sm text-table-secondary">
             <Loader2 className="w-4 h-4 animate-spin" />
             {t('settings.pipelines.loading', 'Loading pipelines…')}
           </div>
@@ -189,7 +189,7 @@ export function SlicerPipelinesPanel() {
         {!isLoading && !error && allPipelines.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <div className="relative flex-1 min-w-[12rem]">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-bambu-gray pointer-events-none" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-table-secondary pointer-events-none" />
               <TextField
                 type="search"
                 value={searchTerm}
@@ -233,7 +233,7 @@ export function SlicerPipelinesPanel() {
               )}
             </LegacySelect>
             {(searchTerm || targetFilter) && (
-              <span className="text-xs text-bambu-gray">
+              <span className="text-xs text-table-secondary">
                 {t('settings.pipelines.filter.count', '{{shown}} / {{total}}', {
                   shown: pipelines.length,
                   total: allPipelines.length,
@@ -243,7 +243,7 @@ export function SlicerPipelinesPanel() {
           </div>
         )}
         {!isLoading && !error && allPipelines.length === 0 && (
-          <div className="text-sm text-bambu-gray space-y-2">
+          <div className="text-sm text-table-secondary space-y-2">
             <p>{t('settings.pipelines.empty.title', 'No pipelines yet.')}</p>
             <p>
               {t(
@@ -254,7 +254,7 @@ export function SlicerPipelinesPanel() {
           </div>
         )}
         {!isLoading && !error && allPipelines.length > 0 && pipelines.length === 0 && (
-          <p className="text-sm text-bambu-gray">
+          <p className="text-sm text-table-secondary">
             {t('settings.pipelines.filter.noMatches', 'No pipelines match the current filters.')}
           </p>
         )}
@@ -421,7 +421,7 @@ function PipelineRow({
                   active. Both fields are kept on state so toggling back and
                   forth doesn't lose the user's previous pick. */}
               <div>
-                <label className="text-xs text-bambu-gray block mb-1">
+                <label className="text-xs text-table-secondary block mb-1">
                   {t('settings.pipelines.field.targetKind', 'Target type')}
                 </label>
                 <div className="flex gap-3 text-xs">
@@ -450,7 +450,7 @@ function PipelineRow({
 
               {draftTargetKind === 'specific_printer' ? (
                 <div>
-                  <label className="text-xs text-bambu-gray block mb-1">
+                  <label className="text-xs text-table-secondary block mb-1">
                     {t('settings.pipelines.field.targetPrinter', 'Target printer')}
                   </label>
                   <LegacySelect
@@ -474,7 +474,7 @@ function PipelineRow({
               ) : (
                 <div className="space-y-2">
                   <div>
-                    <label className="text-xs text-bambu-gray block mb-1">
+                    <label className="text-xs text-table-secondary block mb-1">
                       {t('settings.pipelines.field.targetModelClass', 'Printer model')}
                     </label>
                     <LegacySelect
@@ -494,7 +494,7 @@ function PipelineRow({
                     </LegacySelect>
                   </div>
                   <div>
-                    <label className="text-xs text-bambu-gray block mb-1">
+                    <label className="text-xs text-table-secondary block mb-1">
                       {t('settings.pipelines.field.fanoutStrategy', 'Fanout strategy')}
                     </label>
                     <LegacySelect
@@ -530,8 +530,8 @@ function PipelineRow({
                 <span
                   className={`text-xs px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${
                     needsTarget
-                      ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400'
-                      : 'bg-bambu-dark-tertiary text-bambu-gray'
+                      ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-400'
+                      : 'bg-bambu-dark-tertiary text-table-secondary'
                   }`}
                 >
                   <PrinterIcon className="w-3 h-3" />
@@ -543,7 +543,7 @@ function PipelineRow({
                         model: pipeline.target_model_class,
                       })}
                       {pipeline.fanout_strategy && (
-                        <span className="text-bambu-gray/60">
+                        <span className="text-table-secondary">
                           {' · '}
                           {t(
                             `settings.pipelines.field.fanoutShort.${pipeline.fanout_strategy}`,
@@ -558,7 +558,7 @@ function PipelineRow({
                 </span>
               </div>
               {pipeline.description && (
-                <p className="text-xs text-bambu-gray mt-0.5">{pipeline.description}</p>
+                <p className="text-xs text-table-secondary mt-0.5">{pipeline.description}</p>
               )}
             </>
           )}
@@ -570,14 +570,14 @@ function PipelineRow({
                 onClick={handleSave}
                 disabled={saving || !draftName.trim()}
                 aria-label={t('settings.pipelines.action.save', 'Save')}
-                className="p-1.5 text-bambu-green hover:bg-bambu-dark-tertiary rounded disabled:opacity-50"
+                className="p-1.5 text-accent-foreground hover:bg-bambu-dark-tertiary rounded disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
               </Button>
               <Button variant="unstyled"
                 onClick={handleCancel}
                 aria-label={t('settings.pipelines.action.cancel', 'Cancel')}
-                className="p-1.5 text-bambu-gray hover:bg-bambu-dark-tertiary rounded"
+                className="p-1.5 text-table-secondary hover:bg-bambu-dark-tertiary rounded"
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -587,7 +587,7 @@ function PipelineRow({
               <Button variant="unstyled"
                 onClick={() => setEditing(true)}
                 aria-label={t('settings.pipelines.action.rename', 'Rename')}
-                className="p-1.5 text-bambu-gray hover:text-white hover:bg-bambu-dark-tertiary rounded"
+                className="p-1.5 text-table-secondary hover:text-white hover:bg-bambu-dark-tertiary rounded"
               >
                 <Edit2 className="w-4 h-4" />
               </Button>
@@ -595,7 +595,7 @@ function PipelineRow({
                 onClick={onDelete}
                 disabled={deleting}
                 aria-label={t('settings.pipelines.action.delete', 'Delete')}
-                className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 hover:bg-bambu-dark-tertiary rounded disabled:opacity-50"
+                className="p-1.5 text-table-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-bambu-dark-tertiary rounded disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -612,7 +612,7 @@ function PipelineRow({
               ``@BBL <model>`` suffix) is shown verbatim so the user can match
               it 1:1 against what they see in the slicer. */}
           <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wide text-bambu-gray/60">
+            <div className="text-[10px] uppercase tracking-wide text-table-secondary">
               {t('settings.pipelines.group.profiles', 'Profiles')}
             </div>
             <PresetLine
@@ -626,8 +626,8 @@ function PipelineRow({
               name={processName}
             />
             {pipeline.bed_type && (
-              <div className="text-bambu-gray">
-                <span className="font-medium text-bambu-gray/80">
+              <div className="text-table-secondary">
+                <span className="font-medium text-table-secondary">
                   {t('settings.pipelines.slot.bed', 'Bed')}:
                 </span>{' '}
                 <span className="text-white">{pipeline.bed_type}</span>
@@ -638,10 +638,10 @@ function PipelineRow({
               filament (the common single-color production-batch case) we
               collapse them into a single ``All 4 slots: PLA Basic`` line. */}
           <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wide text-bambu-gray/60">
+            <div className="text-[10px] uppercase tracking-wide text-table-secondary">
               {t('settings.pipelines.group.filaments', 'Filaments')}
               {pipeline.filament_presets.length > 1 && (
-                <span className="text-bambu-gray/60 normal-case ml-1">
+                <span className="text-table-secondary normal-case ml-1">
                   ({pipeline.filament_presets.length})
                 </span>
               )}
@@ -673,13 +673,13 @@ function PipelineRow({
       )}
 
       {!editing && lastRun && (
-        <div className="mt-1.5 text-xs text-bambu-gray flex items-center gap-1">
-          <span className="font-medium text-bambu-gray/80">
+        <div className="mt-1.5 text-xs text-table-secondary flex items-center gap-1">
+          <span className="font-medium text-table-secondary">
             {t('settings.pipelines.runs.lastRun', 'Last run')}:
           </span>{' '}
           <RunStatusBadge status={lastRun.status} />
           {lastRun.created_at && (
-            <span className="text-bambu-gray/60">
+            <span className="text-table-secondary">
               · {new Date(lastRun.created_at).toLocaleString()}
             </span>
           )}
@@ -712,14 +712,14 @@ function PipelineRow({
 function RunStatusBadge({ status }: { status: PipelineRun['status'] }) {
   const { t } = useTranslation();
   const colourClass: Record<PipelineRun['status'], string> = {
-    queued: 'text-bambu-gray',
+    queued: 'text-table-secondary',
     slicing: 'text-blue-700 dark:text-blue-400',
     dispatching: 'text-blue-700 dark:text-blue-400',
     in_progress: 'text-bambu-green',
     completed: 'text-bambu-green',
     failed: 'text-red-700 dark:text-red-400',
     partial_failure: 'text-amber-700 dark:text-amber-400',
-    cancelled: 'text-bambu-gray',
+    cancelled: 'text-table-secondary',
   };
   return (
     <span className={colourClass[status]}>
@@ -738,8 +738,8 @@ function PresetLine({
   name: string | null;
 }) {
   return (
-    <div className="text-bambu-gray truncate">
-      <span className="font-medium text-bambu-gray/80">{label}:</span>{' '}
+    <div className="text-table-secondary truncate">
+      <span className="font-medium text-table-secondary">{label}:</span>{' '}
       {name ? (
         <span className="text-white">{name}</span>
       ) : (

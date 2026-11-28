@@ -28,7 +28,7 @@ export function StreamOverlayBuilder() {
   return (
     <section id="card-stream-overlay" className="mt-6 border-t border-bambu-dark-tertiary pt-6" aria-label={t('streamOverlay.builder.title')}>
       <h3 className="font-semibold text-white mb-2">{t('streamOverlay.builder.title')}</h3>
-      <p className="text-sm text-bambu-gray mb-4">{t('streamOverlay.builder.hint')}</p>
+      <p className="text-sm text-table-secondary mb-4">{t('streamOverlay.builder.hint')}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Select label={t('streamOverlay.builder.printer')} ariaLabel={t('streamOverlay.builder.printer')} value={String(printerId ?? '')}
           options={allowedPrinters.map(printer => ({ value: String(printer.id), label: printer.name }))}
@@ -53,7 +53,7 @@ export function StreamOverlayBuilder() {
         placeholder={t(authEnabled ? 'streamOverlay.builder.tokenRequired' : 'streamOverlay.builder.token')} aria-invalid={!validToken}
         className="w-full bg-bambu-dark rounded p-2 text-white border border-bambu-dark-tertiary"
         onChange={event => { setToken(event.target.value.trim()); setPreviewUrl(null); }} />
-      {!validToken && <p role="alert" className="text-red-400 text-sm mt-2">{t('streamOverlay.builder.tokenHint')}</p>}
+      {!validToken && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">{t('streamOverlay.builder.tokenHint')}</p>}
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
           <TextField label={t('streamOverlay.builder.url')} aria-label={t('streamOverlay.builder.url')} value={url} readOnly
@@ -61,8 +61,8 @@ export function StreamOverlayBuilder() {
         </div>
         {url && <CopyButton value={url} />}
       </div>
-      <p className="text-xs text-bambu-gray my-3">{t('streamOverlay.builder.previewHint')}</p>
-      <Button type="button" disabled={!canShare} onClick={() => setPreviewUrl(preview ? null : url)}>
+      <p className="text-xs text-table-secondary my-3">{t('streamOverlay.builder.previewHint')}</p>
+      <Button className="text-black!" type="button" disabled={!canShare} onClick={() => setPreviewUrl(preview ? null : url)}>
         {t(preview ? 'streamOverlay.builder.hidePreview' : 'streamOverlay.builder.showPreview')}
       </Button>
       {preview && <iframe src={url} title={t('streamOverlay.title')} className="w-full h-80 rounded mt-4 border border-bambu-dark-tertiary" />}

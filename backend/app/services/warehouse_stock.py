@@ -11,7 +11,10 @@ from backend.app.models.commerce import CustomerOrder
 from backend.app.models.location import Location
 from backend.app.models.small_part import SmallPartUnit
 from backend.app.models.warehouse_article import WarehouseArticleLedgerEntry as Entry
-from backend.app.schemas.warehouse_article import WarehouseMovementCreate, WarehouseReservationRead
+from backend.app.schemas.warehouse_article import (
+    WarehouseMovementCreate,
+    WarehouseReservationRead,
+)
 from backend.app.services.warehouse_articles import (
     MAX_QUANTITY,
     ZERO,
@@ -20,6 +23,7 @@ from backend.app.services.warehouse_articles import (
     load_article,
     location_balances,
 )
+from backend.app.services.warehouse_number_sequence import reserve_number
 
 
 async def reservation_remaining(session: AsyncSession, reservation: Entry) -> Decimal:
@@ -157,8 +161,10 @@ async def post_movement(
             )
         if physical > MAX_QUANTITY or reserved > MAX_QUANTITY:
             raise WarehouseError("quantity_limit", "Bestand überschreitet den zulässigen Mengenbereich", 422)
+    receipt_number = await reserve_number(session, key="goods_receipt") if data.entry_kind == "receipt" else None
     entry = Entry(
         **payload,
+        receipt_number=receipt_number,
         article_id=article_id,
         unit_code=article.unit_code,
         actor_id=actor_id,

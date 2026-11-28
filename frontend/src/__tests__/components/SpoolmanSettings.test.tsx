@@ -107,7 +107,7 @@ describe('SpoolmanSettings', () => {
       await waitFor(() => {
         // Built-in Inventory card should have the active border
         const builtInBtn = screen.getByText('Built-in Inventory').closest('button');
-        expect(builtInBtn).toHaveClass('border-bambu-green');
+        expect(builtInBtn).toHaveAttribute('aria-pressed', 'true');
       });
     });
 
@@ -153,7 +153,7 @@ describe('SpoolmanSettings', () => {
 
       await waitFor(() => {
         const spoolmanBtn = screen.getByText('Spoolman').closest('button');
-        expect(spoolmanBtn).toHaveClass('border-bambu-green');
+        expect(spoolmanBtn).toHaveAttribute('aria-pressed', 'true');
       });
     });
 

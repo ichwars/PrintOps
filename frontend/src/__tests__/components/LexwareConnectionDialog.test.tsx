@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { lexwareApi, type LexwareConnection, type LexwareOrganization } from '../../api/client/lexware';
 import { LexwareConnectionCard } from '../../components/settings/lexware/LexwareConnectionCard';
 import { LexwareConnectionDialog } from '../../components/settings/lexware/LexwareConnectionDialog';
+import printOpsLogo from '../../assets/printops-logo.svg';
 import i18n from '../../i18n';
 
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ showToast: vi.fn() }) }));
@@ -167,7 +168,12 @@ describe('Lexware connection dialog', () => {
   });
 });
 
-describe('Lexware connection banner overflow', () => {
+describe('Lexware connection banner', () => {
+  it('uses the app wordmark for the PrintOps logo', () => {
+    mount(<LexwareConnectionCard connection={connection} profileName="Studio Berlin" />);
+    expect(screen.getByRole('img', { name: 'PrintOps' })).toHaveAttribute('src', printOpsLogo);
+  });
+
   it('supports arrow keys, Escape, outside dismissal and restores focus after managing the key', async () => {
     const user = userEvent.setup();
     mount(<LexwareConnectionCard connection={connection} profileName="Studio Berlin" />);

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import type { BusinessProfile } from '../../api/client';
+import type { BusinessProfile, NumberSequence } from '../../api/client';
 import { NumberSequenceSettings } from '../../components/settings/NumberSequenceSettings';
 import { WarehouseNumberSequenceSettings } from '../../components/settings/WarehouseNumberSequenceSettings';
 import i18n from '../../i18n';
@@ -94,6 +94,40 @@ describe('translated number sequence settings', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Nummerreeks opgeslagen.');
   });
 
+  it('keeps the save confirmation after the refreshed sequence is loaded', async () => {
+    let sequence: NumberSequence = {
+      id: 2, business_profile_id: profile.id, key: 'offer', prefix: 'AG',
+      pattern: '{PREFIX}-{YYMM}-{####}', next_value: 5, reset_policy: 'monthly',
+      current_period: '202611', version: 7, created_at: profile.created_at, updated_at: profile.updated_at,
+    };
+    const refreshedVersions: number[] = [];
+    server.use(
+      http.get('/api/v1/business-profiles/7/number-sequences', () => {
+        refreshedVersions.push(sequence.version);
+        return HttpResponse.json([sequence]);
+      }),
+      http.put('/api/v1/business-profiles/7/number-sequences/2', async ({ request }) => {
+        const values = await request.json() as Pick<NumberSequence, 'prefix' | 'version'>;
+        sequence = { ...sequence, prefix: values.prefix, version: values.version + 1 };
+        return HttpResponse.json(sequence);
+      }),
+    );
+    const user = userEvent.setup();
+    render(<NumberSequenceSettings profiles={[profile]} canManage />);
+
+    const save = await screen.findByRole('button', { name: 'Save offer number sequence' });
+    await user.click(save);
+
+    await waitFor(() => {
+      expect(refreshedVersions).toContain(8);
+      expect(save).toBeEnabled();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Number sequence saved.');
+
+    await user.type(screen.getByLabelText('Offer prefix'), 'X');
+    expect(screen.queryByText('Number sequence saved.')).not.toBeInTheDocument();
+  });
+
   it('keeps the monthly uniqueness guard visible and effective in Dutch', async () => {
     useEmptySequences();
     await i18n.changeLanguage('nl');
@@ -109,12 +143,16 @@ describe('translated number sequence settings', () => {
   });
 
   it('saves Dutch warehouse settings with the existing annual reset defaults', async () => {
-    useEmptySequences();
     let submitted: Record<string, unknown> | undefined;
-    server.use(http.post('/api/v1/inventory/number-sequences', async ({ request }) => {
-      submitted = await request.json() as Record<string, unknown>;
-      return HttpResponse.json({ ...submitted, id: 1, version: 1 }, { status: 201 });
-    }));
+    server.use(
+      http.get('/api/v1/inventory/number-sequences', () => (
+        HttpResponse.json(submitted ? [{ ...submitted, id: 1, version: 1 }] : [])
+      )),
+      http.post('/api/v1/inventory/number-sequences', async ({ request }) => {
+        submitted = await request.json() as Record<string, unknown>;
+        return HttpResponse.json({ ...submitted, id: 1, version: 1 }, { status: 201 });
+      }),
+    );
     await i18n.changeLanguage('nl');
     const user = userEvent.setup();
     render(<WarehouseNumberSequenceSettings />);
@@ -128,6 +166,10 @@ describe('translated number sequence settings', () => {
     await waitFor(() => expect(submitted).toEqual({
       key: 'purchase_order', prefix: 'BE', pattern: '{PREFIX}-{YYYY}-{#####}', next_value: 1, reset_policy: 'yearly',
     }));
-    expect(await screen.findByRole('status')).toHaveTextContent('Nummerreeks opgeslagen.');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'inkoopordernummerreeks opslaan' })).toBeEnabled());
+    expect(screen.getByRole('status')).toHaveTextContent('Nummerreeks opgeslagen.');
+
+    await user.type(screen.getByLabelText('Inkoopordervoorvoegsel'), 'X');
+    expect(screen.queryByText('Nummerreeks opgeslagen.')).not.toBeInTheDocument();
   });
 });
