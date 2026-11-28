@@ -166,8 +166,12 @@ Zum Festlegen des Ziels und zur automatischen Buchung beim Abschluss ist
 ### API für Bestand und Beschaffung
 
 - `GET /api/v1/warehouse-articles` akzeptiert `sort_by`, `sort_dir`, `limit`
-  und `offset`. `GET /api/v1/warehouse-articles/forecast` liefert die
-  paginierte Warenprognose. Beide verwenden `inventory:read`.
+  und `offset`. Bei physischem, reserviertem und verfügbarem Bestand sowie
+  **Verbleibend** sortiert die Datenbank alle gefilterten Treffer vor der
+  Seitenauswahl. Gleiche Werte bleiben nach Name und interner Nummer geordnet.
+  Positionen ohne Bestandsführung stehen in beiden Richtungen am Ende.
+  `GET /api/v1/warehouse-articles/forecast` liefert die paginierte
+  Warenprognose. Beide verwenden `inventory:read`.
 - `POST /api/v1/inventory/spools/stock-check`,
   `POST /api/v1/small-parts/stock-check` und
   `POST /api/v1/warehouse-articles/stock-check` speichern den Inventurzeitpunkt

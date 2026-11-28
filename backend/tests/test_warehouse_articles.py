@@ -114,9 +114,25 @@ async def test_sorted_stock_and_forecast_support_totals_above_sqlite_integer_ran
     assert Decimal(row["balance"]["physical"]) == Decimal("9999999999999.999990")
     assert Decimal(row["balance"]["reserved"]) == Decimal("9999999999999.999990")
     assert Decimal(row["balance"]["available"]) == Decimal("0")
+
+    smaller = await article(client, sku="LARGE-LOWER", unit_code="KGM")
+    for location_id in range(1, 11):
+        amount = quantity if location_id != 1 else "999999999999.999998"
+        result = await move(
+            client, smaller["id"], "receipt", amount, key=f"lower-receipt-{location_id}", location_id=location_id
+        )
+        assert result.status_code == 201, result.text
+    for offset, expected in enumerate((item, smaller)):
+        ordered = await client.get(
+            "/warehouse-articles", params={"sort_by": "physical", "sort_dir": "desc", "limit": 1, "offset": offset}
+        )
+        assert ordered.status_code == 200, ordered.text
+        assert ordered.json()["total"] == 2
+        assert [candidate["id"] for candidate in ordered.json()["items"]] == [expected["id"]]
+
     response = await client.get("/warehouse-articles/forecast")
     assert response.status_code == 200, response.text
-    (row,) = response.json()["items"]
+    row = next(entry for entry in response.json()["items"] if entry["id"] == item["id"])
     assert Decimal(row["available"]) == Decimal("0")
     assert row["daily_usage"] is None
 
@@ -420,6 +436,59 @@ async def test_list_sorting_whitelist_and_pagination(warehouse_client):
     assert page1["limit"] == 2 and page2["offset"] == 2
 
 
+@pytest.mark.parametrize("column", ["physical", "reserved", "available", "remaining"])
+async def test_balance_pages_are_ordered_and_sliced_in_sql(warehouse_client, test_engine, column):
+    client = warehouse_client
+    first = await article(client, sku="SQL-FIRST", name="Same name", minimum_stock="10")
+    second = await article(client, sku="SQL-SECOND", name="Same name", minimum_stock="10")
+    await article(client, sku="SQL-NONE", name="Service", kind="service", stock_source="none")
+    for item, quantity, reservation in ((first, "4", "1"), (second, "6", "2")):
+        assert (await move(client, item["id"], "receipt", quantity)).status_code == 201
+        assert (await move(client, item["id"], "reservation", reservation)).status_code == 201
+    tied = await article(client, sku="SQL-TIE", name="Same name", minimum_stock="10")
+    assert (await move(client, tied["id"], "receipt", "4")).status_code == 201
+    assert (await move(client, tied["id"], "reservation", "1")).status_code == 201
+
+    queries = []
+
+    def capture(conn, cursor, statement, parameters, context, many):
+        queries.append(statement.upper())
+
+    event.listen(test_engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        for direction, order in (
+            ("asc", ["SQL-FIRST", "SQL-TIE", "SQL-SECOND", "SQL-NONE"]),
+            ("desc", ["SQL-SECOND", "SQL-FIRST", "SQL-TIE", "SQL-NONE"]),
+        ):
+            for offset in (0, 2, 4):
+                queries.clear()
+                response = await client.get(
+                    "/warehouse-articles",
+                    params={"q": "SQL-", "sort_by": column, "sort_dir": direction, "limit": 2, "offset": offset},
+                )
+                assert response.status_code == 200, response.text
+                body = response.json()
+                assert body["total"] == 4
+                assert [row["sku"] for row in body["items"]] == order[offset : offset + 2]
+                assert any(
+                    all(
+                        marker in query
+                        for marker in ("WAREHOUSE_ARTICLE_LEDGER_ENTRIES", "ORDER BY", "LIMIT", "OFFSET")
+                    )
+                    for query in queries
+                )
+
+        response = await client.get(
+            "/warehouse-articles",
+            params={"q": "SQL-", "sort_by": column, "low_stock": True, "limit": 2, "offset": 2},
+        )
+        assert response.status_code == 200, response.text
+        assert [row["sku"] for row in response.json()["items"]] == ["SQL-SECOND"]
+        assert response.json()["total"] == 3
+    finally:
+        event.remove(test_engine.sync_engine, "before_cursor_execute", capture)
+
+
 async def test_low_stock_branch_and_balance_sorting(warehouse_client):
     client = warehouse_client
     low_a = await article(client, sku="LOW-A", name="Low A", minimum_stock="10")
@@ -428,7 +497,7 @@ async def test_low_stock_branch_and_balance_sorting(warehouse_client):
     assert (await move(client, low_a["id"], "receipt", "2", key="low-a-receipt")).status_code == 201
     assert (await move(client, low_b["id"], "receipt", "5", key="low-b-receipt")).status_code == 201
     assert (await move(client, ok["id"], "receipt", "9", key="ok-receipt")).status_code == 201
-    # low_stock loads and filters in Python; balance columns must still sort there.
+    # The minimum-stock filter uses available stock before the requested ordering.
     asc = await client.get("/warehouse-articles", params={"low_stock": True, "sort_by": "physical", "sort_dir": "asc"})
     assert asc.status_code == 200, asc.text
     assert [row["sku"] for row in asc.json()["items"]] == ["LOW-A", "LOW-B"]
@@ -446,7 +515,7 @@ async def test_low_stock_branch_and_balance_sorting(warehouse_client):
     rows = normal.json()["items"]
     assert [row["sku"] for row in rows] == ["OK", "LOW-B", "LOW-A"]
     assert [row["balance"]["available"] for row in rows] == ["9", "5", "2"]
-    # low_stock pagination slices the sorted, filtered rows.
+    # low_stock pagination follows the filtered order.
     paged = await client.get(
         "/warehouse-articles",
         params={"low_stock": True, "sort_by": "physical", "sort_dir": "desc", "limit": 1, "offset": 1},
