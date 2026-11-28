@@ -45,9 +45,9 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
   });
   const deleteLocation = useMutation({ mutationFn: api.deleteLocation, onSuccess: () => invalidate(['warehouse', 'locations']) });
   const inputClass = 'rounded-lg border border-bambu-dark-tertiary bg-bambu-dark px-3 py-2 text-sm text-white placeholder:text-bambu-gray focus:border-bambu-green focus:outline-none focus:ring-2 focus:ring-bambu-green/30';
-  const addButtonClass = 'shrink-0 rounded-lg bg-bambu-green p-2 text-white transition-colors hover:bg-bambu-green-light focus:outline-none focus:ring-2 focus:ring-bambu-green';
+  const addButtonClass = 'shrink-0 rounded-lg bg-bambu-green p-2 text-black! transition-colors hover:bg-bambu-green-light focus:outline-none focus:ring-2 focus:ring-bambu-green';
   const listItemClass = 'flex items-center justify-between rounded-lg border border-bambu-dark-tertiary px-3 py-2 text-sm text-bambu-gray-light';
-  const deleteButtonClass = 'rounded p-1 text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-500/50';
+  const deleteButtonClass = 'rounded p-1 text-red-700 transition-colors hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-500/50';
 
   return (
     <div className="space-y-4">
@@ -75,24 +75,24 @@ export function SmallPartsSettings({ defaultMinimumStock, lowStockWarning, onDef
         <Card>
           <CardHeader><h3 className="font-semibold text-white">{text('units')}</h3></CardHeader>
           <CardContent className="space-y-3">
-            <form className="grid grid-cols-[1fr_2fr_auto_auto] items-end gap-2" onSubmit={(event) => { event.preventDefault(); addUnit.mutate(); }}>
-              <div className="space-y-1">
+            <form className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto]" onSubmit={(event) => { event.preventDefault(); addUnit.mutate(); }}>
+              <div className="min-w-0 space-y-1">
                 <p className="text-sm text-bambu-gray-light">{text('unitCodeHint')}</p>
                 <TextField aria-label={text('unitCode')} placeholder="C62" required value={unitCode} onValueChange={setUnitCode} className={inputClass} />
               </div>
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <p className="text-sm text-bambu-gray-light">{text('unitLabelHint')}</p>
                 <TextField aria-label={text('unitLabel')} placeholder={text('piece')} required value={unitLabel} onValueChange={setUnitLabel} className={inputClass} />
               </div>
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <p className="text-sm text-bambu-gray-light">{text('decimalPlaces')}</p>
                 <NumberField aria-label={text('decimalPlaces')} min="0" max="6" value={unitDecimals} onValueChange={(value) => setUnitDecimals(Number(value))} className={`${inputClass} w-20`} />
               </div>
-              <button aria-label={text('addUnit')} className={addButtonClass}><Plus className="h-5 w-5" /></button>
+              <button aria-label={text('addUnit')} className={`${addButtonClass} justify-self-end`}><Plus className="h-5 w-5" /></button>
             </form>
             {units.data?.map((unit) => (
               <div key={unit.code} className={listItemClass}>
-                <span>{unit.label} <span className="text-bambu-gray">{text('unitDetails', { code: unit.code, count: unit.decimal_places })}</span></span>
+                <span>{unit.label} <span className="text-table-secondary">{text('unitDetails', { code: unit.code, count: unit.decimal_places })}</span></span>
                 <button aria-label={text('deleteNamed', { name: unit.label })} onClick={() => deleteUnit.mutate(unit.code)} className={deleteButtonClass}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}

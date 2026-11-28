@@ -17,7 +17,7 @@ export function AmbientDryingSettings({ enabled, minutes, onEnabledChange, onMin
           <label className="block text-sm text-white" htmlFor="ambient-drying-enabled">
             {t('settings.ambientDryingEnabled')}
           </label>
-          <p className="text-xs text-bambu-gray mt-0.5">{t('settings.ambientDryingEnabledDescription')}</p>
+          <p className="text-xs text-table-secondary mt-0.5">{t('settings.ambientDryingEnabledDescription')}</p>
         </div>
         <Switch id="ambient-drying-enabled" checked={enabled} onChange={(e) => onEnabledChange(e.target.checked)} />
       </div>
@@ -40,7 +40,7 @@ export function AmbientDryingSettings({ enabled, minutes, onEnabledChange, onMin
             containerClassName="w-full sm:w-32"
             className="w-full px-3 py-2 min-h-11 bg-bambu-dark border border-bambu-gray/30 rounded-lg text-white focus:outline-none focus:border-bambu-green"
           />
-          <p id="ambient-drying-sustained-help" className="text-xs text-bambu-gray">
+          <p id="ambient-drying-sustained-help" className="text-xs text-table-secondary">
             {t('settings.ambientDryingSustainedDescription')}
           </p>
         </div>

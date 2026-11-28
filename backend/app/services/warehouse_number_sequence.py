@@ -172,6 +172,23 @@ async def _get_or_create_default_sequence(session: AsyncSession, key: str) -> Wa
         raise
 
 
+async def _document_number_in_use(session: AsyncSession, key: str, number: str) -> bool:
+    from backend.app.models.procurement import WarehousePurchaseOrder
+    from backend.app.models.small_part import SmallPartLedgerEntry
+    from backend.app.models.spool import Spool
+    from backend.app.models.warehouse_article import WarehouseArticleLedgerEntry
+
+    columns = {
+        "spool": (Spool.spool_number,),
+        "purchase_order": (WarehousePurchaseOrder.number,),
+        "goods_receipt": (SmallPartLedgerEntry.receipt_number, WarehouseArticleLedgerEntry.receipt_number),
+    }
+    for column in columns[key]:
+        if await session.scalar(select(column).where(column == number).limit(1)) is not None:
+            return True
+    return False
+
+
 async def reserve_number(
     session: AsyncSession,
     *,
@@ -187,7 +204,7 @@ async def reserve_number(
     while attempt < _MAX_RESERVATION_ATTEMPTS:
         period = _period_for_date(effective, reset_policy=sequence.reset_policy)
         if sequence.reset_policy == "yearly":
-            if sequence.current_period != period:
+            if sequence.current_period is not None and sequence.current_period != period:
                 reserved_value = 1
             else:
                 reserved_value = sequence.next_value
@@ -215,7 +232,12 @@ async def reserve_number(
                 value=reserved_value,
                 effective_date=effective,
             )
-            if key != "material" or not await material_number_in_use(session, number):
+            if key == "material":
+                used = await material_number_in_use(session, number)
+            else:
+                used = await _document_number_in_use(session, key, number)
+                attempt += 1
+            if not used:
                 return number
             await session.refresh(sequence)
             continue

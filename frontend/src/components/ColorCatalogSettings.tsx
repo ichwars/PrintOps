@@ -1,3 +1,7 @@
+import {
+  tableBodyRowClass, tableFrameClass, tableHeaderCellCompactClass, tableHeaderClass,
+  tableHeaderRowClass, tableStickyActionCellClass, tableStickyActionHeaderClass,
+} from './ui/tableStyles';
 import { TablePagination } from '../components/ui/TablePagination';
 import { setPageSelection, useTablePagination } from '../hooks/useTablePagination';
 import { Button, LegacySelect, TextField, Checkbox , ColorInput, FileInput} from './ui';
@@ -331,21 +335,21 @@ export function ColorCatalogSettings() {
     <Card id="card-color-catalog">
       <CardHeader>
         <div className="flex items-center gap-2 mb-3">
-          <Palette className="w-5 h-5 text-bambu-gray" />
+          <Palette className="w-5 h-5 text-table-secondary" />
           <h2 className="text-lg font-semibold text-white">{t('settings.colorCatalog.title')}</h2>
-          <span className="text-sm text-bambu-gray">({catalog.length})</span>
+          <span className="text-sm text-table-secondary">({catalog.length})</span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="unstyled"
             onClick={handleExport}
-            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-table-secondary hover:text-white transition-colors flex items-center gap-1.5"
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.export')}</span>
           </Button>
           <Button variant="unstyled"
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-table-secondary hover:text-white transition-colors flex items-center gap-1.5"
           >
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.import')}</span>
@@ -354,7 +358,7 @@ export function ColorCatalogSettings() {
           <Button variant="unstyled"
             onClick={handleSync}
             disabled={syncing}
-            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-table-secondary hover:text-white transition-colors flex items-center gap-1.5"
             title={t('settings.colorCatalog.syncTooltip')}
           >
             {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
@@ -368,14 +372,14 @@ export function ColorCatalogSettings() {
           </Button>
           <Button variant="unstyled"
             onClick={() => setShowResetConfirm(true)}
-            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-bambu-gray hover:text-white transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-table-secondary hover:text-white transition-colors flex items-center gap-1.5"
           >
             <RotateCcw className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.reset')}</span>
           </Button>
           <Button variant="unstyled"
             onClick={() => setShowAddForm(true)}
-            className="px-3 py-1.5 text-sm bg-bambu-green text-white rounded-lg hover:bg-bambu-green/80 transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-sm bg-bambu-green text-black! rounded-lg hover:bg-bambu-green/80 transition-colors flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.add')}</span>
@@ -395,7 +399,7 @@ export function ColorCatalogSettings() {
             </Button>
             <Button variant="unstyled"
               onClick={() => setSelectedIds(new Set())}
-              className="px-3 py-1.5 text-sm text-bambu-gray hover:text-white transition-colors"
+              className="px-3 py-1.5 text-sm text-table-secondary hover:text-white transition-colors"
             >
               {t('common.cancel')}
             </Button>
@@ -403,14 +407,14 @@ export function ColorCatalogSettings() {
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-bambu-gray">
+        <p className="text-sm text-table-secondary">
           {t('settings.colorCatalog.description')}
         </p>
 
         {/* Search and filter */}
         <div className="flex gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-table-secondary" />
             <TextField
               type="text"
               className="w-full pl-10 pr-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray focus:border-bambu-green focus:outline-none"
@@ -475,14 +479,14 @@ export function ColorCatalogSettings() {
                 <Button variant="unstyled"
                   onClick={handleAdd}
                   disabled={saving}
-                  className="w-24 px-3 py-2 bg-bambu-green text-white rounded-lg hover:bg-bambu-green/80 flex items-center justify-center gap-3"
+                  className="w-24 px-3 py-2 bg-bambu-green text-black! rounded-lg hover:bg-bambu-green/80 flex items-center justify-center gap-3"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   {t('common.add')}
                 </Button>
                 <Button variant="unstyled"
                   onClick={() => { setShowAddForm(false); resetForm(); }}
-                  className="p-2 ml-2 rounded-lg text-bambu-gray hover:text-white hover:bg-bambu-dark-tertiary"
+                  className="p-2 ml-2 rounded-lg text-table-secondary hover:text-white hover:bg-bambu-dark-tertiary"
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -515,193 +519,197 @@ export function ColorCatalogSettings() {
 
         {/* Filter info */}
         {(search || filterManufacturer) && (
-          <div className="text-xs text-bambu-gray">
+          <div className="text-xs text-table-secondary">
             {t('settings.colorCatalog.showing', { filtered: filteredCatalog.length, total: catalog.length })}
           </div>
         )}
 
         {/* Catalog list */}
         {loading ? (
-          <div className="flex items-center justify-center py-8 text-bambu-gray">
+          <div className="flex items-center justify-center py-8 text-table-secondary">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
             {t('common.loading')}
           </div>
         ) : (
-          <>
-          <div className="max-h-[600px] overflow-auto border border-bambu-dark-tertiary rounded-lg">
-            <table className="w-full text-sm">
-              <thead className="bg-bambu-dark sticky top-0">
-                <tr>
-                  <th className="px-2 py-2 w-10">
-                    <Checkbox
-                      checked={allVisibleSelected}
-                      indeterminate={visibleSelection > 0 && !allVisibleSelected}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 accent-bambu-green cursor-pointer"
-                    />
-                  </th>
-                  <th className="px-3 py-2 text-left text-bambu-gray font-medium w-12"></th>
-                  <th className="px-3 py-2 text-left text-bambu-gray font-medium">{t('settings.colorCatalog.manufacturer')}</th>
-                  <th className="px-3 py-2 text-left text-bambu-gray font-medium">{t('inventory.material')}</th>
-                  <th className="px-3 py-2 text-left text-bambu-gray font-medium">{t('settings.colorCatalog.colorName')}</th>
-                  <th className="px-3 py-2 text-left text-bambu-gray font-medium w-24">{t('settings.colorCatalog.hex')}</th>
-                  <th className="px-3 py-2 w-16"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCatalog.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-bambu-gray">
-                      {search || filterManufacturer ? t('settings.colorCatalog.noMatch') : t('settings.colorCatalog.empty')}
-                    </td>
+          <div className={tableFrameClass}>
+            <div className="max-h-[600px] overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-20 bg-bambu-dark-secondary">
+                  <tr className={`${tableHeaderClass} ${tableHeaderRowClass}`}>
+                    <th className="px-2 py-2 w-10">
+                      <Checkbox
+                        ariaLabel={t('common.selectAll')}
+                        checked={allVisibleSelected}
+                        indeterminate={visibleSelection > 0 && !allVisibleSelected}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 accent-bambu-green cursor-pointer"
+                      />
+                    </th>
+                    <th className={`${tableHeaderCellCompactClass} w-12`}></th>
+                    <th scope="col" className={tableHeaderCellCompactClass}>{t('settings.colorCatalog.manufacturer')}</th>
+                    <th scope="col" className={tableHeaderCellCompactClass}>{t('inventory.material')}</th>
+                    <th scope="col" className={tableHeaderCellCompactClass}>{t('settings.colorCatalog.colorName')}</th>
+                    <th className={`${tableHeaderCellCompactClass} w-24`}>{t('settings.colorCatalog.hex')}</th>
+                    <th className={tableStickyActionHeaderClass} />
                   </tr>
-                ) : (
-                  pagination.rows.map(entry => (
-                    <Fragment key={entry.id}>
-                    <tr className={`border-t border-bambu-dark-tertiary hover:bg-bambu-dark ${selectedIds.has(entry.id) ? 'bg-bambu-dark' : ''}`}>
-                      {editingId === entry.id ? (
-                        <>
-                          <td className="px-2 py-2">
-                            <Checkbox
-                              checked={selectedIds.has(entry.id)}
-                              onChange={() => toggleSelect(entry.id)}
-                              className="w-4 h-4 accent-bambu-green cursor-pointer"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <ColorInput
-                              className="w-8 h-8 rounded cursor-pointer border border-bambu-dark-tertiary"
-                              value={formHexColor}
-                              onChange={(e) => setFormHexColor(e.target.value)}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <TextField
-                              type="text"
-                              className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                              value={formManufacturer}
-                              onChange={(e) => setFormManufacturer(e.target.value)}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <TextField
-                              type="text"
-                              className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                              value={formMaterial}
-                              onChange={(e) => setFormMaterial(e.target.value)}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <TextField
-                              type="text"
-                              className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                              value={formColorName}
-                              onChange={(e) => setFormColorName(e.target.value)}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <TextField
-                              type="text"
-                              className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                              value={formHexColor}
-                              onChange={(e) => setFormHexColor(e.target.value)}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="unstyled"
-                                onClick={() => handleUpdate(entry.id)}
-                                disabled={saving}
-                                className="p-1.5 rounded hover:bg-green-500/20 text-green-500"
-                              >
-                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                              </Button>
-                              <Button variant="unstyled" onClick={cancelEdit} className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray">
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-2 py-2">
-                            <Checkbox
-                              checked={selectedIds.has(entry.id)}
-                              onChange={() => toggleSelect(entry.id)}
-                              className="w-4 h-4 accent-bambu-green cursor-pointer"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <FilamentSwatch
-                              rgba={entry.hex_color.replace(/^#/, '') + (entry.hex_color.length === 7 ? 'FF' : '')}
-                              extraColors={entry.extra_colors}
-                              effectType={entry.effect_type}
-                              className="w-8 h-8"
-                              shape="square"
-                              title={entry.hex_color}
-                              effectSize="table"
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-white">{entry.manufacturer}</td>
-                          <td className="px-3 py-2 text-bambu-gray">{entry.material || '-'}</td>
-                          <td className="px-3 py-2 text-white">{entry.color_name}</td>
-                          <td className="px-3 py-2 font-mono text-xs text-bambu-gray">{entry.hex_color}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="unstyled"
-                                onClick={() => startEdit(entry)}
-                                className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button variant="unstyled"
-                                onClick={() => setDeleteEntry(entry)}
-                                className="p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </>
-                      )}
+                </thead>
+                <tbody>
+                  {filteredCatalog.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-8 text-center text-table-secondary">
+                        {search || filterManufacturer ? t('settings.colorCatalog.noMatch') : t('settings.colorCatalog.empty')}
+                      </td>
                     </tr>
-                    {editingId === entry.id && (
-                      <tr className="border-t border-bambu-dark-tertiary/50 bg-bambu-dark">
-                        <td colSpan={2}></td>
-                        <td className="px-3 py-2" colSpan={2}>
-                          <TextField
-                            type="text"
-                            className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm font-mono focus:border-bambu-green focus:outline-none"
-                            placeholder={t('inventory.extraColorsPlaceholder')}
-                            value={formExtraColors}
-                            onChange={(e) => setFormExtraColors(e.target.value)}
-                          />
-                        </td>
-                        <td className="px-3 py-2" colSpan={2}>
-                          <LegacySelect
-                            className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
-                            aria-label={t('inventory.colorEffectLabel')}
-                            value={formEffectType}
-                            onChange={(e) => setFormEffectType(e.target.value)}
-                          >
-                            {FILAMENT_EFFECT_OPTIONS.map((opt) => (
-                              <option key={opt.value || 'none'} value={opt.value}>
-                                {t(opt.labelKey)}
-                              </option>
-                            ))}
-                          </LegacySelect>
-                        </td>
-                        <td></td>
+                  ) : (
+                    pagination.rows.map(entry => (
+                      <Fragment key={entry.id}>
+                      <tr className={`${tableBodyRowClass} ${selectedIds.has(entry.id) ? 'bg-bambu-dark' : ''}`}>
+                        {editingId === entry.id ? (
+                          <>
+                            <td className="px-2 py-2">
+                              <Checkbox
+                                checked={selectedIds.has(entry.id)}
+                                onChange={() => toggleSelect(entry.id)}
+                                className="w-4 h-4 accent-bambu-green cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <ColorInput
+                                className="w-8 h-8 rounded cursor-pointer border border-bambu-dark-tertiary"
+                                value={formHexColor}
+                                onChange={(e) => setFormHexColor(e.target.value)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <TextField
+                                type="text"
+                                className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                                value={formManufacturer}
+                                onChange={(e) => setFormManufacturer(e.target.value)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <TextField
+                                type="text"
+                                className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                                value={formMaterial}
+                                onChange={(e) => setFormMaterial(e.target.value)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <TextField
+                                type="text"
+                                className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                                value={formColorName}
+                                onChange={(e) => setFormColorName(e.target.value)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <TextField
+                                type="text"
+                                className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                                value={formHexColor}
+                                onChange={(e) => setFormHexColor(e.target.value)}
+                              />
+                            </td>
+                            <td className={tableStickyActionCellClass}>
+                              <div className="flex justify-end gap-1">
+                                <Button variant="unstyled"
+                                  aria-label={t('common.save')}
+                                  onClick={() => handleUpdate(entry.id)}
+                                  disabled={saving}
+                                  className="p-1.5 rounded hover:bg-green-500/20 text-green-700 dark:text-green-400"
+                                >
+                                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                </Button>
+                                <Button variant="unstyled" aria-label={t('common.cancel')} onClick={cancelEdit} className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-table-secondary">
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-2 py-2">
+                              <Checkbox
+                                checked={selectedIds.has(entry.id)}
+                                onChange={() => toggleSelect(entry.id)}
+                                className="w-4 h-4 accent-bambu-green cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <FilamentSwatch
+                                rgba={entry.hex_color.replace(/^#/, '') + (entry.hex_color.length === 7 ? 'FF' : '')}
+                                extraColors={entry.extra_colors}
+                                effectType={entry.effect_type}
+                                className="w-8 h-8"
+                                shape="square"
+                                title={entry.hex_color}
+                                effectSize="table"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-white">{entry.manufacturer}</td>
+                            <td className="px-3 py-2 text-table-secondary">{entry.material || '-'}</td>
+                            <td className="px-3 py-2 text-white">{entry.color_name}</td>
+                            <td className="px-3 py-2 font-mono text-xs text-table-secondary">{entry.hex_color}</td>
+                            <td className={tableStickyActionCellClass}>
+                              <div className="flex justify-end gap-1">
+                                <Button variant="unstyled"
+                                  aria-label={t('common.edit')}
+                                  onClick={() => startEdit(entry)}
+                                  className="p-1.5 rounded hover:bg-bambu-dark-tertiary text-table-secondary hover:text-white"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="unstyled"
+                                  aria-label={t('common.delete')}
+                                  onClick={() => setDeleteEntry(entry)}
+                                  className="p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        )}
                       </tr>
-                    )}
-                    </Fragment>
-                  ))
-                )}
-              </tbody>
-            </table>
+                      {editingId === entry.id && (
+                        <tr className="border-t border-bambu-dark-tertiary/50 bg-bambu-dark">
+                          <td colSpan={2}></td>
+                          <td className="px-3 py-2" colSpan={2}>
+                            <TextField
+                              type="text"
+                              className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm font-mono focus:border-bambu-green focus:outline-none"
+                              placeholder={t('inventory.extraColorsPlaceholder')}
+                              value={formExtraColors}
+                              onChange={(e) => setFormExtraColors(e.target.value)}
+                            />
+                          </td>
+                          <td className="px-3 py-2" colSpan={2}>
+                            <LegacySelect
+                              className="w-full px-2 py-1 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded text-white text-sm focus:border-bambu-green focus:outline-none"
+                              aria-label={t('inventory.colorEffectLabel')}
+                              value={formEffectType}
+                              onChange={(e) => setFormEffectType(e.target.value)}
+                            >
+                              {FILAMENT_EFFECT_OPTIONS.map((opt) => (
+                                <option key={opt.value || 'none'} value={opt.value}>
+                                  {t(opt.labelKey)}
+                                </option>
+                              ))}
+                            </LegacySelect>
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+                      </Fragment>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <TablePagination {...pagination.footer} />
           </div>
-          <TablePagination {...pagination.footer} />
-          </>
         )}
       </CardContent>
 

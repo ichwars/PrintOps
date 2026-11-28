@@ -73,13 +73,13 @@ export function DocumentContextHeader({
       : 'border-bambu-green/40 bg-bambu-green/10 text-accent-foreground';
 
   return (
-    <header className={`${dashboardStyles.card} ${dashboardStyles.cardBody} md:sticky md:top-0 md:z-10`}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <header className={`${dashboardStyles.card} min-w-0 md:sticky md:top-0 md:z-10`}>
+      <div className={`${dashboardStyles.cardHeader} flex flex-wrap items-center justify-between gap-3 rounded-t-xl`}>
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-bambu-green" aria-hidden="true" />
-          <p className={dashboardStyles.cardTitle}>
+          <h3 className={dashboardStyles.cardTitle}>
             {t('settings.documents.title', 'Document settings')}
-          </p>
+          </h3>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
           {configuration ? (
@@ -99,7 +99,7 @@ export function DocumentContextHeader({
           ) : null}
         </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={`${dashboardStyles.cardBody} grid min-w-0 gap-3 md:grid-cols-3`}>
         <Select
           value={context.profileId}
           label={t('settings.documents.profile', 'Business profile')}
@@ -122,14 +122,14 @@ export function DocumentContextHeader({
         <Select
           value={context.languageOverride ?? PROFILE_LANGUAGE_VALUE}
           label={t('settings.documents.language', 'Language')}
-          helperText={
+          helperText={<span className="text-table-secondary">{
             context.languageOverride
               ? t('settings.documents.languageOverrideHint', 'Overrides the business profile language for this document context.')
               : t('settings.documents.languageProfileDefaultHint', {
                 language: languageName(effectiveLanguage),
                 defaultValue: `Folgt aktuell dem Unternehmensprofil: ${languageName(effectiveLanguage)}.`,
               })
-          }
+          }</span>}
           options={languageOptions}
           disabled={disabled}
           onValueChange={(language) => onChange({

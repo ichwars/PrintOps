@@ -206,9 +206,11 @@ async def create_spool_from_tray(db: AsyncSession, tray_data: dict) -> Spool:
     db.add(spool)
     from backend.app.services.filament_profile_defaults import apply_product_defaults
     from backend.app.services.filament_sku_identity import ensure_sku
+    from backend.app.services.warehouse_number_sequence import reserve_number
 
     await apply_product_defaults(db, spool)
     await ensure_sku(db, spool)
+    spool.spool_number = await reserve_number(db, key="spool")
     await db.flush()
 
     logger.info(

@@ -20,7 +20,7 @@ export function CameraLightingSettings({
   const { t } = useTranslation();
   return (
     <div className="space-y-2 border-t border-bambu-dark-tertiary pt-3">
-      <label className="text-sm text-bambu-gray">{t('settings.cameraLight')}</label>
+      <label className="text-sm text-table-secondary">{t('settings.cameraLight')}</label>
       <Select ariaLabel={t('settings.cameraLight')} value={mode}
         onValueChange={(value) => onModeChange(value as LightingMode)}
         options={[

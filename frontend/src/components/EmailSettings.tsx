@@ -181,7 +181,7 @@ export function EmailSettings() {
       {/* Advanced Authentication Toggle - Always visible */}
       <Card id="card-email-advanced-auth">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Mail className="w-5 h-5 text-bambu-green" />
               <h2 className="text-lg font-semibold text-white">
@@ -192,6 +192,7 @@ export function EmailSettings() {
               onClick={handleToggleAdvancedAuth}
               disabled={toggleAdvancedAuthMutation.isPending}
               variant={advancedEnabled ? 'danger' : 'primary'}
+              className={advancedEnabled ? 'text-white!' : 'text-black!'}
             >
               {advancedEnabled ? (
                 <>
@@ -376,7 +377,7 @@ export function EmailSettings() {
                 <Button
                   onClick={handleSave}
                   disabled={saveMutation.isPending}
-                  className="flex-1"
+                  className="flex-1 text-black!"
                 >
                   {saveMutation.isPending ? (
                     <>

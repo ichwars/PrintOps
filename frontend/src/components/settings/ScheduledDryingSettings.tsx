@@ -47,11 +47,11 @@ export function ScheduledDryingSettings() {
   return (
     <section id="scheduled-drying" aria-labelledby="scheduled-drying-title" className="rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-4 space-y-4">
       <h3 id="scheduled-drying-title" className="font-semibold">{t('scheduledDrying.title')}</h3>
-      <p className="text-sm text-bambu-gray">{t('scheduledDrying.description')}</p>
-      <p className="text-sm text-bambu-gray">{t('scheduledDrying.timingHelp')}</p>
+      <p className="text-sm text-table-secondary">{t('scheduledDrying.description')}</p>
+      <p className="text-sm text-table-secondary">{t('scheduledDrying.timingHelp')}</p>
       <Select label={t('scheduledDrying.printer')} value={printerId} options={(printers.data || []).map(printer => ({ value: String(printer.id), label: printer.name }))}
         onValueChange={value => { setPrinterId(value); setEditingId(undefined); setDraft(defaultPlan()); setError(null); }} />
-      {(error || plans.isError || printers.isError) && <p role="alert" className="text-sm text-red-400">{error || t('scheduledDrying.saveFailed')}</p>}
+      {(error || plans.isError || printers.isError) && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{error || t('scheduledDrying.saveFailed')}</p>}
       {printerId && <>
         <form className="space-y-3" onSubmit={event => {
           event.preventDefault();
@@ -77,13 +77,13 @@ export function ScheduledDryingSettings() {
             onCheckedChange={value => update('enabled', value)} />
           {blockReason && <p role="status" className="text-sm text-amber-300">{reasonText(blockReason)}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={!canControl || busy || plans.isLoading}>{t('scheduledDrying.save')}</Button>
+            <Button className="text-black!" type="submit" disabled={!canControl || busy || plans.isLoading}>{t('scheduledDrying.save')}</Button>
             {editingId !== undefined && <Button variant="secondary" onClick={() => { setEditingId(undefined); setDraft(defaultPlan()); }}>
               {t('scheduledDrying.newPlan')}
             </Button>}
           </div>
         </form>
-        <p className="text-xs text-bambu-gray">{t('scheduledDrying.stopHelp')}</p>
+        <p className="text-xs text-table-secondary">{t('scheduledDrying.stopHelp')}</p>
         <ul className="space-y-3" aria-label={t('scheduledDrying.plans')}>
           {plans.data?.schedules.map(plan => {
             const target = plans.data.capabilities.find(item => item.ams_id === plan.ams_id);
@@ -112,12 +112,12 @@ export function ScheduledDryingSettings() {
         <ul className="space-y-2">
           {plans.data?.runs.map(run => <li key={run.id} className="text-sm space-y-1">
             <p>{run.occurrence_day} · AMS {run.ams_id} · {t(`scheduledDrying.status.${run.status}`, { defaultValue: t('scheduledDrying.status.uncertain') })}</p>
-            {run.reason && <p className="text-bambu-gray">{reasonText(run.reason)}</p>}
+            {run.reason && <p className="text-table-secondary">{reasonText(run.reason)}</p>}
             {run.status === 'uncertain' && run.active_printer_id !== null && <Button variant="secondary" disabled={!canControl || busy}
               onClick={() => mutation.mutate(() => dryingSchedulesApi.resolve(Number(printerId), run.id))}>{t('scheduledDrying.resolve')}</Button>}
           </li>)}
         </ul>
-        <p className="text-xs text-bambu-gray">{t('scheduledDrying.resolveHelp')}</p>
+        <p className="text-xs text-table-secondary">{t('scheduledDrying.resolveHelp')}</p>
       </>}
     </section>
   );

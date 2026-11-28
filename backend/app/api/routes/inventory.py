@@ -65,7 +65,6 @@ from backend.app.services.location_service import (
     get_location_by_id,
     get_location_by_name,
     location_name_key,
-    lock_entered_spool_weight,
     prepare_internal_spool_payload,
     protect_warehouse_location,
     rename_location as rename_location_record,
@@ -78,6 +77,7 @@ from backend.app.services.spool_csv import (
     ImportPreview,
     ImportResult,
     parse_and_validate,
+    persist_valid_rows,
     serialize,
 )
 from backend.app.services.spool_filament_presets import resolve_spool_preset
@@ -1247,13 +1247,7 @@ async def import_spools_csv(
     if dry_run:
         return preview
 
-    created = 0
-    for row in preview.rows:
-        if row.status == "valid" and row.spool is not None:
-            db.add(Spool(**lock_entered_spool_weight(dict(row.spool), set())))
-            await ensure_sku(db, row.spool)
-            created += 1
-
+    created = await persist_valid_rows(db, preview)
     if created:
         await db.commit()
         await ws_manager.broadcast({"type": "inventory_changed"})
@@ -1342,6 +1336,7 @@ async def create_spool(
     db.add(spool)
     await apply_product_defaults(db, spool, access.printer_ids)
     await ensure_sku(db, spool)
+    spool.spool_number = await warehouse_number_sequence_service.reserve_number(db, key="spool")
     await db.commit()
     await db.refresh(spool)
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool.id))
@@ -1374,6 +1369,8 @@ async def bulk_create_spools(
     for spool in spools:
         await copy_profiles(db, spool, defaults, access.printer_ids)
     await ensure_sku(db, spools[0])
+    for spool in spools:
+        spool.spool_number = await warehouse_number_sequence_service.reserve_number(db, key="spool")
     await db.commit()
     ids = [s.id for s in spools]
     result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id.in_(ids)))

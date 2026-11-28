@@ -59,7 +59,7 @@ def find_writes():
 
 
 _WRITERS = {
-    ("api/routes/inventory.py", "import_spools_csv"): "initialize consumption from CSV",
+    ("services/spool_csv.py", "persist_valid_rows"): "initialize consumption from validated CSV",
     ("api/routes/inventory.py", "create_spool"): "initialize from the inventory form",
     ("api/routes/inventory.py", "bulk_create_spools"): "initialize from the bulk inventory form",
     ("api/routes/inventory.py", "refill_spool"): "record consumption before refilling",

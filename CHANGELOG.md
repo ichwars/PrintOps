@@ -12,6 +12,9 @@ All notable changes to PrintOps will be documented in this file.
 - Show inventory metrics, a goods forecast based on the latest 30 days of issues, and separate production and purchasing shortages. Prepare a project for finished goods or save a material shortage to the shopping list. Completing a linked production project receives confirmed good parts once.
 - Add sortable order lists, row menus and direct access to details. Search and sort offers by customer name as well as their other fields. Show recipients, line items and prices in offer, invoice and order details.
 
+- Complete the settings alignment in light and dark mode with responsive sub-navigation, readable form hints, shared cards, and persistent number-sequence save feedback.
+- Assign configurable numbers to new spools, purchase orders, and goods receipts. Create purchase order drafts from the shopping list and book partial or final receipts from a separate sortable order overview. Completed purchases leave the shopping list and retain their receipt history.
+
 See [warehouse operations](docs/lexware-integration.md#warenlager) and [order management](docs/order-management.md#tabellen-sortieren).
 
 ## [1.2.8.4] - 2026-11-20

@@ -90,3 +90,14 @@ export function resetSettingsPage() {
       })
     );
   }
+
+export const settingsSidebarChildIds = [
+  'settings-general',
+  'settings-users-security',
+  'settings-printers-production',
+  'settings-projects-files',
+  'settings-warehouse-material',
+  'settings-orders-calculation',
+  'settings-integrations',
+  'settings-operations',
+];

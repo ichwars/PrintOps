@@ -50,9 +50,9 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
           const digits = value.replace(/\D/g, '');
           onChange('payment.bank_account_id', digits === '' ? null : Number(digits));
         }} />
-        <NumberField label={t('settings.documents.payment.discountDays', 'Cash discount period')} value={payment.discount_days} min={0} max={3650} suffix={t('common.days', 'days')} disabled={disabled} error={finding('payment.discount_days')} onValueChange={(value) => onChange('payment.discount_days', Number(value))} />
-        <NumberField label={t('settings.documents.payment.discountPercent', 'Cash discount')} value={payment.discount_percent} min={0} max={100} step="0.01" suffix="%" disabled={disabled} error={finding('payment.discount_percent')} onValueChange={(value) => onChange('payment.discount_percent', value)} />
-        <NumberField label={t('settings.documents.payment.prepayment', 'Advance payment')} value={payment.prepayment_percent} min={0} max={100} step="0.01" suffix="%" disabled={disabled} onValueChange={(value) => onChange('payment.prepayment_percent', value)} />
+        <NumberField label={t('settings.documents.payment.discountDays', 'Cash discount period')} value={payment.discount_days} min={0} max={3650} suffix={<span className="text-table-secondary">{t('common.days', 'days')}</span>} disabled={disabled} error={finding('payment.discount_days')} onValueChange={(value) => onChange('payment.discount_days', Number(value))} />
+        <NumberField label={t('settings.documents.payment.discountPercent', 'Cash discount')} value={payment.discount_percent} min={0} max={100} step="0.01" suffix={<span className="text-table-secondary">%</span>} disabled={disabled} error={finding('payment.discount_percent')} onValueChange={(value) => onChange('payment.discount_percent', value)} />
+        <NumberField label={t('settings.documents.payment.prepayment', 'Advance payment')} value={payment.prepayment_percent} min={0} max={100} step="0.01" suffix={<span className="text-table-secondary">%</span>} disabled={disabled} onValueChange={(value) => onChange('payment.prepayment_percent', value)} />
       </div>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {methods.map((method) => (
@@ -66,8 +66,8 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
         {payment.installment_enabled ? (
           <div className="mt-3 space-y-3">
             {payment.installments.map((installment, index) => (
-              <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-lg bg-bambu-dark p-3">
-                <NumberField label={t('settings.documents.payment.installmentPercent', 'Share')} value={installment.percent} min={0.01} max={100} step="0.01" suffix="%" disabled={disabled} onValueChange={(value) => onChange(`payment.installments.${index}.percent`, value)} />
+              <div key={index} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] rounded-lg bg-bambu-dark p-3">
+                <NumberField label={t('settings.documents.payment.installmentPercent', 'Share')} value={installment.percent} min={0.01} max={100} step="0.01" suffix={<span className="text-table-secondary">%</span>} disabled={disabled} onValueChange={(value) => onChange(`payment.installments.${index}.percent`, value)} />
                 <NumberField label={t('settings.documents.payment.installmentDue', 'Due after days')} value={installment.due_days} min={0} max={3650} disabled={disabled} onValueChange={(value) => onChange(`payment.installments.${index}.due_days`, Number(value))} />
                 <Button type="button" variant="ghost" size="sm" aria-label={t('settings.documents.payment.removeInstallment', 'Remove installment')} disabled={disabled} onClick={() => onChange('payment.installments', payment.installments.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button>
               </div>
@@ -83,8 +83,8 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
         {dunning.enabled ? (
           <div className="mt-3 space-y-3">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <NumberField label={t('settings.documents.payment.interest', 'Annual default interest')} value={dunning.annual_interest_rate} min={0} max={100} step="0.0001" suffix="%" disabled={disabled} onValueChange={(value) => onChange('dunning.annual_interest_rate', value)} />
-              <NumberField label={t('settings.documents.payment.flatFee', 'Default fee')} value={dunning.flat_fee} min={0} step="0.01" suffix={payment.currency} disabled={disabled} onValueChange={(value) => onChange('dunning.flat_fee', value)} />
+              <NumberField label={t('settings.documents.payment.interest', 'Annual default interest')} value={dunning.annual_interest_rate} min={0} max={100} step="0.0001" suffix={<span className="text-table-secondary">%</span>} disabled={disabled} onValueChange={(value) => onChange('dunning.annual_interest_rate', value)} />
+              <NumberField label={t('settings.documents.payment.flatFee', 'Default fee')} value={dunning.flat_fee} min={0} step="0.01" suffix={<span className="text-table-secondary">{payment.currency}</span>} disabled={disabled} onValueChange={(value) => onChange('dunning.flat_fee', value)} />
             </div>
             {stages.map((stage, sortedIndex) => {
               const originalIndex = dunning.stages.findIndex((item) => item.level === stage.level);
@@ -93,7 +93,7 @@ export function PaymentPolicySection({ payment, dunning, effectivePayment = {}, 
                   <div className="mb-3 flex items-center justify-between"><h4 className="font-medium text-white">{t('settings.documents.payment.stage', { level: stage.level, defaultValue: `Stage ${stage.level}` })}</h4><Button type="button" variant="ghost" size="sm" aria-label={t('settings.documents.payment.removeStage', 'Remove stage')} disabled={disabled} onClick={() => onChange('dunning.stages', stages.filter((_, index) => index !== sortedIndex))}><Trash2 className="h-4 w-4" /></Button></div>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <NumberField label={t('settings.documents.payment.waitDays', 'Wait days')} value={stage.wait_days} min={0} disabled={disabled} onValueChange={(value) => onChange(`dunning.stages.${originalIndex}.wait_days`, Number(value))} />
-                    <NumberField label={t('settings.documents.payment.stageFee', 'Stage fee')} value={stage.fee} min={0} step="0.01" suffix={payment.currency} disabled={disabled} onValueChange={(value) => onChange(`dunning.stages.${originalIndex}.fee`, value)} />
+                    <NumberField label={t('settings.documents.payment.stageFee', 'Stage fee')} value={stage.fee} min={0} step="0.01" suffix={<span className="text-table-secondary">{payment.currency}</span>} disabled={disabled} onValueChange={(value) => onChange(`dunning.stages.${originalIndex}.fee`, value)} />
                     <NumberField label={t('settings.documents.payment.newDueDays', 'New payment term')} value={stage.new_due_days} min={0} disabled={disabled} onValueChange={(value) => onChange(`dunning.stages.${originalIndex}.new_due_days`, Number(value))} />
                   </div>
                   <div className="mt-3"><TextArea label={t('settings.documents.payment.stageText', 'Dunning text')} value={stage.body} disabled={disabled} onValueChange={(value) => onChange(`dunning.stages.${originalIndex}.body`, value)} /></div>

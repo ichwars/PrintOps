@@ -23,6 +23,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.color_catalog import ColorCatalogEntry
 from backend.app.models.spool import Spool
 from backend.app.schemas.spool import SpoolCreate
+from backend.app.services.filament_sku_identity import ensure_sku
+from backend.app.services.location_service import lock_entered_spool_weight
+from backend.app.services.warehouse_number_sequence import reserve_number
 
 # Fixed CSV header, in output order. Round-trips cleanly: export writes these
 # columns, import expects them. `material` is the only required field; the rest
@@ -554,3 +557,16 @@ def _cell_value(spool: Spool, col: str) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value)
+
+
+async def persist_valid_rows(db: AsyncSession, preview: ImportPreview) -> int:
+    """Add validated CSV rows and reserve their spool numbers in the same transaction."""
+    created = 0
+    for row in preview.rows:
+        if row.status == "valid" and row.spool is not None:
+            spool = Spool(**lock_entered_spool_weight(dict(row.spool), set()))
+            await ensure_sku(db, spool)
+            spool.spool_number = await reserve_number(db, key="spool")
+            db.add(spool)
+            created += 1
+    return created

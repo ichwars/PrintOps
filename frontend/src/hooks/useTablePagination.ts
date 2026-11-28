@@ -9,9 +9,11 @@ export function setPageSelection(selected: ReadonlySet<number>, visibleIds: read
   return next;
 }
 
-export function useTablePagination<T>(rows: readonly T[], scope = '', initialSize = 15) {
+export function useTablePagination<T>(rows: readonly T[], scope = '', initialSize = 15, initialIndex = 0) {
   const [pageSize, setPageSize] = useState(initialSize);
-  const [position, setPosition] = useState({ scope, offset: 0 });
+  const [position, setPosition] = useState(() => ({
+    scope, offset: initialSize > 0 ? Math.floor(Math.max(0, initialIndex) / initialSize) * initialSize : 0,
+  }));
   const size = pageSize === -1 ? Math.max(1, rows.length) : pageSize;
   const lastOffset = Math.max(0, Math.ceil(rows.length / size) - 1) * size;
   const offset = position.scope === scope ? Math.min(position.offset, lastOffset) : 0;

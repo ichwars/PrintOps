@@ -12,6 +12,7 @@ import {
   type NumberSequenceResetPolicy,
   type NumberSequenceValues,
 } from '../../api/client';
+import { dashboardStyles } from '../dashboardStyles';
 import { Button, NumberField, Select, TextField } from '../ui';
 
 interface Props {
@@ -62,7 +63,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
   const [profileId, setProfileId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState(initialDrafts);
   const [error, setError] = useState<string | null>(null);
-  const [savedKey, setSavedKey] = useState<NumberSequenceKey | null>(null);
+  const [savedSequence, setSavedSequence] = useState<{ profileId: number; key: NumberSequenceKey } | null>(null);
 
   useEffect(() => {
     if (profiles.length === 0) {
@@ -97,7 +98,6 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
     }
     setDrafts(next);
     setError(null);
-    setSavedKey(null);
   }, [sequencesQuery.data]);
 
   const saveMutation = useMutation({
@@ -112,53 +112,56 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
       }
       return api.createNumberSequence(profileId, { key: definition.key, ...values });
     },
+    onMutate: () => setSavedSequence(null),
     onSuccess: async (sequence) => {
       setError(null);
-      setSavedKey(sequence.key);
-      await queryClient.invalidateQueries({ queryKey: ['business-profile-number-sequences', profileId] });
+      setSavedSequence({ profileId: sequence.business_profile_id, key: sequence.key });
+      await queryClient.invalidateQueries({ queryKey: ['business-profile-number-sequences', sequence.business_profile_id] });
     },
     onError: (caught) => {
-      setSavedKey(null);
       setError(caught instanceof ApiError ? caught.message : caught instanceof Error ? caught.message : tr('sequenceSaveError'));
     },
   });
 
   const updateDraft = (key: NumberSequenceKey, patch: Partial<SequenceDraft>) => {
-    setSavedKey(null);
+    setSavedSequence(null);
     setDrafts((current) => ({ ...current, [key]: { ...current[key], ...patch } }));
   };
 
   return (
-    <section id="card-number-sequences" className="w-full overflow-hidden rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary card-shadow" aria-labelledby="number-sequences-heading">
-      <div className="flex items-center gap-2 border-b border-bambu-dark-tertiary px-4 py-4">
-        <Hash className="h-5 w-5 text-bambu-green" aria-hidden="true" />
-        <h2 id="number-sequences-heading" className="text-lg font-semibold text-white">{tr('business.title')}</h2>
+    <section id="card-number-sequences" className={`${dashboardStyles.card} w-full overflow-hidden`} aria-labelledby="number-sequences-heading">
+      <div className={`${dashboardStyles.cardHeader} flex items-center gap-2`}>
+        <Hash className="h-5 w-5 text-accent-foreground" aria-hidden="true" />
+        <h2 id="number-sequences-heading" className={dashboardStyles.cardTitle}>{tr('business.title')}</h2>
       </div>
-      <div className="space-y-4 p-4">
+      <div className={`${dashboardStyles.cardBody} space-y-4`}>
         <div className="grid gap-4 md:grid-cols-[minmax(240px,360px)_1fr] md:items-end">
           {profiles.length > 0 ? (
             <Select
               ariaLabel={tr('business.profile')}
               label={tr('business.profile')}
               value={profileId ?? profiles[0].id}
-              onValueChange={(value) => setProfileId(Number(value))}
+              onValueChange={(value) => {
+                setSavedSequence(null);
+                setProfileId(Number(value));
+              }}
               options={profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
             />
-          ) : <p className="text-sm text-bambu-gray">{tr('business.empty')}</p>}
-          <p className="text-sm text-bambu-gray">
+          ) : <p className="text-sm text-table-secondary">{tr('business.empty')}</p>}
+          <p className="text-sm text-table-secondary">
             {tr('business.description')}
           </p>
         </div>
 
         {(error || sequencesQuery.error) && (
-          <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error ?? (sequencesQuery.error instanceof Error ? sequencesQuery.error.message : tr('sequenceLoadError'))}
           </div>
         )}
 
         {profileId !== null && sequencesQuery.isPending && (
-          <div className="flex items-center gap-2 text-sm text-bambu-gray"><Loader2 className="h-4 w-4 animate-spin" />{tr('sequenceLoading')}</div>
+          <div className="flex items-center gap-2 text-sm text-table-secondary"><Loader2 className="h-4 w-4 animate-spin" />{tr('sequenceLoading')}</div>
         )}
 
         {profileId !== null && !sequencesQuery.isPending && (
@@ -175,7 +178,7 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
                 <div key={definition.key} className="space-y-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/35 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="font-medium text-white">{noun}</h3>
-                    <span className={`text-xs ${existing ? 'text-bambu-green' : 'text-bambu-gray'}`}>{existing ? tr('active') : tr('notCreated')}</span>
+                    <span className={`text-xs ${existing ? 'text-accent-foreground' : 'text-table-secondary'}`}>{existing ? tr('active') : tr('notCreated')}</span>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextField label={tr(textKey + '.prefix')} aria-label={tr(textKey + '.prefix')} value={draft.prefix} onValueChange={(value) => updateDraft(definition.key, { prefix: value })} disabled={!canManage || pending} />
@@ -197,13 +200,13 @@ export function NumberSequenceSettings({ profiles, canManage }: Props) {
                       disabled={!canManage || pending}
                     />
                     {canManage && (
-                      <Button type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending || !resetPolicySupported}>
+                      <Button className="text-black!" type="button" size="sm" onClick={() => saveMutation.mutate({ definition, existing })} loading={pending} disabled={saveMutation.isPending || !resetPolicySupported}>
                         {!pending && <Save className="h-4 w-4" />}
                         {existing ? tr('saveSequence', { name: actionName }) : tr('createSequence', { name: actionName })}
                       </Button>
                     )}
                   </div>
-                  {savedKey === definition.key && <p role="status" className="text-xs text-bambu-green">{tr('sequenceSaved')}</p>}
+                  {savedSequence?.profileId === profileId && savedSequence.key === definition.key && <p role="status" className="text-xs text-accent-foreground">{tr('sequenceSaved')}</p>}
                 </div>
               );
             })}

@@ -163,6 +163,26 @@ Lagerziel bleibt der übliche Projektabschluss ohne automatische Lagerbuchung.
 Zum Festlegen des Ziels und zur automatischen Buchung beim Abschluss ist
 `inventory:update` zusätzlich zu den Projektrechten erforderlich.
 
+### Material bestellen und Wareneingänge buchen
+
+Öffne unter **Lager → Nachbestellbedarf** die **Einkaufsliste**. Mit
+**Bestellentwurf anlegen** speicherst du die vorgeschlagene Menge und den
+bevorzugten Lieferanten, falls einer hinterlegt ist. Die Bestellnummer öffnet
+den Eintrag unter **Lager → Bestellungen**.
+
+Offene und abgeschlossene Bestellungen stehen in getrennten, sortierbaren
+Tabellen. Wähle bei einer offenen Bestellung **⋮ → Wareneingang** und gib die
+eingetroffene Menge ein. Eine Teillieferung erhöht den Lagerbestand und
+verringert die offene Menge. Nach der letzten Lieferung wechselt die
+Bestellung zu den abgeschlossenen Bestellungen. Der Eintrag verschwindet
+aus der Einkaufsliste. **⋮ → Wareneingänge** zeigt weiterhin Belegnummer,
+Menge und Buchungsdatum.
+
+Unter **Einstellungen → Lagerverwaltung → Nummernkreise** kannst du die
+Nummern für neu angelegte Spulen, Bestellungen und Wareneingänge festlegen.
+Bestehende Spulen und Wareneingänge behalten ihre bisherige Kennung. Neue
+Wareneingänge im Material- und Warenlager verwenden denselben Nummernkreis.
+
 ### API für Bestand und Beschaffung
 
 - `GET /api/v1/warehouse-articles` akzeptiert `sort_by`, `sort_dir`, `limit`
@@ -180,6 +200,14 @@ Zum Festlegen des Ziels und zur automatischen Buchung beim Abschluss ist
   Ein Material lässt sich mit `PUT /api/v1/warehouse-shopping-list/material/{resource_id}`
   hinzufügen und mit `DELETE /api/v1/warehouse-shopping-list/{item_id}`
   entfernen. Änderungen verwenden `inventory:update`.
+- `POST /api/v1/warehouse-shopping-list/{item_id}/purchase-order` legt den
+  nummerierten Bestellentwurf an. `GET /api/v1/warehouse-purchase-orders` liest
+  die Bestellübersicht.
+- `GET /api/v1/warehouse-purchase-orders/{order_id}/receipts` liest die Belege.
+  `POST` auf denselben Pfad bucht die Teil- oder Restmenge. Wiederholte
+  Buchungen mit demselben Idempotenzschlüssel erzeugen nur einen Beleg.
+  Lesezugriffe verwenden `inventory:read`, Buchungen und Bestellentwürfe
+  `inventory:update`.
 
 ## Belege und Finanzen
 

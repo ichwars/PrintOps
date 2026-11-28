@@ -185,7 +185,7 @@ export function LDAPSettings() {
       {/* LDAP Toggle */}
       <Card id="card-ldap-toggle">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-bambu-green" />
               <h2 className="text-lg font-semibold text-white">
@@ -196,6 +196,7 @@ export function LDAPSettings() {
               onClick={handleToggle}
               disabled={toggleMutation.isPending}
               variant={ldapEnabled ? 'danger' : 'primary'}
+              className={ldapEnabled ? 'text-white!' : 'text-black!'}
             >
               {ldapEnabled ? (
                 <>
@@ -258,7 +259,7 @@ export function LDAPSettings() {
             {/* Server URL + Security (side by side) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-bambu-gray mb-1">
+                <label className="block text-sm font-medium text-table-secondary mb-1">
                   {t('settings.ldap.serverUrl') || 'Server URL'}
                 </label>
                 <TextField
@@ -268,30 +269,31 @@ export function LDAPSettings() {
                   value={form.ldap_server_url}
                   onChange={e => setForm({ ...form, ldap_server_url: e.target.value })}
                 />
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t('settings.ldap.serverUrlHint') || 'Use ldaps:// for SSL or ldap:// with StartTLS'}
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-bambu-gray mb-1">
+                <label className="block text-sm font-medium text-table-secondary mb-1">
                   {t('settings.ldap.security') || 'Security'}
                 </label>
                 <div className="flex gap-2">
                   {(['starttls', 'ldaps'] as const).map(sec => (
                     <Button variant="unstyled"
                       key={sec}
+                      aria-pressed={form.ldap_security === sec}
                       onClick={() => setForm({ ...form, ldap_security: sec })}
-                      className={`flex-1 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`flex-1 rounded-lg border px-2 py-2 text-sm font-medium transition-colors max-md:min-h-11 ${
                         form.ldap_security === sec
-                          ? 'bg-bambu-green text-black'
-                          : 'bg-bambu-dark-secondary text-bambu-gray hover:text-white border border-bambu-dark-tertiary'
+                          ? 'border-accent-foreground bg-bambu-green/10 text-accent-foreground'
+                          : 'border-bambu-dark-tertiary bg-bambu-dark-secondary text-table-secondary hover:bg-bambu-dark hover:text-white'
                       }`}
                     >
                       {sec === 'starttls' ? 'StartTLS' : 'LDAPS'}
                     </Button>
                   ))}
                 </div>
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t('settings.ldap.securityHint') || `Default port: ${SECURITY_PORT_MAP[form.ldap_security]}`}
                 </p>
               </div>
@@ -300,7 +302,7 @@ export function LDAPSettings() {
             {/* Bind DN + Password (side by side) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-bambu-gray mb-1">
+                <label className="block text-sm font-medium text-table-secondary mb-1">
                   {t('settings.ldap.bindDn') || 'Bind DN (Service Account)'}
                 </label>
                 <TextField
@@ -312,7 +314,7 @@ export function LDAPSettings() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-bambu-gray mb-1">
+                <label className="block text-sm font-medium text-table-secondary mb-1">
                   {t('settings.ldap.bindPassword') || 'Bind Password'}
                 </label>
                 <TextField
@@ -328,7 +330,7 @@ export function LDAPSettings() {
             {/* Search Base + User Filter (side by side) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-bambu-gray mb-1">
+                <label className="block text-sm font-medium text-table-secondary mb-1">
                   {t('settings.ldap.searchBase') || 'Search Base DN'}
                 </label>
                 <TextField
@@ -340,7 +342,7 @@ export function LDAPSettings() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-bambu-gray mb-1">
+                <label className="block text-sm font-medium text-table-secondary mb-1">
                   {t('settings.ldap.userFilter') || 'User Search Filter'}
                 </label>
                 <TextField
@@ -356,7 +358,7 @@ export function LDAPSettings() {
             {/* Advanced (collapsed by default) */}
             <Collapsible
               summary={
-                <span className="text-sm font-medium text-bambu-gray">
+                <span className="text-sm font-medium text-table-secondary">
                   {t('settings.ldap.advanced') || 'Advanced'}
                 </span>
               }
@@ -370,7 +372,7 @@ export function LDAPSettings() {
                     <label className="block text-sm font-medium text-white">
                       {t('settings.ldap.autoProvision') || 'Auto-provision users'}
                     </label>
-                    <p className="text-xs text-bambu-gray mt-0.5">
+                    <p className="text-xs text-table-secondary mt-0.5">
                       {t('settings.ldap.autoProvisionHint') || 'Automatically create a PrintOps account on first LDAP login'}
                     </p>
                   </div>
@@ -390,7 +392,7 @@ export function LDAPSettings() {
 
                 {/* Default Group (fallback for users with no mapped groups) */}
                 <div>
-                  <label className="block text-sm font-medium text-bambu-gray mb-1">
+                  <label className="block text-sm font-medium text-table-secondary mb-1">
                     {t('settings.ldap.defaultGroup') || 'Default group'}
                   </label>
                   <LegacySelect
@@ -403,14 +405,14 @@ export function LDAPSettings() {
                       <option key={g.id} value={g.name}>{g.name}</option>
                     ))}
                   </LegacySelect>
-                  <p className="text-xs text-bambu-gray mt-1">
+                  <p className="text-xs text-table-secondary mt-1">
                     {t('settings.ldap.defaultGroupHint') || 'Fallback group assigned when an LDAP user authenticates but is not listed in any mapped group. Leave empty to leave unmapped users without permissions.'}
                   </p>
                 </div>
 
                 {/* Group Mapping */}
                 <div>
-                  <label className="block text-sm font-medium text-bambu-gray mb-1">
+                  <label className="block text-sm font-medium text-table-secondary mb-1">
                     {t('settings.ldap.groupMapping') || 'Group Mapping (JSON)'}
                   </label>
                   <TextArea
@@ -420,7 +422,7 @@ export function LDAPSettings() {
                     value={form.ldap_group_mapping}
                     onChange={e => setForm({ ...form, ldap_group_mapping: e.target.value })}
                   />
-                  <p className="text-xs text-bambu-gray mt-1">
+                  <p className="text-xs text-table-secondary mt-1">
                     {t('settings.ldap.groupMappingHint') || 'Map LDAP group DNs to PrintOps groups. Available groups: '}{groups.map(g => g.name).join(', ')}
                   </p>
                 </div>
@@ -432,6 +434,7 @@ export function LDAPSettings() {
               <Button
                 onClick={handleSave}
                 disabled={saveMutation.isPending}
+                className="text-black!"
               >
                 {saveMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

@@ -72,23 +72,23 @@ export function LexwareConnectionForm({ profiles, connection, onSaved, onBusyCha
         disabled={busy !== null}
         onValueChange={(value) => { setApiKey(value); setVerified(null); setError(null); }} />
       <div className="flex gap-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark p-3 text-sm">
-        <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-bambu-green" aria-hidden="true" />
-        <div className="min-w-0"><p className="font-medium text-white">{copy.secure}</p><p className="mt-1 leading-relaxed text-bambu-gray">{text.keyHelp}</p></div>
+        <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
+        <div className="min-w-0"><p className="font-medium text-white">{copy.secure}</p><p className="mt-1 leading-relaxed text-table-secondary">{text.keyHelp}</p></div>
       </div>
-      {connection && <div className="text-sm text-bambu-gray"><p>{text.expectedOrganization}</p>
+      {connection && <div className="text-sm text-table-secondary"><p>{text.expectedOrganization}</p>
         <p className="mt-1 break-all text-white">{connection.company_name} · {connection.organization_id}</p></div>}
       {verified && <div role="status" className="flex gap-3 rounded-lg border border-bambu-green/30 bg-bambu-green/5 p-3 text-sm">
-        <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-bambu-green" aria-hidden="true" />
-        <div className="min-w-0"><p className="font-medium text-bambu-green">{copy.verified}</p>
+        <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
+        <div className="min-w-0"><p className="font-medium text-accent-foreground">{copy.verified}</p>
           <p className="mt-1 break-words text-white">{text.organization}: {verified.company_name}</p>
-          <p className="mt-1 break-all text-bambu-gray">{verified.organization_id}</p></div>
+          <p className="mt-1 break-all text-table-secondary">{verified.organization_id}</p></div>
       </div>}
       {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
       <div className="flex flex-wrap items-center gap-2 border-t border-bambu-dark-tertiary pt-4">
         {onCancel && <Button type="button" variant="ghost" className="mr-auto" disabled={busy !== null} onClick={onCancel}>{copy.cancel}</Button>}
         <Button type="button" variant="secondary" disabled={!profileId || !apiKey.trim() || busy !== null}
           loading={busy === 'test'} onClick={() => void test()}>{busy === 'test' ? text.testing : text.test}</Button>
-        <Button type="submit" disabled={!verified || !profileId || !apiKey.trim() || busy !== null} loading={busy === 'save'}>{text.save}</Button>
+        <Button className="text-black!" type="submit" disabled={!verified || !profileId || !apiKey.trim() || busy !== null} loading={busy === 'save'}>{text.save}</Button>
       </div>
     </form>
   );

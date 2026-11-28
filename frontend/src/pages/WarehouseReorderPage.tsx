@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Check, Factory, ListChecks, LoaderCircle, ShoppingCart, Trash2, Truck } from 'lucide-react';
-import { warehouseShoppingListApi, type WarehouseShoppingItem } from '../api/procurement';
+import { PURCHASE_ORDERS_QUERY, SHOPPING_LIST_QUERY, warehousePurchaseOrdersApi, warehouseShoppingListApi, type WarehousePurchaseOrder, type WarehouseShoppingItem } from '../api/procurement';
 import { smallPartsApi, type SmallPart } from '../api/smallParts';
 import { needsWarehouseProduction, productionDemandFilter, warehouseArticlesApi, type WarehouseArticle } from '../api/client/warehouse-articles';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,7 +15,7 @@ import { tableBodyCellClass, tableHeaderClass, tableHeaderRowClass } from '../co
 import { WarehouseHeader, WarehouseTable, WarehouseTableScroll } from '../components/warehouse/WarehouseLayout';
 import { WarehouseActionHeader, WarehouseRowActions, type WarehouseAction } from '../components/warehouse/WarehouseRowActions';
 import { warehousePageClass, warehouseTableDescriptionClass, warehouseTableIdentifierClass, warehouseTableQuantityClass } from '../components/warehouse/warehouseStyles';
-import { warehouseUnit } from '../components/warehouse/warehouseTableValues';
+import { stockMicroUnits, warehouseUnit } from '../components/warehouse/warehouseTableValues';
 import { useWarehouseCopy, warehouseQuantity } from '../components/warehouse/warehouseGoodsCopy';
 import { OrderTableRow } from '../components/orders/OrderLayout';
 import { OrderSortHeader } from '../components/orders/OrderSortHeader';
@@ -38,7 +38,6 @@ interface WarehouseReorderCopy {
 
 const PAGE_SIZE = 200;
 const COPY_KEY = 'orders.runtimeDomain.warehouseReorder';
-const SHOPPING_LIST_QUERY = ['warehouse-shopping-list'] as const;
 const ERROR_CLASS = 'flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-100 p-3 text-sm text-red-900 dark:bg-red-950/50 dark:text-red-300';
 const STOCK_SCALE = 1_000_000n;
 const MAX_PROJECT_PARTS = 2_147_483_647n;
@@ -69,17 +68,6 @@ type ReorderRow = {
   unitLabel?: string;
   projectId?: number;
 };
-
-function stockMicroUnits(value: string): bigint {
-  // The stock APIs serialize Decimal values with up to six decimal places,
-  // including scientific notation for some small balances.
-  const match = /^([+-]?\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(value);
-  if (!match) return 0n;
-  const [, integer, fraction = '', exponent = '0'] = match;
-  const coefficient = BigInt(integer + fraction);
-  const places = 6 + Number(exponent) - fraction.length;
-  return places >= 0 ? coefficient * 10n ** BigInt(places) : coefficient / 10n ** BigInt(-places);
-}
 
 function formatStockMicroUnits(value: bigint, locale: string) {
   const absolute = value < 0n ? -value : value;
@@ -134,6 +122,20 @@ export function WarehouseReorderPage() {
     queryFn: warehouseShoppingListApi.list,
     enabled: canRead,
   });
+  const ordersQuery = useQuery({
+    queryKey: PURCHASE_ORDERS_QUERY,
+    queryFn: warehousePurchaseOrdersApi.list,
+    enabled: canRead && shoppingListOpen,
+  });
+  const createPurchaseOrder = useMutation({
+    mutationFn: warehousePurchaseOrdersApi.create,
+    onSuccess: (order) => {
+      queryClient.setQueryData<WarehousePurchaseOrder[]>(PURCHASE_ORDERS_QUERY, (orders = []) => [
+        order, ...orders.filter(({ id }) => id !== order.id),
+      ]);
+      void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY });
+    },
+  });
   const addShoppingItem = useMutation({
     mutationFn: (row: ReorderRow) => warehouseShoppingListApi.add(row.id),
     onSuccess: (item) => {
@@ -171,7 +173,9 @@ export function WarehouseReorderPage() {
   const failed = articlesQuery.isError || partsQuery.isError;
   const shoppingItems = shoppingQuery.data ?? [];
   const shoppingMaterialIds = new Set(shoppingItems.map(({ resource_id }) => resource_id));
-  const saving = addShoppingItem.isPending || removeShoppingItem.isPending;
+  const purchaseOrders = ordersQuery.data ?? [];
+  const ordersByItemId = new Map(purchaseOrders.map((order) => [order.shopping_item_id, order]));
+  const saving = addShoppingItem.isPending || removeShoppingItem.isPending || createPurchaseOrder.isPending;
   const retry = () => {
     void articlesQuery.refetch();
     void partsQuery.refetch();
@@ -352,6 +356,7 @@ export function WarehouseReorderPage() {
               <Button type="button" size="sm" variant="secondary" onClick={() => void shoppingQuery.refetch()}>{goods.retry}</Button>
             </div>
           )}
+          {createPurchaseOrder.isError && <p role="alert" className={ERROR_CLASS}>{goods.error}</p>}
           {removeShoppingItem.isError && <p role="alert" className={ERROR_CLASS}>{t(`${COPY_KEY}.shoppingListSaveError`)}</p>}
           {shoppingQuery.isSuccess && shoppingItems.length === 0 && (
             <p className="text-sm text-table-secondary">{t(`${COPY_KEY}.shoppingListEmpty`)}</p>
@@ -359,15 +364,27 @@ export function WarehouseReorderPage() {
           {shoppingItems.length > 0 && (
             <ul className="divide-y divide-bambu-dark-tertiary">
               {shoppingItems.map((item) => {
+                const order = ordersByItemId.get(item.id);
                 const removing = removeShoppingItem.isPending && removeShoppingItem.variables === item.id;
                 const label = t(`${COPY_KEY}.removeFromShoppingList`, { name: item.name });
                 return (
-                  <li key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="min-w-0 flex-1 space-y-0.5 wrap-anywhere">
+                  <li key={item.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-[9rem] flex-1 space-y-0.5 wrap-anywhere">
                       <p className="text-sm font-medium text-white">{item.name}</p>
                       <p className="font-mono text-xs text-table-secondary">{item.sku}</p>
                       <p className="text-sm tabular-nums text-table-secondary">{warehouseQuantity(item.quantity, locale)} {unitFor(item.unit_code, item.unit_label)}</p>
                     </div>
+                    {order && (
+                      <Link className="shrink-0 text-accent-foreground hover:underline" to={`/warehouse/purchase-orders#purchase-order-${order.id}`}>
+                        {order.number}
+                      </Link>
+                    )}
+                    {canUpdate && ordersQuery.isSuccess && !order && (
+                      <Button type="button" size="sm" variant="secondary" disabled={saving}
+                        onClick={() => createPurchaseOrder.mutate(item.id)}>
+                        {t(`${COPY_KEY}.preparePurchaseOrder`)}
+                      </Button>
+                    )}
                     {canUpdate && (
                       <IconButton
                         label={label}
@@ -384,6 +401,15 @@ export function WarehouseReorderPage() {
               })}
             </ul>
           )}
+          {ordersQuery.isError && (
+            <div role="alert" className={ERROR_CLASS}>
+              {goods.error}
+              <Button type="button" size="sm" variant="secondary" onClick={() => void ordersQuery.refetch()}>{goods.retry}</Button>
+            </div>
+          )}
+          <Link to="/warehouse/purchase-orders" className="inline-flex items-center gap-2 text-sm font-medium text-accent-foreground hover:underline">
+            {t(`${COPY_KEY}.purchaseOrders`)} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Link>
         </div>
       </Modal>
     </div>

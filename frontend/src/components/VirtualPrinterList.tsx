@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus, Printer, ExternalLink, AlertTriangle, Info, FileText, ShieldCheck, Copy, Check, Download } from 'lucide-react';
 import { multiVirtualPrinterApi, virtualPrinterApi } from '../api/client';
-import { Card, CardContent } from './Card';
+import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
 import { Toggle } from './Toggle';
 import { useToast } from '../contexts/ToastContext';
@@ -91,12 +91,12 @@ export function VirtualPrinterList() {
               <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
               <div className="text-xs">
                 <p className="text-white font-medium">{t('virtualPrinter.setupRequired.title')}</p>
-                <p className="text-bambu-gray mt-1">{t('virtualPrinter.setupRequired.description')}</p>
+                <p className="text-table-secondary mt-1">{t('virtualPrinter.setupRequired.description')}</p>
                 <a
                   href="https://github.com/ichwars/PrintOps/wiki/features/virtual-printer/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-yellow-100 dark:bg-yellow-500/20 border border-yellow-500/50 rounded text-yellow-700 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors text-xs"
+                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-yellow-100 dark:bg-yellow-500/20 border border-yellow-500/50 rounded text-yellow-800 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors text-xs"
                 >
                   <ExternalLink className="w-3 h-3" />
                   {t('virtualPrinter.setupRequired.readGuide')}
@@ -110,7 +110,7 @@ export function VirtualPrinterList() {
           <CardContent className="py-3 px-4">
             <div className="flex items-start gap-2">
               <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="text-xs text-bambu-gray">
+              <div className="text-xs text-table-secondary">
                 <p className="text-white font-medium mb-1">{t('virtualPrinter.howItWorks.title')}</p>
                 <ul className="space-y-1 list-disc list-inside">
                   <li>{t('virtualPrinter.howItWorks.step1')}</li>
@@ -157,12 +157,12 @@ export function VirtualPrinterList() {
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t('virtualPrinter.caCert.description')}
                 </p>
                 {caCert && (
                   <p
-                    className="text-[10px] text-bambu-gray font-mono mt-1 truncate"
+                    className="text-[10px] text-table-secondary font-mono mt-1 truncate"
                     title={caCert.fingerprint_sha256}
                   >
                     {t('virtualPrinter.caCert.fingerprint')}: {caCert.fingerprint_sha256}
@@ -184,7 +184,7 @@ export function VirtualPrinterList() {
                     {t('virtualPrinter.archiveNameSource.title')}
                   </p>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`text-xs ${useFilename ? 'text-bambu-gray' : 'text-white'}`}>
+                    <span className={`text-xs ${useFilename ? 'text-table-secondary' : 'text-white'}`}>
                       {t('virtualPrinter.archiveNameSource.metadata')}
                     </span>
                     <Toggle
@@ -192,12 +192,12 @@ export function VirtualPrinterList() {
                       onChange={(checked) => archiveNameSourceMutation.mutate(checked ? 'filename' : 'metadata')}
                       disabled={archiveNameSourceMutation.isPending}
                     />
-                    <span className={`text-xs ${useFilename ? 'text-white' : 'text-bambu-gray'}`}>
+                    <span className={`text-xs ${useFilename ? 'text-white' : 'text-table-secondary'}`}>
                       {t('virtualPrinter.archiveNameSource.filename')}
                     </span>
                   </div>
                 </div>
-                <p className="text-xs text-bambu-gray mt-1">
+                <p className="text-xs text-table-secondary mt-1">
                   {t('virtualPrinter.archiveNameSource.description')}
                 </p>
               </div>
@@ -206,38 +206,37 @@ export function VirtualPrinterList() {
         </Card>
       </div>
 
-      {/* Header with add button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Printer className="w-5 h-5 text-bambu-green" />
-          <h2 className="text-lg font-semibold text-white">{t('virtualPrinter.list.title')}</h2>
-          <span className="text-sm text-bambu-gray">({printers.length})</span>
-        </div>
-        <Button variant="primary" onClick={() => setShowAddDialog(true)}>
-          <Plus className="w-4 h-4 mr-1" />
-          {t('virtualPrinter.list.add')}
-        </Button>
-      </div>
-
-      {/* Printer cards - 3 column grid */}
-      {printers.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <Printer className="w-12 h-12 text-bambu-gray mx-auto mb-3" />
-            <p className="text-bambu-gray mb-4">{t('virtualPrinter.list.empty')}</p>
-            <Button variant="primary" onClick={() => setShowAddDialog(true)}>
-              <Plus className="w-4 h-4 mr-1" />
-              {t('virtualPrinter.list.addFirst')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-          {printers.map((printer) => (
-            <VirtualPrinterCard key={printer.id} printer={printer} models={models} />
-          ))}
-        </div>
-      )}
+      <Card>
+        <CardHeader className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Printer className="h-4 w-4 shrink-0 text-bambu-green" />
+            <h2 className="text-sm font-medium text-white">{t('virtualPrinter.list.title')}</h2>
+            <span className="text-sm text-table-secondary">({printers.length})</span>
+          </div>
+          <Button size="sm" className="text-black!" onClick={() => setShowAddDialog(true)}>
+            <Plus className="h-4 w-4" />
+            {t('virtualPrinter.list.add')}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {printers.length === 0 ? (
+            <div className="py-4 text-center">
+              <Printer className="mx-auto mb-3 h-10 w-10 text-table-secondary" />
+              <p className="mb-4 text-table-secondary">{t('virtualPrinter.list.empty')}</p>
+              <Button className="text-black!" onClick={() => setShowAddDialog(true)}>
+                <Plus className="h-4 w-4" />
+                {t('virtualPrinter.list.addFirst')}
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {printers.map((printer) => (
+                <VirtualPrinterCard key={printer.id} printer={printer} models={models} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {showAddDialog && (
         <VirtualPrinterAddDialog onClose={() => setShowAddDialog(false)} />

@@ -78,7 +78,7 @@ COMMENT_CHECK_PREFIXES = (
 
 FILE_ALLOWLIST = {
     "backend/app/api/routes/archives.py": 4686,
-    "backend/app/api/routes/inventory.py": 2539,
+    "backend/app/api/routes/inventory.py": 2536,
     "backend/app/api/routes/library.py": 4796,
     "backend/app/api/routes/print_queue.py": 1982,
     "backend/app/api/routes/projects.py": 2013,
@@ -93,7 +93,7 @@ FILE_ALLOWLIST = {
     "backend/tests/unit/services/test_bambu_mqtt.py": 6568,
     "backend/tests/unit/test_github_restore.py": 3470,
     "backend/tests/unit/services/test_virtual_printer.py": 3975,
-    "frontend/src/__tests__/pages/SettingsPage.test.tsx": 2097,
+    "frontend/src/__tests__/pages/SettingsPage.test.tsx": 2087,
     "frontend/src/components/AddSmartPlugModal.tsx": 1666,
     "frontend/src/components/ConfigureAmsSlotModal.tsx": 1641,
     "frontend/src/components/ForecastPanel.tsx": 1949,
@@ -107,7 +107,7 @@ FILE_ALLOWLIST = {
     "frontend/src/pages/printers/PrinterCard.tsx": 2817,
     "frontend/src/pages/ProfilesPage.tsx": 2985,
     "frontend/src/pages/QueuePage.tsx": 2833,
-    "frontend/src/pages/SettingsPage.tsx": 6253,
+    "frontend/src/pages/SettingsPage.tsx": 6210,
     "install/install.sh": 1031,
     "spoolbuddy/install/install.sh": 1654,
 }

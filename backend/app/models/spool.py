@@ -13,6 +13,7 @@ class Spool(Base):
     __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    spool_number: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
     material: Mapped[str] = mapped_column(String(50))  # PLA, PETG, ABS, etc.
     subtype: Mapped[str | None] = mapped_column(String(50))  # Basic, Matte, Silk, etc.
     color_name: Mapped[str | None] = mapped_column(String(100))  # "Jade White"

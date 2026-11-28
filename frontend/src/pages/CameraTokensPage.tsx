@@ -1,4 +1,8 @@
 import { TablePagination } from '../components/ui/TablePagination';
+import {
+  tableBodyCellClass, tableBodyRowClass, tableFrameClass, tableHeaderCellCompactClass,
+  tableHeaderClass, tableHeaderRowClass, tableStickyActionCellClass, tableStickyActionHeaderClass,
+} from '../components/ui/tableStyles';
 import { useTablePagination } from '../hooks/useTablePagination';
 /**
  * Long-lived camera-stream tokens (#1108).
@@ -123,16 +127,16 @@ function CreateTokenForm({ onCreated }: CreateTokenFormProps) {
           className="px-3 py-2 bg-bambu-dark rounded-md text-white border border-bambu-dark-tertiary focus:border-bambu-green focus:outline-none"
           aria-label={t('cameraTokens.create.daysLabel', 'Days until expiry')}
         />
-        <Button variant="unstyled"
+        <Button
           type="submit"
           disabled={submitting || !name.trim()}
-          className="flex items-center gap-2 px-4 py-2 bg-bambu-green text-white rounded-md hover:bg-bambu-green/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="text-black!"
         >
           <Plus className="w-4 h-4" />
           {t('cameraTokens.create.submit', 'Create')}
         </Button>
       </div>
-      <p className="text-xs text-bambu-gray mt-2">
+      <p className="text-xs text-table-secondary mt-2">
         {t(
           'cameraTokens.create.hint',
           'Maximum lifetime is 365 days. The token value is shown only once on creation — copy it now.',
@@ -163,7 +167,7 @@ function ConfirmRevokeModal({ token, onConfirm, onCancel }: ConfirmRevokeModalPr
             <h2 className="text-lg font-semibold text-white">
               {t('cameraTokens.confirmRevoke.title', 'Revoke this token?')}
             </h2>
-            <p className="text-sm text-bambu-gray mt-1">
+            <p className="text-sm text-table-secondary mt-1">
               {t(
                 'cameraTokens.confirmRevoke.body',
                 'Any device using "{{name}}" will lose access immediately. This cannot be undone.',
@@ -239,7 +243,7 @@ function JustCreatedModal({ token, onClose }: JustCreatedModalProps) {
             <h2 className="text-lg font-semibold text-white">
               {t('cameraTokens.created.title', 'Token created — copy it now')}
             </h2>
-            <p className="text-sm text-bambu-gray mt-1">
+            <p className="text-sm text-table-secondary mt-1">
               {t(
                 'cameraTokens.created.warning',
                 'This is the only time this token will be visible. After you close this dialog you can never view it again.',
@@ -248,7 +252,7 @@ function JustCreatedModal({ token, onClose }: JustCreatedModalProps) {
           </div>
         </div>
         <div className="flex items-center gap-2 mb-4">
-          <code className="flex-1 px-3 py-2 bg-bambu-dark rounded-md text-bambu-green text-xs break-all font-mono select-all">
+          <code className="flex-1 px-3 py-2 bg-bambu-dark rounded-md text-accent-foreground text-xs break-all font-mono select-all">
             {plaintext}
           </code>
           <Button variant="unstyled"
@@ -261,7 +265,7 @@ function JustCreatedModal({ token, onClose }: JustCreatedModalProps) {
           </Button>
         </div>
         {token.scope === 'camera_stream' && (
-          <div className="mb-4 px-3 py-2.5 bg-bambu-dark rounded-md text-xs text-bambu-gray space-y-1.5">
+          <div className="mb-4 px-3 py-2.5 bg-bambu-dark rounded-md text-xs text-table-secondary space-y-1.5">
             <p>{t('cameraTokens.created.urlHint', 'Use this token in a camera URL:')}</p>
             <code className="block break-all font-mono text-white">
               {'.../api/v1/printers/{printerId}/camera/stream?token=' + plaintext}
@@ -275,7 +279,7 @@ function JustCreatedModal({ token, onClose }: JustCreatedModalProps) {
             <code className="block break-all font-mono text-white">
               {'rtsp://' + plaintext + ':@<host>:8554/printer-{printerId}'}
             </code>
-            <p className="text-[11px] text-bambu-gray/70">
+            <p className="text-[11px] text-table-secondary">
               {t(
                 'cameraTokens.created.rtspColonHint',
                 'Keep the trailing ":" right after the token — it marks an empty password and some RTSP clients need it to send credentials at all.',
@@ -308,15 +312,15 @@ function TokenRow({ token, showOwner, ownerLabel, onRevoke }: TokenRowProps) {
   const { t } = useTranslation();
   const expired = isExpired(token.expires_at);
   return (
-    <tr className="border-b border-bambu-dark-tertiary last:border-b-0">
-      <td className="py-3 px-3 text-white">{token.name}</td>
-      {showOwner && <td className="py-3 px-3 text-bambu-gray">{ownerLabel}</td>}
-      <td className="py-3 px-3 text-bambu-gray">
+    <tr className={tableBodyRowClass}>
+      <td className="px-4 py-3 align-middle text-white">{token.name}</td>
+      {showOwner && <td className={tableBodyCellClass}>{ownerLabel}</td>}
+      <td className={tableBodyCellClass}>
         {TOKEN_SCOPE_OPTIONS.find((option) => option.value === token.scope)?.label ?? token.scope}
       </td>
-      <td className="py-3 px-3 text-bambu-gray font-mono text-xs">{token.lookup_prefix}…</td>
-      <td className="py-3 px-3 text-bambu-gray">{formatDate(token.created_at)}</td>
-      <td className={`py-3 px-3 ${expired ? 'text-red-700 dark:text-red-400' : 'text-bambu-gray'}`}>
+      <td className={`${tableBodyCellClass} font-mono text-xs`}>{token.lookup_prefix}…</td>
+      <td className={tableBodyCellClass}>{formatDate(token.created_at)}</td>
+      <td className={`px-4 py-3 align-middle ${expired ? 'text-red-700 dark:text-red-400' : 'text-table-secondary'}`}>
         {formatDate(token.expires_at)}
         {expired && (
           <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 rounded">
@@ -324,8 +328,8 @@ function TokenRow({ token, showOwner, ownerLabel, onRevoke }: TokenRowProps) {
           </span>
         )}
       </td>
-      <td className="py-3 px-3 text-bambu-gray">{formatDate(token.last_used_at)}</td>
-      <td className="py-3 px-3 text-right">
+      <td className={tableBodyCellClass}>{formatDate(token.last_used_at)}</td>
+      <td className={tableStickyActionCellClass}>
         <Button variant="unstyled"
           type="button"
           onClick={() => onRevoke(token.id)}
@@ -352,39 +356,39 @@ function TokenTable({ tokens, showOwner, userIdToName, onRevoke, emptyMessage }:
   const { t } = useTranslation();
   const pagination = useTablePagination(tokens, '', 15);
   if (tokens.length === 0) {
-    return <p className="text-sm text-bambu-gray italic">{emptyMessage}</p>;
+    return <p className="text-sm text-table-secondary italic">{emptyMessage}</p>;
   }
   return (
-    <>
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="text-bambu-gray text-left border-b border-bambu-dark-tertiary">
-          <tr>
-            <th className="py-2 px-3 font-medium">{t('cameraTokens.list.name', 'Name')}</th>
-            {showOwner && <th className="py-2 px-3 font-medium">{t('cameraTokens.list.owner', 'Owner')}</th>}
-            <th className="py-2 px-3 font-medium">{t('cameraTokens.list.scope', 'Scope')}</th>
-            <th className="py-2 px-3 font-medium">{t('cameraTokens.list.prefix', 'Prefix')}</th>
-            <th className="py-2 px-3 font-medium">{t('cameraTokens.list.created', 'Created')}</th>
-            <th className="py-2 px-3 font-medium">{t('cameraTokens.list.expires', 'Expires')}</th>
-            <th className="py-2 px-3 font-medium">{t('cameraTokens.list.lastUsed', 'Last used')}</th>
-            <th className="py-2 px-3" />
-          </tr>
-        </thead>
-        <tbody>
-          {pagination.rows.map((tok) => (
-            <TokenRow
-              key={tok.id}
-              token={tok}
-              showOwner={showOwner}
-              ownerLabel={userIdToName?.get(tok.user_id) ?? `#${tok.user_id}`}
-              onRevoke={onRevoke}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className={tableFrameClass}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className={tableHeaderClass}>
+            <tr className={tableHeaderRowClass}>
+              <th scope="col" className={tableHeaderCellCompactClass}>{t('cameraTokens.list.name', 'Name')}</th>
+              {showOwner && <th scope="col" className={tableHeaderCellCompactClass}>{t('cameraTokens.list.owner', 'Owner')}</th>}
+              <th scope="col" className={tableHeaderCellCompactClass}>{t('cameraTokens.list.scope', 'Scope')}</th>
+              <th scope="col" className={tableHeaderCellCompactClass}>{t('cameraTokens.list.prefix', 'Prefix')}</th>
+              <th scope="col" className={tableHeaderCellCompactClass}>{t('cameraTokens.list.created', 'Created')}</th>
+              <th scope="col" className={tableHeaderCellCompactClass}>{t('cameraTokens.list.expires', 'Expires')}</th>
+              <th scope="col" className={tableHeaderCellCompactClass}>{t('cameraTokens.list.lastUsed', 'Last used')}</th>
+              <th className={tableStickyActionHeaderClass} />
+            </tr>
+          </thead>
+          <tbody>
+            {pagination.rows.map((tok) => (
+              <TokenRow
+                key={tok.id}
+                token={tok}
+                showOwner={showOwner}
+                ownerLabel={userIdToName?.get(tok.user_id) ?? `#${tok.user_id}`}
+                onRevoke={onRevoke}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <TablePagination {...pagination.footer} />
     </div>
-    <TablePagination {...pagination.footer} />
-    </>
   );
 }
 
@@ -470,7 +474,7 @@ export function CameraTokensSection() {
 
   return (
     <>
-      <p className="text-sm text-bambu-gray mb-4">
+      <p className="text-sm text-table-secondary mb-4">
         {t(
           'cameraTokens.description',
           'Long-lived tokens for embedding camera streams, Cam Wall kiosks, or streaming overlays. Each token has a narrow scope and can be revoked at any time.',
@@ -489,7 +493,7 @@ export function CameraTokensSection() {
           {t('cameraTokens.list.myTitle', 'My tokens')}
         </h3>
         {loading ? (
-          <p className="text-sm text-bambu-gray">{t('cameraTokens.loading', 'Loading…')}</p>
+          <p className="text-sm text-table-secondary">{t('cameraTokens.loading', 'Loading…')}</p>
         ) : (
           <TokenTable
             tokens={myTokens}

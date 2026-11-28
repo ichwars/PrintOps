@@ -1,7 +1,19 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base
@@ -97,3 +109,22 @@ class WarehouseShoppingListItem(Base):
     quantity: Mapped[Decimal] = mapped_column(WarehouseDecimal)
     unit_code: Mapped[str] = mapped_column(String(16))
     unit_label: Mapped[str] = mapped_column(String(80))
+
+
+class WarehousePurchaseOrder(Base):
+    __tablename__ = "warehouse_purchase_orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    number: Mapped[str] = mapped_column(String(100), unique=True)
+    shopping_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("warehouse_shopping_list_items.id", ondelete="SET NULL"), unique=True
+    )
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id", ondelete="SET NULL"))
+    supplier_name: Mapped[str | None] = mapped_column(String(255))
+    small_part_id: Mapped[int | None] = mapped_column(ForeignKey("small_parts.id", ondelete="SET NULL"))
+    sku: Mapped[str] = mapped_column(String(120))
+    name: Mapped[str] = mapped_column(String(255))
+    quantity: Mapped[Decimal] = mapped_column(WarehouseDecimal)
+    unit_code: Mapped[str] = mapped_column(String(16))
+    unit_label: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

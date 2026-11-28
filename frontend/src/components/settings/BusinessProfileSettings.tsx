@@ -8,7 +8,7 @@ import { ApiError, api, type BusinessProfile, type BusinessProfileCreate, type B
 import { useAuth } from '../../contexts/AuthContext';
 import { dashboardStyles } from '../dashboardStyles';
 import { Checkbox, IconButton, ScrollArea } from '../ui';
-import { tableBodyRowClass, tableHeaderActionCellClass, tableHeaderCellCompactClass, tableHeaderClass, tableHeaderRowClass } from '../ui/tableStyles';
+import { tableBodyRowClass, tableStickyActionHeaderClass, tableStickyActionCellClass, tableHeaderCellCompactClass, tableHeaderClass, tableHeaderRowClass } from '../ui/tableStyles';
 import { BusinessProfileEditorModal } from './BusinessProfileEditorModal';
 import { NumberSequenceSettings } from './NumberSequenceSettings';
 
@@ -166,7 +166,7 @@ export function BusinessProfileSettings() {
     <section id="card-business-profile" className={`${dashboardStyles.card} w-full min-w-0 overflow-hidden`} aria-labelledby="business-profile-heading">
       <div className={`${dashboardStyles.cardHeader} flex flex-wrap items-center justify-between gap-3`}>
         <div className="flex min-w-0 items-center gap-2">
-          <Building2 className="h-4 w-4 shrink-0 text-bambu-green" aria-hidden="true" />
+          <Building2 className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
           <h2 id="business-profile-heading" className={dashboardStyles.cardTitle}>{t('orders.businessProfile.title')}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -176,7 +176,7 @@ export function BusinessProfileSettings() {
             label={t('orders.businessProfile.includeInactive')}
           />
           {canManage && (
-            <IconButton label={t('orders.businessProfile.add')} icon={Plus} onClick={() => setEditorProfile(null)} disabled={isMutating} className="bg-bambu-green text-white hover:bg-bambu-green-light" />
+            <IconButton label={t('orders.businessProfile.add')} icon={Plus} onClick={() => setEditorProfile(null)} disabled={isMutating} className="bg-bambu-green text-black! hover:bg-bambu-green-light" />
           )}
         </div>
       </div>
@@ -201,26 +201,26 @@ export function BusinessProfileSettings() {
       {profilesQuery.isSuccess && profilesQuery.data.length > 0 && (
         <>
         <ScrollArea direction="horizontal" scrollbar="thin">
-          <table className="w-full min-w-[820px] table-fixed text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead className={tableHeaderClass}>
               <tr className={tableHeaderRowClass}>
                 {(['profile', 'country', 'currency', 'timezone', 'billingMode', 'status'] as const).map(key => (
                   <th key={key} scope="col" className={tableHeaderCellCompactClass}>{t(`orders.businessProfile.${key}`)}</th>
                 ))}
-                <th scope="col" className={tableHeaderActionCellClass}>{t('orders.businessProfile.actions')}</th>
+                <th scope="col" className={tableStickyActionHeaderClass}>{t('orders.businessProfile.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-bambu-dark-tertiary">
               {pagination.rows.map((profile) => (
                 <tr key={profile.id} className={`${tableBodyRowClass} text-table-secondary [&>td]:px-3`}>
-                  <td className="w-[28%] px-2 py-3"><div className="flex items-center gap-3"><ProfileLogo profile={profile} /><div className="min-w-0"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-bambu-gray">{profile.legal_name}</p></div></div></td>
+                  <td className="w-[28%] px-2 py-3"><div className="flex items-center gap-3"><ProfileLogo profile={profile} /><div className="min-w-0"><p className="truncate font-medium text-white">{profile.name}</p><p className="truncate text-xs text-table-secondary">{profile.legal_name}</p></div></div></td>
                   <td className="px-2 py-3">{profile.country_code}</td><td className="px-2 py-3">{profile.default_currency}</td><td className="px-2 py-3">{profile.timezone}</td><td className="px-2 py-3">{t(`orderUi.billingModes.${profile.billing_mode}`)}</td>
-                  <td className="px-2 py-3 align-middle"><div className="flex items-center gap-2"><span className={profile.is_active ? 'text-bambu-green' : 'text-bambu-gray'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="inline-flex items-center gap-1 text-xs text-bambu-green"><Check className="h-3 w-3" />{t('orders.default')}</span>}</div></td>
-                  <td className="px-2 py-3"><div className="flex justify-end gap-1">
+                  <td className="px-2 py-3 align-middle"><div className="flex items-center gap-2"><span className={profile.is_active ? 'text-accent-foreground' : 'text-table-secondary'}>{profile.is_active ? t('orders.businessProfile.active') : t('orders.businessProfile.inactive')}</span>{profile.is_default && <span className="inline-flex items-center gap-1 text-xs text-accent-foreground"><Check className="h-3 w-3" />{t('orders.default')}</span>}</div></td>
+                  <td className={tableStickyActionCellClass}><div className="flex justify-end gap-1">
                     {canManage && <IconButton label={t('orders.businessProfile.edit', { name: profile.name })} icon={Pencil} onClick={() => setEditorProfile(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8" />}
                     {canManage && !profile.is_default && <IconButton label={t('orders.businessProfile.setDefault', { name: profile.name })} icon={Star} onClick={() => setDefault(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8" />}
                     {canManage && <IconButton label={profile.is_active ? t('orders.businessProfile.deactivate', { name: profile.name }) : t('orders.businessProfile.activate', { name: profile.name })} icon={Power} onClick={() => toggleActive(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8" />}
-                    {canManage && !profile.is_default && <IconButton label={t('orders.businessProfile.delete', { name: profile.name })} icon={Trash2} onClick={() => remove(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8 text-red-300 hover:bg-red-500/10" />}
+                    {canManage && !profile.is_default && <IconButton label={t('orders.businessProfile.delete', { name: profile.name })} icon={Trash2} onClick={() => remove(profile)} disabled={isMutating} size="sm" className="!h-8 !w-8 text-red-700 hover:bg-red-500/10 dark:text-red-400" />}
                   </div></td>
                 </tr>
               ))}
@@ -271,9 +271,9 @@ function ProfileLogo({ profile }: { profile: BusinessProfile }) {
           onError={() => setFailed(true)}
         />
       ) : failed ? (
-        <ImageOff className="h-4 w-4 text-bambu-gray" aria-hidden="true" />
+        <ImageOff className="h-4 w-4 text-table-secondary" aria-hidden="true" />
       ) : (
-        <Building2 className="h-4 w-4 text-bambu-gray" aria-hidden="true" />
+        <Building2 className="h-4 w-4 text-table-secondary" aria-hidden="true" />
       )}
     </div>
   );

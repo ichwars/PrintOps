@@ -49,8 +49,8 @@ export function LexwareSettings() {
       {profiles.isSuccess && profiles.data.length === 0 && <p>{text.emptyProfiles}</p>}
       {connections.isSuccess && !selected && <SettingsDashboardCard id="card-lexware-empty" title={text.noConnections} icon={Unplug}>
         <p className="max-w-2xl">{text.intro}</p>
-        {availableProfiles.length > 0 && <Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden />{text.setupConnection}</Button>}
-        <p className="flex items-center gap-2 text-xs text-bambu-gray"><ShieldCheck className="h-4 w-4" aria-hidden />{text.readonly}</p>
+        {availableProfiles.length > 0 && <Button className="text-black!" onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden />{text.setupConnection}</Button>}
+        <p className="flex items-center gap-2 text-xs text-table-secondary"><ShieldCheck className="h-4 w-4" aria-hidden />{text.readonly}</p>
       </SettingsDashboardCard>}
       {selected && <>
         {((connections.data?.length ?? 0) > 1 || availableProfiles.length > 0) && <div className="flex flex-wrap items-end justify-between gap-3">

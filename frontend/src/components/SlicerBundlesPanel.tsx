@@ -15,26 +15,26 @@ export function SlicerBundlesPanel() {
     <Card>
       <CardHeader>
         <h3 className="text-base font-semibold text-white flex items-center gap-2">
-          <Package className="w-4 h-4 text-bambu-gray" />
+          <Package className="w-4 h-4 text-table-secondary" />
           {t('settings.slicerBundlesRemoved.title', {
             defaultValue: 'Slicer Bundles (removed)',
           })}
         </h3>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-sm text-bambu-gray">
+        <p className="text-sm text-table-secondary">
           {t('settings.slicerBundlesRemoved.description', {
             defaultValue:
               'Printer Preset Bundle (.bbscfg) import was removed. BambuStudio\'s bundle export only includes user-customised presets, so the import never delivered standard processes / filaments and slicing fell back to embedded settings.',
           })}
         </p>
-        <p className="text-sm text-bambu-gray">
+        <p className="text-sm text-table-secondary">
           {t('settings.slicerBundlesRemoved.alternatives', {
             defaultValue:
               'Use Single Preset Import for individual customs, or sync via Bambu Cloud / Orca Cloud. Stock presets come from the slicer sidecar automatically.',
           })}
         </p>
-        <p className="text-sm text-bambu-gray">
+        <p className="text-sm text-table-secondary">
           {t('settings.slicerBundlesRemoved.lookupOrder', {
             defaultValue:
               'Slice-time preset lookup order: 1) Imported (local), 2) Orca Cloud, 3) Bambu Cloud, 4) Standard (sidecar fallback).',

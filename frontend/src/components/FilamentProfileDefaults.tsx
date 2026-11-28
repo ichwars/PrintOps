@@ -103,7 +103,7 @@ export function FilamentProfileDefaults({ spoolman }: { spoolman: boolean }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-bambu-gray">{t('profileDefaults.description')}</p>
+        <p className="text-sm text-table-secondary">{t('profileDefaults.description')}</p>
         {canWrite && (
           <div className="flex flex-wrap items-end gap-2">
             <LegacySelect aria-label={t('profileDefaults.pickSpool')} value={selected}
@@ -117,7 +117,7 @@ export function FilamentProfileDefaults({ spoolman }: { spoolman: boolean }) {
             </LegacySelect>
             <Checkbox label={t('profileDefaults.allColors')} checked={forAllColors}
               onCheckedChange={setForAllColors} disabled={busy} />
-            <Button onClick={() => save.mutate()} disabled={!spool || busy}>{t('profileDefaults.save')}</Button>
+            <Button className="text-black!" onClick={() => save.mutate()} disabled={!spool || busy}>{t('profileDefaults.save')}</Button>
           </div>
         )}
         {defaults.isError && <p role="alert">{defaults.error.message}</p>}

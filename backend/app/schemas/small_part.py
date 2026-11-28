@@ -143,6 +143,7 @@ class SmallPartLedgerCreate(SmallPartSchema):
 
 class SmallPartLedgerRead(SmallPartSchema):
     id: int
+    receipt_number: str | None = None
     small_part_id: int
     entry_kind: str
     physical_delta: Decimal

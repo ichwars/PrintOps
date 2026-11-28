@@ -68,6 +68,7 @@ export type SpoolLabelTemplate =
   | 'custom';
 
 export interface InventorySpool {
+  spool_number?: string | null;
   id: number;
   material: string;
   material_number?: string | null;

@@ -377,10 +377,10 @@ async def init_db():
     # to avoid SQLite WAL writer contention.
     await _migrate_encrypt_legacy_secrets()
     await _migrate_default_document_layouts()
-    from backend.app.services.filament_sku_identity import backfill_material_numbers
+    from backend.app.core.inventory_migrations import backfill_inventory_data
 
     async with async_session() as session:
-        await backfill_material_numbers(session)
+        await backfill_inventory_data(session)
         await session.commit()
 
     await seed_notification_templates()

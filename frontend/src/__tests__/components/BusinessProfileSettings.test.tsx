@@ -230,7 +230,10 @@ describe('BusinessProfileSettings', () => {
     expect(await within(section as HTMLElement).findByText('EU Operations')).toBeInTheDocument();
     expect(section).toHaveClass('w-full');
     expect(section).not.toHaveClass('max-w-5xl');
-    expect(within(section as HTMLElement).getByRole('table')).toHaveClass('table-fixed');
+    const table = within(section as HTMLElement).getByRole('table');
+    expect(table).toHaveClass('w-full');
+    expect(within(table).getAllByRole('columnheader').at(-1)).toHaveClass('sticky', 'right-0');
+    expect(within(table).getAllByRole('cell').at(-1)).toHaveClass('sticky', 'right-0');
     expect(within(section as HTMLElement).getByText('Active').closest('td')).toHaveClass('align-middle');
     expect(within(section as HTMLElement).getByText('Default').closest('td')).toHaveClass('align-middle');
     expect(within(section as HTMLElement).getByText('Active').parentElement).toHaveClass('flex', 'items-center');
@@ -281,6 +284,9 @@ describe('BusinessProfileSettings', () => {
 
     expect(scrollArea).toHaveClass('overflow-y-auto', 'min-h-0', 'flex-1');
     expect(viewport).toHaveClass('min-h-0');
+    const save = within(dialog).getByRole('button', { name: 'Save business profile' }) as HTMLButtonElement;
+    expect(scrollArea).not.toContainElement(save);
+    expect(save.form).toBe(viewport.closest('form'));
     expect(fieldset).toHaveProperty('tagName', 'FIELDSET');
     expect(fieldset).not.toHaveClass('flex-1', 'overflow-y-auto');
   });

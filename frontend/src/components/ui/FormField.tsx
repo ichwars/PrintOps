@@ -50,7 +50,7 @@ export function FormField({
       ) : null}
       {control}
       {helperText ? (
-        <p id={helperId} className="text-xs text-bambu-gray">
+        <p id={helperId} className="text-xs text-table-secondary">
           {helperText}
         </p>
       ) : null}

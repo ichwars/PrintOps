@@ -1,4 +1,4 @@
-import { LegacySelect, TextField, Checkbox } from './ui';
+import { LegacySelect, TextField, Switch } from './ui';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -232,35 +232,36 @@ export function SpoolmanSettings() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-bambu-gray">
+        <p className="text-sm text-table-secondary">
           {t('settings.filamentTrackingDesc')}
         </p>
 
         {/* Mode selector cards */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 min-[420px]:grid-cols-2">
           {/* Built-in Inventory */}
           <Button variant="unstyled"
             type="button"
+            aria-pressed={!localEnabled}
             onClick={() => setLocalEnabled(false)}
             className={`p-3 rounded-lg border-2 text-left transition-colors ${
               !localEnabled
-                ? 'border-bambu-green bg-bambu-green/10'
+                ? 'border-accent-foreground bg-bambu-green/10'
                 : 'border-bambu-dark-tertiary bg-bambu-dark hover:border-bambu-gray/50'
             }`}
           >
             <div className="flex items-center gap-2 mb-1.5">
-              <Package className={`w-4 h-4 ${!localEnabled ? 'text-bambu-green' : 'text-bambu-gray'}`} />
-              <span className={`text-sm font-medium ${!localEnabled ? 'text-white' : 'text-bambu-gray'}`}>
+              <Package className={`w-4 h-4 ${!localEnabled ? 'text-bambu-green' : 'text-table-secondary'}`} />
+              <span className={`text-sm font-medium ${!localEnabled ? 'text-white' : 'text-table-secondary'}`}>
                 {t('settings.trackingModeBuiltIn')}
               </span>
             </div>
-            <p className={`text-xs ${!localEnabled ? 'text-bambu-gray' : 'text-bambu-gray/60'}`}>
+            <p className="text-xs text-table-secondary">
               {t('settings.trackingModeBuiltInDesc')}
             </p>
             {!localEnabled && (
               <div className="flex items-center gap-1 mt-2">
                 <Check className="w-3 h-3 text-bambu-green" />
-                <span className="text-xs text-bambu-green">{t('common.enabled')}</span>
+                <span className="text-xs text-accent-foreground">{t('common.enabled')}</span>
               </div>
             )}
           </Button>
@@ -268,26 +269,27 @@ export function SpoolmanSettings() {
           {/* Spoolman */}
           <Button variant="unstyled"
             type="button"
+            aria-pressed={localEnabled}
             onClick={() => setLocalEnabled(true)}
             className={`p-3 rounded-lg border-2 text-left transition-colors ${
               localEnabled
-                ? 'border-bambu-green bg-bambu-green/10'
+                ? 'border-accent-foreground bg-bambu-green/10'
                 : 'border-bambu-dark-tertiary bg-bambu-dark hover:border-bambu-gray/50'
             }`}
           >
             <div className="flex items-center gap-2 mb-1.5">
-              <ExternalLink className={`w-4 h-4 ${localEnabled ? 'text-bambu-green' : 'text-bambu-gray'}`} />
-              <span className={`text-sm font-medium ${localEnabled ? 'text-white' : 'text-bambu-gray'}`}>
+              <ExternalLink className={`w-4 h-4 ${localEnabled ? 'text-bambu-green' : 'text-table-secondary'}`} />
+              <span className={`text-sm font-medium ${localEnabled ? 'text-white' : 'text-table-secondary'}`}>
                 Spoolman
               </span>
             </div>
-            <p className={`text-xs ${localEnabled ? 'text-bambu-gray' : 'text-bambu-gray/60'}`}>
+            <p className="text-xs text-table-secondary">
               {t('settings.trackingModeSpoolmanDesc')}
             </p>
             {localEnabled && (
               <div className="flex items-center gap-1 mt-2">
                 <Check className="w-3 h-3 text-bambu-green" />
-                <span className="text-xs text-bambu-green">{t('common.enabled')}</span>
+                <span className="text-xs text-accent-foreground">{t('common.enabled')}</span>
               </div>
             )}
           </Button>
@@ -297,18 +299,16 @@ export function SpoolmanSettings() {
         <div className="flex items-center justify-between pt-2 border-t border-bambu-dark-tertiary">
           <div className="pr-4">
             <p className="text-white">{t('settings.autoAddUnknownRfid')}</p>
-            <p className="text-sm text-bambu-gray">
+            <p className="text-sm text-table-secondary">
               {t('settings.autoAddUnknownRfidDesc')}
             </p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <Checkbox
-              checked={localAutoAddUnknownRfid}
-              onChange={(e) => setLocalAutoAddUnknownRfid(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-          </label>
+          <Switch
+            ariaLabel={t('settings.autoAddUnknownRfid')}
+            checked={localAutoAddUnknownRfid}
+            onCheckedChange={setLocalAutoAddUnknownRfid}
+            className="shrink-0"
+          />
         </div>
 
         {/* Built-in Inventory details */}
@@ -317,7 +317,7 @@ export function SpoolmanSettings() {
             <div className="p-3 bg-bambu-green/5 border border-bambu-green/20 rounded-lg">
               <div className="flex gap-2">
                 <Info className="w-4 h-4 text-bambu-green flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-bambu-gray">
+                <div className="text-xs text-table-secondary">
                   <ul className="list-disc list-inside space-y-0.5">
                     <li>{t('settings.builtInFeatureRfid')}</li>
                     <li>{t('settings.builtInFeatureUsage')}</li>
@@ -353,13 +353,13 @@ export function SpoolmanSettings() {
                 <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-blue-700 dark:text-blue-300">
                   <p className="font-medium mb-1">{t('settings.howSyncWorks')}</p>
-                  <ul className="list-disc list-inside space-y-0.5 text-blue-700/90 dark:text-blue-300/80">
+                  <ul className="list-disc list-inside space-y-0.5 text-blue-800 dark:text-blue-200">
                     <li>{t('settings.syncInfoRfidOnly')}</li>
                     <li>{t('settings.syncInfoAutoCreate')}</li>
                     <li>{t('settings.syncInfoThirdPartySkipped')}</li>
                   </ul>
                   <p className="font-medium mt-2 mb-1">{t('settings.linkingExistingSpools')}</p>
-                  <p className="text-blue-700/90 dark:text-blue-300/80">
+                  <p className="text-blue-800 dark:text-blue-200">
                     {t('settings.linkingExistingSpoolsDesc')}
                   </p>
                 </div>
@@ -368,7 +368,7 @@ export function SpoolmanSettings() {
 
             {/* URL input */}
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('settings.spoolmanUrl')}
               </label>
               <TextField
@@ -378,14 +378,14 @@ export function SpoolmanSettings() {
                 onChange={(e) => setLocalUrl(e.target.value)}
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white placeholder-bambu-gray/50 focus:border-bambu-green focus:outline-none"
               />
-              <p className="text-xs text-bambu-gray mt-1">
+              <p className="text-xs text-table-secondary mt-1">
                 {t('settings.spoolmanUrlHint')}
               </p>
             </div>
 
             {/* Sync mode */}
             <div>
-              <label className="block text-sm text-bambu-gray mb-1">
+              <label className="block text-sm text-table-secondary mb-1">
                 {t('settings.syncMode')}
               </label>
               <LegacySelect
@@ -396,7 +396,7 @@ export function SpoolmanSettings() {
                 <option value="auto">{t('settings.syncModeAuto')}</option>
                 <option value="manual">{t('settings.syncModeManual')}</option>
               </LegacySelect>
-              <p className="text-xs text-bambu-gray mt-1">
+              <p className="text-xs text-table-secondary mt-1">
                 {localSyncMode === 'auto'
                   ? t('settings.syncModeAutoDesc')
                   : t('settings.syncModeManualDesc')}
@@ -408,18 +408,16 @@ export function SpoolmanSettings() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white">{t('spoolman.disableWeightSync')}</p>
-                  <p className="text-sm text-bambu-gray">
+                  <p className="text-sm text-table-secondary">
                     {t('spoolman.disableWeightSyncDesc')}
                   </p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <Checkbox
-                    checked={localDisableWeightSync}
-                    onChange={(e) => setLocalDisableWeightSync(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
+                <Switch
+                  ariaLabel={t('spoolman.disableWeightSync')}
+                  checked={localDisableWeightSync}
+                  onCheckedChange={setLocalDisableWeightSync}
+                  className="shrink-0"
+                />
               </div>
             )}
 
@@ -428,18 +426,16 @@ export function SpoolmanSettings() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white">{t('spoolman.reportPartialUsage')}</p>
-                  <p className="text-sm text-bambu-gray">
+                  <p className="text-sm text-table-secondary">
                     {t('spoolman.reportPartialUsageDesc')}
                   </p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <Checkbox
-                    checked={localReportPartialUsage}
-                    onChange={(e) => setLocalReportPartialUsage(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-bambu-dark-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bambu-green"></div>
-                </label>
+                <Switch
+                  ariaLabel={t('spoolman.reportPartialUsage')}
+                  checked={localReportPartialUsage}
+                  onCheckedChange={setLocalReportPartialUsage}
+                  className="shrink-0"
+                />
               </div>
             )}
 
@@ -447,16 +443,16 @@ export function SpoolmanSettings() {
             <div className="pt-2 border-t border-bambu-dark-tertiary">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-bambu-gray">{t('settings.status')}:</span>
+                  <span className="text-sm text-table-secondary">{t('settings.status')}:</span>
                   {statusLoading ? (
-                    <Loader2 className="w-4 h-4 text-bambu-gray animate-spin" />
+                    <Loader2 className="w-4 h-4 text-table-secondary animate-spin" />
                   ) : status?.connected ? (
-                    <span className="flex items-center gap-1 text-sm text-green-500">
+                    <span className="flex items-center gap-1 text-sm text-green-700 dark:text-green-400">
                       <Check className="w-4 h-4" />
                       {t('settings.spoolmanConnected')}
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-sm text-red-500">
+                    <span className="flex items-center gap-1 text-sm text-red-700 dark:text-red-400">
                       <X className="w-4 h-4" />
                       {t('settings.spoolmanDisconnected')}
                     </span>
@@ -506,7 +502,7 @@ export function SpoolmanSettings() {
                 <div className="space-y-3">
                   <div>
                     <p className="text-sm text-white">{t('settings.syncAmsData')}</p>
-                    <p className="text-xs text-bambu-gray">
+                    <p className="text-xs text-table-secondary">
                       {t('settings.syncAmsDataDesc')}
                     </p>
                   </div>
@@ -550,7 +546,7 @@ export function SpoolmanSettings() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-white">{t('settings.spoolmanAmsSyncButton')}</p>
-                      <p className="text-xs text-bambu-gray">{t('settings.spoolmanAmsSyncMessage')}</p>
+                      <p className="text-xs text-table-secondary">{t('settings.spoolmanAmsSyncMessage')}</p>
                     </div>
                     <Button
                       variant="secondary"
@@ -615,11 +611,11 @@ export function SpoolmanSettings() {
                               />
                             )}
                             <span>{s.location}</span>
-                            <span className="text-amber-700/70 dark:text-amber-300/60">- {s.reason}</span>
+                            <span className="text-amber-800 dark:text-amber-300">- {s.reason}</span>
                           </li>
                         ))}
                         {!showAllSkipped && syncResult.skipped_count > 5 && (
-                          <li className="text-amber-700/70 dark:text-amber-300/60 italic">
+                          <li className="text-amber-800 dark:text-amber-300 italic">
                             {translateInterface("orders.runtimeInterface.and")} {syncResult.skipped_count - 5} {translateInterface("orders.runtimeInterface.more")}
                           </li>
                         )}

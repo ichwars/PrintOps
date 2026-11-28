@@ -226,7 +226,7 @@ const columnHeaders: Record<string, (t: TFn) => string> = {
 // Column cell renderers (25 columns — matching SpoolBuddy exactly)
 const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   id: ({ spool }) => (
-    <span className="text-sm font-medium text-white">{spool.id}</span>
+    <span className="text-sm font-medium text-white">{spool.spool_number ?? spool.id}</span>
   ),
   added_time: ({ spool, dateFormat }) => (
     <span className="text-sm text-table-secondary">{formatInventoryDate(spool.created_at, dateFormat)}</span>
