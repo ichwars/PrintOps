@@ -253,6 +253,14 @@ promise that every workflow is finished in the current release.
 Contributions are welcome. Start with an issue so scope and direction can be
 agreed before implementation.
 
+## Contributors
+
+- [ichwars](https://github.com/ichwars)
+- [xeonixo](https://github.com/xeonixo)
+- [Codex](https://github.com/codex)
+
+See the [full contributor list](https://github.com/ichwars/PrintOps/graphs/contributors).
+
 ## License, origin, and independence
 
 PrintOps is licensed under the [GNU Affero General Public License v3.0](LICENSE).
