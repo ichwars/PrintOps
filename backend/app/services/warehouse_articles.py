@@ -4,8 +4,9 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_CEILING, Decimal
 from sqlite3 import OperationalError as SQLiteOperationalError
+from typing import Literal
 
-from sqlalchemy import Select, String, case, func, select, type_coerce, update
+from sqlalchemy import Select, String, case, func, select, true, type_coerce, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -315,6 +316,112 @@ def _article_stock_query(statement: Select[tuple[WarehouseArticle]], sqlite_wide
         .outerjoin(own, candidates.c.id == own.c.article_id)
         .outerjoin(material, candidates.c.small_part_id == material.c.small_part_id)
     )
+
+
+StockSortColumn = Literal["physical", "reserved", "available", "remaining"]
+StockSortDirection = Literal["asc", "desc"]
+
+
+def _sqlite_stock_key(source: str, stock: int | float | str | None, reserved: int | float | str | None) -> str | None:
+    if source == "none":
+        return None
+
+    def millionths(value: int | float | str | None) -> int:
+        if value is None:
+            return 0
+        if source == "material":
+            # Match Numeric(18, 6)'s result processing before subtracting the two balances.
+            return int(Decimal(format(value, ".6f")) * 1_000_000)
+        if isinstance(value, str):
+            return sum(map(int, value.split(",")))
+        return int(value)
+
+    # Offset and pad so SQLite can order exact signed totals as text even outside int64.
+    # The bias exceeds the total of the possible row IDs times the maximum ledger amount.
+    return f"{10**38 + millionths(stock) - millionths(reserved):039d}"
+
+
+def _register_sqlite_stock_key(conn) -> None:
+    if not conn.info.get("warehouse_stock_key"):
+        conn.connection.dbapi_connection.create_function(
+            "printops_warehouse_stock_key", 3, _sqlite_stock_key, deterministic=True
+        )
+        conn.info["warehouse_stock_key"] = True
+
+
+def _stock_page_query(
+    statement: Select[tuple[WarehouseArticle]],
+    sort_by: StockSortColumn,
+    sort_dir: StockSortDirection,
+    offset: int,
+    limit: int,
+    low_stock: bool,
+    sqlite: bool,
+    sqlite_wide: bool,
+):
+    candidates, stock = _article_stock_query(statement, sqlite_wide)
+    balances = stock.add_columns(candidates.c.name, candidates.c.minimum_stock).subquery()
+    source = balances.c.stock_source
+    scale = 1 if sqlite else 1_000_000
+    physical = case((source == "material", balances.c.material_physical * scale), else_=balances.c.own_physical)
+    reserved = case((source == "material", balances.c.material_reserved * scale), else_=balances.c.own_reserved)
+
+    def key(amount: ColumnElement, deduction: ColumnElement | int = 0):
+        if sqlite:
+            return func.printops_warehouse_stock_key(source, amount, deduction)
+        return case((source != "none", func.coalesce(amount, 0) - func.coalesce(deduction, 0)))
+
+    if sort_by == "reserved":
+        sort_value = key(reserved)
+    elif sort_by == "available":
+        sort_value = key(physical, reserved)
+    else:
+        sort_value = key(physical)
+    matches = select(balances.c.id, balances.c.name, sort_value.label("sort_value"))
+    if low_stock:
+        minimum = balances.c.minimum_stock
+        if sqlite:
+            minimum = func.printops_warehouse_stock_key("own", minimum, 0)
+        matches = matches.where(key(physical, reserved) < minimum)
+    matching = matches.cte("matching_stock")
+
+    def order_columns(columns):
+        value = columns.sort_value.desc() if sort_dir == "desc" else columns.sort_value.asc()
+        return value.nulls_last(), columns.name.asc(), columns.id.asc()
+
+    page = select(matching).order_by(*order_columns(matching.c)).limit(limit).offset(offset).cte("stock_page")
+    totals = select(func.count().label("total")).select_from(matching).subquery()
+    # Preserve the count even when the requested page is empty.
+    return (
+        select(WarehouseArticle, totals.c.total)
+        .select_from(totals)
+        .outerjoin(page, true())
+        .outerjoin(WarehouseArticle, WarehouseArticle.id == page.c.id)
+        .order_by(*order_columns(page.c))
+    )
+
+
+async def page_articles_by_stock(
+    session: AsyncSession,
+    statement: Select[tuple[WarehouseArticle]],
+    *,
+    sort_by: StockSortColumn,
+    sort_dir: StockSortDirection,
+    offset: int,
+    limit: int,
+    low_stock: bool,
+) -> tuple[list[WarehouseArticle], int]:
+    sqlite = session.get_bind().dialect.name == "sqlite"
+    if sqlite:
+        connection = await session.connection()
+        await connection.run_sync(_register_sqlite_stock_key)
+
+    def query(sqlite_wide: bool):
+        return _stock_page_query(statement, sort_by, sort_dir, offset, limit, low_stock, sqlite, sqlite_wide)
+
+    result = await _execute_stock_sums(session, query)
+    rows = result.all()
+    return [article for article, _ in rows if article is not None], rows[0].total
 
 
 async def balances_for_listing(

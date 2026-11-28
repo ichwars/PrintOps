@@ -197,24 +197,27 @@ async def list_articles(
     if field is not None:
         order.insert(0, (field.desc() if sort_dir == "desc" else field.asc()).nulls_last())
     async with _errors(db):
-        if sort_by in ("physical", "reserved", "available", "remaining", "consumed", "last_used_at"):
+        if sort_by in ("physical", "reserved", "available", "remaining"):
+            articles, total = await service.page_articles_by_stock(
+                db, statement, sort_by=sort_by, sort_dir=sort_dir, offset=offset, limit=limit, low_stock=low_stock
+            )
+            return WarehouseArticlePage(
+                items=await service.read_articles(db, articles), total=total, limit=limit, offset=offset
+            )
+        if sort_by in ("consumed", "last_used_at"):
             balances = await service.balances_for_listing(db, statement)
             stocked = [
                 (article_id, balance)
                 for article_id, balance in balances
                 if balance is not None and (not low_stock or balance.is_low_stock)
             ]
-            if sort_by in ("consumed", "last_used_at"):
-                usage_by_id = await service.usage_for_articles(db, list(await db.scalars(statement)))
-                dated = [row for row in stocked if sort_by == "consumed" or row[0] in usage_by_id]
-                dated.sort(
-                    key=lambda row: getattr(usage_by_id.get(row[0], StockUsage()), sort_by),
-                    reverse=sort_dir == "desc",
-                )
-                stocked = dated + [row for row in stocked if sort_by == "last_used_at" and row[0] not in usage_by_id]
-            else:
-                attribute = "physical" if sort_by == "remaining" else sort_by
-                stocked.sort(key=lambda row: getattr(row[1], attribute), reverse=sort_dir == "desc")
+            usage_by_id = await service.usage_for_articles(db, list(await db.scalars(statement)))
+            dated = [row for row in stocked if sort_by == "consumed" or row[0] in usage_by_id]
+            dated.sort(
+                key=lambda row: getattr(usage_by_id.get(row[0], StockUsage()), sort_by),
+                reverse=sort_dir == "desc",
+            )
+            stocked = dated + [row for row in stocked if sort_by == "last_used_at" and row[0] not in usage_by_id]
             identifiers = [article_id for article_id, _ in stocked]
             if not low_stock:
                 identifiers.extend(article_id for article_id, balance in balances if balance is None)
