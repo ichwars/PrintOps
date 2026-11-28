@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { EmbeddedCameraViewer } from '../../components/EmbeddedCameraViewer';
 import { render, selectComboboxOption } from '../utils';
@@ -205,5 +205,41 @@ describe('EmbeddedCameraViewer camera defaults', () => {
     await waitFor(() => {
       expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/snapshot');
     });
+  });
+
+  it('releases the stream while the tab is hidden and restores it on return', async () => {
+    vi.mocked(localStorage.getItem).mockReturnValue(null);
+    server.use(http.get('*/api/v1/printers/1', () => HttpResponse.json({
+      id: 1, name: 'Workshop', serial_number: 'serial-workshop', model: 'X1C', external_camera_enabled: true,
+    })));
+    const setVisibility = (state: DocumentVisibilityState) => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+    };
+    const view = render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    await waitFor(() => expect(view.container.querySelector('img')).toHaveAttribute('src', expect.stringContaining('/camera/stream')));
+    const img = view.container.querySelector('img')!;
+    setVisibility('hidden');
+    // A background tab keeps burning transcoder CPU and battery — the img
+    // must lose its src so the MJPEG pull actually stops.
+    expect(img).not.toHaveAttribute('src');
+    setVisibility('visible');
+    await waitFor(() => expect(view.container.querySelector('img')).toHaveAttribute('src', expect.stringContaining('/camera/stream')));
+  });
+
+  it('surfaces a stream that never delivers a frame as a retryable error', async () => {
+    vi.mocked(localStorage.getItem).mockReturnValue(null);
+    server.use(http.get('*/api/v1/printers/1', () => HttpResponse.json({
+      id: 1, name: 'Workshop', serial_number: 'serial-workshop', model: 'X1C', external_camera_enabled: true,
+    })));
+    render(<EmbeddedCameraViewer printerId={1} printerName="Workshop" onClose={() => {}} />);
+    await waitFor(() => expect(document.querySelector('img')?.getAttribute('src')).toContain('/camera/stream'));
+    // No frame ever arrives (the img neither loads nor errors). The loading
+    // timeout must end on the retryable "Camera unavailable" UI — not on a
+    // silent black viewport with no spinner and no way forward.
+    expect(await screen.findByText('Camera unavailable', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });

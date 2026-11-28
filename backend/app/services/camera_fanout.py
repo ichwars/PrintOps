@@ -18,6 +18,7 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing
+from time import monotonic
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +245,7 @@ async def iter_subscriber(
     is_disconnected: Callable[[], Awaitable[bool]] | None = None,
     on_unsubscribe: Callable[[int], None] | None = None,
     idle_check_seconds: float = 30.0,
+    max_fps: float | None = None,
 ) -> AsyncGenerator[bytes, None]:
     """Yield chunks from a subscriber queue until upstream ends or client leaves.
 
@@ -251,7 +253,19 @@ async def iter_subscriber(
     The optional ``on_unsubscribe`` callback receives the post-unsubscribe
     subscriber count — useful for accurate detach-log lines that don't race
     with concurrent unsubscribes.
+
+    With ``max_fps`` set, this viewer is throttled to at most ``max_fps``
+    frames per second: the shared upstream runs at the camera's native
+    rate, and throttling there would pin every viewer to the fps of
+    whoever created the broadcaster. The first frame of a subscription
+    always passes immediately so no viewer starts on a stale/black
+    picture; frames that arrive too soon are dropped for this viewer (the
+    queue keeps draining, so the broadcaster never blocks). The
+    upstream-gone sentinel is never dropped — it terminates the
+    subscription regardless of fps.
     """
+    min_frame_interval = 1.0 / max_fps if max_fps else None
+    last_sent: float | None = None
     try:
         while True:
             try:
@@ -264,6 +278,13 @@ async def iter_subscriber(
                 continue
             if chunk == _UPSTREAM_GONE:
                 break
+            if min_frame_interval is not None:
+                now = monotonic()
+                if last_sent is not None and now - last_sent < min_frame_interval:
+                    # This viewer asked for fewer fps than the shared
+                    # upstream delivers — drop the frame for this viewer.
+                    continue
+                last_sent = now
             yield chunk
             if is_disconnected is not None and await is_disconnected():
                 break

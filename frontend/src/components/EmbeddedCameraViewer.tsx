@@ -12,6 +12,7 @@ import { ChamberLight } from './icons/ChamberLight';
 import { SkipObjectsModal, SkipObjectsIcon } from './SkipObjectsModal';
 import { CameraDiagnoseModal } from './CameraDiagnoseModal';
 import { useCameraViewPreference } from '../hooks/useCameraViewPreference';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import { CameraViewPreferenceSelect } from './CameraViewPreferenceSelect';
 import { isIosHomeScreenApp, openCameraWindow } from '../utils/cameraWindow';
 
@@ -52,6 +53,9 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
+  // Background tabs must not keep pulling a live stream: gate every stream
+  // source, the MSE socket and the stall polling on foreground visibility.
+  const pageVisible = usePageVisibility();
   const { data: printer, isPending: printerPending } = useQuery({
     queryKey: ['printer', printerId],
     queryFn: () => api.getPrinter(printerId),
@@ -138,7 +142,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
 
   const { videoRef: mseVideoRef, status: mseStatus, reconnect: mseReconnect } = useCameraStream({
     printerId,
-    enabled: preferenceReady && !isMinimized && streamMode === 'stream' && printerId > 0 && !!printer && !useMjpeg,
+    enabled: preferenceReady && !isMinimized && pageVisible && streamMode === 'stream' && printerId > 0 && !!printer && !useMjpeg,
     onPlaying: () => {
       setStreamLoading(false);
       setStreamError(false);
@@ -195,7 +199,20 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
       }
     };
 
+    // Closing the tab or navigating away unmounts nothing — the transcoder
+    // would keep running until a server-side timeout. pagehide fires on real
+    // unloads; a persisted (bfcache) pagehide is a freeze, not an unload —
+    // the viewer resumes right where it left off, so the one-shot stop must
+    // survive it. SPA navigations hit the unmount cleanup below.
+    const handlePageHide = (event: PageTransitionEvent) => {
+      if (event.persisted) return;
+      sendStopOnce();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+
     return () => {
+      window.removeEventListener('pagehide', handlePageHide);
       sendStopOnce();
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -223,16 +240,42 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
     };
   }, [streamMode, preferenceReady, preferenceIdentity, printerId]);
 
-  // Auto-hide loading after timeout
+  // Auto-hide loading after timeout. A source that never delivers a frame
+  // must not sit on a silent black viewport: surface it as a retryable
+  // error instead. MSE gets longer — it retries with backoff internally
+  // (see useCameraStream) and its handshake needs the printer round trip.
+  // mseStatus is a dependency so the window restarts whenever MSE moves:
+  // a mid-stream drop that goes back to 'connecting' must not inherit the
+  // remaining time of the initial connect.
   useEffect(() => {
-    if (streamLoading && !isMinimized) {
-      const timer = setTimeout(() => setStreamLoading(false), streamMode === 'stream' ? 3000 : 20000);
+    if (streamLoading && !isMinimized && pageVisible) {
+      const timeoutMs = streamMode === 'stream' ? (useMjpeg ? 3000 : 15000) : 20000;
+      const timer = setTimeout(() => {
+        setStreamLoading(false);
+        setStreamError(true);
+      }, timeoutMs);
       return () => clearTimeout(timer);
     }
-  }, [streamMode, streamLoading, imageKey, isMinimized]);
+  }, [streamMode, streamLoading, imageKey, isMinimized, pageVisible, useMjpeg, mseStatus]);
+
+  // A mid-stream MSE drop hides the video element while the hook retries
+  // with backoff — without this the viewport sits fully black with neither
+  // frame nor spinner for the whole backoff window.
+  useEffect(() => {
+    if (streamMode === 'stream' && !useMjpeg && mseStatus === 'connecting' && !isMinimized && pageVisible) {
+      setStreamLoading(true);
+      setStreamError(false);
+    }
+  }, [streamMode, useMjpeg, mseStatus, isMinimized, pageVisible]);
 
   // Auto-reconnect logic
   const attemptReconnect = useCallback(() => {
+    // A second error while a reconnect is already pending must not stack a
+    // parallel countdown + reconnect timer: the old ones would leak past
+    // unmount cleanup and double-fire the refresh.
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       setIsReconnecting(false);
       setStreamError(true);
@@ -273,7 +316,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   // while MSE is still playing would see active=false and trigger a
   // needless reconnect on a perfectly healthy MSE stream.
   useEffect(() => {
-    if (streamMode !== 'stream' || !useMjpeg || streamLoading || isReconnecting || isMinimized) {
+    if (streamMode !== 'stream' || !useMjpeg || streamLoading || isReconnecting || isMinimized || !pageVisible) {
       if (stallCheckIntervalRef.current) {
         clearInterval(stallCheckIntervalRef.current);
         stallCheckIntervalRef.current = null;
@@ -303,7 +346,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
         stallCheckIntervalRef.current = null;
       }
     };
-  }, [streamMode, useMjpeg, streamLoading, streamError, isReconnecting, isMinimized, printerId, attemptReconnect]);
+  }, [streamMode, useMjpeg, streamLoading, streamError, isReconnecting, isMinimized, pageVisible, printerId, attemptReconnect]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -515,6 +558,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   };
 
   const toggleMinimized = () => {
+    if (isFullscreen && document.fullscreenElement) document.exitFullscreen();
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setIsReconnecting(false);
@@ -614,7 +658,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
     }
   }, [isDragging, isResizing, dragOffset]);
 
-  const streamUrl = !preferenceReady ? '' : withStreamToken(streamMode === 'stream'
+  const streamUrl = !preferenceReady || !pageVisible ? '' : withStreamToken(streamMode === 'stream'
     ? `/api/v1/printers/${printerId}/camera/stream?fps=15&t=${imageKey}`
     : `/api/v1/printers/${printerId}/camera/snapshot?t=${imageKey}`);
   const attachImage = useStreamImgRef(streamUrl, imgRef);
@@ -622,7 +666,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
   return (
     <div
       ref={containerRef}
-      className={`${isFullscreen ? 'fixed inset-0 z-[100]' : 'fixed z-40 rounded-lg shadow-2xl border border-bambu-dark-tertiary'} bg-bambu-dark-secondary overflow-hidden`}
+      className={`${isFullscreen ? 'fixed inset-0 z-[100]' : 'fixed z-40 rounded-lg shadow-2xl border border-bambu-dark-tertiary'} flex flex-col bg-bambu-dark-secondary overflow-hidden`}
       style={isFullscreen ? undefined : {
         left: state.x,
         top: state.y,
@@ -641,7 +685,12 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
           <GripVertical className="w-4 h-4 text-bambu-gray flex-shrink-0" />
           <span className="truncate">{printer?.name || printerName}</span>
         </div>
+        {/* Minimized (200×40) the header only offers expand + close: with
+            overflow-hidden, the full 9-button strip would cut off the close
+            button and make the viewer impossible to close or restore. */}
         <div className="flex items-center gap-1 no-drag">
+          {!isMinimized && (
+            <>
           <button
             onClick={() => chamberLightMutation.mutate(!status?.chamber_light)}
             disabled={!status?.connected || chamberLightMutation.isPending || !hasPermission('printers:control')}
@@ -697,6 +746,8 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
               <ExternalLink className="h-3.5 w-3.5 text-bambu-gray" />
             </button>
           )}
+            </>
+          )}
           <button
             onClick={toggleMinimized}
             className="p-1 hover:bg-bambu-dark-tertiary rounded"
@@ -722,7 +773,7 @@ export function EmbeddedCameraViewer({ printerId, printerName, viewerIndex = 0, 
       {!isMinimized && (
         <div
           ref={viewportRef}
-          className={`relative w-full bg-black flex items-center justify-center overflow-hidden ${isFullscreen ? 'h-[calc(100%-40px)]' : 'h-[calc(100%-40px)]'}`}
+          className="relative w-full flex-1 min-h-0 bg-black flex items-center justify-center overflow-hidden"
           onWheel={handleWheel}
           onMouseMove={handleImageMouseMove}
           onMouseUp={handleImageMouseUp}

@@ -163,4 +163,23 @@ describe('CameraTile', () => {
     );
     expect(stopCalls.length).toBeGreaterThan(0);
   });
+
+  it('shows a loading placeholder until the first frame arrives', async () => {
+    render(
+      <CameraTile
+        printerId={42}
+        printerName="X1C-Lab"
+        mode="live"
+        snapshotIntervalMs={5000}
+        connected
+      />,
+    );
+    await flushMicrotasks();
+    const img = screen.getByAltText('X1C-Lab');
+    // A tile that has no frame yet must not sit on an unexplained black
+    // rectangle while the stream spins up.
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+    fireEvent.load(img);
+    expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  });
 });

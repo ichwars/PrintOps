@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Box, Flame, RectangleHorizontal, VideoOff, WifiOff } from 'lucide-react';
+import { AlertTriangle, Box, Flame, RectangleHorizontal, RefreshCw, VideoOff, WifiOff } from 'lucide-react';
 import { getAuthToken } from '../api/client';
 import { formatDuration, formatETA, type TimeFormat } from '../utils/date';
 import { useStreamImgRef } from '../hooks/useStreamImgRef';
@@ -99,6 +99,9 @@ export function CameraTile({
   const { t } = useTranslation();
   const [bust, setBust] = useState(0);
   const [errored, setErrored] = useState(false);
+  // No frame has arrived yet for the current feed — show a subtle placeholder
+  // instead of an unexplained black tile for the 1-3s the connection takes.
+  const [loaded, setLoaded] = useState(false);
   const access = useCameraFeedAccess(cameraToken);
   const recovery = useCameraFeedRecovery(
     access.enabled && connected && mode === 'live',
@@ -127,6 +130,7 @@ export function CameraTile({
       }).catch(() => {});
     }
     setErrored(false);
+    setLoaded(false);
     snapshotRetriedRef.current = false;
   }, [mode, printerId, access.token]);
 
@@ -202,35 +206,47 @@ export function CameraTile({
           <span className="text-xs">{t('printers.camWall.noSignal')}</span>
         </div>
       ) : (
-        <img
-          key={`${mode}-${mode === 'live' ? recovery.imageKey : bust}`}
-          ref={attachImage}
-          data-camera-token-managed
-          alt={printerName}
-          draggable={false}
-          loading="lazy"
-          className="h-full w-full select-none object-contain"
-          style={frameBounds ? {
-            ...frameBounds, maxWidth: 'none', position: 'absolute', top: '50%', left: '50%',
-            transform: `translate(-50%, -50%) ${rotation}`,
-          } : { transform: rotation }}
-          onLoad={() => {
-            if (mode === 'live') recovery.onLoad();
-            snapshotRetriedRef.current = false;
-          }}
-          onError={(event) => {
-            if (!event.currentTarget.getAttribute('src')) return;
-            if (mode === 'live') {
-              recovery.onError();
-              return;
-            }
-            if (mode === 'snapshot' && !snapshotRetriedRef.current) {
-              snapshotRetriedRef.current = true;
-              return;
-            }
-            setErrored(true);
-          }}
-        />
+        <>
+          <img
+            key={`${mode}-${mode === 'live' ? recovery.imageKey : bust}`}
+            ref={attachImage}
+            data-camera-token-managed
+            alt={printerName}
+            draggable={false}
+            loading="lazy"
+            className="h-full w-full select-none object-contain"
+            style={frameBounds ? {
+              ...frameBounds, maxWidth: 'none', position: 'absolute', top: '50%', left: '50%',
+              transform: `translate(-50%, -50%) ${rotation}`,
+            } : { transform: rotation }}
+            onLoad={() => {
+              setLoaded(true);
+              if (mode === 'live') recovery.onLoad();
+              snapshotRetriedRef.current = false;
+            }}
+            onError={(event) => {
+              if (!event.currentTarget.getAttribute('src')) return;
+              if (mode === 'live') {
+                recovery.onError();
+                return;
+              }
+              if (mode === 'snapshot' && !snapshotRetriedRef.current) {
+                snapshotRetriedRef.current = true;
+                return;
+              }
+              setErrored(true);
+            }}
+          />
+          {(!loaded || recovery.waiting) && (
+            // Deliberately not reset when the img remounts on a snapshot
+            // bust or a 60 s live renewal — that path swaps the frame within
+            // a tick and a spinner flash every poll would read as flicker.
+            // The waiting case (src released entirely) does show it.
+            <span className="absolute inset-0 flex items-center justify-center bg-black/40" aria-hidden="true">
+              <RefreshCw className="h-5 w-5 animate-spin text-bambu-gray/70" />
+            </span>
+          )}
+        </>
       )}
 
       {/* Status chip (top-left) */}
