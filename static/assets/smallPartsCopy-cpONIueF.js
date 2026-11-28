@@ -1,0 +1,1 @@
+import{n as e}from"./jsx-runtime-Cep7Dz2p.js";import{At as t,kt as n}from"./index-CBUeagxo.js";function r(e,t={}){return n.t(`orders.runtimeDomain.smallParts.${e}`,t)}function i(){return n.resolvedLanguage||n.language||`en`}function a(n){let{t:r}=e(void 0,n?{lng:t(n)}:void 0);return(e,t={})=>r(`orders.runtimeDomain.smallParts.${e}`,t)}export{r as n,a as r,i as t};

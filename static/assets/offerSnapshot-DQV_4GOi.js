@@ -1,0 +1,1 @@
+function e(e,t){let n=e[t];return n&&typeof n==`object`&&!Array.isArray(n)?n:{}}function t(e){return String(e.title??(e.id==null?`—`:`K-${e.id}`))}export{e as n,t};

@@ -1,0 +1,1 @@
+function e(e){return e.effective_cost_per_kg??e.cost_per_kg}export{e as t};

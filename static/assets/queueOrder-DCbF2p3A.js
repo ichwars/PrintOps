@@ -1,0 +1,1 @@
+function e(e,t,n=!1){if(n){let n=Number(!!t.been_jumped)-Number(!!e.been_jumped);if(n)return n;let r=e.print_time_seconds??1/0,i=t.print_time_seconds??1/0;if(r!==i)return r-i}return e.position-t.position||e.id-t.id}export{e as t};

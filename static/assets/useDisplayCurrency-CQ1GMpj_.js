@@ -1,0 +1,1 @@
+import{t as e}from"./useQuery-D6xsdUVk.js";import{t}from"./client-CWvGMxBy.js";import{n}from"./currency-DFYmruDb.js";function r(r){let i=typeof t.getDisplayCurrency==`function`,{data:a}=e({queryKey:[`display-currency`],queryFn:()=>t.getDisplayCurrency(),enabled:i,retry:!1}),o=a?.currency||r||`EUR`;return{currencyCode:o,currencySymbol:n(o)}}export{r as t};

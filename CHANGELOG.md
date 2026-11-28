@@ -4,6 +4,14 @@ All notable changes to PrintOps will be documented in this file.
 
 ## Unreleased
 
+## [1.2.8.5] - 2026-11-28
+
+### Security
+
+- Update i18next to 26.4.4 and rebuild the frontend bundle for native installations.
+
+### Changes
+
 - Improve light and dark theme contrast for warehouse tables, row actions and checkboxes. Archived filament rows use a distinct background, and native browser controls follow the active theme.
 
 - Align the business dashboard, order workflows and settings with the dashboard's typography, colors and cards. Update the app logo in the sidebar, sign-in and setup.
@@ -11,11 +19,12 @@ All notable changes to PrintOps will be documented in this file.
 - Add stock check timestamps, usage history and remaining amounts to the warehouse workflow. Sort and filter warehouse goods and suppliers on the server. Open receipt and unallocated issue actions from each eligible article's row menu.
 - Show inventory metrics, a goods forecast based on the latest 30 days of issues, and separate production and purchasing shortages. Prepare a project for finished goods or save a material shortage to the shopping list. Completing a linked production project receives confirmed good parts once.
 - Add sortable order lists, row menus and direct access to details. Search and sort offers by customer name as well as their other fields. Show recipients, line items and prices in offer, invoice and order details.
+- Sort and paginate physical, reserved, available and remaining goods balances in the database. Apply inventory filters before selecting the page.
 
 - Complete the settings alignment in light and dark mode with responsive sub-navigation, readable form hints, shared cards, and persistent number-sequence save feedback.
 - Assign configurable numbers to new spools, purchase orders, and goods receipts. Create purchase order drafts from the shopping list and book partial or final receipts from a separate sortable order overview. Completed purchases leave the shopping list and retain their receipt history.
 
-See [warehouse operations](docs/lexware-integration.md#warenlager) and [order management](docs/order-management.md#tabellen-sortieren).
+See the [German and English release notes](docs/releases/1.2.8.5.md), [warehouse operations](docs/lexware-integration.md#warenlager) and [order management](docs/order-management.md#tabellen-sortieren).
 
 ## [1.2.8.4] - 2026-11-20
 
