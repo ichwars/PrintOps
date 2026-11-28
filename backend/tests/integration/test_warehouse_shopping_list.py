@@ -129,6 +129,37 @@ async def test_repeat_keeps_the_saved_quantity_after_a_stock_change(async_client
 
 
 @pytest.mark.asyncio
+async def test_removing_item_detaches_order_without_removing_a_later_item(async_client, db_session, stock_resources):
+    part, _, _, _ = stock_resources
+    other = SmallPart(sku="MAT-2", name="Wire", unit_code="MTR", minimum_stock=Decimal("2"))
+    db_session.add(other)
+    await db_session.commit()
+
+    added = await async_client.put(f"{SHOPPING_LIST}/material/{part.id}")
+    item_url = f"{SHOPPING_LIST}/{added.json()['id']}"
+    created = await async_client.post(f"{item_url}/purchase-order")
+    assert created.status_code == 201, created.text
+    order = created.json()
+    assert (await async_client.delete(item_url)).status_code == 204
+
+    replacement = await async_client.put(f"{SHOPPING_LIST}/material/{other.id}")
+    assert replacement.status_code == 200, replacement.text
+    new_order = await async_client.post(f"{SHOPPING_LIST}/{replacement.json()['id']}/purchase-order")
+    assert new_order.status_code == 201, new_order.text
+    assert new_order.json()["sku"] == other.sku
+    assert new_order.json()["id"] != order["id"]
+
+    receipt = await async_client.post(
+        f"{PURCHASE_ORDERS}/{order['id']}/receipts",
+        json={"quantity": order["quantity"], "idempotency_key": "receipt-after-shopping-item-removal"},
+    )
+    assert receipt.status_code == 201, receipt.text
+    assert receipt.json()["order"]["shopping_item_id"] is None
+    assert Decimal(receipt.json()["order"]["open_quantity"]) == 0
+    assert (await async_client.get(SHOPPING_LIST)).json() == [replacement.json()]
+
+
+@pytest.mark.asyncio
 async def test_rejects_unknown_material_and_unsupported_resource_kind(async_client, stock_resources):
     assert (await async_client.put(f"{SHOPPING_LIST}/material/999999")).status_code == 404
     assert (await async_client.put(f"{SHOPPING_LIST}/filament/1")).status_code == 422

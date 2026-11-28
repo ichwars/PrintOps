@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -332,10 +332,6 @@ async def remove_warehouse_shopping_item(
     db: AsyncSession = DB_SESSION,
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ) -> Response:
-    await db.execute(
-        delete(WarehouseShoppingListItem).where(
-            WarehouseShoppingListItem.id == item_id, WarehouseShoppingListItem.small_part_id.is_not(None)
-        )
-    )
+    await warehouse_shopping_list.remove_items(db, [item_id])
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -157,6 +157,30 @@ async def list_purchase_orders(db: AsyncSession, *, order_id: int | None = None)
     ]
 
 
+async def remove_items(db: AsyncSession, item_ids: list[int]) -> None:
+    if not item_ids:
+        return
+    # Lock the shopping rows first, as order creation and receipt booking do.
+    item = WarehouseShoppingListItem
+    locked_ids = (
+        await db.scalars(
+            update(item)
+            .where(item.id.in_(item_ids), item.small_part_id.is_not(None))
+            .values(id=item.id)
+            .returning(item.id)
+        )
+    ).all()
+    if not locked_ids:
+        return
+    # SQLite may reuse deleted IDs even when foreign keys are not enforced.
+    await db.execute(
+        update(WarehousePurchaseOrder)
+        .where(WarehousePurchaseOrder.shopping_item_id.in_(locked_ids))
+        .values(shopping_item_id=None)
+    )
+    await db.execute(delete(item).where(item.id.in_(locked_ids)))
+
+
 async def remove_completed_shopping_items(
     db: AsyncSession, orders: list[WarehousePurchaseOrderRead] | None = None
 ) -> None:
@@ -165,18 +189,7 @@ async def remove_completed_shopping_items(
     item_ids = [
         order.shopping_item_id for order in orders if order.open_quantity == 0 and order.shopping_item_id is not None
     ]
-    if item_ids:
-        await db.execute(
-            update(WarehouseShoppingListItem)
-            .where(WarehouseShoppingListItem.id.in_(item_ids))
-            .values(id=WarehouseShoppingListItem.id)
-        )
-        await db.execute(
-            update(WarehousePurchaseOrder)
-            .where(WarehousePurchaseOrder.shopping_item_id.in_(item_ids))
-            .values(shopping_item_id=None)
-        )
-        await db.execute(delete(WarehouseShoppingListItem).where(WarehouseShoppingListItem.id.in_(item_ids)))
+    await remove_items(db, item_ids)
 
 
 async def list_order_receipts(db: AsyncSession, order_id: int) -> list[WarehousePurchaseOrderReceiptHistoryRow]:

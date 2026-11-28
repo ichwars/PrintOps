@@ -134,6 +134,28 @@ async def test_new_spools_get_distinct_numbers(async_client: AsyncClient):
     assert stored.json()["spool_number"] == "SP-00001"
 
 
+@pytest.mark.asyncio
+async def test_lowered_spool_counter_skips_more_than_ten_used_numbers(async_client: AsyncClient):
+    spool_url = "/api/v1/inventory/spools"
+    payload = {"material": "PLA", "color_name": "Numbering test"}
+    bulk = await async_client.post(f"{spool_url}/bulk", json={"spool": payload, "quantity": 12})
+    assert bulk.status_code == 200, bulk.text
+    sequence = next(item for item in (await async_client.get(BASE_URL)).json() if item["key"] == "spool")
+    reset = await async_client.put(
+        f"{BASE_URL}/{sequence['id']}",
+        json={
+            **{key: sequence[key] for key in ("prefix", "pattern", "reset_policy", "version")},
+            "next_value": 1,
+        },
+    )
+    assert reset.status_code == 200, reset.text
+
+    created = await async_client.post(spool_url, json=payload)
+    assert created.status_code == 200, created.text
+    assert created.json()["spool_number"] == "SP-00013"
+    assert (await _next_values(async_client))["spool"] == 14
+
+
 async def _part(client: AsyncClient) -> int:
     await client.post("/api/v1/small-parts/settings/units", json={"code": "C62", "label": "Stück"})
     response = await client.post(

@@ -14,7 +14,7 @@ from backend.app.schemas.warehouse_number_sequence import (
 from backend.app.services.number_sequence import format_number
 from backend.app.services.order_errors import ResourceNotFoundError, VersionConflictError
 
-_MAX_RESERVATION_ATTEMPTS = 10
+_MAX_RESERVATION_CONFLICTS = 10
 
 _DEFAULT_SEQUENCES = {
     "material": {"prefix": "MAT", "pattern": "{PREFIX}-{#####}", "next_value": 1, "reset_policy": "none"},
@@ -200,8 +200,8 @@ async def reserve_number(
     sequence = await _get_or_create_default_sequence(session, key)
     effective = effective_date or date.today()
 
-    attempt = 0
-    while attempt < _MAX_RESERVATION_ATTEMPTS:
+    conflicts = 0
+    while conflicts < _MAX_RESERVATION_CONFLICTS:
         period = _period_for_date(effective, reset_policy=sequence.reset_policy)
         if sequence.reset_policy == "yearly":
             if sequence.current_period is not None and sequence.current_period != period:
@@ -236,15 +236,14 @@ async def reserve_number(
                 used = await material_number_in_use(session, number)
             else:
                 used = await _document_number_in_use(session, key, number)
-                attempt += 1
             if not used:
                 return number
             await session.refresh(sequence)
             continue
 
         session.expire(sequence)
-        attempt += 1
-        if attempt < _MAX_RESERVATION_ATTEMPTS - 1:
+        conflicts += 1
+        if conflicts < _MAX_RESERVATION_CONFLICTS:
             await session.refresh(sequence)
 
     raise VersionConflictError(f"Could not reserve warehouse number for key '{key}'")

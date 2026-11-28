@@ -80,6 +80,13 @@ describe('spoolMatchesQuery', () => {
     expect(spoolMatchesQuery(spool, 'bambu')).toBe(false);
   });
 
+  it('finds the displayed spool number without changing numeric deep links', () => {
+    const numbered = makeSpool({ id: 42, spool_number: 'SP-00013' });
+    const legacy = makeSpool({ id: 13, spool_number: null });
+    expect(filterSpoolsByQuery([numbered, legacy], 'sp-00013')).toEqual([numbered]);
+    expect(filterSpoolsByQuery([numbered, legacy], '#13')).toEqual([legacy]);
+  });
+
   it('matches on numeric id (#1336)', () => {
     const spool = makeSpool({ id: 42, material: 'PLA', brand: null, color_name: null, subtype: null, note: null });
     expect(spoolMatchesQuery(spool, '42')).toBe(true);
